@@ -189,21 +189,49 @@
 
 <!-- ================== SCRIPTS ================== -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+
+<!-- 🔹 Firebase SDK's -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js"></script>
+
+<script>
+  // 🔹 Jouw Firebase-config (die je uit de console haalt)
+  const firebaseConfig = {
+    apiKey: "AIzaSyB8uHwRXCe1iV7z6T80YPxEbeB64qdMpNY",
+    authDomain: "shift-planner-dc7ad.firebaseapp.com",
+    projectId: "shift-planner-dc7ad",
+    storageBucket: "shift-planner-dc7ad.firebasestorage.app",
+    messagingSenderId: "719441527396",
+    appId: "1:719441527396:web:de87d6f950fe23702a5571"
+  };
+
+  // 🔹 Firebase initialiseren
+  const app = firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+</script>
 <script>
 /* ============================
    Data & storage helpers
    ============================ */
-const STORAGE_KEY = 'shiftPlanner_v1_data';
-let dataStore = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-// structure: dataStore = { users: { username: { shifts: {...}, monthData: {...}, projects: [...] } }, currentUser: 'name' }
-if(!dataStore.users) dataStore.users = {};
-let currentUser = dataStore.currentUser || null;
+// localStorage KEY mag je verwijderen, is niet meer nodig
 
-function saveAll(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(dataStore)); }
-function getCurrentUserData(){
-  if(!currentUser) return {shifts:{}, monthData:{}, projects:[]};
-  if(!dataStore.users[currentUser]) dataStore.users[currentUser] = {shifts:{}, monthData:{}, projects:[]};
-  return dataStore.users[currentUser];
+let dataStore = { users: {}, currentUser: null };
+let currentUser = null;
+
+// 🔹 Save naar Firestore
+async function saveAll(){
+  if (!currentUser) return;
+  await db.collection("users").doc(currentUser).set(dataStore.users[currentUser]);
+}
+
+// 🔹 Load uit Firestore
+async function loadUser(userName){
+  const doc = await db.collection("users").doc(userName).get();
+  if(doc.exists){
+    dataStore.users[userName] = doc.data();
+  } else {
+    dataStore.users[userName] = { shifts:{}, monthData:{}, projects:[] };
+  }
 }
 
 /* ============================
@@ -286,16 +314,12 @@ function projectIsValidForDate(p, isoDate){
 /* ============================
    Materialize Tabs init
    ============================ */
-document.addEventListener('DOMContentLoaded', function(){
+document.addEventListener('DOMContentLoaded', async function(){
   var elems = document.querySelectorAll('.tabs');
-  M.Tabs.init(elems, {
-  swipeable: false
-});
-
-// Zet altijd de eerste tab ("Projecten") actief bij start
-const instance = M.Tabs.getInstance(elems[0]);
-instance.select('tab-projects');
-  initApp();
+  M.Tabs.init(elems, { swipeable: false });
+  const instance = M.Tabs.getInstance(elems[0]);
+  instance.select('tab-projects');
+  await initApp();
 });
 
 /* ============================
@@ -340,14 +364,25 @@ const historiekJaar = document.getElementById('historiekJaar');
 const projectFilterSelect_el = projectFilterSelect;
 
 /* ============================
+   Data accessors
+   ============================ */
+function getCurrentUserData(){
+  if(!currentUser) return {shifts:{}, monthData:{}, projects:[]};
+  if(!dataStore.users[currentUser]) dataStore.users[currentUser] = {shifts:{}, monthData:{}, projects:[]};
+  return dataStore.users[currentUser];
+}
+
+/* ============================
    Initialization
    ============================ */
-function initApp(){
-  // ensure there is at least one user
+async function initApp(){
   if(!currentUser){
     const users = Object.keys(dataStore.users);
-    currentUser = users.length>0?users[0]:null;
+    currentUser = users.length > 0 ? users[0] : null;
     dataStore.currentUser = currentUser;
+  }
+  if(currentUser){
+    await loadUser(currentUser);
   }
   populateYearSelect();
   renderUserOptions();
@@ -369,38 +404,41 @@ function renderUserOptions(){
     if(u === currentUser) opt.selected = true;
     userSelect.appendChild(opt);
   }
-  // if no users yet, leave empty
 }
-addUserBtn.addEventListener('click', ()=>{
+
+addUserBtn.addEventListener('click', async ()=>{
   const name = prompt("Nieuwe gebruikersnaam:");
   if(!name) return;
   if(dataStore.users[name]) return alert("Gebruiker bestaat al");
   dataStore.users[name] = {shifts:{}, monthData:{}, projects:[]};
   currentUser = name;
   dataStore.currentUser = currentUser;
-  saveAll();
+  await saveAll();
   renderUserOptions();
   renderProjects();
   renderShifts();
   updateCurrentUserLabels();
 });
-removeUserBtn.addEventListener('click', ()=>{
+
+removeUserBtn.addEventListener('click', async ()=>{
   if(!currentUser) return;
   if(!confirm(`Verwijder gebruiker ${currentUser}?`)) return;
+  await db.collection("users").doc(currentUser).delete();
   delete dataStore.users[currentUser];
   const users = Object.keys(dataStore.users);
   currentUser = users.length>0 ? users[0] : null;
   dataStore.currentUser = currentUser;
-  saveAll();
+  if(currentUser) await loadUser(currentUser);
   renderUserOptions();
   renderProjects();
   renderShifts();
   updateCurrentUserLabels();
 });
-userSelect.addEventListener('change', ()=>{
+
+userSelect.addEventListener('change', async ()=>{
   currentUser = userSelect.value;
   dataStore.currentUser = currentUser;
-  saveAll();
+  await loadUser(currentUser);
   renderProjects();
   renderShifts();
   updateCurrentUserLabels();
