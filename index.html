@@ -730,11 +730,16 @@ if (rowData.shift === "Schoolverlof" || rowData.shift === "School") {
 }
 // Als er nog geen shift gekozen is (vrij weekend / niet ingepland),
 // of de rij heeft een ongeldig project → kies automatisch geldig project
-if(!rowData.shift || (eligible.length > 0 && !eligible.includes(rowData.project))){
+if(
+  (!rowData.shift || (eligible.length > 0 && !eligible.includes(rowData.project)))
+  && rowData.shift !== "Bench"
+  && rowData.shift !== "School"
+  && rowData.shift !== "Schoolverlof"
+){
   if(eligible.length > 0){
-    rowData.project = eligible[0]; // eerste geldig project
+    rowData.project = eligible[0];
   } else {
-    rowData.project = ''; // geen project beschikbaar
+    rowData.project = '';
   }
   saveCell(year, month, dtKey, rowData, tr);
 }
