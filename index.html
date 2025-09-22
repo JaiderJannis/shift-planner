@@ -757,16 +757,37 @@ projSel.addEventListener('change', ()=>{
 populateShiftSelectForRow(tr, d, month, year);
 
     // attach other inputs
-    tr.querySelector('.startInput').addEventListener('change', (e)=>{ rowData.start = e.target.value; recalcRowMinutes(rowData); saveCell(year, month, dtKey, rowData, tr); updateInputTotals();saveAll(); 
+tr.querySelector('.startInput').addEventListener('change', (e)=>{ 
+  rowData.start = e.target.value; 
+  recalcRowMinutes(rowData); 
+  saveCell(year, month, dtKey, rowData, tr); 
+  updateInputTotals(); 
+  saveAll(); 
   renderHistory();
 });
-    tr.querySelector('.endInput').addEventListener('change', (e)=>{ rowData.end = e.target.value; recalcRowMinutes(rowData); saveCell(year, month, dtKey, rowData, tr); updateInputTotals(); saveAll(); 
+
+tr.querySelector('.endInput').addEventListener('change', (e)=>{ 
+  rowData.end = e.target.value; 
+  recalcRowMinutes(rowData); 
+  saveCell(year, month, dtKey, rowData, tr); 
+  updateInputTotals(); 
+  saveAll(); 
   renderHistory();
 });
-    tr.querySelector('.breakInput').addEventListener('input', (e)=>{ rowData.break = Number(e.target.value)||0; recalcRowMinutes(rowData); saveCell(year, month, dtKey, rowData, tr); updateInputTotals(); saveAll(); 
+
+tr.querySelector('.breakInput').addEventListener('input', (e)=>{ 
+  rowData.break = Number(e.target.value)||0; 
+  recalcRowMinutes(rowData); 
+  saveCell(year, month, dtKey, rowData, tr); 
+  updateInputTotals(); 
+  saveAll(); 
   renderHistory();
 });
-    tr.querySelector('.omschrijvingInput').addEventListener('change', (e)=>{ rowData.omschrijving = e.target.value; saveCell(year, month, dtKey, rowData, tr); saveAll(); 
+
+tr.querySelector('.omschrijvingInput').addEventListener('change', (e)=>{ 
+  rowData.omschrijving = e.target.value; 
+  saveCell(year, month, dtKey, rowData, tr); 
+  saveAll(); 
   renderHistory();
 });
   }
