@@ -231,7 +231,8 @@ async function loadUser(userName){
     dataStore.users[userName] = doc.data();
   } else {
     dataStore.users[userName] = { shifts:{}, monthData:{}, projects:[] };
-  }
+await saveAll();   // 🔹 toevoegen zodat nieuwe user direct in Firestore komt
+}
 }
 
 /* ============================
