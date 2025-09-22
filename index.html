@@ -221,6 +221,7 @@ let currentUser = null;
 // 🔹 Save naar Firestore
 async function saveAll(){
   if (!currentUser) return;
+  console.log("saveAll →", currentUser, dataStore.users[currentUser]);
   await db.collection("users").doc(currentUser).set(dataStore.users[currentUser]);
 }
 
@@ -229,10 +230,12 @@ async function loadUser(userName){
   console.log("loadUser:", userName);
   const doc = await db.collection("users").doc(userName).get();
   if(doc.exists){
+    console.log("→ gevonden in Firestore:", doc.data());
     dataStore.users[userName] = doc.data();
   } else {
+    console.log("→ nieuw user, nog niet in Firestore");
     dataStore.users[userName] = { shifts:{}, monthData:{}, projects:[] };
-await saveAll();   // 🔹 toevoegen zodat nieuwe user direct in Firestore komt
+    await saveAll();   // 🔹 toevoegen zodat nieuwe user direct in Firestore komt
 }
 }
 async function loadAllUsers(){
