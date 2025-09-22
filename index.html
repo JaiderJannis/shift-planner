@@ -191,8 +191,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
 
 <!-- 🔹 Firebase SDK's -->
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
 <script>
   // 🔹 Jouw Firebase-config (die je uit de console haalt)
@@ -244,6 +244,19 @@ async function loadAllUsers(){
   snapshot.forEach(doc => {
     dataStore.users[doc.id] = doc.data();
   });
+  console.log("loadAllUsers →", Object.keys(dataStore.users));
+}
+
+function renderUserOptions(){
+  userSelect.innerHTML = '';
+  const users = Object.keys(dataStore.users);
+  console.log("renderUserOptions → users:", users);
+  for(const u of users){
+    const opt = document.createElement('option');
+    opt.value = u; opt.textContent = u;
+    if(u === currentUser) opt.selected = true;
+    userSelect.appendChild(opt);
+  }
 }
 
 /* ============================
