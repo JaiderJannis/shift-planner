@@ -226,6 +226,7 @@ async function saveAll(){
 
 // 🔹 Load uit Firestore
 async function loadUser(userName){
+  console.log("loadUser:", userName);
   const doc = await db.collection("users").doc(userName).get();
   if(doc.exists){
     dataStore.users[userName] = doc.data();
@@ -411,14 +412,20 @@ addUserBtn.addEventListener('click', async ()=>{
   const name = prompt("Nieuwe gebruikersnaam:");
   if(!name) return;
   if(dataStore.users[name]) return alert("Gebruiker bestaat al");
+
   dataStore.users[name] = {shifts:{}, monthData:{}, projects:[]};
   currentUser = name;
   dataStore.currentUser = currentUser;
-  await saveAll();
+
+  // 🔹 Zet meteen in Firestore
+  await saveAll();         
+  await loadUser(name);    // 🔹 direct uit Firestore ophalen (zekerheid)
+
   renderUserOptions();
   renderProjects();
   renderShifts();
   updateCurrentUserLabels();
+  renderHistory();
 });
 
 removeUserBtn.addEventListener('click', async ()=>{
