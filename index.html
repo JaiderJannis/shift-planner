@@ -926,10 +926,12 @@ function saveCell(year, month, key, rowData, tr){
   if(!userData.monthData) userData.monthData = {};
   if(!userData.monthData[year]) userData.monthData[year] = {};
   if(!userData.monthData[year][month]) userData.monthData[year][month] = {targetHours:0,targetMinutes:0,rows:{}};
-  userData.monthData[year][month].rows[key] = Object.assign({}, rowData); // copy
-  // ensure minutes accurate
+  
+  userData.monthData[year][month].rows[key] = Object.assign({}, rowData);
   userData.monthData[year][month].rows[key].minutes = rowData.minutes || minutesBetween(rowData.start, rowData.end, rowData.break);
+  
   saveAll();
+  renderHistory();   // 🔹 update historiek telkens er een cel verandert
 }
 
 /* recalc minutes into rowData.minutes */
