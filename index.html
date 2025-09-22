@@ -562,22 +562,29 @@ function renderShifts(){
   shiftTableBody.innerHTML = '';
   const userData = getCurrentUserData();
   const shifts = userData.shifts || {};
-  for(const s in shifts){
+
+  // volgorde gebruiken als die bestaat
+  const order = userData.shiftOrder || Object.keys(shifts);
+
+  order.forEach(s => {
     const sh = shifts[s];
+    if(!sh) return;
     const tr = document.createElement('tr');
     tr.setAttribute('draggable','true');
     tr.dataset.shiftName = s;
-    tr.innerHTML = `<td class="nowrap">${s}</td>
-  <td>${sh.start||''}</td>
-  <td>${sh.end||''}</td>
-  <td>${sh.break||0}</td>
-  <td>${sh.project||''}</td>
-  <td>${toDisplayDate(sh.startDate)} → ${toDisplayDate(sh.endDate)}</td>
-  <td>
-    <button class="btn red btn-small" onclick="deleteShift('${s}')">Verwijder</button>
-  </td>`;
+    tr.innerHTML = `
+      <td class="nowrap">${s}</td>
+      <td>${sh.start||''}</td>
+      <td>${sh.end||''}</td>
+      <td>${sh.break||0}</td>
+      <td>${sh.project||''}</td>
+      <td>${toDisplayDate(sh.startDate)} → ${toDisplayDate(sh.endDate)}</td>
+      <td>
+        <button class="btn red btn-small" onclick="deleteShift('${s}')">Verwijder</button>
+      </td>`;
     shiftTableBody.appendChild(tr);
-  }
+  });
+
   enableDragAndDropOnShifts();
 }
 addShiftBtn.addEventListener('click', ()=>{
@@ -597,6 +604,7 @@ addShiftBtn.addEventListener('click', ()=>{
   saveAll();
   newShiftName.value=''; newShiftBreak.value=0; newShiftStartDate.value=''; newShiftEndDate.value='';
   renderShifts();
+  saveShiftOrder(); // zodat de nieuwe shift ook achteraan in de order-lijst komt
 });
 
 window.deleteShift = function(s){
@@ -619,12 +627,8 @@ function enableDragAndDropOnShifts(){
 function saveShiftOrder(){
   if(!currentUser) return;
   const userData = getCurrentUserData();
-  const newOrder = {};
-  shiftTableBody.querySelectorAll('tr').forEach(tr=>{
-    const name = tr.dataset.shiftName;
-    if(userData.shifts[name]) newOrder[name] = userData.shifts[name];
-  });
-  userData.shifts = newOrder;
+  userData.shiftOrder = Array.from(shiftTableBody.querySelectorAll('tr'))
+    .map(tr => tr.dataset.shiftName);
   saveAll();
 }
 
