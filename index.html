@@ -235,6 +235,13 @@ async function loadUser(userName){
 await saveAll();   // 🔹 toevoegen zodat nieuwe user direct in Firestore komt
 }
 }
+async function loadAllUsers(){
+  const snapshot = await db.collection("users").get();
+  dataStore.users = {};
+  snapshot.forEach(doc => {
+    dataStore.users[doc.id] = doc.data();
+  });
+}
 
 /* ============================
    Utils
@@ -378,6 +385,9 @@ function getCurrentUserData(){
    Initialization
    ============================ */
 async function initApp(){
+  // 🔹 laad eerst alle gebruikers uit Firestore
+  await loadAllUsers();
+
   if(!currentUser){
     const users = Object.keys(dataStore.users);
     currentUser = users.length > 0 ? users[0] : null;
@@ -386,6 +396,7 @@ async function initApp(){
   if(currentUser){
     await loadUser(currentUser);
   }
+
   populateYearSelect();
   renderUserOptions();
   renderProjects();
@@ -420,6 +431,8 @@ addUserBtn.addEventListener('click', async ()=>{
   // 🔹 Zet meteen in Firestore
   await saveAll();         
   await loadUser(name);    // 🔹 direct uit Firestore ophalen (zekerheid)
+  await loadAllUsers();
+  renderUserOptions();
 
   renderUserOptions();
   renderProjects();
