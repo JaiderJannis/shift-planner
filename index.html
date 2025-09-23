@@ -667,11 +667,12 @@ function generateMonth(){
   if(!userData.monthData) userData.monthData = {};
   if(!userData.monthData[year]) userData.monthData[year] = {};
   if(!userData.monthData[year][month]) {
-    userData.monthData[year][month] = { targetHours:0, targetMinutes:0, rows:{} };
-  }
-  // store target
-  userData.monthData[year][month].targetHours = Number(monthTargetHours.value) || 0;
-  userData.monthData[year][month].targetMinutes = Number(monthTargetMinutes.value) || 0;
+  userData.monthData[year][month] = { rows:{} };
+}
+
+// altijd updaten vanuit de inputs:
+userData.monthData[year][month].targetHours = Number(monthTargetHours.value) || 0;
+userData.monthData[year][month].targetMinutes = Number(monthTargetMinutes.value) || 0;
   saveAll();
   renderMonth(year, month);
   updateInputTotals(); // compute totals after render
