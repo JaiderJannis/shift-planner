@@ -556,25 +556,28 @@ window.deleteProject = function(index){
   renderProjects();
 };
 
-function renderProjectFilterForMonth(){   // 🔹 HIER PLAATSEN
+function renderProjectFilterForMonth(){
   projectFilterSelect_el.innerHTML = '<option value="">Alle projecten</option>';
 
   const y = Number(yearSelectMain.value);
   const m = Number(monthSelectMain.value);
   const daysInMonth = new Date(y, m+1, 0).getDate();
-  const monthStart = `${y}-${String(m+1).padStart(2,'0')}-01`;
-  const monthEnd = `${y}-${String(m+1).padStart(2,'0')}-${String(daysInMonth).padStart(2,'0')}`;
+  const monthStart = `${y}-${String(m+1).padStart(2,'0')}-01`.replaceAll('-','');
+  const monthEnd   = `${y}-${String(m+1).padStart(2,'0')}-${String(daysInMonth).padStart(2,'0')}`.replaceAll('-','');
 
   const userData = getCurrentUserData();
   (userData.projects || []).forEach(p => {
-    if((p.start || p.end) && (
-        isDateWithin(monthStart, p.start || null, p.end || null) ||
-        isDateWithin(monthEnd, p.start || null, p.end || null)
-    )){
-      const opt = document.createElement('option');
-      opt.value = p.name;
-      opt.textContent = p.name;
-      projectFilterSelect_el.appendChild(opt);
+    if(p.start || p.end){
+      const projStart = (p.start || "0000-01-01").replaceAll('-','');
+      const projEnd   = (p.end   || "9999-12-31").replaceAll('-','');
+
+      // check overlap: project start ≤ maand einde EN project einde ≥ maand begin
+      if(projStart <= monthEnd && projEnd >= monthStart){
+        const opt = document.createElement('option');
+        opt.value = p.name;
+        opt.textContent = p.name;
+        projectFilterSelect_el.appendChild(opt);
+      }
     }
   });
 }
