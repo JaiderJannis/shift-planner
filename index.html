@@ -601,10 +601,16 @@ addShiftBtn.addEventListener('click', ()=>{
     startDate: newShiftStartDate.value || null,
     endDate: newShiftEndDate.value || null
   };
+
+  // 🔹 Voeg nieuwe shift ook toe aan de volgorde-array
+  if(!userData.shiftOrder) userData.shiftOrder = [];
+  if(!userData.shiftOrder.includes(name)) {
+    userData.shiftOrder.push(name);
+  }
+
   saveAll();
   newShiftName.value=''; newShiftBreak.value=0; newShiftStartDate.value=''; newShiftEndDate.value='';
   renderShifts();
-  saveShiftOrder(); // zodat de nieuwe shift ook achteraan in de order-lijst komt
 });
 
 window.deleteShift = function(s){
