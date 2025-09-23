@@ -568,16 +568,21 @@ function renderProjectFilterForMonth(){
   const userData = getCurrentUserData();
   (userData.projects || []).forEach(p => {
     if(p.start || p.end){
+      // project heeft een periode → enkel tonen bij overlap
       const projStart = (p.start || "0000-01-01").replaceAll('-','');
       const projEnd   = (p.end   || "9999-12-31").replaceAll('-','');
-
-      // check overlap: project start ≤ maand einde EN project einde ≥ maand begin
       if(projStart <= monthEnd && projEnd >= monthStart){
         const opt = document.createElement('option');
         opt.value = p.name;
         opt.textContent = p.name;
         projectFilterSelect_el.appendChild(opt);
       }
+    } else {
+      // project zonder periode → altijd tonen
+      const opt = document.createElement('option');
+      opt.value = p.name;
+      opt.textContent = p.name;
+      projectFilterSelect_el.appendChild(opt);
     }
   });
 }
