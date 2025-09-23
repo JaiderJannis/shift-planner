@@ -663,19 +663,19 @@ function generateMonth(){
   if(!currentUser) return alert("Kies eerst een gebruiker");
   const year = Number(yearSelectMain.value);
   const month = Number(monthSelectMain.value);
+
   const userData = getCurrentUserData();
   if(!userData.monthData) userData.monthData = {};
   if(!userData.monthData[year]) userData.monthData[year] = {};
+  // Bestaat de maand nog niet? Maak ze aan, maar zet targets NIET vanuit de inputs.
   if(!userData.monthData[year][month]) {
-  userData.monthData[year][month] = { rows:{} };
-}
+    userData.monthData[year][month] = { targetHours:0, targetMinutes:0, rows:{} };
+  }
 
-// altijd updaten vanuit de inputs:
-userData.monthData[year][month].targetHours = Number(monthTargetHours.value) || 0;
-userData.monthData[year][month].targetMinutes = Number(monthTargetMinutes.value) || 0;
+  // Niets overschrijven hier: de targets worden enkel opgeslagen via de input-listeners.
   saveAll();
   renderMonth(year, month);
-  updateInputTotals(); // compute totals after render
+  updateInputTotals();
   renderHistory();
 }
 
@@ -825,30 +825,48 @@ function populateShiftSelectForRow(tr, day, month, year){
 
   const allShifts = getCurrentUserData().shifts || {};
 
-  for(const sName in allShifts){
-    const sh = allShifts[sName];
+  // volgorde volgens shiftOrder
+const shiftOrder = userData.shiftOrder || Object.keys(allShifts);
 
-    // project filtering
-    let projectAllowed = false;
-    if(sh.project){
-      if(selectedRowProject && sh.project === selectedRowProject) projectAllowed = true;
-      else if(!selectedRowProject && projectFilterVal && sh.project === projectFilterVal) projectAllowed = true;
-      else if(!selectedRowProject && !projectFilterVal) projectAllowed = true;
-    } else {
-      projectAllowed = true;
-    }
-    if(!projectAllowed) continue;
+// splitsen in 2 groepen
+const withPeriod = [];
+const withoutPeriod = [];
 
-    // date check
-    const within = isDateWithin(isoDate, sh.startDate || null, sh.endDate || null);
-    if(!within) continue;
-
-    const opt = document.createElement('option');
-    opt.value = sName; 
-    opt.textContent = sName;
-    if(rowData.shift === sName) opt.selected = true;
-    shiftSel.appendChild(opt);
+shiftOrder.forEach(sName => {
+  const sh = allShifts[sName];
+  if(!sh) return;
+  if (sh.startDate || sh.endDate) {
+    withPeriod.push([sName, sh]);
+  } else {
+    withoutPeriod.push([sName, sh]);
   }
+});
+
+// eerst shiften met periode, daarna de rest
+const shiftEntries = [...withPeriod, ...withoutPeriod];
+
+for (const [sName, sh] of shiftEntries) {
+  // project filtering
+  let projectAllowed = false;
+  if(sh.project){
+    if(selectedRowProject && sh.project === selectedRowProject) projectAllowed = true;
+    else if(!selectedRowProject && projectFilterVal && sh.project === projectFilterVal) projectAllowed = true;
+    else if(!selectedRowProject && !projectFilterVal) projectAllowed = true;
+  } else {
+    projectAllowed = true;
+  }
+  if(!projectAllowed) continue;
+
+  // date check
+  const within = isDateWithin(isoDate, sh.startDate || null, sh.endDate || null);
+  if(!within) continue;
+
+  const opt = document.createElement('option');
+  opt.value = sName;
+  opt.textContent = sName;
+  if(rowData.shift === sName) opt.selected = true;
+  shiftSel.appendChild(opt);
+}
 
   // when selecting a shift, autofill times & break
 // when selecting a shift, autofill times & break
