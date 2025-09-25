@@ -960,7 +960,7 @@ shiftSel.addEventListener('change', ()=> {
   }
     else if (chosen === "Verlof" || chosen === "Teammeeting") {
     // Schoolverlof → altijd PXL, zelfs zonder periode (alleen voor deze rij)
-    ensurePXLProjectExists();
+    ensureEghtCareProjectExists();
     ensureOptionInSelect(projSel, "Eght Care", "Eght Care");
     rowData.project = "Eght Care";
     projSel.value = "Eght Care";
@@ -992,12 +992,12 @@ shiftSel.addEventListener('change', ()=> {
   }
 
   // Tijden/pauze overnemen
-  if(allShifts2[chosen]){
-    const sh = allShifts2[chosen];
-    rowData.start = sh.start || '00:00';
-    rowData.end   = sh.end   || '00:00';
-    rowData.break = Number(sh.break) || 0;
-  }
+if(allShifts2[chosen]){
+  const sh = allShifts2[chosen];
+  if(!rowData.start || rowData.start === "00:00") rowData.start = sh.start || '00:00';
+  if(!rowData.end   || rowData.end   === "00:00") rowData.end   = sh.end   || '00:00';
+  if(!rowData.break || rowData.break === 0)       rowData.break = Number(sh.break) || 0;
+}
 
   recalcRowMinutes(rowData);
   tr.querySelector('.startInput').value = rowData.start;
