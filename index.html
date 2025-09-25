@@ -316,6 +316,18 @@ function ensurePXLProjectExists(){
   }
   return p;
 }
+function ensureEghtCareProjectExists(){
+  const ud = getCurrentUserData();
+  ud.projects = ud.projects || [];
+  let p = ud.projects.find(p => p.name === "Eght Care");
+  if(!p){
+    p = { name:"Eght Care", start:null, end:null };
+    ud.projects.push(p);
+    saveAll();
+    renderProjects(); // overal meteen gekend
+  }
+  return p;
+}
 
 function ensureOptionInSelect(selectEl, value, label){
   const exists = Array.from(selectEl.options).some(o => o.value === value);
@@ -771,6 +783,16 @@ if (rowData.shift === "Schoolverlof" || rowData.shift === "School") {
   saveCell(year, month, dtKey, rowData, tr);
   saveAll();
 }
+// Als deze rij al "Verlof" (of "Teammeeting") als shift heeft: forceer Eght Care in de dropdown
+if (rowData.shift === "Verlof" || rowData.shift === "Teammeeting") {
+  ensurePXLProjectExists();
+  ensureOptionInSelect(projSel, "Eght Care", "Eght Care");
+  rowData.project = "Eght Care";
+  projSel.value = "Eght Care";
+  saveCell(year, month, dtKey, rowData, tr);
+  saveAll();
+}
+
 // Als er nog geen shift gekozen is (vrij weekend / niet ingepland),
 // of de rij heeft een ongeldig project → kies automatisch geldig project
 if (
@@ -935,6 +957,13 @@ shiftSel.addEventListener('change', ()=> {
     ensureOptionInSelect(projSel, "PXL Verpleegkunde Hasselt", "PXL Verpleegkunde Hasselt");
     rowData.project = "PXL Verpleegkunde Hasselt";
     projSel.value = "PXL Verpleegkunde Hasselt";
+  }
+    else if (chosen === "Verlof" || chosen === "Teammeeting") {
+    // Schoolverlof → altijd PXL, zelfs zonder periode (alleen voor deze rij)
+    ensurePXLProjectExists();
+    ensureOptionInSelect(projSel, "Eght Care", "Eght Care");
+    rowData.project = "Eght Care";
+    projSel.value = "Eght Care";
   }
   else {
     // Normale shift: als de shift aan een project hangt en die is geldig op de datum → kies dat project
