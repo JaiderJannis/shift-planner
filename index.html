@@ -800,6 +800,8 @@ if (
   && rowData.shift !== "Bench"
   && rowData.shift !== "School"
   && rowData.shift !== "Schoolverlof"
+  && rowData.shift !== "Verlof"
+  && rowData.shift !== "Teammeeting"
 ) {
   if (eligible.length > 0) {
     rowData.project = eligible[0]; // eerste geldig project
