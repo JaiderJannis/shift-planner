@@ -201,30 +201,17 @@
       <input id="convMinutes" type="number" min="0" value="0">
       <label for="convMinutes">Minuten</label>
     </div>
-    <div class="input-field col s2">
-      <button id="toDecimalBtn" class="btn blue">→ Decimaal</button>
-    </div>
-    <div class="input-field col s3">
-      <input id="decimalResult" type="text" readonly>
-      <label for="decimalResult">Decimale uren</label>
-    </div>
-  </div>
-
-  <div class="row compact">
     <div class="input-field col s3">
       <input id="decimalInput" type="number" step="0.01" min="0" value="0">
       <label for="decimalInput">Decimale uren</label>
     </div>
     <div class="input-field col s2">
-      <button id="toHMBtn" class="btn green">→ Uren + Min</button>
-    </div>
-    <div class="input-field col s2">
       <input id="resHours" type="text" readonly>
-      <label for="resHours">Uren</label>
+      <label for="resHours">= Uren</label>
     </div>
     <div class="input-field col s2">
       <input id="resMinutes" type="text" readonly>
-      <label for="resMinutes">Min</label>
+      <label for="resMinutes">= Min</label>
     </div>
   </div>
 </div>
@@ -1200,24 +1187,39 @@ monthSelectMain.addEventListener('change', ()=>{
 });
 
 /* ============================
-   Converter tab
+   Converter tab — automatisch updaten
    ============================ */
-// Converter: uren+minuten -> decimaal
-document.getElementById('toDecimalBtn').addEventListener('click', ()=>{
-  const h = Number(document.getElementById('convHours').value)||0;
-  const m = Number(document.getElementById('convMinutes').value)||0;
-  const dec = h + (m/60);
-  document.getElementById('decimalResult').value = dec.toFixed(2);
-});
+const convHours = document.getElementById('convHours');
+const convMinutes = document.getElementById('convMinutes');
+const decimalInput = document.getElementById('decimalInput');
+const resHours = document.getElementById('resHours');
+const resMinutes = document.getElementById('resMinutes');
 
-// Converter: decimaal -> uren+minuten
-document.getElementById('toHMBtn').addEventListener('click', ()=>{
-  const dec = Number(document.getElementById('decimalInput').value)||0;
+// H/M → decimaal
+function updateDecimal() {
+  const h = Number(convHours.value)||0;
+  const m = Number(convMinutes.value)||0;
+  const dec = h + (m/60);
+  decimalInput.value = dec.toFixed(2);
+  updateHMFromDecimal(); // direct ook de uren/min weergeven
+}
+
+// Decimaal → H/M
+function updateHMFromDecimal() {
+  const dec = Number(decimalInput.value)||0;
   const h = Math.floor(dec);
   const m = Math.round((dec - h)*60);
-  document.getElementById('resHours').value = h;
-  document.getElementById('resMinutes').value = m;
-});
+  resHours.value = h;
+  resMinutes.value = m;
+}
+
+// Event listeners → automatisch updaten
+convHours.addEventListener('input', updateDecimal);
+convMinutes.addEventListener('input', updateDecimal);
+decimalInput.addEventListener('input', updateHMFromDecimal);
+
+// Init 1x
+updateDecimal();
 
 /* ============================
    Final: expose saveAll for debug (optional)
