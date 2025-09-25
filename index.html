@@ -205,13 +205,6 @@
       <input id="decimalInput" type="number" step="0.01" min="0" value="0">
       <label for="decimalInput">Decimale uren</label>
     </div>
-    <div class="input-field col s2">
-      <input id="resHours" type="text" readonly>
-      <label for="resHours">= Uren</label>
-    </div>
-    <div class="input-field col s2">
-      <input id="resMinutes" type="text" readonly>
-      <label for="resMinutes">= Min</label>
     </div>
   </div>
 </div>
@@ -1221,7 +1214,6 @@ function updateDecimal() {
   const m = Number(convMinutes.value)||0;
   const dec = h + (m/60);
   decimalInput.value = dec.toFixed(2);
-  updateHMFromDecimal(); // direct ook de uren/min weergeven
 }
 
 // Decimaal → H/M
@@ -1229,8 +1221,8 @@ function updateHMFromDecimal() {
   const dec = Number(decimalInput.value)||0;
   const h = Math.floor(dec);
   const m = Math.round((dec - h)*60);
-  resHours.value = h;
-  resMinutes.value = m;
+  convHours.value = h;
+  convMinutes.value = m;
 }
 
 // Event listeners → automatisch updaten
