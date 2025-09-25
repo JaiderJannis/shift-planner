@@ -652,6 +652,7 @@ function renderShifts(){
       <td>${sh.project||''}</td>
       <td>${toDisplayDate(sh.startDate)} → ${toDisplayDate(sh.endDate)}</td>
       <td>
+        <button class="btn orange btn-small" onclick="editShift('${s}')">Bewerk</button>
         <button class="btn red btn-small" onclick="deleteShift('${s}')">Verwijder</button>
       </td>`;
     shiftTableBody.appendChild(tr);
@@ -689,6 +690,25 @@ window.deleteShift = function(s){
   if(!confirm(`Shift ${s} verwijderen?`)) return;
   const userData = getCurrentUserData();
   delete userData.shifts[s];
+  saveAll();
+  renderShifts();
+};
+window.editShift = function(name){
+  const userData = getCurrentUserData();
+  const sh = userData.shifts[name];
+  if(!sh) return;
+
+  // Vul de velden met de bestaande waarden
+  newShiftName.value = name;
+  newShiftStart.value = sh.start;
+  newShiftEnd.value = sh.end;
+  newShiftBreak.value = sh.break;
+  newShiftProjectSelect.value = sh.project || "";
+  newShiftStartDate.value = sh.startDate || "";
+  newShiftEndDate.value = sh.endDate || "";
+
+  // Shift tijdelijk verwijderen → bij toevoegen wordt hij herschreven
+  delete userData.shifts[name];
   saveAll();
   renderShifts();
 };
