@@ -785,7 +785,7 @@ if (rowData.shift === "Schoolverlof" || rowData.shift === "School") {
 }
 // Als deze rij al "Verlof" (of "Teammeeting") als shift heeft: forceer Eght Care in de dropdown
 if (rowData.shift === "Verlof" || rowData.shift === "Teammeeting") {
-  ensurePXLProjectExists();
+  ensureEghtCareProjectExists();
   ensureOptionInSelect(projSel, "Eght Care", "Eght Care");
   rowData.project = "Eght Care";
   projSel.value = "Eght Care";
