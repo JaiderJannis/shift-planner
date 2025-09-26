@@ -113,6 +113,11 @@
       </div>
     </div>
 
+    <div class="row">
+  <div class="input-field col s2">
+    <select id="filterShiftYear" class="browser-default"></select>
+  </div>
+</div>
     <table class="striped">
       <thead>
         <tr><th>Naam</th><th>Start</th><th>Einde</th><th>Pauze</th><th>Project</th><th>Periode</th><th>Acties</th></tr>
@@ -405,6 +410,7 @@ const newShiftStartDate = document.getElementById('newShiftStartDate');
 const newShiftEndDate = document.getElementById('newShiftEndDate');
 const addShiftBtn = document.getElementById('addShiftBtn');
 const shiftTableBody = document.getElementById('shiftTableBody');
+const filterShiftYear = document.getElementById('filterShiftYear');
 
 const monthSelectMain = document.getElementById('monthSelectMain');
 const yearSelectMain = document.getElementById('yearSelectMain');
@@ -454,6 +460,7 @@ async function initApp(){
   updateCurrentUserLabels();
   renderHistory();
   renderProjectFilterForMonth(); 
+  populateFilterShiftYears();
 }
 
 /* ============================
@@ -629,27 +636,34 @@ function renderShifts(){
   const shifts = userData.shifts || {};
 
   // volgorde gebruiken als die bestaat
-  const order = userData.shiftOrder || Object.keys(shifts);
+  let shiftEntries = Object.entries(shifts); // [naam, shift]
 
-  order.forEach(s => {
-    const sh = shifts[s];
-    if(!sh) return;
-    const tr = document.createElement('tr');
-    tr.setAttribute('draggable','true');
-    tr.dataset.shiftName = s;
-    tr.innerHTML = `
-      <td class="nowrap">${s}</td>
-      <td>${sh.start||''}</td>
-      <td>${sh.end||''}</td>
-      <td>${sh.break||0}</td>
-      <td>${sh.project||''}</td>
-      <td>${toDisplayDate(sh.startDate)} → ${toDisplayDate(sh.endDate)}</td>
-      <td>
-        <button class="btn orange btn-small" onclick="editShift('${s}')">Bewerk</button>
-        <button class="btn red btn-small" onclick="deleteShift('${s}')">Verwijder</button>
-      </td>`;
-    shiftTableBody.appendChild(tr);
-  });
+shiftEntries.sort((a,b)=>{
+  const aDate = a[1].startDate ? new Date(a[1].startDate) : new Date("2100-01-01");
+  const bDate = b[1].startDate ? new Date(b[1].startDate) : new Date("2100-01-01");
+  if(aDate.getFullYear() !== bDate.getFullYear()){
+    return aDate.getFullYear() - bDate.getFullYear(); // sorteer eerst op jaar
+  }
+  return aDate - bDate; // daarna op datum
+});
+
+shiftEntries.forEach(([s, sh])=>{
+  const tr = document.createElement('tr');
+  tr.setAttribute('draggable','true');
+  tr.dataset.shiftName = s;
+  tr.innerHTML = `
+    <td class="nowrap">${s}</td>
+    <td>${sh.start||''}</td>
+    <td>${sh.end||''}</td>
+    <td>${sh.break||0}</td>
+    <td>${sh.project||''}</td>
+    <td>${toDisplayDate(sh.startDate)} → ${toDisplayDate(sh.endDate)}</td>
+    <td>
+      <button class="btn orange btn-small" onclick="editShift('${s}')">Bewerk</button>
+      <button class="btn red btn-small" onclick="deleteShift('${s}')">Verwijder</button>
+    </td>`;
+  shiftTableBody.appendChild(tr);
+});
 
   enableDragAndDropOnShifts();
 }
@@ -731,13 +745,35 @@ function populateYearSelect(){
   const yNow = now.getFullYear();
   yearSelectMain.innerHTML = '';
   for(let y = yNow-2; y<=yNow+3; y++){
-    const opt = document.createElement('option'); opt.value = y; opt.textContent = y;
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = y;
     if(y === yNow) opt.selected = true;
     yearSelectMain.appendChild(opt);
   }
-  // project filter filled by renderProjects
-  renderProjects();
 }
+
+// 🔹 aparte functie, niet genest
+function populateFilterShiftYears(){
+  const userData = getCurrentUserData();
+  const years = new Set();
+
+  Object.values(userData.shifts || {}).forEach(sh=>{
+    if(sh.startDate){
+      years.add(new Date(sh.startDate).getFullYear());
+    }
+  });
+
+  filterShiftYear.innerHTML = '<option value="">Alle jaren</option>';
+  [...years].sort().forEach(y=>{
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = y;
+    filterShiftYear.appendChild(opt);
+  });
+}
+
+filterShiftYear.addEventListener('change', renderShifts);
 
 /* ============================
    Generate month & invoer table
@@ -1205,8 +1241,6 @@ monthSelectMain.addEventListener('change', ()=>{
 const convHours = document.getElementById('convHours');
 const convMinutes = document.getElementById('convMinutes');
 const decimalInput = document.getElementById('decimalInput');
-const resHours = document.getElementById('resHours');
-const resMinutes = document.getElementById('resMinutes');
 
 // H/M → decimaal
 function updateDecimal() {
