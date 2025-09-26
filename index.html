@@ -154,9 +154,6 @@
         <option value="">Alle projecten</option>
       </select>
     </div>
-    <div class="input-field col s1">
-      <button id="generateMonthBtn" class="btn blue">Genereer maand</button>
-    </div>
   </div>
 
   <table class="striped">
@@ -461,6 +458,7 @@ async function initApp(){
   renderHistory();
   renderProjectFilterForMonth(); 
   populateFilterShiftYears();
+  generateMonth();
 }
 
 /* ============================
@@ -781,8 +779,6 @@ filterShiftYear.addEventListener('change', renderShifts);
 /* ============================
    Generate month & invoer table
    ============================ */
-generateMonthBtn.addEventListener('click', generateMonth);
-
 function generateMonth(){
   if(!currentUser) return alert("Kies eerst een gebruiker");
   const year = Number(yearSelectMain.value);
@@ -1232,10 +1228,11 @@ projectFilterSelect_el.addEventListener('change', ()=>{
 });
 yearSelectMain.addEventListener('change', ()=>{
   renderProjectFilterForMonth();
+  generateMonth();   // automatisch renderen
 });
-
 monthSelectMain.addEventListener('change', ()=>{
   renderProjectFilterForMonth();
+  generateMonth();   // automatisch renderen
 });
 
 /* ============================
