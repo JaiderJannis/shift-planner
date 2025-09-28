@@ -321,33 +321,56 @@ let dataStore = { users: {}, currentUser: null };
 let currentUser = null;
 // 🔹 auth state
 document.addEventListener("DOMContentLoaded", () => {
-    // Init Materialize modal
+  // Init Materialize modal
   var modals = document.querySelectorAll('.modal');
   M.Modal.init(modals);
-   // Auth check
+
+  // Auth check
   auth.onAuthStateChanged(async user => {
-    if(!user){
-      if(!DEBUG) window.location.href="index.html";
+    if (!user) {
+      if (!DEBUG) window.location.href = "index.html";
       return;
     }
 
     currentUser = user.uid;
-    const doc = await db.collection("users").doc(user.uid).get();
-    if(!doc.exists){
-      await db.collection("users").doc(user.uid).set({
-        email:user.email, role:"user", shifts:{}, monthData:{}, projects:[]
+
+    // ✅ Check en aanvullen van user-doc
+    const userRef = db.collection("users").doc(user.uid);
+    const doc = await userRef.get();
+
+    if (!doc.exists) {
+      await userRef.set({
+        email: user.email,
+        role: "user",
+        shifts: {},
+        monthData: {},
+        projects: []
       });
+    } else {
+      const data = doc.data();
+      const updates = {};
+      if (!("email" in data)) updates.email = user.email;
+      if (!("role" in data)) updates.role = "user";
+      if (!("shifts" in data)) updates.shifts = {};
+      if (!("monthData" in data)) updates.monthData = {};
+      if (!("projects" in data)) updates.projects = [];
+
+      if (Object.keys(updates).length > 0) {
+        await userRef.update(updates);
+        console.log("User-doc aangevuld:", updates);
+      }
     }
-    const data = (await db.collection("users").doc(user.uid).get()).data();
-    if(data.role==="admin"){
-      document.getElementById("adminFab").style.display="block";
-      document.getElementById("adminTab").style.display="block";
+
+    const data = (await userRef.get()).data();
+
+    if (data.role === "admin") {
+      document.getElementById("adminFab").style.display = "block";
+      document.getElementById("adminTab").style.display = "block";
       renderAdminUserSelect();
-    }
-    else if (DEBUG) {
+    } else if (DEBUG) {
       console.warn("DEBUG: Admin-tab geforceerd zichtbaar.");
-      document.getElementById("adminFab").style.display="block";
-      document.getElementById("adminTab").style.display="block";
+      document.getElementById("adminFab").style.display = "block";
+      document.getElementById("adminTab").style.display = "block";
     }
 
     initApp();
