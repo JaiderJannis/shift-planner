@@ -332,28 +332,31 @@ auth.onAuthStateChanged(async user => {
     return;
   }
 
-  currentUser = user.uid;
+  currentUser = user.uid;   // 👈 altijd jezelf instellen
+  dataStore.currentUser = currentUser;
 
   // ✅ Check en aanvullen van user-doc
   const userRef = db.collection("users").doc(user.uid);
   const doc = await userRef.get();
 
   if (!doc.exists) {
-    await userRef.set({
-      email: user.email,
-      role: "user",
-      shifts: {},
-      monthData: {},
-      projects: []
-    });
-  } else {
-    const data = doc.data();
-    const updates = {};
-    if (!("email" in data)) updates.email = user.email;
-    if (!("role" in data)) updates.role = "user";
-    if (!("shifts" in data)) updates.shifts = {};
-    if (!("monthData" in data)) updates.monthData = {};
-    if (!("projects" in data)) updates.projects = [];
+  await userRef.set({
+    email: user.email,
+    name: user.displayName || user.email.split('@')[0], // 🔹 naam opslaan
+    role: "user",
+    shifts: {},
+    monthData: {},
+    projects: []
+  });
+} else {
+  const data = doc.data();
+  const updates = {};
+  if (!("email" in data)) updates.email = user.email;
+  if (!("name" in data)) updates.name = user.displayName || user.email.split('@')[0];
+  if (!("role" in data)) updates.role = "user";
+  if (!("shifts" in data)) updates.shifts = {};
+  if (!("monthData" in data)) updates.monthData = {};
+  if (!("projects" in data)) updates.projects = [];
     if (Object.keys(updates).length > 0) {
       await userRef.update(updates);
     }
@@ -389,7 +392,8 @@ async function renderAdminUserSelect(){
   snapshot.forEach(doc=>{
     const opt=document.createElement("option");
     opt.value=doc.id;
-    opt.textContent=doc.data().email||doc.id;
+    const u = doc.data();
+opt.textContent = u.name || u.email || doc.id;
     sel.appendChild(opt);
   });
   sel.addEventListener("change", async ()=>{
@@ -1335,9 +1339,9 @@ function renderHistory(){
 function updateCurrentUserLabels(){
   const userData = dataStore.users[currentUser];
   let label = currentUser || '-';
-  if (userData && userData.email) {
-    label = userData.email;
-  }
+if (userData) {
+  label = userData.name || userData.email || currentUser;
+}
 
   document.getElementById('currentUserLabel').textContent = label;
   document.getElementById('currentUserInvoer').textContent = label;
