@@ -365,15 +365,17 @@ auth.onAuthStateChanged(async user => {
   // ✅ Labels correct vullen (nu staat email in dataStore)
   updateCurrentUserLabels();
 
-  // ✅ Admin-knop tonen
-  const data = (await userRef.get()).data();
-  if (data.role === "admin") {
-    document.getElementById("adminFab").style.display = "block";
-    await renderAdminUserSelect();
-    document.getElementById("adminUserSelect").value = currentUser;
-  } else if (DEBUG) {
-    document.getElementById("adminFab").style.display = "block";
-  }
+ // ✅ Admin-knop tonen
+const data = (await userRef.get()).data();
+console.log("Ingelogd als:", user.email, "→ role:", data.role); // 👈 log erbij
+
+if (data.role === "admin") {
+  document.getElementById("adminFab").style.display = "block";
+  await renderAdminUserSelect();
+  document.getElementById("adminUserSelect").value = currentUser;
+} else if (DEBUG) {
+  document.getElementById("adminFab").style.display = "block";
+}
 
 updateCurrentUserLabels(); // 👈 nu pas labels invullen
 });
