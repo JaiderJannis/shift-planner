@@ -326,55 +326,55 @@ document.addEventListener("DOMContentLoaded", () => {
   M.Modal.init(modals);
 
   // Auth check
-  auth.onAuthStateChanged(async user => {
-    if (!user) {
-      if (!DEBUG) window.location.href = "index.html";
-      return;
+ auth.onAuthStateChanged(async user => {
+  if (!user) {
+    if (!DEBUG) window.location.href = "index.html";
+    return;
+  }
+
+  currentUser = user.uid;
+
+  // ✅ Check en aanvullen van user-doc
+  const userRef = db.collection("users").doc(user.uid);
+  const doc = await userRef.get();
+
+  if (!doc.exists) {
+    await userRef.set({
+      email: user.email,
+      role: "user",
+      shifts: {},
+      monthData: {},
+      projects: []
+    });
+  } else {
+    const data = doc.data();
+    const updates = {};
+    if (!("email" in data)) updates.email = user.email;
+    if (!("role" in data)) updates.role = "user";
+    if (!("shifts" in data)) updates.shifts = {};
+    if (!("monthData" in data)) updates.monthData = {};
+    if (!("projects" in data)) updates.projects = [];
+
+    if (Object.keys(updates).length > 0) {
+      await userRef.update(updates);
+      console.log("User-doc aangevuld:", updates);
     }
+  }
 
-    currentUser = user.uid;
+  const data = (await userRef.get()).data();
 
-    // ✅ Check en aanvullen van user-doc
-    const userRef = db.collection("users").doc(user.uid);
-    const doc = await userRef.get();
+  if (data.role === "admin") {
+    document.getElementById("adminFab").style.display = "block";
+    await renderAdminUserSelect();
+    document.getElementById("adminUserSelect").value = currentUser; // 👈 hier
+  } else if (DEBUG) {
+    console.warn("DEBUG: Admin-tab geforceerd zichtbaar.");
+    document.getElementById("adminFab").style.display = "block";
+  }
 
-    if (!doc.exists) {
-      await userRef.set({
-        email: user.email,
-        role: "user",
-        shifts: {},
-        monthData: {},
-        projects: []
-      });
-    } else {
-      const data = doc.data();
-      const updates = {};
-      if (!("email" in data)) updates.email = user.email;
-      if (!("role" in data)) updates.role = "user";
-      if (!("shifts" in data)) updates.shifts = {};
-      if (!("monthData" in data)) updates.monthData = {};
-      if (!("projects" in data)) updates.projects = [];
+  initApp();
+});
 
-      if (Object.keys(updates).length > 0) {
-        await userRef.update(updates);
-        console.log("User-doc aangevuld:", updates);
-      }
-    }
-
-    const data = (await userRef.get()).data();
-
-    if (data.role === "admin") {
-      document.getElementById("adminFab").style.display = "block";
-      document.getElementById("adminTab").style.display = "block";
-      renderAdminUserSelect();
-    } else if (DEBUG) {
-      console.warn("DEBUG: Admin-tab geforceerd zichtbaar.");
-      document.getElementById("adminFab").style.display = "block";
-      document.getElementById("adminTab").style.display = "block";
-    }
-
-    initApp();
-  });
 });
 // 🔹 Admin user select
 async function renderAdminUserSelect(){
@@ -1314,9 +1314,13 @@ function renderHistory(){
    Helpers: update UI labels
    ============================ */
 function updateCurrentUserLabels(){
-  document.getElementById('currentUserLabel').textContent = currentUser || '-';
-  document.getElementById('currentUserInvoer').textContent = currentUser || '-';
-  document.getElementById('currentUserHistoriek').textContent = currentUser || '-';
+  // Toon het emailadres i.p.v. de uid
+  const userData = dataStore.users[currentUser];
+  const label = userData && userData.email ? userData.email : currentUser;
+
+  document.getElementById('currentUserLabel').textContent = label || '-';
+  document.getElementById('currentUserInvoer').textContent = label || '-';
+  document.getElementById('currentUserHistoriek').textContent = label || '-';
 }
 
 /* ============================
