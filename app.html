@@ -420,14 +420,28 @@ async function loadUser(userName){
     await saveAll();   // 🔹 toevoegen zodat nieuwe user direct in Firestore komt
 }
 }
-async function loadAllUsers(){
-  const snapshot = await db.collection("users").get();
+async function loadAllUsers() {
+  if (!auth.currentUser) return;
+  const userRef = db.collection("users").doc(auth.currentUser.uid);
+  const userDoc = await userRef.get();
+  const role = userDoc.data().role;
+
   dataStore.users = {};
-  snapshot.forEach(doc => {
-    dataStore.users[doc.id] = doc.data();
-  });
+
+  if (role === "admin") {
+    // admin → alle users ophalen
+    const snapshot = await db.collection("users").get();
+    snapshot.forEach(doc => {
+      dataStore.users[doc.id] = doc.data();
+    });
+  } else {
+    // gewone user → alleen zichzelf ophalen
+    dataStore.users[auth.currentUser.uid] = userDoc.data();
+  }
+
   console.log("loadAllUsers →", Object.keys(dataStore.users));
 }
+
 
 
 /* ============================
