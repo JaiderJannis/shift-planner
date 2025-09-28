@@ -372,7 +372,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("adminFab").style.display = "block";
   }
 
-  initApp();
+ await initApp();
+updateCurrentUserLabels(); // 👈 nu pas labels invullen
 });
 
 });
@@ -1314,13 +1315,15 @@ function renderHistory(){
    Helpers: update UI labels
    ============================ */
 function updateCurrentUserLabels(){
-  // Toon het emailadres i.p.v. de uid
   const userData = dataStore.users[currentUser];
-  const label = userData && userData.email ? userData.email : currentUser;
+  let label = currentUser || '-';
+  if (userData && userData.email) {
+    label = userData.email;
+  }
 
-  document.getElementById('currentUserLabel').textContent = label || '-';
-  document.getElementById('currentUserInvoer').textContent = label || '-';
-  document.getElementById('currentUserHistoriek').textContent = label || '-';
+  document.getElementById('currentUserLabel').textContent = label;
+  document.getElementById('currentUserInvoer').textContent = label;
+  document.getElementById('currentUserHistoriek').textContent = label;
 }
 
 /* ============================
