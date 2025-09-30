@@ -277,6 +277,41 @@
       <label for="decimalInput">Decimale uren</label>
     </div>
     </div>
+    <h5>📅 Jaaroverzicht werkuren</h5>
+  <div class="row compact">
+    <div class="input-field col s2">
+      <select id="yearOverviewSelect" class="browser-default"></select>
+    </div>
+    <div class="input-field col s2">
+      <select id="workFactorSelect" class="browser-default">
+        <option value="1">100%</option>
+        <option value="0.8" selected>80%</option>
+      </select>
+    </div>
+    <div class="input-field col s2">
+      <button id="renderYearBtn" class="btn blue">Toon overzicht</button>
+    </div>
+  </div>
+
+  <table class="striped">
+    <thead>
+      <tr>
+        <th>Maand</th>
+        <th>Aantal dagen</th>
+        <th>Feestdagen</th>
+        <th>Werkuren</th>
+      </tr>
+    </thead>
+    <tbody id="yearOverviewBody"></tbody>
+    <tfoot>
+      <tr>
+        <th>Totaal</th>
+        <th id="totDays">0</th>
+        <th>-</th>
+        <th id="totHours">0 u</th>
+      </tr>
+    </tfoot>
+  </table>
   </div>
 </div>
 <!-- ================== SCRIPTS ================== -->
@@ -310,6 +345,113 @@ if (DEBUG) {
     "background: red; color: white; font-size: 20px; font-weight: bold; padding: 8px; border: 2px solid black;"
   );
 } 
+/* ============================
+   Jaaroverzicht werkuren
+   ============================ */
+
+// Belgische feestdagen generator (basis)
+function getBelgianHolidays(year) {
+  const easter = calculateEaster(year); // Paaszondag
+  const easterMonday = addDays(easter, 1);
+  const ascension = addDays(easter, 39);
+  const pentecost = addDays(easter, 49);
+  const pentecostMonday = addDays(easter, 50);
+
+  return [
+    { date: `${year}-01-01`, name: "Nieuwjaar" },
+    { date: formatDate(easterMonday), name: "Paasmaandag" },
+    { date: `${year}-05-01`, name: "Dag van de Arbeid" },
+    { date: formatDate(ascension), name: "O.L.H. Hemelvaart" },
+    { date: formatDate(pentecostMonday), name: "Pinkstermaandag" },
+    { date: `${year}-07-21`, name: "Nationale feestdag" },
+    { date: `${year}-08-15`, name: "O.L.V. Hemelvaart" },
+    { date: `${year}-11-01`, name: "Allerheiligen" },
+    { date: `${year}-11-11`, name: "Wapenstilstand" },
+    { date: `${year}-12-25`, name: "Kerstmis" }
+  ];
+}
+
+// Hulpfuncties
+function calculateEaster(year) {
+  const f = Math.floor,
+    G = year % 19,
+    C = f(year / 100),
+    H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30,
+    I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11));
+  const J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7;
+  const L = I - J;
+  const month = 3 + f((L + 40) / 44);
+  const day = L + 28 - 31 * f(month / 4);
+  return new Date(year, month - 1, day);
+}
+
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+function formatDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+
+function renderYearOverview(year, factor) {
+  const months = [
+    "Januari","Februari","Maart","April","Mei","Juni",
+    "Juli","Augustus","September","Oktober","November","December"
+  ];
+
+  const holidays = getBelgianHolidays(year);
+  const yearOverviewBody = document.getElementById("yearOverviewBody");
+  const totDaysEl = document.getElementById("totDays");
+  const totHoursEl = document.getElementById("totHours");
+
+  yearOverviewBody.innerHTML = '';
+  let totalDays = 0;
+  let totalHours = 0;
+
+  for (let m = 0; m < 12; m++) {
+    const days = new Date(year, m + 1, 0).getDate();
+    const monthHolidays = holidays.filter(h => new Date(h.date).getMonth() === m);
+
+    const hours = days * 7.6 * factor;
+    totalDays += days;
+    totalHours += hours;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${months[m]}</td>
+      <td>${days}</td>
+      <td>${monthHolidays.map(h => `${h.name} (${h.date})`).join("<br>") || "-"}</td>
+      <td>${hours.toFixed(1)} u</td>
+    `;
+    yearOverviewBody.appendChild(tr);
+  }
+
+  totDaysEl.textContent = totalDays;
+  totHoursEl.textContent = `${totalHours.toFixed(1)} u`;
+}
+
+// Dropdowns vullen en knop activeren
+document.addEventListener("DOMContentLoaded", () => {
+  const now = new Date().getFullYear();
+  const yearSel = document.getElementById("yearOverviewSelect");
+  for (let y = now - 1; y <= now + 2; y++) {
+    const opt = document.createElement("option");
+    opt.value = y;
+    opt.textContent = y;
+    if (y === now) opt.selected = true;
+    yearSel.appendChild(opt);
+  }
+
+  document.getElementById("renderYearBtn").addEventListener("click", () => {
+    const year = Number(yearSel.value);
+    const factor = Number(document.getElementById("workFactorSelect").value);
+    renderYearOverview(year, factor);
+  });
+
+  // initieel tonen
+  renderYearOverview(now, 0.8);
+});
 </script>
 <script>
 /* ============================
