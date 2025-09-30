@@ -277,7 +277,7 @@
       <label for="decimalInput">Decimale uren</label>
     </div>
     </div>
-    <h5>📅 Jaaroverzicht werkuren</h5>
+<h5>📅 Jaaroverzicht werkuren</h5>
   <div class="row compact">
     <div class="input-field col s2">
       <select id="yearOverviewSelect" class="browser-default"></select>
@@ -297,8 +297,7 @@
     <thead>
       <tr>
         <th>Maand</th>
-        <th>Aantal dagen</th>
-        <th>Feestdagen</th>
+        <th>Aantal werkdagen</th>
         <th>Werkuren</th>
       </tr>
     </thead>
@@ -307,11 +306,11 @@
       <tr>
         <th>Totaal</th>
         <th id="totDays">0</th>
-        <th>-</th>
         <th id="totHours">0 u</th>
       </tr>
     </tfoot>
   </table>
+</div>
   </div>
 </div>
 <!-- ================== SCRIPTS ================== -->
@@ -348,107 +347,68 @@ if (DEBUG) {
 /* ============================
    Jaaroverzicht werkuren
    ============================ */
-const yearOverviewSelect = document.createElement("select");
-const percSelect = document.createElement("select");
-const yearOverviewTable = document.createElement("table");
-yearOverviewTable.className = "striped";
 
-function initYearOverview() {
-  const now = new Date();
-  const thisYear = now.getFullYear();
-
-  // Jaar dropdown vullen (huidig + volgend jaar)
-  yearOverviewSelect.innerHTML = "";
-  for (let y = thisYear; y <= thisYear + 1; y++) {
-    const opt = document.createElement("option");
-    opt.value = y;
-    opt.textContent = y;
-    yearOverviewSelect.appendChild(opt);
+// Hulpfunctie: tel werkdagen (ma-vr) in maand
+function countWorkdaysInMonth(year, month) {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  let count = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const day = new Date(year, month, d).getDay();
+    if (day !== 0 && day !== 6) count++; // 0 = zondag, 6 = zaterdag
   }
-  yearOverviewSelect.value = thisYear;
-
-  // Percentage dropdown vullen
-  percSelect.innerHTML = "";
-  [100, 80].forEach(p => {
-    const opt = document.createElement("option");
-    opt.value = p;
-    opt.textContent = p + "%";
-    percSelect.appendChild(opt);
-  });
-  percSelect.value = 100;
-
-  // Luister naar wijzigingen
-  yearOverviewSelect.addEventListener("change", renderYearOverview);
-  percSelect.addEventListener("change", renderYearOverview);
-
-  // Voor de eerste keer renderen
-  renderYearOverview();
+  return count;
 }
 
 function renderYearOverview() {
-  const year = Number(yearOverviewSelect.value);
-  const perc = Number(percSelect.value) / 100;
-
-  // Tabel kop
-  yearOverviewTable.innerHTML = `
-    <thead>
-      <tr><th>Maand</th><th>Werkdagen</th><th>Uren (${perc * 100}%)</th></tr>
-    </thead>
-    <tbody></tbody>
-  `;
-
-  const tbody = yearOverviewTable.querySelector("tbody");
+  const year = Number(document.getElementById("yearOverviewSelect").value);
+  const perc = Number(document.getElementById("workFactorSelect").value); // 1 of 0.8
   const months = [
     "Januari","Februari","Maart","April","Mei","Juni",
     "Juli","Augustus","September","Oktober","November","December"
   ];
 
-  let totaalUren = 0;
+  const tbody = document.getElementById("yearOverviewBody");
+  tbody.innerHTML = "";
+  let totaalDagen = 0, totaalUren = 0;
 
   for (let m = 0; m < 12; m++) {
     const werkdagen = countWorkdaysInMonth(year, m);
     const uren = werkdagen * 7.6 * perc;
+
+    totaalDagen += werkdagen;
     totaalUren += uren;
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${months[m]}</td>
       <td>${werkdagen}</td>
-      <td>${uren.toFixed(1)} u</td>
-    `;
+      <td>${uren.toFixed(1)} u</td>`;
     tbody.appendChild(tr);
   }
 
-  // Totaalrij
-  const tr = document.createElement("tr");
-  tr.innerHTML = `<td><strong>Totaal</strong></td><td></td><td><strong>${totaalUren.toFixed(1)} u</strong></td>`;
-  tbody.appendChild(tr);
+  document.getElementById("totDays").textContent = totaalDagen;
+  document.getElementById("totHours").textContent = totaalUren.toFixed(1) + " u";
 }
 
-// Hulpfunctie: tel werkdagen (ma–vr) in maand
-function countWorkdaysInMonth(year, month) {
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  let count = 0;
-  for (let d = 1; d <= daysInMonth; d++) {
-    const day = new Date(year, month, d).getDay();
-    if (day !== 0 && day !== 6) count++; // 0=zo, 6=za
-  }
-  return count;
-}
-
-// Toevoegen in de UI bij tab-converter
+// Init dropdowns + eerste render
 document.addEventListener("DOMContentLoaded", () => {
-  const convTab = document.getElementById("tab-converter");
+  const yearSelect = document.getElementById("yearOverviewSelect");
+  const now = new Date();
+  const thisYear = now.getFullYear();
 
-  const controls = document.createElement("div");
-  controls.className = "row";
-  controls.innerHTML = `<div class="col s12"><h5>📅 Jaaroverzicht werkuren</h5></div>`;
-  controls.appendChild(yearOverviewSelect);
-  controls.appendChild(percSelect);
-  convTab.appendChild(controls);
-  convTab.appendChild(yearOverviewTable);
+  // Vul keuzelijst huidig + volgend jaar
+  for (let y = thisYear; y <= thisYear + 1; y++) {
+    const opt = document.createElement("option");
+    opt.value = y;
+    opt.textContent = y;
+    yearSelect.appendChild(opt);
+  }
+  yearSelect.value = thisYear;
 
-  initYearOverview();
+  document.getElementById("renderYearBtn").addEventListener("click", renderYearOverview);
+
+  // Eerste keer meteen tonen
+  renderYearOverview();
 });
 
 </script>
