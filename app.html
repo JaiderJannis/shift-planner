@@ -142,7 +142,7 @@
       <li class="tab col s3"><a class="active" href="#tab-shifts">Shift aanmaken</a></li>
       <li class="tab col s3"><a href="#tab-invoer">Invoer</a></li>
       <li class="tab col s3"><a href="#tab-historiek">Historiek</a></li>
-      <li class="tab col s3"><a href="#tab-converter">Tijd omrekenen</a></li>
+      <li class="tab col s3"><a href="#tab-converter">Tijd omrekenen & Jaaroverzicht uren</a></li>
     </ul>
   </div>
 </nav>
@@ -423,7 +423,9 @@ for (let m = 0; m < 12; m++) {
 
   const monthHolidays = holidays.filter(h => new Date(h.date).getMonth() === m);
 
-  const hours = workdays * 7.6 * factor;
+ // dagwaarde: 7,6 uur bij 100%, 6,08 uur bij 80%
+const dayValue = factor === 1 ? 7.6 : 6.08;
+const hours = workdays * dayValue;
   totalDays += workdays;
   totalHours += hours;
 
