@@ -348,109 +348,107 @@ if (DEBUG) {
 /* ============================
    Jaaroverzicht werkuren
    ============================ */
+const yearOverviewSelect = document.createElement("select");
+const percSelect = document.createElement("select");
+const yearOverviewTable = document.createElement("table");
+yearOverviewTable.className = "striped";
 
-// Belgische feestdagen generator (basis)
-function getBelgianHolidays(year) {
-  const easter = calculateEaster(year); // Paaszondag
-  const easterMonday = addDays(easter, 1);
-  const ascension = addDays(easter, 39);
-  const pentecost = addDays(easter, 49);
-  const pentecostMonday = addDays(easter, 50);
+function initYearOverview() {
+  const now = new Date();
+  const thisYear = now.getFullYear();
 
-  return [
-    { date: `${year}-01-01`, name: "Nieuwjaar" },
-    { date: formatDate(easterMonday), name: "Paasmaandag" },
-    { date: `${year}-05-01`, name: "Dag van de Arbeid" },
-    { date: formatDate(ascension), name: "O.L.H. Hemelvaart" },
-    { date: formatDate(pentecostMonday), name: "Pinkstermaandag" },
-    { date: `${year}-07-21`, name: "Nationale feestdag" },
-    { date: `${year}-08-15`, name: "O.L.V. Hemelvaart" },
-    { date: `${year}-11-01`, name: "Allerheiligen" },
-    { date: `${year}-11-11`, name: "Wapenstilstand" },
-    { date: `${year}-12-25`, name: "Kerstmis" }
-  ];
+  // Jaar dropdown vullen (huidig + volgend jaar)
+  yearOverviewSelect.innerHTML = "";
+  for (let y = thisYear; y <= thisYear + 1; y++) {
+    const opt = document.createElement("option");
+    opt.value = y;
+    opt.textContent = y;
+    yearOverviewSelect.appendChild(opt);
+  }
+  yearOverviewSelect.value = thisYear;
+
+  // Percentage dropdown vullen
+  percSelect.innerHTML = "";
+  [100, 80].forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.textContent = p + "%";
+    percSelect.appendChild(opt);
+  });
+  percSelect.value = 100;
+
+  // Luister naar wijzigingen
+  yearOverviewSelect.addEventListener("change", renderYearOverview);
+  percSelect.addEventListener("change", renderYearOverview);
+
+  // Voor de eerste keer renderen
+  renderYearOverview();
 }
 
-// Hulpfuncties
-function calculateEaster(year) {
-  const f = Math.floor,
-    G = year % 19,
-    C = f(year / 100),
-    H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30,
-    I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11));
-  const J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7;
-  const L = I - J;
-  const month = 3 + f((L + 40) / 44);
-  const day = L + 28 - 31 * f(month / 4);
-  return new Date(year, month - 1, day);
-}
+function renderYearOverview() {
+  const year = Number(yearOverviewSelect.value);
+  const perc = Number(percSelect.value) / 100;
 
-function addDays(date, days) {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
-function formatDate(date) {
-  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-}
+  // Tabel kop
+  yearOverviewTable.innerHTML = `
+    <thead>
+      <tr><th>Maand</th><th>Werkdagen</th><th>Uren (${perc * 100}%)</th></tr>
+    </thead>
+    <tbody></tbody>
+  `;
 
-function renderYearOverview(year, factor) {
+  const tbody = yearOverviewTable.querySelector("tbody");
   const months = [
     "Januari","Februari","Maart","April","Mei","Juni",
     "Juli","Augustus","September","Oktober","November","December"
   ];
 
-  const holidays = getBelgianHolidays(year);
-  const yearOverviewBody = document.getElementById("yearOverviewBody");
-  const totDaysEl = document.getElementById("totDays");
-  const totHoursEl = document.getElementById("totHours");
-
-  yearOverviewBody.innerHTML = '';
-  let totalDays = 0;
-  let totalHours = 0;
+  let totaalUren = 0;
 
   for (let m = 0; m < 12; m++) {
-    const days = new Date(year, m + 1, 0).getDate();
-    const monthHolidays = holidays.filter(h => new Date(h.date).getMonth() === m);
+    const werkdagen = countWorkdaysInMonth(year, m);
+    const uren = werkdagen * 7.6 * perc;
+    totaalUren += uren;
 
-    const hours = days * 7.6 * factor;
-    totalDays += days;
-    totalHours += hours;
-
-    const tr = document.createElement('tr');
+    const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${months[m]}</td>
-      <td>${days}</td>
-      <td>${monthHolidays.map(h => `${h.name} (${h.date})`).join("<br>") || "-"}</td>
-      <td>${hours.toFixed(1)} u</td>
+      <td>${werkdagen}</td>
+      <td>${uren.toFixed(1)} u</td>
     `;
-    yearOverviewBody.appendChild(tr);
+    tbody.appendChild(tr);
   }
 
-  totDaysEl.textContent = totalDays;
-  totHoursEl.textContent = `${totalHours.toFixed(1)} u`;
+  // Totaalrij
+  const tr = document.createElement("tr");
+  tr.innerHTML = `<td><strong>Totaal</strong></td><td></td><td><strong>${totaalUren.toFixed(1)} u</strong></td>`;
+  tbody.appendChild(tr);
 }
 
-// Dropdowns vullen en knop activeren
-document.addEventListener("DOMContentLoaded", () => {
-  const now = new Date().getFullYear();
-  const yearSel = document.getElementById("yearOverviewSelect");
-  for (let y = now - 1; y <= now + 2; y++) {
-    const opt = document.createElement("option");
-    opt.value = y;
-    opt.textContent = y;
-    if (y === now) opt.selected = true;
-    yearSel.appendChild(opt);
+// Hulpfunctie: tel werkdagen (ma–vr) in maand
+function countWorkdaysInMonth(year, month) {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  let count = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const day = new Date(year, month, d).getDay();
+    if (day !== 0 && day !== 6) count++; // 0=zo, 6=za
   }
+  return count;
+}
 
-  document.getElementById("renderYearBtn").addEventListener("click", () => {
-    const year = Number(yearSel.value);
-    const factor = Number(document.getElementById("workFactorSelect").value);
-    renderYearOverview(year, factor);
-  });
+// Toevoegen in de UI bij tab-converter
+document.addEventListener("DOMContentLoaded", () => {
+  const convTab = document.getElementById("tab-converter");
 
-  // initieel tonen
-  renderYearOverview(now, 0.8);
+  const controls = document.createElement("div");
+  controls.className = "row";
+  controls.innerHTML = `<div class="col s12"><h5>📅 Jaaroverzicht werkuren</h5></div>`;
+  controls.appendChild(yearOverviewSelect);
+  controls.appendChild(percSelect);
+  convTab.appendChild(controls);
+  convTab.appendChild(yearOverviewTable);
+
+  initYearOverview();
 });
 </script>
 <script>
