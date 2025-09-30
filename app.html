@@ -410,23 +410,32 @@ function renderYearOverview(year, factor) {
   let totalDays = 0;
   let totalHours = 0;
 
-  for (let m = 0; m < 12; m++) {
-    const days = new Date(year, m + 1, 0).getDate();
-    const monthHolidays = holidays.filter(h => new Date(h.date).getMonth() === m);
-
-    const hours = days * 7.6 * factor;
-    totalDays += days;
-    totalHours += hours;
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${months[m]}</td>
-      <td>${days}</td>
-      <td>${monthHolidays.map(h => `${h.name} (${h.date})`).join("<br>") || "-"}</td>
-      <td>${hours.toFixed(1)} u</td>
-    `;
-    yearOverviewBody.appendChild(tr);
+for (let m = 0; m < 12; m++) {
+  // aantal werkdagen in maand berekenen (ma–vr)
+  let workdays = 0;
+  const daysInMonth = new Date(year, m + 1, 0).getDate();
+  for (let d = 1; d <= daysInMonth; d++) {
+    const day = new Date(year, m, d).getDay(); // 0=zo, 1=ma, ... 6=za
+    if (day >= 1 && day <= 5) {
+      workdays++;
+    }
   }
+
+  const monthHolidays = holidays.filter(h => new Date(h.date).getMonth() === m);
+
+  const hours = workdays * 7.6 * factor;
+  totalDays += workdays;
+  totalHours += hours;
+
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${months[m]}</td>
+    <td>${workdays}</td>
+    <td>${monthHolidays.map(h => `${h.name} (${h.date})`).join("<br>") || "-"}</td>
+    <td>${hours.toFixed(1)} u</td>
+  `;
+  yearOverviewBody.appendChild(tr);
+}
 
   totDaysEl.textContent = totalDays;
   totHoursEl.textContent = `${totalHours.toFixed(1)} u`;
