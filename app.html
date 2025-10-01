@@ -524,16 +524,28 @@ document.addEventListener("DOMContentLoaded", () => {
   // Vullen met shifts uit je database
   const quickShiftSel = document.getElementById("quickShift");
   function populateQuickShifts() {
-    const userData = getCurrentUserData();
-    quickShiftSel.innerHTML = '<option value="">-- Kies shift --</option>';
-    Object.keys(userData.shifts || {}).forEach(name => {
+  const userData = getCurrentUserData();
+  const date = document.getElementById("quickDate").value;
+  quickShiftSel.innerHTML = '<option value="">-- Kies shift --</option>';
+
+  if (!date) return; // nog geen datum → leeg laten
+
+  const isoDate = date; // bv. "2025-09-12"
+
+  Object.keys(userData.shifts || {}).forEach(name => {
+    const sh = userData.shifts[name];
+    // check of shift geldig is op die datum
+    if (isDateWithin(isoDate, sh.startDate || null, sh.endDate || null)) {
       const opt = document.createElement("option");
       opt.value = name;
       opt.textContent = name;
       quickShiftSel.appendChild(opt);
-    });
-  }
-
+    }
+  });
+}
+  // 🔹 Shifts updaten zodra datum verandert
+  document.getElementById("quickDate").addEventListener("change", populateQuickShifts);
+  
   // Opslaan van snelle invoer
   document.getElementById("saveQuickBtn").addEventListener("click", () => {
     const date = document.getElementById("quickDate").value;
