@@ -566,42 +566,43 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Opslaan van snelle invoer
   document.getElementById("saveQuickBtn").addEventListener("click", () => {
-    const date = document.getElementById("quickDate").value;
-    const shift = document.getElementById("quickShift").value;
-    const note = document.getElementById("quickNote").value;
-    if (!date || !shift) {
-      return alert("Kies minstens een datum en shift!");
-    }
+  const date = document.getElementById("quickDate").value;
+  const shift = document.getElementById("quickShift").value;
+  const note = document.getElementById("quickNote").value;
+  if (!date || !shift) {
+    return alert("Kies minstens een datum en shift!");
+  }
 
-    const year = Number(date.split("-")[0]);
-    const month = Number(date.split("-")[1]) - 1;
-    const key = date;
+  const year = Number(date.split("-")[0]);
+  const month = Number(date.split("-")[1]) - 1;
+  const key = date;
 
-    const userData = getCurrentUserData();
-    if (!userData.monthData) userData.monthData = {};
-    if (!userData.monthData[year]) userData.monthData[year] = {};
-    if (!userData.monthData[year][month]) userData.monthData[year][month] = {targetHours:0, targetMinutes:0, rows:{}};
+  const userData = getCurrentUserData();
+  if (!userData.monthData) userData.monthData = {};
+  if (!userData.monthData[year]) userData.monthData[year] = {};
+  if (!userData.monthData[year][month]) userData.monthData[year][month] = {targetHours:0, targetMinutes:0, rows:{}};
 
-    const sh = userData.shifts[shift];
-    const minutes = minutesBetween(sh.start, sh.end, sh.break);
+  const sh = userData.shifts[shift];
+  const minutes = minutesBetween(sh.start, sh.end, sh.break);
 
-    userData.monthData[year][month].rows[key] = {
-      project: sh.project || "",
-      shift: shift,
-      start: sh.start,
-      end: sh.end,
-      break: sh.break,
-      omschrijving: note,
-      minutes: minutes
-    };
+  userData.monthData[year][month].rows[key] = {
+    project: sh.project || "",
+    shift: shift,
+    start: sh.start,
+    end: sh.end,
+    break: sh.break,
+    omschrijving: note,
+    minutes: minutes
+  };
 
-    saveAll();
-    renderMonth(year, month);
-    updateInputTotals();
-    renderHistory();
-    M.Modal.getInstance(quickModal).close();
-    alert("✅ Snelle invoer toegevoegd!");
-  });
+  saveAll();
+  renderMonth(year, month);
+  updateInputTotals();
+  renderHistory();
+
+  // ✅ Toast ipv alert + modal blijft open
+  M.toast({html: "✅ Snelle invoer toegevoegd!", classes: "green"});
+});
 
   // Autovullen shifts zodra user geladen is
   if (auth.currentUser) populateQuickShifts();
