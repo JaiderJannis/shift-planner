@@ -72,6 +72,37 @@
   overflow-y: auto;
   height: calc(100% - 64px); /* ruimte voor footer */
 }
+/* 🔹 Hover effect voor PC */
+.quick-zone {
+  position: fixed;
+  bottom: 0;
+  right: 80px; /* naast logout-knop */
+  width: 80px;
+  height: 80px;
+  z-index: 999;
+}
+
+.quick-hover {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.quick-zone:hover .quick-hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 🔹 Mobiel → FAB altijd zichtbaar */
+@media (max-width: 768px) {
+  .quick-hover {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}
 </style>
 </head>
 <body>
@@ -148,7 +179,45 @@
 </nav>
 
 <div class="row">
+<!-- 🔹 Snelle invoer FAB -->
+<div class="quick-zone">
+  <div id="quickFab" class="fixed-action-btn quick-hover">
+    <a id="quickFabBtn" class="btn-floating btn-large teal tooltipped modal-trigger" 
+       data-tooltip="Snelle invoer" href="#quickModal">
+      <i class="material-icons">event</i>
+    </a>
+  </div>
+</div>
 
+<!-- 🔹 Snelle Invoer Modal -->
+<div id="quickModal" class="modal">
+  <div class="modal-content">
+    <h5>📅 Snelle Invoer</h5>
+    <p>Selecteer datum + shift om snel een dag in te plannen:</p>
+    
+    <div class="row">
+      <div class="input-field col s6">
+        <input type="date" id="quickDate">
+        <label for="quickDate">Datum</label>
+      </div>
+      <div class="input-field col s6">
+        <select id="quickShift" class="browser-default"></select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="input-field col s12">
+        <input type="text" id="quickNote">
+        <label for="quickNote">Omschrijving (optioneel)</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-footer">
+    <a href="#!" id="saveQuickBtn" class="btn green">Opslaan</a>
+    <a href="#!" class="modal-close btn-flat">Sluiten</a>
+  </div>
+</div>
   <!-- TAB: Shifts -->
   <div id="tab-shifts" class="col s12">
     <h5>Shift aanmaken — Gebruiker: <span id="currentUserLabel">-</span></h5>
@@ -447,7 +516,77 @@ async function loadAllUsers() {
 
   console.log("loadAllUsers →", Object.keys(dataStore.users));
 }
+document.addEventListener("DOMContentLoaded", () => {
+  // Init Materialize modal
+  const quickModal = document.getElementById("quickModal");
+  M.Modal.init(quickModal);
 
+  // Vullen met shifts uit je database
+  const quickShiftSel = document.getElementById("quickShift");
+  function populateQuickShifts() {
+    const userData = getCurrentUserData();
+    quickShiftSel.innerHTML = '<option value="">-- Kies shift --</option>';
+    Object.keys(userData.shifts || {}).forEach(name => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      quickShiftSel.appendChild(opt);
+    });
+  }
+
+  // Opslaan van snelle invoer
+  document.getElementById("saveQuickBtn").addEventListener("click", () => {
+    const date = document.getElementById("quickDate").value;
+    const shift = document.getElementById("quickShift").value;
+    const note = document.getElementById("quickNote").value;
+    if (!date || !shift) {
+      return alert("Kies minstens een datum en shift!");
+    }
+
+    const year = Number(date.split("-")[0]);
+    const month = Number(date.split("-")[1]) - 1;
+    const key = date;
+
+    const userData = getCurrentUserData();
+    if (!userData.monthData) userData.monthData = {};
+    if (!userData.monthData[year]) userData.monthData[year] = {};
+    if (!userData.monthData[year][month]) userData.monthData[year][month] = {targetHours:0, targetMinutes:0, rows:{}};
+
+    const sh = userData.shifts[shift];
+    const minutes = minutesBetween(sh.start, sh.end, sh.break);
+
+    userData.monthData[year][month].rows[key] = {
+      project: sh.project || "",
+      shift: shift,
+      start: sh.start,
+      end: sh.end,
+      break: sh.break,
+      omschrijving: note,
+      minutes: minutes
+    };
+
+    saveAll();
+    renderMonth(year, month);
+    updateInputTotals();
+    renderHistory();
+    M.Modal.getInstance(quickModal).close();
+    alert("✅ Snelle invoer toegevoegd!");
+  });
+
+  // Autovullen shifts zodra user geladen is
+  if (auth.currentUser) populateQuickShifts();
+  else auth.onAuthStateChanged(u => { if (u) populateQuickShifts(); });
+
+  // Mobiel → open automatisch bij laden
+  function isMobile() {
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768;
+  }
+  if (isMobile()) {
+    setTimeout(() => {
+      M.Modal.getInstance(quickModal).open();
+    }, 500);
+  }
+});
 
 
 /* ============================
