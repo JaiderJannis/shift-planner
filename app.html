@@ -525,27 +525,45 @@ document.addEventListener("DOMContentLoaded", () => {
   const quickShiftSel = document.getElementById("quickShift");
   function populateQuickShifts() {
   const userData = getCurrentUserData();
-  const date = document.getElementById("quickDate").value;
+  const quickShiftSel = document.getElementById("quickShift");
   quickShiftSel.innerHTML = '<option value="">-- Kies shift --</option>';
 
-  if (!date) return; // nog geen datum → leeg laten
+  const allShifts = userData.shifts || {};
+  const order = userData.shiftOrder || Object.keys(allShifts);
 
-  const isoDate = date; // bv. "2025-09-12"
+  // pak de gekozen datum
+  const dateStr = document.getElementById("quickDate").value;
+  if (!dateStr) return; // geen datum gekozen → stop
 
-  Object.keys(userData.shifts || {}).forEach(name => {
-    const sh = userData.shifts[name];
-    // check of shift geldig is op die datum
-    if (isDateWithin(isoDate, sh.startDate || null, sh.endDate || null)) {
-      const opt = document.createElement("option");
-      opt.value = name;
-      opt.textContent = name;
-      quickShiftSel.appendChild(opt);
+  const isoDate = dateStr; // "YYYY-MM-DD"
+
+  // zelfde logica als bij invoer: eerst met periode, dan zonder
+  const withPeriod = [];
+  const withoutPeriod = [];
+  order.forEach(name => {
+    const sh = allShifts[name];
+    if (!sh) return;
+    if (sh.startDate || sh.endDate) {
+      withPeriod.push([name, sh]);
+    } else {
+      withoutPeriod.push([name, sh]);
     }
+  });
+
+  const shiftEntries = [...withPeriod, ...withoutPeriod];
+
+  shiftEntries.forEach(([name, sh]) => {
+    if (!isDateWithin(isoDate, sh.startDate || null, sh.endDate || null)) return;
+
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    quickShiftSel.appendChild(opt);
   });
 }
   // 🔹 Shifts updaten zodra datum verandert
   document.getElementById("quickDate").addEventListener("change", populateQuickShifts);
-  
+
   // Opslaan van snelle invoer
   document.getElementById("saveQuickBtn").addEventListener("click", () => {
     const date = document.getElementById("quickDate").value;
