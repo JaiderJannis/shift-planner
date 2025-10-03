@@ -437,6 +437,7 @@ if (DEBUG) {
     "background: red; color: white; font-size: 20px; font-weight: bold; padding: 8px; border: 2px solid black;"
   );
 } 
+console.log("Alle users geladen:", snapshot.docs.map(d => d.data()));
 // Zet wie is ingelogd (bovenaan labels invullen)
 auth.onAuthStateChanged(user => {
   if (user) {
