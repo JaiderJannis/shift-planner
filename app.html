@@ -569,19 +569,13 @@ if (data.role === "admin") {
 
 updateCurrentUserLabels(); // 👈 nu pas labels invullen
 });
-// 🔹 Admin user select
+// 🔹 Admin user select vullen
 async function renderAdminUserSelect() {
   const sel = document.getElementById("adminUserSelect");
   sel.innerHTML = "";
 
   try {
     const snapshot = await db.collection("users").get();
-
-    // 🔎 Debug: toon alle userdocs in console
-    console.log("Alle users in Firestore:", snapshot.docs.map(d => ({
-      id: d.id,
-      ...d.data()
-    })));
 
     snapshot.forEach(doc => {
       const data = doc.data();
@@ -591,11 +585,30 @@ async function renderAdminUserSelect() {
       sel.appendChild(opt);
     });
 
-    M.FormSelect.init(sel); // herinit Materialize select
+    // Herinit Materialize select pas NA vullen
+    M.FormSelect.init(sel);
+
+    // Selecteer standaard jezelf
+    sel.value = currentUser;
+    document.getElementById("activeUserLabel").textContent =
+      dataStore.users[currentUser]?.name || dataStore.users[currentUser]?.email || "-";
   } catch (err) {
     console.error("❌ Fout bij ophalen users:", err);
   }
 }
+
+// 🔹 Event: verander actieve gebruiker
+document.getElementById("adminUserSelect").addEventListener("change", async (e) => {
+  const uid = e.target.value;
+  if (!uid) return;
+
+  currentUser = uid;
+  await loadUser(uid);
+
+  const u = dataStore.users[uid];
+  document.getElementById("activeUserLabel").textContent = u?.name || u?.email || uid;
+  document.getElementById("roleSelect").value = u?.role || "user";
+});
   sel.addEventListener("change", async ()=>{
     currentUser=sel.value;
     await loadUser(currentUser);
