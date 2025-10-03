@@ -197,7 +197,7 @@
 </div>
 <ul id="auditLog" class="collection small"></ul>
 </div> <!-- ✅ sluit alleen .modal-content -->
-
+ </div>
 <div class="modal-footer">
   <a href="#!" class="modal-close btn-flat">Sluiten</a>
 </div>
@@ -719,8 +719,16 @@ async function loadAuditLog() {
   let query = db.collection("auditLogs").orderBy("timestamp", "desc").limit(50);
 
   if (filter === "active" && currentUser) {
+    // Logs van de actieve gebruiker (die je geselecteerd hebt in admin dropdown)
     query = db.collection("auditLogs")
       .where("targetUser", "==", currentUser)
+      .orderBy("timestamp", "desc")
+      .limit(50);
+  } else if (filter === "self" && auth.currentUser) {
+    // Logs die JIJ als ingelogde admin zelf hebt uitgevoerd
+    const myName = auth.currentUser.displayName || auth.currentUser.email;
+    query = db.collection("auditLogs")
+      .where("actor", "==", myName)
       .orderBy("timestamp", "desc")
       .limit(50);
   }
