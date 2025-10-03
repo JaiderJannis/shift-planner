@@ -64,13 +64,20 @@
   pointer-events: auto;
 }
 #adminModal {
-  max-width: 70% !important;
-  width: 70% !important;
-  max-height: 80% !important;
+  max-width: 90% !important;
+  width: 90% !important;
+  max-height: 90% !important;
 }
 #adminModal .modal-content {
   overflow-y: auto;
   max-height: 70vh;
+}
+#adminModal .modal-footer {
+  position: sticky;
+  bottom: 0;
+  background: white;
+  border-top: 1px solid #ddd;
+  z-index: 2;
 }
 /* 🔹 Hover effect voor PC */
 .quick-zone {
@@ -102,6 +109,12 @@
     opacity: 1 !important;
     pointer-events: auto !important;
   }
+}
+.label-fix {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+  font-size: 0.9rem;
 }
 </style>
 </head>
@@ -137,10 +150,12 @@
       </div>
     </div>
 
+    <!-- Gebruikersbeheer -->
     <h6>Gebruikersbeheer</h6>
     <div class="row">
       <div class="input-field col s6">
-        <select id="adminUserSelect" class="browser-default"></select>
+        <select id="adminUserSelect"></select>
+        <label for="adminUserSelect">Gebruiker selecteren</label>
       </div>
       <div class="input-field col s6">
         <button id="addUserBtn" class="btn blue">Nieuwe gebruiker</button>
@@ -150,7 +165,7 @@
 
     <div class="row">
       <div class="input-field col s6">
-        <select id="roleSelect" class="browser-default">
+        <select id="roleSelect">
           <option value="user">User</option>
           <option value="admin">Admin</option>
         </select>
@@ -161,16 +176,20 @@
       </div>
     </div>
 
+    <!-- Projectbeheer -->
     <h6>Projectbeheer</h6>
-    <div class="row compact">
+    <div class="row">
       <div class="input-field col s4">
-        <input id="newProjectName" type="text"><label for="newProjectName">Project naam</label>
+        <input id="newProjectName" type="text">
+        <label for="newProjectName">Project naam</label>
       </div>
       <div class="input-field col s3">
-        <input id="newProjectStart" type="date"><label for="newProjectStart">Start datum</label>
+        <input id="newProjectStart" type="date">
+        <label for="newProjectStart">Start datum</label>
       </div>
       <div class="input-field col s3">
-        <input id="newProjectEnd" type="date"><label for="newProjectEnd">Eind datum</label>
+        <input id="newProjectEnd" type="date">
+        <label for="newProjectEnd">Eind datum</label>
       </div>
       <div class="input-field col s2">
         <button id="addProjectBtn" class="btn green">Toevoegen</button>
@@ -184,23 +203,26 @@
       <tbody id="projectTableBody"></tbody>
     </table>
 
-<h6>Audit Log</h6>
-<div class="row">
-  <div class="input-field col s6">
-    <select id="auditFilterSelect" class="browser-default">
-      <option value="all">Alle gebruikers</option>
-      <option value="active">Actieve gebruiker</option>
-      <option value="self">Ingelogde gebruiker</option>
-    </select>
-    <label for="auditFilterSelect">Filter audit log</label>
+    <!-- Audit log -->
+    <h6>Audit Log</h6>
+    <div class="row">
+      <div class="input-field col s6">
+        <select id="auditFilterSelect">
+          <option value="all" selected>Alle gebruikers</option>
+          <option value="active">Actieve gebruiker</option>
+          <option value="self">Ingelogde gebruiker</option>
+        </select>
+        <label for="auditFilterSelect">Filter audit log</label>
+      </div>
+    </div>
+    <ul id="auditLog" class="collection small"></ul>
+  </div> <!-- einde modal-content -->
+
+  <div class="modal-footer">
+    <a href="#!" class="modal-close btn-flat">Sluiten</a>
   </div>
 </div>
-<ul id="auditLog" class="collection small"></ul>
-</div> <!-- ✅ sluit alleen .modal-content -->
-<div class="modal-footer">
-  <a href="#!" class="modal-close btn-flat">Sluiten</a>
-</div>
-</div> <!-- ✅ sluit #adminModal -->
+
 
 <nav>
   <div class="nav-wrapper blue">
@@ -458,13 +480,36 @@ let dataStore = { users: {}, currentUser: null };
 let currentUser = null;
 // 🔹 auth state
 document.addEventListener("DOMContentLoaded", () => {
-  // Init Materialize modal
+  // Init Materialize modal + selects
   var modals = document.querySelectorAll('.modal');
   M.Modal.init(modals);
-// Audit filter → reload logs bij veranderen
-const auditFilter = document.getElementById("auditFilterSelect");
-if (auditFilter) {
-  auditFilter.addEventListener("change", loadAuditLog);
+
+  var selects = document.querySelectorAll('select');
+  M.FormSelect.init(selects);
+
+  // Audit filter listener
+  document.getElementById("auditFilterSelect").addEventListener("change", loadAuditLog);
+});
+
+
+// 🔹 Audit log toevoegen
+async function addAuditLog(action, targetUserId = null) {
+  if (!auth.currentUser) return;
+
+  const actor = auth.currentUser.email || auth.currentUser.uid;
+  const logEntry = {
+    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+    actor: actor,
+    targetUser: targetUserId || null,
+    action: action
+  };
+
+  try {
+    await db.collection("auditLogs").add(logEntry);
+    console.log("✅ Audit log toegevoegd:", logEntry);
+  } catch (err) {
+    console.error("❌ Fout bij audit log opslaan:", err);
+  }
 }
   // Auth check
 auth.onAuthStateChanged(async user => {
@@ -522,8 +567,6 @@ if (data.role === "admin") {
 }
 
 updateCurrentUserLabels(); // 👈 nu pas labels invullen
-});
-
 });
 // 🔹 Admin user select
 async function renderAdminUserSelect(){
@@ -671,7 +714,101 @@ document.addEventListener("DOMContentLoaded", () => {
   renderMonth(year, month);
   updateInputTotals();
   renderHistory();
+// 👉 Nieuwe gebruiker toevoegen
+document.getElementById("addUserBtn").addEventListener("click", async () => {
+  const name = prompt("Nieuwe gebruikersnaam:");
+  if (!name) return;
 
+  try {
+    const userRef = db.collection("users").doc(); // random id
+    await userRef.set({
+      name: name,
+      role: "user",
+      shifts: {},
+      monthData: {},
+      projects: []
+    });
+
+    await addAuditLog(`Nieuwe gebruiker aangemaakt: ${name}`, userRef.id);
+    alert("✅ Gebruiker toegevoegd!");
+    renderAdminUserSelect();
+    loadAuditLog();
+  } catch (err) {
+    console.error("❌ Fout bij gebruiker toevoegen:", err);
+  }
+});
+
+
+// 👉 Gebruiker verwijderen
+document.getElementById("removeUserBtn").addEventListener("click", async () => {
+  const sel = document.getElementById("adminUserSelect");
+  const uid = sel.value;
+  if (!uid) return alert("Selecteer eerst een gebruiker.");
+
+  if (!confirm("Weet je zeker dat je deze gebruiker wilt verwijderen?")) return;
+
+  try {
+    await db.collection("users").doc(uid).delete();
+    await addAuditLog(`Gebruiker verwijderd`, uid);
+
+    alert("❌ Gebruiker verwijderd!");
+    renderAdminUserSelect();
+    loadAuditLog();
+  } catch (err) {
+    console.error("❌ Fout bij gebruiker verwijderen:", err);
+  }
+});
+
+
+// 👉 Rol updaten
+document.getElementById("updateRoleBtn").addEventListener("click", async () => {
+  const sel = document.getElementById("adminUserSelect");
+  const uid = sel.value;
+  const newRole = document.getElementById("roleSelect").value;
+
+  if (!uid) return alert("Selecteer eerst een gebruiker.");
+
+  try {
+    await db.collection("users").doc(uid).update({ role: newRole });
+    await addAuditLog(`Rol gewijzigd naar: ${newRole}`, uid);
+
+    alert("✅ Rol aangepast!");
+    renderAdminUserSelect();
+    loadAuditLog();
+  } catch (err) {
+    console.error("❌ Fout bij rol wijzigen:", err);
+  }
+});
+
+
+// 👉 Nieuw project toevoegen
+document.getElementById("addProjectBtn").addEventListener("click", async () => {
+  const name = document.getElementById("newProjectName").value.trim();
+  const start = document.getElementById("newProjectStart").value;
+  const end = document.getElementById("newProjectEnd").value;
+
+  if (!name || !start || !end) return alert("Vul alle velden in.");
+
+  try {
+    const projectRef = db.collection("projects").doc();
+    await projectRef.set({
+      name: name,
+      start: start,
+      end: end,
+      createdBy: auth.currentUser.uid
+    });
+
+    await addAuditLog(`Project toegevoegd: ${name}`, auth.currentUser.uid);
+
+    alert("✅ Project toegevoegd!");
+    document.getElementById("newProjectName").value = "";
+    document.getElementById("newProjectStart").value = "";
+    document.getElementById("newProjectEnd").value = "";
+    loadAuditLog();
+  } catch (err) {
+    console.error("❌ Fout bij project toevoegen:", err);
+  }
+});
   // ✅ Toast ipv alert + modal blijft open
   M.toast({html: "✅ Snelle invoer toegevoegd!", classes: "green"});
 });
