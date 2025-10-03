@@ -22,32 +22,92 @@
 
   /* FAB styling */
   .fixed-action-btn { z-index: 1000; }
-
   /* Hover-zone uitloggen */
-  .logout-zone { position: fixed; bottom: 0; right: 0; width: 80px; height: 80px; z-index: 999; }
-  .logout-hover { position: absolute; bottom: 24px; right: 24px; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
-  .logout-zone:hover .logout-hover { opacity: 1; pointer-events: auto; }
-
-  /* Admin knop */
-  .admin-zone { position: fixed; bottom: 0; left: 0; width: 80px; height: 80px; z-index: 999; }
-  .admin-hover { position: absolute; bottom: 24px; left: 24px; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
-  .admin-zone:hover .admin-hover { opacity: 1; pointer-events: auto; }
-  #adminModal { max-width: 90% !important; width: 90% !important; height: 80% !important; }
-  #adminModal .modal-content { overflow-y: auto; height: calc(100% - 64px); }
-
-  /* Quick input knop */
-  .quick-zone { position: fixed; bottom: 0; right: 80px; width: 80px; height: 80px; z-index: 999; }
-  .quick-hover { position: absolute; bottom: 24px; right: 24px; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
-  .quick-zone:hover .quick-hover { opacity: 1; pointer-events: auto; }
-
-  @media (max-width: 768px) {
-    .quick-hover { opacity: 1 !important; pointer-events: auto !important; }
+  .logout-zone {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    width: 80px;
+    height: 80px;
+    z-index: 999;
   }
+  .logout-hover {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  .logout-zone:hover .logout-hover {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .admin-zone {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 80px;
+  height: 80px;
+  z-index: 999;
+}
+.admin-hover {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.admin-zone:hover .admin-hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+#adminModal {
+  max-width: 90% !important;
+  width: 90% !important;
+  height: 80% !important;
+}
+#adminModal .modal-content {
+  overflow-y: auto;
+  height: calc(100% - 64px); /* ruimte voor footer */
+}
+/* 🔹 Hover effect voor PC */
+.quick-zone {
+  position: fixed;
+  bottom: 0;
+  right: 80px; /* naast logout-knop */
+  width: 80px;
+  height: 80px;
+  z-index: 999;
+}
+
+.quick-hover {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.quick-zone:hover .quick-hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 🔹 Mobiel → FAB altijd zichtbaar */
+@media (max-width: 768px) {
+  .quick-hover {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}
 </style>
 </head>
 <body>
 
-<!-- 🔹 Uitlog knop -->
+<!-- 🔹 Uitlog knop (rechtsonder, hover) -->
 <div class="logout-zone">
   <div class="fixed-action-btn logout-hover">
     <a id="logoutBtn" class="btn-floating btn-large red tooltipped" data-tooltip="Uitloggen">
@@ -56,31 +116,22 @@
   </div>
 </div>
 
-<!-- 🔹 Admin FAB -->
+<!-- 🔹 Admin FAB linksonder -->
 <div class="admin-zone">
   <div id="adminFab" class="fixed-action-btn admin-hover" style="display:none;">
-    <a id="adminFabBtn" class="btn-floating btn-large orange tooltipped modal-trigger"
-       data-tooltip="Admin beheer" href="#adminModal">
-      <i class="material-icons">admin_panel_settings</i>
-    </a>
+    <a id="adminFabBtn" class="btn-floating btn-large orange tooltipped modal-trigger" data-tooltip="Admin beheer" href="#adminModal">
+  <i class="material-icons">admin_panel_settings</i>
+</a>
   </div>
 </div>
-
 <!-- 🔹 Admin Modal -->
 <div id="adminModal" class="modal">
   <div class="modal-content">
     <h5>🔑 Admin Beheer</h5>
-
-    <!-- Labels -->
-    <p><strong>Ingelogd als:</strong> <span id="loggedInUserLabel">-</span></p>
-    <p><strong>Actieve gebruiker:</strong> <span id="activeUserLabel">-</span></p>
-
-    <!-- Gebruikersbeheer -->
     <h6>Gebruikersbeheer</h6>
     <div class="row">
       <div class="input-field col s6">
-        <select id="adminUserSelect"></select>
-        <label for="adminUserSelect">Gebruiker selecteren</label>
+        <select id="adminUserSelect" class="browser-default"></select>
       </div>
       <div class="input-field col s6">
         <button id="addUserBtn" class="btn blue">Nieuwe gebruiker</button>
@@ -88,48 +139,32 @@
       </div>
     </div>
 
-    <div class="row">
-      <div class="input-field col s6">
-        <select id="roleSelect">
-          <option value="user">User</option>
-          <option value="admin">Admin</option>
-        </select>
-        <label for="roleSelect">Rol wijzigen</label>
-      </div>
-      <div class="input-field col s6">
-        <button id="updateRoleBtn" class="btn orange">Update rol</button>
-      </div>
-    </div>
-
-    <!-- Projectbeheer -->
     <h6>Projectbeheer</h6>
-    <div class="row">
-      <div class="input-field col s4"><input id="newProjectName" type="text"><label>Project naam</label></div>
-      <div class="input-field col s3"><input id="newProjectStart" type="date"><label>Start datum</label></div>
-      <div class="input-field col s3"><input id="newProjectEnd" type="date"><label>Eind datum</label></div>
-      <div class="input-field col s2"><button id="addProjectBtn" class="btn green">Toevoegen</button></div>
+    <div class="row compact">
+      <div class="input-field col s4">
+        <input id="newProjectName" type="text"><label for="newProjectName">Project naam</label>
+      </div>
+      <div class="input-field col s3">
+        <input id="newProjectStart" type="date"><label for="newProjectStart">Start datum</label>
+      </div>
+      <div class="input-field col s3">
+        <input id="newProjectEnd" type="date"><label for="newProjectEnd">Eind datum</label>
+      </div>
+      <div class="input-field col s2">
+        <button id="addProjectBtn" class="btn green">Project toevoegen</button>
+      </div>
     </div>
 
     <table class="striped">
-      <thead><tr><th>Project</th><th>Start</th><th>Eind</th><th>Acties</th></tr></thead>
+      <thead>
+        <tr><th>Project</th><th>Start</th><th>Eind</th><th>Acties</th></tr>
+      </thead>
       <tbody id="projectTableBody"></tbody>
     </table>
-
-    <!-- Audit log -->
-    <h6>Audit Log</h6>
-    <div class="row">
-      <div class="input-field col s6">
-        <select id="auditFilterSelect">
-          <option value="all" selected>Alle gebruikers</option>
-          <option value="active">Actieve gebruiker</option>
-          <option value="self">Ingelogde gebruiker</option>
-        </select>
-        <label for="auditFilterSelect">Filter audit log</label>
-      </div>
-    </div>
-    <ul id="auditLog" class="collection small"></ul>
   </div>
-  <div class="modal-footer"><a href="#!" class="modal-close btn-flat">Sluiten</a></div>
+  <div class="modal-footer">
+    <a href="#!" class="modal-close btn-flat">Sluiten</a>
+  </div>
 </div>
 <nav>
   <div class="nav-wrapper blue">
@@ -344,92 +379,6 @@ if (DEBUG) {
     "background: red; color: white; font-size: 20px; font-weight: bold; padding: 8px; border: 2px solid black;"
   );
 } 
-/* 🔹 Admin functies */
-auth.onAuthStateChanged(async (user) => {
-  if (!user) return;
-  document.getElementById("loggedInUserLabel").textContent = user.displayName || user.email;
-
-  const snap = await db.collection("users").doc(user.uid).get();
-  if (!snap.exists) return;
-  const data = snap.data();
-
-  if (data.role === "admin") {
-    document.getElementById("adminFab").style.display = "block";
-    await renderAdminUserSelect();
-  }
-});
-
-async function renderAdminUserSelect() {
-  const sel = document.getElementById("adminUserSelect");
-  sel.innerHTML = "";
-  const snapshot = await db.collection("users").get();
-  snapshot.forEach(doc => {
-    const data = doc.data();
-    const opt = document.createElement("option");
-    opt.value = doc.id;
-    opt.textContent = data.name || data.email || doc.id;
-    sel.appendChild(opt);
-  });
-  M.FormSelect.init(sel);
-}
-
-async function addAuditLog(action, targetUserId = null) {
-  if (!auth.currentUser) return;
-  await db.collection("auditLogs").add({
-    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-    actor: auth.currentUser.email || auth.currentUser.uid,
-    targetUser: targetUserId || null,
-    action: action
-  });
-}
-
-async function loadAuditLog() {
-  const ul = document.getElementById("auditLog");
-  ul.innerHTML = "";
-  const snapshot = await db.collection("auditLogs").orderBy("timestamp", "desc").limit(50).get();
-  snapshot.forEach(doc => {
-    const log = doc.data();
-    const ts = log.timestamp ? log.timestamp.toDate().toLocaleString() : "-";
-    const li = document.createElement("li");
-    li.className = "collection-item";
-    li.textContent = `${ts} — ${log.actor} → [${log.targetUser}] ${log.action}`;
-    ul.appendChild(li);
-  });
-}
-
-document.getElementById("auditFilterSelect").addEventListener("change", loadAuditLog);
-
-document.getElementById("addUserBtn").addEventListener("click", async () => {
-  const name = prompt("Nieuwe gebruikersnaam:");
-  if (!name) return;
-  const ref = db.collection("users").doc();
-  await ref.set({ name, role: "user", shifts:{}, monthData:{}, projects:[] });
-  await addAuditLog(`Gebruiker toegevoegd: ${name}`, ref.id);
-  renderAdminUserSelect(); loadAuditLog();
-});
-
-document.getElementById("removeUserBtn").addEventListener("click", async () => {
-  const uid = document.getElementById("adminUserSelect").value;
-  if (!uid) return alert("Geen gebruiker geselecteerd");
-  if (!confirm("Verwijderen?")) return;
-  await db.collection("users").doc(uid).delete();
-  await addAuditLog("Gebruiker verwijderd", uid);
-  renderAdminUserSelect(); loadAuditLog();
-});
-
-document.getElementById("updateRoleBtn").addEventListener("click", async () => {
-  const uid = document.getElementById("adminUserSelect").value;
-  const newRole = document.getElementById("roleSelect").value;
-  await db.collection("users").doc(uid).update({ role: newRole });
-  await addAuditLog(`Rol gewijzigd naar: ${newRole}`, uid);
-  M.toast({ html:"Rol aangepast!", classes:"orange" });
-  renderAdminUserSelect(); loadAuditLog();
-});
-
-document.addEventListener("DOMContentLoaded", () => {
-  const adminModalEl = document.getElementById("adminModal");
-  M.Modal.init(adminModalEl, { onOpenStart: loadAuditLog });
-});
 </script>
 <script>
 /* ============================
@@ -504,6 +453,28 @@ updateCurrentUserLabels(); // 👈 nu pas labels invullen
 });
 
 });
+// 🔹 Admin user select
+async function renderAdminUserSelect(){
+  const snapshot = await db.collection("users").get();
+  const sel = document.getElementById("adminUserSelect");
+  sel.innerHTML="";
+  snapshot.forEach(doc=>{
+    const opt=document.createElement("option");
+    opt.value=doc.id;
+    const u = doc.data();
+opt.textContent = u.name || u.email || doc.id;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener("change", async ()=>{
+    currentUser=sel.value;
+    await loadUser(currentUser);
+    sel.value = currentUser;
+    renderProjects();
+    renderShifts();
+    updateCurrentUserLabels();
+    renderHistory();
+  });
+}
 // 🔹 Save naar Firestore
 async function saveAll(){
   if (!currentUser) return;
@@ -595,43 +566,42 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Opslaan van snelle invoer
   document.getElementById("saveQuickBtn").addEventListener("click", () => {
-  const date = document.getElementById("quickDate").value;
-  const shift = document.getElementById("quickShift").value;
-  const note = document.getElementById("quickNote").value;
-  if (!date || !shift) {
-    return alert("Kies minstens een datum en shift!");
-  }
+    const date = document.getElementById("quickDate").value;
+    const shift = document.getElementById("quickShift").value;
+    const note = document.getElementById("quickNote").value;
+    if (!date || !shift) {
+      return alert("Kies minstens een datum en shift!");
+    }
 
-  const year = Number(date.split("-")[0]);
-  const month = Number(date.split("-")[1]) - 1;
-  const key = date;
+    const year = Number(date.split("-")[0]);
+    const month = Number(date.split("-")[1]) - 1;
+    const key = date;
 
-  const userData = getCurrentUserData();
-  if (!userData.monthData) userData.monthData = {};
-  if (!userData.monthData[year]) userData.monthData[year] = {};
-  if (!userData.monthData[year][month]) userData.monthData[year][month] = {targetHours:0, targetMinutes:0, rows:{}};
+    const userData = getCurrentUserData();
+    if (!userData.monthData) userData.monthData = {};
+    if (!userData.monthData[year]) userData.monthData[year] = {};
+    if (!userData.monthData[year][month]) userData.monthData[year][month] = {targetHours:0, targetMinutes:0, rows:{}};
 
-  const sh = userData.shifts[shift];
-  const minutes = minutesBetween(sh.start, sh.end, sh.break);
+    const sh = userData.shifts[shift];
+    const minutes = minutesBetween(sh.start, sh.end, sh.break);
 
-  userData.monthData[year][month].rows[key] = {
-    project: sh.project || "",
-    shift: shift,
-    start: sh.start,
-    end: sh.end,
-    break: sh.break,
-    omschrijving: note,
-    minutes: minutes
-  };
+    userData.monthData[year][month].rows[key] = {
+      project: sh.project || "",
+      shift: shift,
+      start: sh.start,
+      end: sh.end,
+      break: sh.break,
+      omschrijving: note,
+      minutes: minutes
+    };
 
-  saveAll();
-  renderMonth(year, month);
-  updateInputTotals();
-  renderHistory();
-
-  // ✅ Toast ipv alert + modal blijft open
-  M.toast({html: "✅ Snelle invoer toegevoegd!", classes: "green"});
-});
+    saveAll();
+    renderMonth(year, month);
+    updateInputTotals();
+    renderHistory();
+    M.Modal.getInstance(quickModal).close();
+    alert("✅ Snelle invoer toegevoegd!");
+  });
 
   // Autovullen shifts zodra user geladen is
   if (auth.currentUser) populateQuickShifts();
