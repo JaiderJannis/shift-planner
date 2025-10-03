@@ -64,13 +64,13 @@
   pointer-events: auto;
 }
 #adminModal {
-  max-width: 90% !important;
-  width: 90% !important;
-  height: 80% !important;
+  max-width: 70% !important;
+  width: 70% !important;
+  max-height: 80% !important;
 }
 #adminModal .modal-content {
   overflow-y: auto;
-  height: calc(100% - 64px); /* ruimte voor footer */
+  max-height: 70vh;
 }
 /* 🔹 Hover effect voor PC */
 .quick-zone {
@@ -195,6 +195,11 @@
   </div>
 </div>
 <ul id="auditLog" class="collection small"></ul>
+</div>
+  </div>
+  <div class="modal-footer">
+    <a href="#!" class="modal-close btn-flat">Sluiten</a>
+  </div>
 </div>
 <nav>
   <div class="nav-wrapper blue">
