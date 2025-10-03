@@ -441,15 +441,6 @@ document.getElementById("updateRoleBtn").addEventListener("click", async () => {
   addAuditLog(`Rol gewijzigd voor ${currentUser} → ${newRole}`);
   M.toast({html: "✅ Rol succesvol aangepast!", classes: "orange"});
 });
-
-// Audit log helper
-function addAuditLog(msg) {
-  const ul = document.getElementById("auditLog");
-  const li = document.createElement("li");
-  li.className = "collection-item";
-  li.textContent = `${new Date().toLocaleString()} — ${msg}`;
-  ul.prepend(li); // bovenaan toevoegen
-}
 </script>
 <script>
 /* ============================
