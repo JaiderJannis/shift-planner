@@ -184,23 +184,25 @@
       <tbody id="projectTableBody"></tbody>
     </table>
 
-    <h6>Audit Log</h6>
+<h6>Audit Log</h6>
 <div class="row">
   <div class="input-field col s6">
     <select id="auditFilterSelect" class="browser-default">
       <option value="all">Alle gebruikers</option>
       <option value="active">Actieve gebruiker</option>
+      <option value="self">Ingelogde gebruiker</option>
     </select>
     <label for="auditFilterSelect">Filter audit log</label>
   </div>
 </div>
 <ul id="auditLog" class="collection small"></ul>
+</div> <!-- ✅ sluit alleen .modal-content -->
+
+<div class="modal-footer">
+  <a href="#!" class="modal-close btn-flat">Sluiten</a>
 </div>
-  </div>
-  <div class="modal-footer">
-    <a href="#!" class="modal-close btn-flat">Sluiten</a>
-  </div>
-</div>
+</div> <!-- ✅ sluit #adminModal -->
+
 <nav>
   <div class="nav-wrapper blue">
     <a href="#!" class="brand-logo">Shift Planner</a>
