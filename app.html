@@ -128,6 +128,15 @@
 <div id="adminModal" class="modal">
   <div class="modal-content">
     <h5>🔑 Admin Beheer</h5>
+
+    <!-- Labels -->
+    <div class="row">
+      <div class="col s12">
+        <p><strong>🔑 Ingelogd als:</strong> <span id="loggedInUserLabel">-</span></p>
+        <p><strong>👤 Actieve gebruiker:</strong> <span id="activeUserLabel">-</span></p>
+      </div>
+    </div>
+
     <h6>Gebruikersbeheer</h6>
     <div class="row">
       <div class="input-field col s6">
@@ -136,6 +145,19 @@
       <div class="input-field col s6">
         <button id="addUserBtn" class="btn blue">Nieuwe gebruiker</button>
         <button id="removeUserBtn" class="btn red">Verwijder gebruiker</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="input-field col s6">
+        <select id="roleSelect" class="browser-default">
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+        <label for="roleSelect">Rol wijzigen</label>
+      </div>
+      <div class="input-field col s6">
+        <button id="updateRoleBtn" class="btn orange">Update rol</button>
       </div>
     </div>
 
@@ -151,7 +173,7 @@
         <input id="newProjectEnd" type="date"><label for="newProjectEnd">Eind datum</label>
       </div>
       <div class="input-field col s2">
-        <button id="addProjectBtn" class="btn green">Project toevoegen</button>
+        <button id="addProjectBtn" class="btn green">Toevoegen</button>
       </div>
     </div>
 
@@ -161,10 +183,18 @@
       </thead>
       <tbody id="projectTableBody"></tbody>
     </table>
+
+    <h6>Audit Log</h6>
+<div class="row">
+  <div class="input-field col s6">
+    <select id="auditFilterSelect" class="browser-default">
+      <option value="all">Alle gebruikers</option>
+      <option value="active">Actieve gebruiker</option>
+    </select>
+    <label for="auditFilterSelect">Filter audit log</label>
   </div>
-  <div class="modal-footer">
-    <a href="#!" class="modal-close btn-flat">Sluiten</a>
-  </div>
+</div>
+<ul id="auditLog" class="collection small"></ul>
 </div>
 <nav>
   <div class="nav-wrapper blue">
@@ -379,6 +409,47 @@ if (DEBUG) {
     "background: red; color: white; font-size: 20px; font-weight: bold; padding: 8px; border: 2px solid black;"
   );
 } 
+// Zet wie is ingelogd (bovenaan labels invullen)
+auth.onAuthStateChanged(user => {
+  if (user) {
+    document.getElementById("loggedInUserLabel").textContent =
+      user.displayName || user.email;
+  }
+});
+
+// Update actieve gebruiker label telkens dropdown verandert
+document.getElementById("adminUserSelect").addEventListener("change", async (e) => {
+  const uid = e.target.value;
+  if (!uid) return;
+
+  currentUser = uid;
+  await loadUser(uid);
+
+  const u = dataStore.users[uid];
+  document.getElementById("activeUserLabel").textContent =
+    u.name || u.email;
+
+  document.getElementById("roleSelect").value = u.role || "user";
+});
+
+// Rol wijzigen
+document.getElementById("updateRoleBtn").addEventListener("click", async () => {
+  if (!currentUser) return alert("Geen gebruiker geselecteerd!");
+  const newRole = document.getElementById("roleSelect").value;
+  await db.collection("users").doc(currentUser).update({ role: newRole });
+  dataStore.users[currentUser].role = newRole;
+  addAuditLog(`Rol gewijzigd voor ${currentUser} → ${newRole}`);
+  M.toast({html: "✅ Rol succesvol aangepast!", classes: "orange"});
+});
+
+// Audit log helper
+function addAuditLog(msg) {
+  const ul = document.getElementById("auditLog");
+  const li = document.createElement("li");
+  li.className = "collection-item";
+  li.textContent = `${new Date().toLocaleString()} — ${msg}`;
+  ul.prepend(li); // bovenaan toevoegen
+}
 </script>
 <script>
 /* ============================
@@ -393,7 +464,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // Init Materialize modal
   var modals = document.querySelectorAll('.modal');
   M.Modal.init(modals);
-
+// Audit filter → reload logs bij veranderen
+const auditFilter = document.getElementById("auditFilterSelect");
+if (auditFilter) {
+  auditFilter.addEventListener("change", loadAuditLog);
+}
   // Auth check
 auth.onAuthStateChanged(async user => {
   if (!user) {
@@ -618,7 +693,59 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 500);
   }
 });
+// 🔹 Audit log naar Firestore én UI
+async function addAuditLog(msg, targetUserId = null) {
+  const actor = auth.currentUser ? (auth.currentUser.displayName || auth.currentUser.email) : "Onbekend";
+  const ts = new Date();
 
+  // Opslaan in Firestore
+  await db.collection("auditLogs").add({
+    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+    actor: actor,
+    targetUser: targetUserId || currentUser || null,
+    action: msg
+  });
+
+  // Ook in UI tonen
+  const ul = document.getElementById("auditLog");
+  const li = document.createElement("li");
+  li.className = "collection-item";
+  li.textContent = `${ts.toLocaleString()} — ${actor} → ${msg}`;
+  ul.prepend(li);
+}
+async function loadAuditLog() {
+  const ul = document.getElementById("auditLog");
+  ul.innerHTML = "";
+
+  const filter = document.getElementById("auditFilterSelect").value;
+  let query = db.collection("auditLogs").orderBy("timestamp", "desc").limit(50);
+
+  if (filter === "active" && currentUser) {
+    query = db.collection("auditLogs")
+      .where("targetUser", "==", currentUser)
+      .orderBy("timestamp", "desc")
+      .limit(50);
+  }
+
+  const snapshot = await query.get();
+
+  snapshot.forEach(doc => {
+    const log = doc.data();
+    const ts = log.timestamp ? log.timestamp.toDate().toLocaleString() : "-";
+    const li = document.createElement("li");
+    li.className = "collection-item";
+    li.textContent = `${ts} — ${log.actor} → [${log.targetUser}] ${log.action}`;
+    ul.appendChild(li);
+  });
+}
+
+// 🔹 Modal openen → logs laden
+document.addEventListener("DOMContentLoaded", () => {
+  const adminModalEl = document.getElementById("adminModal");
+  M.Modal.init(adminModalEl, {
+    onOpenStart: loadAuditLog
+  });
+});
 
 /* ============================
    Utils
