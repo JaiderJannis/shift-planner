@@ -570,32 +570,17 @@ if (data.role === "admin") {
 updateCurrentUserLabels(); // 👈 nu pas labels invullen
 });
 // 🔹 Admin user select
-async function renderAdminUserSelect() {
+async function renderAdminUserSelect(){
+  const snapshot = await db.collection("users").get();
   const sel = document.getElementById("adminUserSelect");
-  sel.innerHTML = "";
-
-  try {
-    const snapshot = await db.collection("users").get();
-
-    // 🔎 Debug: toon alle userdocs in console
-    console.log("Alle users in Firestore:", snapshot.docs.map(d => ({
-      id: d.id,
-      ...d.data()
-    })));
-
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      const opt = document.createElement("option");
-      opt.value = doc.id;
-      opt.textContent = data.name || data.email || doc.id;
-      sel.appendChild(opt);
-    });
-
-    M.FormSelect.init(sel); // herinit Materialize select
-  } catch (err) {
-    console.error("❌ Fout bij ophalen users:", err);
-  }
-}
+  sel.innerHTML="";
+  snapshot.forEach(doc=>{
+    const opt=document.createElement("option");
+    opt.value=doc.id;
+    const u = doc.data();
+opt.textContent = u.name || u.email || doc.id;
+    sel.appendChild(opt);
+  });
   sel.addEventListener("change", async ()=>{
     currentUser=sel.value;
     await loadUser(currentUser);
@@ -605,6 +590,7 @@ async function renderAdminUserSelect() {
     updateCurrentUserLabels();
     renderHistory();
   });
+}
 // 🔹 Save naar Firestore
 async function saveAll(){
   if (!currentUser) return;
