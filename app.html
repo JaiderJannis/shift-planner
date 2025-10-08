@@ -263,60 +263,65 @@ body.dark-mode nav .tabs .tab a.active {
   </div>
 </div>
 <!-- 🔹 Admin Modal -->
-<div id="adminModal" class="modal">
-  <div class="modal-content">
-    <h5>🔑 Admin Beheer</h5>
-    <h6>Gebruikersbeheer</h6>
+  <div id="adminModal" class="modal">
+    <div class="modal-content card-like">
+      <h5>🔑 Admin Beheer</h5>
+
+      <h6>Gebruikersbeheer</h6>
+      <div class="row">
+        <div class="input-field col s6">
+          <select id="adminUserSelect" class="browser-default"></select>
+        </div>
+        <div class="input-field col s6">
+          <button id="addUserBtn" class="btn blue">Nieuwe gebruiker</button>
+          <button id="removeUserBtn" class="btn red">Verwijder gebruiker</button>
+        </div>
+      </div>
+
+      <h6>Projectbeheer</h6>
+      <div class="row compact">
+        <div class="input-field col s4">
+          <input id="newProjectName" type="text"><label for="newProjectName">Project naam</label>
+        </div>
+        <div class="input-field col s3">
+          <input id="newProjectStart" type="date"><label for="newProjectStart">Start datum</label>
+        </div>
+        <div class="input-field col s3">
+          <input id="newProjectEnd" type="date"><label for="newProjectEnd">Eind datum</label>
+        </div>
+        <div class="input-field col s2">
+          <button id="addProjectBtn" class="btn green">Toevoegen</button>
+        </div>
+      </div>
+
+      <table class="striped">
+        <thead>
+          <tr><th>Project</th><th>Start</th><th>Eind</th><th>Acties</th></tr>
+        </thead>
+        <tbody id="projectTableBody"></tbody>
+      </table>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-close btn-flat">Sluiten</a>
+    </div>
+  </div>
+  <!-- 🔹 Navigatie -->
+  <nav>
+    <div class="nav-wrapper">
+      <a href="#!" class="brand-logo">Shift Planner</a>
+    </div>
+  </nav>
+
+  <!-- 🔹 Tabs buiten de nav -->
+  <ul id="tabs-swipe" class="tabs">
+    <li class="tab"><a class="active" href="#tab-shifts"><i class="material-icons left">schedule</i>Shift aanmaken</a></li>
+    <li class="tab"><a href="#tab-invoer"><i class="material-icons left">edit</i>Invoer</a></li>
+    <li class="tab"><a href="#tab-historiek"><i class="material-icons left">history</i>Historiek</a></li>
+    <li class="tab"><a href="#tab-converter"><i class="material-icons left">calculate</i>Tijd omrekenen</a></li>
+  </ul>
+  </div>
+ <div class="container">
     <div class="row">
-      <div class="input-field col s6">
-        <select id="adminUserSelect" class="browser-default"></select>
-      </div>
-      <div class="input-field col s6">
-        <button id="addUserBtn" class="btn blue">Nieuwe gebruiker</button>
-        <button id="removeUserBtn" class="btn red">Verwijder gebruiker</button>
-      </div>
-    </div>
-
-    <h6>Projectbeheer</h6>
-    <div class="row compact">
-      <div class="input-field col s4">
-        <input id="newProjectName" type="text"><label for="newProjectName">Project naam</label>
-      </div>
-      <div class="input-field col s3">
-        <input id="newProjectStart" type="date"><label for="newProjectStart">Start datum</label>
-      </div>
-      <div class="input-field col s3">
-        <input id="newProjectEnd" type="date"><label for="newProjectEnd">Eind datum</label>
-      </div>
-      <div class="input-field col s2">
-        <button id="addProjectBtn" class="btn green">Project toevoegen</button>
-      </div>
-    </div>
-
-    <table class="striped">
-      <thead>
-        <tr><th>Project</th><th>Start</th><th>Eind</th><th>Acties</th></tr>
-      </thead>
-      <tbody id="projectTableBody"></tbody>
-    </table>
-  </div>
-  <div class="modal-footer">
-    <a href="#!" class="modal-close btn-flat">Sluiten</a>
-  </div>
-</div>
-<nav>
-  <div class="nav-wrapper blue">
-    <a href="#!" class="brand-logo">Shift Planner</a>
-    <ul id="tabs-swipe" class="tabs tabs-fixed-width right">
-      <li class="tab col s3"><a class="active" href="#tab-shifts">Shift aanmaken</a></li>
-      <li class="tab col s3"><a href="#tab-invoer">Invoer</a></li>
-      <li class="tab col s3"><a href="#tab-historiek">Historiek</a></li>
-      <li class="tab col s3"><a href="#tab-converter">Tijd omrekenen</a></li>
-    </ul>
-  </div>
-</nav>
-
-<div class="row">
 <!-- 🔹 Snelle invoer FAB -->
 <div class="quick-zone">
   <div id="quickFab" class="fixed-action-btn quick-hover">
@@ -358,6 +363,7 @@ body.dark-mode nav .tabs .tab a.active {
 </div>
   <!-- TAB: Shifts -->
   <div id="tab-shifts" class="col s12">
+        <div class="card-like">
     <h5>Shift aanmaken — Gebruiker: <span id="currentUserLabel">-</span></h5>
 
     <div class="row compact">
@@ -405,6 +411,7 @@ body.dark-mode nav .tabs .tab a.active {
 
   <!-- TAB: Invoer -->
   <div id="tab-invoer" class="col s12">
+        <div class="card-like responsive-wrapper">
   <h5>Invoer — Gebruiker: <span id="currentUserInvoer">-</span></h5>
 
   <div class="row compact">
@@ -451,6 +458,7 @@ body.dark-mode nav .tabs .tab a.active {
 
   <!-- TAB: Historiek -->
   <div id="tab-historiek" class="col s12">
+        <div class="card-like responsive-wrapper">
     <h5>Historiek — Gebruiker: <span id="currentUserHistoriek">-</span> — Jaar: <span id="historiekJaar"></span></h5>
 
     <table class="striped">
@@ -468,6 +476,7 @@ body.dark-mode nav .tabs .tab a.active {
 
 <!-- TAB: Converter -->
 <div id="tab-converter" class="col s12">
+        <div class="card-like">
   <h5>🕒 — Uren/minuten ↔ Decimale uren</h5>
 
   <div class="row compact">
