@@ -103,6 +103,50 @@
     pointer-events: auto !important;
   }
 }
+/* 📊 Moderne tabelstijl */
+.modern-table {
+  border-radius: 16px;
+  background: #fff;
+  overflow: hidden;
+  margin-top: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+.modern-table .card-header {
+  background: #fafbfd;
+  font-size: 1.2rem;
+  font-weight: 600;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eceff1;
+}
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+}
+table.highlight tbody tr:hover {
+  background: #f5f8ff !important;
+}
+table thead {
+  background: #f8f9fb;
+  font-weight: 600;
+  color: #555;
+}
+table td, table th {
+  padding: 12px 16px;
+  vertical-align: middle;
+}
+
+/* badges (statuskolom) */
+.badge {
+  border-radius: 10px;
+  padding: 4px 10px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: capitalize;
+}
+.badge.success { background: #d0f7e6; color: #1b7f4e; }
+.badge.info { background: #e3f2fd; color: #1976d2; }
+.badge.warning { background: #fff4e5; color: #f57c00; }
+.badge.danger { background: #ffebee; color: #c62828; }
 </style>
 </head>
 <body>
@@ -294,14 +338,25 @@
     </div>
   </div>
 
-  <table class="striped">
-    <thead>
-      <tr>
-        <th>Dag</th><th>Datum</th><th>Project</th><th>Shift</th>
-        <th>Start</th><th>Einde</th><th>Pauze (min)</th><th>Omschrijving</th><th>Duur</th>
-      </tr>
-    </thead>
-    <tbody id="tbody"></tbody>
+ <div class="card modern-table z-depth-1">
+  <h5 class="card-header">📋 Overzicht Invoer</h5>
+  <div class="table-container">
+    <table class="highlight responsive-table">
+      <thead>
+        <tr>
+          <th>Dag</th>
+          <th>Datum</th>
+          <th>Project</th>
+          <th>Shift</th>
+          <th>Start</th>
+          <th>Einde</th>
+          <th>Pauze</th>
+          <th>Omschrijving</th>
+          <th>Duur</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
   </table>
 
   <div class="row totals">
