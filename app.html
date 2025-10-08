@@ -1736,6 +1736,45 @@
     // Expose voor debug
     window.saveAll = saveAll;
     window.getDataStore = () => dataStore;
+  // =========================================
+  // 🔹 Admin: gebruiker selecteren
+  // =========================================
+  document.addEventListener("DOMContentLoaded", () => {
+    const adminUserSelect = document.getElementById("adminUserSelect");
+    if (!adminUserSelect) return;
+
+    adminUserSelect.addEventListener("change", async () => {
+      const uid = adminUserSelect.value;
+      if (!uid) return;
+
+      console.log("🔄 Wissel naar gebruiker:", uid);
+
+      // Zet actieve gebruiker
+      currentUser = uid;
+      dataStore.currentUser = uid;
+
+      // Laad bijbehorende data uit Firestore
+      await loadUser(uid);
+
+      // Labels updaten
+      updateCurrentUserLabels();
+
+      // Alles opnieuw renderen
+      renderProjects();
+      renderShifts();
+      generateMonth();
+      renderHistory();
+
+      // Active user tonen in adminmodal
+      const activeLabel = document.getElementById("activeUserLabel");
+      if (activeLabel) {
+        const ud = dataStore.users[uid];
+        activeLabel.textContent = ud?.name || ud?.email || uid;
+      }
+
+      M.toast({ html: `✅ Gebruiker gewijzigd naar ${uid}`, classes: "blue" });
+    });
+  });
   </script>
 </body>
 </html>
