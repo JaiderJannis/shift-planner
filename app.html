@@ -195,90 +195,63 @@
   </div>
 
   <!-- 🔹 ADMIN MODAL -->
-  <div id="adminModal" class="modal">
-    <div class="modal-content">
-      <h5>🔑 Admin Beheer</h5>
+<div id="adminModal" class="modal">
+  <div class="modal-content">
+    <h5>🔑 Admin Beheer</h5>
 
-      <p><strong>Ingelogd als:</strong> <span id="loggedInUserLabel">-</span></p>
-      <p><strong>Actieve gebruiker:</strong> <span id="activeUserLabel">-</span></p>
+    <p><strong>Ingelogd als:</strong> <span id="loggedInUserLabel">-</span></p>
+    <p><strong>Actieve gebruiker:</strong> <span id="activeUserLabel">-</span></p>
 
-      <!-- Gebruikersbeheer -->
-      <h6>Gebruikersbeheer</h6>
-      <div class="row">
-        <div class="input-field col s6">
-          <select id="adminUserSelect"></select>
-          <label for="adminUserSelect">Gebruiker selecteren</label>
-        </div>
-        <div class="input-field col s6">
-          <button id="addUserBtn" class="btn blue">Nieuwe gebruiker</button>
-          <button id="removeUserBtn" class="btn red">Verwijder gebruiker</button>
-        </div>
+    <!-- Gebruikersbeheer -->
+    <h6>Gebruikersbeheer</h6>
+    <div class="row">
+      <div class="input-field col s6">
+        <select id="adminUserSelect"></select>
+        <label for="adminUserSelect">Gebruiker selecteren</label>
       </div>
-
-      <div class="row">
-        <div class="input-field col s6">
-          <select id="roleSelect">
-            <option value="user">User</option>
-            <option value="admin">Admin</option>
-          </select>
-          <label for="roleSelect">Rol wijzigen</label>
-        </div>
-        <div class="input-field col s6">
-          <button id="updateRoleBtn" class="btn orange">Update rol</button>
-        </div>
+      <div class="input-field col s6">
+        <button id="addUserBtn" class="btn blue">Nieuwe gebruiker</button>
+        <button id="removeUserBtn" class="btn red">Verwijder gebruiker</button>
       </div>
-
-      <!-- Projectbeheer -->
-      <h6>Projectbeheer</h6>
-      <div class="row">
-        <div class="input-field col s4">
-          <input id="newProjectName" type="text" />
-          <label>Project naam</label>
-        </div>
-        <div class="input-field col s3">
-          <input id="newProjectStart" type="date" />
-          <label>Start datum</label>
-        </div>
-        <div class="input-field col s3">
-          <input id="newProjectEnd" type="date" />
-          <label>Eind datum</label>
-        </div>
-        <div class="input-field col s2">
-          <button id="addProjectBtn" class="btn green">Toevoegen</button>
-        </div>
-      </div>
-
-      <table class="striped">
-        <thead>
-          <tr>
-            <th>Project</th>
-            <th>Start</th>
-            <th>Eind</th>
-            <th>Acties</th>
-          </tr>
-        </thead>
-        <tbody id="projectTableBody"></tbody>
-      </table>
-
-      <!-- Audit Log -->
-      <h6>Audit Log</h6>
-      <div class="row">
-        <div class="input-field col s6">
-          <select id="auditFilterSelect">
-            <option value="all" selected>Alle gebruikers</option>
-            <option value="active">Actieve gebruiker</option>
-            <option value="self">Ingelogde gebruiker</option>
-          </select>
-          <label for="auditFilterSelect">Filter audit log</label>
-        </div>
-      </div>
-
-      <ul id="auditLog" class="collection small"></ul>
     </div>
-    <div class="modal-footer">
-      <a href="#!" class="modal-close btn-flat">Sluiten</a>
+
+    <!-- Projectbeheer -->
+    <h6>Projectbeheer</h6>
+    <div class="row">
+      <div class="input-field col s4">
+        <input id="newProjectName" type="text" />
+        <label>Project naam</label>
+      </div>
+      <div class="input-field col s3">
+        <input id="newProjectStart" type="date" />
+        <label>Start datum</label>
+      </div>
+      <div class="input-field col s3">
+        <input id="newProjectEnd" type="date" />
+        <label>Eind datum</label>
+      </div>
+      <div class="input-field col s2">
+        <button id="addProjectBtn" class="btn green">Toevoegen</button>
+      </div>
     </div>
+
+    <table class="striped">
+      <thead>
+        <tr>
+          <th>Project</th>
+          <th>Start</th>
+          <th>Eind</th>
+          <th>Acties</th>
+        </tr>
+      </thead>
+      <tbody id="projectTableBody"></tbody>
+    </table>
   </div>
+
+  <div class="modal-footer">
+    <a href="#!" class="modal-close btn-flat">Sluiten</a>
+  </div>
+</div>
 
   <!-- 🔹 NAVIGATIE -->
   <nav>
