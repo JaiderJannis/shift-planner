@@ -7,9 +7,9 @@
 <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   body { padding:18px; }
+  nav .brand-logo { margin-left: 16px; }
   table { font-size: 0.95rem; }
   th, td { text-align: center; vertical-align: middle; }
   .positive { color: green; font-weight: 700; }
@@ -20,206 +20,165 @@
   .totals { margin-top:10px; font-size:1rem; }
   .small { font-size:0.85rem; }
 
-  /* FABs */
+  /* FAB styling */
   .fixed-action-btn { z-index: 1000; }
-
   /* Hover-zone uitloggen */
   .logout-zone {
-    position: fixed; bottom: 0; right: 0; width: 80px; height: 80px; z-index: 999;
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    width: 80px;
+    height: 80px;
+    z-index: 999;
   }
   .logout-hover {
-    position: absolute; bottom: 24px; right: 24px; opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
   }
-  .logout-zone:hover .logout-hover { opacity: 1; pointer-events: auto; }
-
-  /* Admin FAB linksonder */
-  .admin-zone { position: fixed; bottom: 0; left: 0; width: 80px; height: 80px; z-index: 999; }
-  .admin-hover { position: absolute; bottom: 24px; left: 24px; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
-  .admin-zone:hover .admin-hover { opacity: 1; pointer-events: auto; }
-
-  /* Quick FAB rechts van logout */
-  .quick-zone { position: fixed; bottom: 0; right: 80px; width: 80px; height: 80px; z-index: 999; }
-  .quick-hover { position: absolute; bottom: 24px; right: 24px; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
-  .quick-zone:hover .quick-hover { opacity: 1; pointer-events: auto; }
-  @media (max-width: 768px) { .quick-hover { opacity: 1 !important; pointer-events: auto !important; } }
-
-  /* BASIS: modern & clean */
-  html, body { font-family: "Inter","Roboto",sans-serif; background:#f8f9fb; color:#333; margin:0; padding:0; }
-  .nav-wrapper { background:#ffffff !important; border-radius:0 0 16px 16px; box-shadow:0 2px 10px rgba(0,0,0,.08); padding:0 10px; }
-  .nav-wrapper .brand-logo { color:#222 !important; font-weight:600; font-size:1.5rem; }
-
-  /* Cards */
-  .card-like, .modal-content, .card-panel {
-    border-radius:14px; background:#fff; box-shadow:0 3px 10px rgba(0,0,0,.06); transition: all .25s ease;
+  .logout-zone:hover .logout-hover {
+    opacity: 1;
+    pointer-events: auto;
   }
-  .card-like:hover { box-shadow:0 6px 20px rgba(0,0,0,.08); }
+  .admin-zone {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 80px;
+  height: 80px;
+  z-index: 999;
+}
+.admin-hover {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.admin-zone:hover .admin-hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+#adminModal {
+  max-width: 90% !important;
+  width: 90% !important;
+  height: 80% !important;
+}
+#adminModal .modal-content {
+  overflow-y: auto;
+  height: calc(100% - 64px); /* ruimte voor footer */
+}
+/* 🔹 Hover effect voor PC */
+.quick-zone {
+  position: fixed;
+  bottom: 0;
+  right: 80px; /* naast logout-knop */
+  width: 80px;
+  height: 80px;
+  z-index: 999;
+}
 
-  /* Moderne tabs — nu BUITEN nav */
-  .tabs {
-    background: transparent !important;
-    border-bottom: none !important;
-    display: flex; justify-content: center;
-    margin: 10px auto 18px auto;
-    overflow-x: auto; white-space: nowrap;
+.quick-hover {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.quick-zone:hover .quick-hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 🔹 Mobiel → FAB altijd zichtbaar */
+@media (max-width: 768px) {
+  .quick-hover {
+    opacity: 1 !important;
+    pointer-events: auto !important;
   }
-  .tabs .tab { display:inline-block; margin:0 6px; }
-  .tabs .tab a {
-    color:#555 !important; font-weight:600; text-transform:none;
-    border-radius:10px; padding:10px 18px; transition: all .2s ease;
-  }
-  .tabs .tab a:hover { background:#f2f4f8 !important; color:#111 !important; }
-  .tabs .tab a.active {
-    background: linear-gradient(135deg,#4a90e2,#6ab7ff);
-    color:#fff !important; box-shadow:0 3px 8px rgba(0,0,0,.15);
-  }
-  .tabs .indicator { display:none !important; }
-
-  /* Responsieve tabellen */
-  .responsive-wrapper { width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:10px; }
-  table { width:100%; min-width:800px; border-collapse:collapse; }
-  table.striped tr:nth-child(even){ background:#f8fafc; }
-  table th, table td { padding:10px 14px; white-space:nowrap; }
-  table th { background:#f2f4f8; color:#444; font-weight:600; text-transform:uppercase; font-size:.85rem; }
-
-  /* Buttons */
-  .btn, .btn-floating { border-radius:10px; font-weight:600; box-shadow:0 2px 6px rgba(0,0,0,.15); transition: all .2s ease; }
-  .btn:hover { transform: translateY(-1px); box-shadow:0 3px 10px rgba(0,0,0,.2); }
-
-  /* Donkere modus */
-  body.dark-mode { background:#1f1f1f; color:#f0f0f0; }
-  body.dark-mode .card-like, body.dark-mode .modal-content { background:#2b2b2b; }
-  body.dark-mode .tabs .tab a.active { background: linear-gradient(135deg,#1e88e5,#90caf9); }
-
-  /* Mobile tweaks */
-  @media (max-width: 768px) {
-    body { padding:8px; }
-    .nav-wrapper .brand-logo { font-size:1.2rem; }
-    .tabs .tab a { font-size:13px; padding:8px 12px; }
-    table { min-width:600px; }
-  }
-
-  /* Admin modal sizing */
-  #adminModal { max-width:90% !important; width:90% !important; height:80% !important; }
-  #adminModal .modal-content { overflow-y:auto; height:calc(100% - 64px); }
+}
 </style>
 </head>
 <body>
 
- <!-- 🔹 Uitlog knop (rechtsonder, hover) -->
-  <div class="logout-zone">
-    <div class="fixed-action-btn logout-hover">
-      <a id="logoutBtn" class="btn-floating btn-large red tooltipped" data-tooltip="Uitloggen">
-        <i class="material-icons">logout</i>
-      </a>
-    </div>
+<!-- 🔹 Uitlog knop (rechtsonder, hover) -->
+<div class="logout-zone">
+  <div class="fixed-action-btn logout-hover">
+    <a id="logoutBtn" class="btn-floating btn-large red tooltipped" data-tooltip="Uitloggen">
+      <i class="material-icons">logout</i>
+    </a>
   </div>
+</div>
 
-  <!-- 🔹 Admin FAB linksonder -->
-  <div class="admin-zone">
-    <div id="adminFab" class="fixed-action-btn admin-hover" style="display:none;">
-      <a id="adminFabBtn" class="btn-floating btn-large orange tooltipped modal-trigger" data-tooltip="Admin beheer" href="#adminModal">
-        <i class="material-icons">admin_panel_settings</i>
-      </a>
-    </div>
+<!-- 🔹 Admin FAB linksonder -->
+<div class="admin-zone">
+  <div id="adminFab" class="fixed-action-btn admin-hover" style="display:none;">
+    <a id="adminFabBtn" class="btn-floating btn-large orange tooltipped modal-trigger" data-tooltip="Admin beheer" href="#adminModal">
+  <i class="material-icons">admin_panel_settings</i>
+</a>
   </div>
-
-  <!-- 🔹 Quick FAB (snelle invoer) -->
-  <div class="quick-zone">
-    <div id="quickFab" class="fixed-action-btn quick-hover">
-      <a id="quickFabBtn" class="btn-floating btn-large teal tooltipped modal-trigger" data-tooltip="Snelle invoer" href="#quickModal">
-        <i class="material-icons">event</i>
-      </a>
-    </div>
-  </div>
-
-  <!-- 🔹 Admin Modal -->
-  <div id="adminModal" class="modal">
-    <div class="modal-content">
-      <h5>🔑 Admin Beheer</h5>
-      <h6>Gebruikersbeheer</h6>
-      <div class="row">
-        <div class="input-field col s6">
-          <select id="adminUserSelect" class="browser-default"></select>
-        </div>
-        <div class="input-field col s6">
-          <button id="addUserBtn" class="btn blue">Nieuwe gebruiker</button>
-          <button id="removeUserBtn" class="btn red">Verwijder gebruiker</button>
-        </div>
-      </div>
-
-      <h6>Projectbeheer</h6>
-      <div class="row compact">
-        <div class="input-field col s4">
-          <input id="newProjectName" type="text"><label for="newProjectName">Project naam</label>
-        </div>
-        <div class="input-field col s3">
-          <input id="newProjectStart" type="date"><label for="newProjectStart">Start datum</label>
-        </div>
-        <div class="input-field col s3">
-          <input id="newProjectEnd" type="date"><label for="newProjectEnd">Eind datum</label>
-        </div>
-        <div class="input-field col s2">
-          <button id="addProjectBtn" class="btn green">Project toevoegen</button>
-        </div>
-      </div>
-
-      <div class="responsive-wrapper">
-        <table class="striped">
-          <thead>
-            <tr><th>Project</th><th>Start</th><th>Eind</th><th>Acties</th></tr>
-          </thead>
-          <tbody id="projectTableBody"></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <a href="#!" class="modal-close btn-flat">Sluiten</a>
-    </div>
-  </div>
-
-  <!-- 🔹 Snelle Invoer Modal -->
-  <div id="quickModal" class="modal">
-    <div class="modal-content">
-      <h5>📅 Snelle Invoer</h5>
-      <p>Selecteer datum + shift om snel een dag in te plannen:</p>
-      <div class="row">
-        <div class="input-field col s6">
-          <input type="date" id="quickDate">
-          <label for="quickDate">Datum</label>
-        </div>
-        <div class="input-field col s6">
-          <select id="quickShift" class="browser-default"></select>
-        </div>
-      </div>
-      <div class="row">
-        <div class="input-field col s12">
-          <input type="text" id="quickNote">
-          <label for="quickNote">Omschrijving (optioneel)</label>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <a href="#!" id="saveQuickBtn" class="btn green">Opslaan</a>
-      <a href="#!" class="modal-close btn-flat">Sluiten</a>
-    </div>
-  </div>
-  <!-- 🔹 Navigatie -->
-  <nav>
-    <div class="nav-wrapper">
-      <a href="#!" class="brand-logo">Shift Planner</a>
-    </div>
-  </nav>
-
-  <!-- 🔹 Tabs buiten de nav -->
-  <ul id="tabs-swipe" class="tabs">
-    <li class="tab"><a class="active" href="#tab-shifts"><i class="material-icons left">schedule</i>Shift aanmaken</a></li>
-    <li class="tab"><a href="#tab-invoer"><i class="material-icons left">edit</i>Invoer</a></li>
-    <li class="tab"><a href="#tab-historiek"><i class="material-icons left">history</i>Historiek</a></li>
-    <li class="tab"><a href="#tab-converter"><i class="material-icons left">calculate</i>Tijd omrekenen</a></li>
-  </ul>
-  </div>
- <div class="container">
+</div>
+<!-- 🔹 Admin Modal -->
+<div id="adminModal" class="modal">
+  <div class="modal-content">
+    <h5>🔑 Admin Beheer</h5>
+    <h6>Gebruikersbeheer</h6>
     <div class="row">
+      <div class="input-field col s6">
+        <select id="adminUserSelect" class="browser-default"></select>
+      </div>
+      <div class="input-field col s6">
+        <button id="addUserBtn" class="btn blue">Nieuwe gebruiker</button>
+        <button id="removeUserBtn" class="btn red">Verwijder gebruiker</button>
+      </div>
+    </div>
+
+    <h6>Projectbeheer</h6>
+    <div class="row compact">
+      <div class="input-field col s4">
+        <input id="newProjectName" type="text"><label for="newProjectName">Project naam</label>
+      </div>
+      <div class="input-field col s3">
+        <input id="newProjectStart" type="date"><label for="newProjectStart">Start datum</label>
+      </div>
+      <div class="input-field col s3">
+        <input id="newProjectEnd" type="date"><label for="newProjectEnd">Eind datum</label>
+      </div>
+      <div class="input-field col s2">
+        <button id="addProjectBtn" class="btn green">Project toevoegen</button>
+      </div>
+    </div>
+
+    <table class="striped">
+      <thead>
+        <tr><th>Project</th><th>Start</th><th>Eind</th><th>Acties</th></tr>
+      </thead>
+      <tbody id="projectTableBody"></tbody>
+    </table>
+  </div>
+  <div class="modal-footer">
+    <a href="#!" class="modal-close btn-flat">Sluiten</a>
+  </div>
+</div>
+<nav>
+  <div class="nav-wrapper blue">
+    <a href="#!" class="brand-logo">Shift Planner</a>
+    <ul id="tabs-swipe" class="tabs tabs-fixed-width right">
+      <li class="tab col s3"><a class="active" href="#tab-shifts">Shift aanmaken</a></li>
+      <li class="tab col s3"><a href="#tab-invoer">Invoer</a></li>
+      <li class="tab col s3"><a href="#tab-historiek">Historiek</a></li>
+      <li class="tab col s3"><a href="#tab-converter">Tijd omrekenen</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="row">
 <!-- 🔹 Snelle invoer FAB -->
 <div class="quick-zone">
   <div id="quickFab" class="fixed-action-btn quick-hover">
@@ -229,9 +188,38 @@
     </a>
   </div>
 </div>
+
+<!-- 🔹 Snelle Invoer Modal -->
+<div id="quickModal" class="modal">
+  <div class="modal-content">
+    <h5>📅 Snelle Invoer</h5>
+    <p>Selecteer datum + shift om snel een dag in te plannen:</p>
+    
+    <div class="row">
+      <div class="input-field col s6">
+        <input type="date" id="quickDate">
+        <label for="quickDate">Datum</label>
+      </div>
+      <div class="input-field col s6">
+        <select id="quickShift" class="browser-default"></select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="input-field col s12">
+        <input type="text" id="quickNote">
+        <label for="quickNote">Omschrijving (optioneel)</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-footer">
+    <a href="#!" id="saveQuickBtn" class="btn green">Opslaan</a>
+    <a href="#!" class="modal-close btn-flat">Sluiten</a>
+  </div>
+</div>
   <!-- TAB: Shifts -->
   <div id="tab-shifts" class="col s12">
-        <div class="card-like">
     <h5>Shift aanmaken — Gebruiker: <span id="currentUserLabel">-</span></h5>
 
     <div class="row compact">
@@ -268,8 +256,7 @@
     <select id="filterShiftYear" class="browser-default"></select>
   </div>
 </div>
-  <div class="responsive-wrapper">
-<table class="striped">
+    <table class="striped">
       <thead>
         <tr><th>Naam</th><th>Start</th><th>Einde</th><th>Pauze</th><th>Project</th><th>Periode</th><th>Acties</th></tr>
       </thead>
@@ -280,7 +267,6 @@
 
   <!-- TAB: Invoer -->
   <div id="tab-invoer" class="col s12">
-        <div class="card-like responsive-wrapper">
   <h5>Invoer — Gebruiker: <span id="currentUserInvoer">-</span></h5>
 
   <div class="row compact">
@@ -308,8 +294,7 @@
     </div>
   </div>
 
-  <div class="responsive-wrapper">
-    <table class="striped highlight">
+  <table class="striped">
     <thead>
       <tr>
         <th>Dag</th><th>Datum</th><th>Project</th><th>Shift</th>
@@ -328,11 +313,9 @@
 
   <!-- TAB: Historiek -->
   <div id="tab-historiek" class="col s12">
-        <div class="card-like responsive-wrapper">
     <h5>Historiek — Gebruiker: <span id="currentUserHistoriek">-</span> — Jaar: <span id="historiekJaar"></span></h5>
 
-    <div class="responsive-wrapper">
-      <table class="striped highlight">
+    <table class="striped">
       <thead>
         <tr><th>Maand</th><th>Doel uren</th><th>Gepland</th><th>Verschil</th><th>Verlof</th><th>Ziekte</th><th>Schoolverlof</th><th>Feestdag</th><th>Bench</th></tr>
       </thead>
@@ -347,7 +330,6 @@
 
 <!-- TAB: Converter -->
 <div id="tab-converter" class="col s12">
-        <div class="card-like">
   <h5>🕒 — Uren/minuten ↔ Decimale uren</h5>
 
   <div class="row compact">
