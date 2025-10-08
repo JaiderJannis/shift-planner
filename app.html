@@ -7,6 +7,7 @@
 <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   body { padding:18px; }
   nav .brand-logo { margin-left: 16px; }
@@ -103,6 +104,143 @@
     pointer-events: auto !important;
   }
 }
+/* 🔹 BASIS: modern & clean */
+html, body {
+  font-family: "Inter", "Roboto", sans-serif;
+  background-color: #f8f9fb;
+  color: #333;
+  margin: 0;
+  padding: 0;
+}
+
+/* 🔹 Algemene card-look */
+.card-like, .modal-content, .card-panel {
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.06);
+  transition: all 0.25s ease;
+}
+.card-like:hover {
+  box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+}
+
+/* 🔹 Navigatie moderniseren */
+.nav-wrapper {
+  background: #ffffff !important;
+  border-radius: 0 0 16px 16px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  padding: 0 10px;
+}
+.nav-wrapper .brand-logo {
+  color: #222 !important;
+  font-weight: 600;
+  font-size: 1.5rem;
+}
+
+/* 🔹 Moderne tabs */
+nav .tabs {
+  background-color: transparent !important;
+  border-bottom: none !important;
+  display: flex;
+  justify-content: center;
+  margin-top: 6px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.tabs .tab {
+  display: inline-block;
+  margin: 0 5px;
+}
+
+.tabs .tab a {
+  color: #555 !important;
+  font-weight: 600;
+  text-transform: none;
+  border-radius: 10px;
+  padding: 10px 18px;
+  transition: all 0.2s ease;
+}
+
+.tabs .tab a:hover {
+  background-color: #f2f4f8 !important;
+  color: #111 !important;
+}
+
+.tabs .tab a.active {
+  background: linear-gradient(135deg, #4a90e2, #6ab7ff);
+  color: white !important;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+}
+
+.tabs .indicator {
+  display: none !important;
+}
+
+/* 🔹 Responsieve tabel container */
+.responsive-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 10px;
+}
+
+table {
+  width: 100%;
+  min-width: 800px;
+  border-collapse: collapse;
+}
+
+table.striped tr:nth-child(even) {
+  background-color: #f8fafc;
+}
+
+table th, table td {
+  padding: 10px 14px;
+  white-space: nowrap;
+}
+
+table th {
+  background: #f2f4f8;
+  color: #444;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+}
+
+/* 🔹 Buttons */
+.btn, .btn-floating {
+  border-radius: 10px;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  transition: all 0.2s ease;
+}
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+}
+
+/* 🔹 Donkere modus */
+body.dark-mode {
+  background-color: #1f1f1f;
+  color: #f0f0f0;
+}
+body.dark-mode .card-like,
+body.dark-mode .modal-content {
+  background-color: #2b2b2b;
+}
+body.dark-mode nav .tabs .tab a.active {
+  background: linear-gradient(135deg, #1e88e5, #90caf9);
+}
+
+/* 🔹 Responsieve aanpassingen */
+@media (max-width: 768px) {
+  body { padding: 8px; }
+  nav .brand-logo { font-size: 1.2rem; }
+  .tabs .tab a { font-size: 13px; padding: 8px 12px; }
+  table { min-width: 600px; }
+}
 </style>
 </head>
 <body>
@@ -167,13 +305,13 @@
   </div>
 </div>
 <nav>
-  <div class="nav-wrapper blue">
+  <div class="nav-wrapper">
     <a href="#!" class="brand-logo">Shift Planner</a>
-    <ul id="tabs-swipe" class="tabs tabs-fixed-width right">
-      <li class="tab col s3"><a class="active" href="#tab-shifts">Shift aanmaken</a></li>
-      <li class="tab col s3"><a href="#tab-invoer">Invoer</a></li>
-      <li class="tab col s3"><a href="#tab-historiek">Historiek</a></li>
-      <li class="tab col s3"><a href="#tab-converter">Tijd omrekenen</a></li>
+    <ul id="tabs-swipe" class="tabs">
+      <li class="tab"><a class="active" href="#tab-shifts"><i class="material-icons left">schedule</i>Shifts</a></li>
+      <li class="tab"><a href="#tab-invoer"><i class="material-icons left">edit</i>Invoer</a></li>
+      <li class="tab"><a href="#tab-historiek"><i class="material-icons left">history</i>Historiek</a></li>
+      <li class="tab"><a href="#tab-converter"><i class="material-icons left">calculate</i>Converter</a></li>
     </ul>
   </div>
 </nav>
@@ -220,7 +358,8 @@
 </div>
   <!-- TAB: Shifts -->
   <div id="tab-shifts" class="col s12">
-    <h5>Shift aanmaken — Gebruiker: <span id="currentUserLabel">-</span></h5>
+  <div class="card-like">
+    <h5>Shift aanmaken — Gebruiker: <span id="currentUserShift">-</span></h5>
 
     <div class="row compact">
       <div class="input-field col s3">
@@ -266,8 +405,9 @@
   </div>
 
   <!-- TAB: Invoer -->
-  <div id="tab-invoer" class="col s12">
-  <h5>Invoer — Gebruiker: <span id="currentUserInvoer">-</span></h5>
+ <div id="tab-invoer" class="col s12">
+  <div class="card-like">
+    <h5>Invoer — Gebruiker: <span id="currentUserInvoer">-</span></h5>
 
   <div class="row compact">
     <div class="input-field col s1">
@@ -294,15 +434,23 @@
     </div>
   </div>
 
-  <table class="striped">
-    <thead>
-      <tr>
-        <th>Dag</th><th>Datum</th><th>Project</th><th>Shift</th>
-        <th>Start</th><th>Einde</th><th>Pauze (min)</th><th>Omschrijving</th><th>Duur</th>
-      </tr>
-    </thead>
-    <tbody id="tbody"></tbody>
-  </table>
+  <div class="responsive-wrapper">
+      <table class="striped highlight">
+        <thead>
+          <tr>
+            <th>Dag</th>
+            <th>Datum</th>
+            <th>Project</th>
+            <th>Shift</th>
+            <th>Start</th>
+            <th>Einde</th>
+            <th>Pauze</th>
+            <th>Omschrijving</th>
+            <th>Duur</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
 
   <div class="row totals">
     <div class="col s4"><strong>Doel totaal:</strong> <span id="inputTotDoel">0u 0min</span></div>
@@ -313,9 +461,11 @@
 
   <!-- TAB: Historiek -->
   <div id="tab-historiek" class="col s12">
+  <div class="card-like">
     <h5>Historiek — Gebruiker: <span id="currentUserHistoriek">-</span> — Jaar: <span id="historiekJaar"></span></h5>
 
-    <table class="striped">
+    <div class="responsive-wrapper">
+      <table class="striped highlight">
       <thead>
         <tr><th>Maand</th><th>Doel uren</th><th>Gepland</th><th>Verschil</th><th>Verlof</th><th>Ziekte</th><th>Schoolverlof</th><th>Feestdag</th><th>Bench</th></tr>
       </thead>
@@ -330,6 +480,7 @@
 
 <!-- TAB: Converter -->
 <div id="tab-converter" class="col s12">
+  <div class="card-like">
   <h5>🕒 — Uren/minuten ↔ Decimale uren</h5>
 
   <div class="row compact">
