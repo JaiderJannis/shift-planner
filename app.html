@@ -147,6 +147,25 @@ table td, table th {
 .badge.info { background: #e3f2fd; color: #1976d2; }
 .badge.warning { background: #fff4e5; color: #f57c00; }
 .badge.danger { background: #ffebee; color: #c62828; }
+/* Historiek kleurcodering */
+#historyBody td:nth-child(4) {
+  font-weight: 600;
+}
+#historyBody td.positive {
+  color: #1b7f4e;
+  background: #e6f4ea;
+}
+#historyBody td.negative {
+  color: #c62828;
+  background: #fdecea;
+}
+
+/* Totaalrij styling */
+.totals-row {
+  background: #f3f6fa;
+  font-weight: 700;
+  border-top: 2px solid #e0e0e0;
+}
 </style>
 </head>
 <body>
@@ -706,7 +725,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 500);
   }
 });
+ // Converter functies
+  document.getElementById("convertToDecimal").addEventListener("click", () => {
+    const h = parseFloat(document.getElementById("convHours").value) || 0;
+    const m = parseFloat(document.getElementById("convMinutes").value) || 0;
+    const dec = (h + m / 60).toFixed(2);
+    document.getElementById("decimalInput").value = dec;
+  });
 
+  document.getElementById("convertToTime").addEventListener("click", () => {
+    const dec = parseFloat(document.getElementById("decimalInput").value) || 0;
+    const h = Math.floor(dec);
+    const m = Math.round((dec - h) * 60);
+    document.getElementById("convHours").value = h;
+    document.getElementById("convMinutes").value = m;
+  });
 
 /* ============================
    Utils
