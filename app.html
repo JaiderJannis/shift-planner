@@ -554,20 +554,11 @@
     const db = firebase.firestore();
     const auth = firebase.auth();
 
-    // Debug-modus
-    const DEBUG = false;
-
-    if (DEBUG) {
-      console.log(
-        "%c⚠️ DEBUG MODUS ACTIEF ⚠️",
-        "background: red; color: white; font-size: 18px; font-weight: bold; padding: 8px;"
-      );
-    }
-
     // =========================================
-    // 🔹 ADMIN FUNCTIES
+    // 🔹 Admin logica (zonder audit / rol)
     // =========================================
 
+    // Toon admin-FAB alleen voor admins
     auth.onAuthStateChanged(async (user) => {
       if (!user) return;
 
@@ -583,7 +574,7 @@
       }
     });
 
-    // 🔸 Gebruikers dropdown vullen (Admin)
+    // Gebruikerslijst vullen
     async function renderAdminUserSelect() {
       const sel = document.getElementById("adminUserSelect");
       sel.innerHTML = "";
@@ -597,94 +588,78 @@
         sel.appendChild(opt);
       });
 
+      // Initialiseer Materialize select
       M.FormSelect.init(sel);
     }
 
-    // 🔸 Audit log toevoegen
-    async function addAuditLog(action, targetUserId = null) {
-      if (!auth.currentUser) return;
-
-      await db.collection("auditLogs").add({
-        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-        actor: auth.currentUser.email || auth.currentUser.uid,
-        targetUser: targetUserId || null,
-        action: action
-      });
-    }
-
-    // 🔸 Audit log laden
-    async function loadAuditLog() {
-      const ul = document.getElementById("auditLog");
-      ul.innerHTML = "";
-
-      const snapshot = await db
-        .collection("auditLogs")
-        .orderBy("timestamp", "desc")
-        .limit(50)
-        .get();
-
-      snapshot.forEach((doc) => {
-        const log = doc.data();
-        const ts = log.timestamp ? log.timestamp.toDate().toLocaleString() : "-";
-        const li = document.createElement("li");
-        li.className = "collection-item";
-        li.textContent = `${ts} — ${log.actor} → [${log.targetUser}] ${log.action}`;
-        ul.appendChild(li);
-      });
-    }
-
-    // 🔸 Audit filter aanpassen
-    document.getElementById("auditFilterSelect").addEventListener("change", loadAuditLog);
-
-    // 🔸 Nieuwe gebruiker aanmaken
+    // Nieuwe gebruiker toevoegen
     document.getElementById("addUserBtn").addEventListener("click", async () => {
       const name = prompt("Nieuwe gebruikersnaam:");
       if (!name) return;
 
-      const ref = db.collection("users").doc();
-      await ref.set({
-        name,
-        role: "user",
-        shifts: {},
-        monthData: {},
-        projects: []
-      });
+      try {
+        const userRef = db.collection("users").doc();
+        await userRef.set({
+          name: name,
+          role: "user",
+          shifts: {},
+          monthData: {},
+          projects: []
+        });
 
-      await addAuditLog(`Gebruiker toegevoegd: ${name}`, ref.id);
-      renderAdminUserSelect();
-      loadAuditLog();
+        alert("✅ Gebruiker toegevoegd!");
+        renderAdminUserSelect();
+      } catch (err) {
+        console.error("❌ Fout bij gebruiker toevoegen:", err);
+      }
     });
 
-    // 🔸 Gebruiker verwijderen
+    // Gebruiker verwijderen
     document.getElementById("removeUserBtn").addEventListener("click", async () => {
-      const uid = document.getElementById("adminUserSelect").value;
-      if (!uid) return alert("Geen gebruiker geselecteerd");
+      const sel = document.getElementById("adminUserSelect");
+      const uid = sel.value;
+      if (!uid) return alert("Selecteer eerst een gebruiker.");
       if (!confirm("Weet je zeker dat je deze gebruiker wilt verwijderen?")) return;
 
-      await db.collection("users").doc(uid).delete();
-      await addAuditLog("Gebruiker verwijderd", uid);
-
-      renderAdminUserSelect();
-      loadAuditLog();
+      try {
+        await db.collection("users").doc(uid).delete();
+        alert("❌ Gebruiker verwijderd!");
+        renderAdminUserSelect();
+      } catch (err) {
+        console.error("❌ Fout bij gebruiker verwijderen:", err);
+      }
     });
 
-    // 🔸 Rol wijzigen
-    document.getElementById("updateRoleBtn").addEventListener("click", async () => {
-      const uid = document.getElementById("adminUserSelect").value;
-      const newRole = document.getElementById("roleSelect").value;
+    // Project toevoegen
+    document.getElementById("addProjectBtn").addEventListener("click", async () => {
+      const name = document.getElementById("newProjectName").value.trim();
+      const start = document.getElementById("newProjectStart").value;
+      const end = document.getElementById("newProjectEnd").value;
 
-      await db.collection("users").doc(uid).update({ role: newRole });
-      await addAuditLog(`Rol gewijzigd naar: ${newRole}`, uid);
+      if (!name || !start || !end) return alert("Vul alle velden in.");
 
-      M.toast({ html: "Rol aangepast!", classes: "orange" });
-      renderAdminUserSelect();
-      loadAuditLog();
+      try {
+        const projectRef = db.collection("projects").doc();
+        await projectRef.set({
+          name: name,
+          start: start,
+          end: end,
+          createdBy: auth.currentUser.uid
+        });
+
+        alert("✅ Project toegevoegd!");
+        document.getElementById("newProjectName").value = "";
+        document.getElementById("newProjectStart").value = "";
+        document.getElementById("newProjectEnd").value = "";
+      } catch (err) {
+        console.error("❌ Fout bij project toevoegen:", err);
+      }
     });
 
-    // 🔸 Admin modal initialiseren
+    // Admin-modal initialiseren
     document.addEventListener("DOMContentLoaded", () => {
       const adminModalEl = document.getElementById("adminModal");
-      M.Modal.init(adminModalEl, { onOpenStart: loadAuditLog });
+      M.Modal.init(adminModalEl);
     });
   </script>
   <script>
