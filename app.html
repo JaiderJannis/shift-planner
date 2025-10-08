@@ -305,13 +305,13 @@ body.dark-mode nav .tabs .tab a.active {
   </div>
 </div>
 <nav>
-  <div class="nav-wrapper">
+  <div class="nav-wrapper blue">
     <a href="#!" class="brand-logo">Shift Planner</a>
-    <ul id="tabs-swipe" class="tabs">
-      <li class="tab"><a class="active" href="#tab-shifts"><i class="material-icons left">schedule</i>Shifts</a></li>
-      <li class="tab"><a href="#tab-invoer"><i class="material-icons left">edit</i>Invoer</a></li>
-      <li class="tab"><a href="#tab-historiek"><i class="material-icons left">history</i>Historiek</a></li>
-      <li class="tab"><a href="#tab-converter"><i class="material-icons left">calculate</i>Converter</a></li>
+    <ul id="tabs-swipe" class="tabs tabs-fixed-width right">
+      <li class="tab col s3"><a class="active" href="#tab-shifts">Shift aanmaken</a></li>
+      <li class="tab col s3"><a href="#tab-invoer">Invoer</a></li>
+      <li class="tab col s3"><a href="#tab-historiek">Historiek</a></li>
+      <li class="tab col s3"><a href="#tab-converter">Tijd omrekenen</a></li>
     </ul>
   </div>
 </nav>
@@ -358,9 +358,8 @@ body.dark-mode nav .tabs .tab a.active {
 </div>
   <!-- TAB: Shifts -->
   <div id="tab-shifts" class="col s12">
-  <div class="card-like">
-    <h5>Shift aanmaken — Gebruiker: <span id="currentUserShift">-</span></h5>
-</div>
+    <h5>Shift aanmaken — Gebruiker: <span id="currentUserLabel">-</span></h5>
+
     <div class="row compact">
       <div class="input-field col s3">
         <input id="newShiftName" type="text"><label for="newShiftName">Shift naam</label>
@@ -405,10 +404,9 @@ body.dark-mode nav .tabs .tab a.active {
   </div>
 
   <!-- TAB: Invoer -->
- <div id="tab-invoer" class="col s12">
-  <div class="card-like">
-    <h5>Invoer — Gebruiker: <span id="currentUserInvoer">-</span></h5>
-</div>
+  <div id="tab-invoer" class="col s12">
+  <h5>Invoer — Gebruiker: <span id="currentUserInvoer">-</span></h5>
+
   <div class="row compact">
     <div class="input-field col s1">
       <input id="monthTargetHours" type="number" min="0" value="0"><label for="monthTargetHours">Doel uren</label>
@@ -434,23 +432,15 @@ body.dark-mode nav .tabs .tab a.active {
     </div>
   </div>
 
-  <div class="responsive-wrapper">
-      <table class="striped highlight">
-        <thead>
-          <tr>
-            <th>Dag</th>
-            <th>Datum</th>
-            <th>Project</th>
-            <th>Shift</th>
-            <th>Start</th>
-            <th>Einde</th>
-            <th>Pauze</th>
-            <th>Omschrijving</th>
-            <th>Duur</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
+  <table class="striped">
+    <thead>
+      <tr>
+        <th>Dag</th><th>Datum</th><th>Project</th><th>Shift</th>
+        <th>Start</th><th>Einde</th><th>Pauze (min)</th><th>Omschrijving</th><th>Duur</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
 
   <div class="row totals">
     <div class="col s4"><strong>Doel totaal:</strong> <span id="inputTotDoel">0u 0min</span></div>
@@ -461,11 +451,9 @@ body.dark-mode nav .tabs .tab a.active {
 
   <!-- TAB: Historiek -->
   <div id="tab-historiek" class="col s12">
-  <div class="card-like">
     <h5>Historiek — Gebruiker: <span id="currentUserHistoriek">-</span> — Jaar: <span id="historiekJaar"></span></h5>
-</div>
-    <div class="responsive-wrapper">
-      <table class="striped highlight">
+
+    <table class="striped">
       <thead>
         <tr><th>Maand</th><th>Doel uren</th><th>Gepland</th><th>Verschil</th><th>Verlof</th><th>Ziekte</th><th>Schoolverlof</th><th>Feestdag</th><th>Bench</th></tr>
       </thead>
@@ -480,9 +468,8 @@ body.dark-mode nav .tabs .tab a.active {
 
 <!-- TAB: Converter -->
 <div id="tab-converter" class="col s12">
-  <div class="card-like">
   <h5>🕒 — Uren/minuten ↔ Decimale uren</h5>
-</div>
+
   <div class="row compact">
     <div class="input-field col s2">
       <input id="convHours" type="number" min="0" value="0">
