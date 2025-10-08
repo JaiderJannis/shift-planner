@@ -406,7 +406,7 @@ table td, table th {
             <th>Bench</th>
           </tr>
         </thead>
-        <tbody id="historyBody">
+        <tbody id="historyBody"></tbody>
       <tfoot>
           <tr class="totals-row">
             <th>Totaal</th>
@@ -725,21 +725,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 500);
   }
 });
- // Converter functies
-  document.getElementById("convertToDecimal").addEventListener("click", () => {
-    const h = parseFloat(document.getElementById("convHours").value) || 0;
-    const m = parseFloat(document.getElementById("convMinutes").value) || 0;
-    const dec = (h + m / 60).toFixed(2);
-    document.getElementById("decimalInput").value = dec;
-  });
-
-  document.getElementById("convertToTime").addEventListener("click", () => {
-    const dec = parseFloat(document.getElementById("decimalInput").value) || 0;
-    const h = Math.floor(dec);
-    const m = Math.round((dec - h) * 60);
-    document.getElementById("convHours").value = h;
-    document.getElementById("convMinutes").value = m;
-  });
+ 
 
 /* ============================
    Utils
@@ -1742,6 +1728,21 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
+// Converter functies
+  document.getElementById("convertToDecimal").addEventListener("click", () => {
+    const h = parseFloat(document.getElementById("convHours").value) || 0;
+    const m = parseFloat(document.getElementById("convMinutes").value) || 0;
+    const dec = (h + m / 60).toFixed(2);
+    document.getElementById("decimalInput").value = dec;
+  });
+
+  document.getElementById("convertToTime").addEventListener("click", () => {
+    const dec = parseFloat(document.getElementById("decimalInput").value) || 0;
+    const h = Math.floor(dec);
+    const m = Math.round((dec - h) * 60);
+    document.getElementById("convHours").value = h;
+    document.getElementById("convMinutes").value = m;
+  });
 </script>
 </body>
 </html>
