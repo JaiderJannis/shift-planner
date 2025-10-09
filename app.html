@@ -898,50 +898,65 @@ function renderProjectFilterForMonth(){
         o.value = name; o.textContent = name; if(r.shift===name) o.selected = true; sel.appendChild(o);
       }
 
-      sel.addEventListener('change', ()=>{
-        const chosen = sel.value;
-        if(!chosen){
-          r.shift = '';
-          const valid = (ud.projects||[]).find(p=> (p.start||p.end) && isDateWithin(key, p.start||null, p.end||null));
-          r.project = valid? valid.name: '';
-          projSel.value = r.project;
-          saveCell(year, month, key, r, tr); saveUserData(); renderHistory(); updateInputTotals(); return;
-        }
-        r.shift = chosen;
+sel.addEventListener('change', ()=>{
+  const chosen = sel.value;
+  const all = ud.shifts || {};
+  if (!chosen) {
+    r.shift = '';
+    r.project = '';
+    projSel.value = '';
+    saveCell(year, month, key, r, tr);
+    saveUserData();
+    renderHistory();
+    updateInputTotals();
+    return;
+  }
 
-        // project defaults voor speciale shifts
-        if(['Bench'].includes(chosen)){
-          r.project = ''; projSel.value = '';
-        } else if(['Schoolverlof','School'].includes(chosen)){
-          ensureProjectExists('PXL Verpleegkunde Hasselt');
-          r.project = 'PXL Verpleegkunde Hasselt'; projSel.value = r.project;
-        } else if(['Verlof','Teammeeting'].includes(chosen)){
-          ensureProjectExists('Eght Care');
-          r.project = 'Eght Care'; projSel.value = r.project;
-        } else {
-          const sh = all[chosen];
-          if(sh && sh.project){
-            const p = (ud.projects||[]).find(px => px.name===sh.project);
-            if(p && isDateWithin(key, p.start||null, p.end||null)){
-              r.project = p.name; projSel.value = p.name;
-            }
-          }
-        }
+  r.shift = chosen;
 
-        if(all[chosen]){
-          const sh = all[chosen];
-          if(!r.start || r.start==='00:00') r.start = sh.start || '00:00';
-          if(!r.end   || r.end==='00:00') r.end   = sh.end   || '00:00';
-          if(!r.break || r.break===0)     r.break = Number(sh.break)||0;
-        }
-        recalcRowMinutes(r);
-        tr.querySelector('.startInput').value = r.start;
-        tr.querySelector('.endInput').value = r.end;
-        tr.querySelector('.breakInput').value = r.break;
-        tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+  // ✅ Automatische projecttoewijzing
+  if (['Bench'].includes(chosen)) {
+    r.project = ''; // geen project
+  } 
+  else if (['Schoolverlof','School'].includes(chosen)) {
+    ensureProjectExists('PXL Verpleegkunde Hasselt');
+    r.project = 'PXL Verpleegkunde Hasselt';
+  } 
+  else if (['Verlof','Teammeeting'].includes(chosen)) {
+    ensureProjectExists('Eght Care');
+    r.project = 'Eght Care';
+  } 
+  else {
+    const sh = all[chosen];
+    if (sh && sh.project) {
+      const p = (ud.projects||[]).find(px => px.name===sh.project);
+      if (p && isDateWithin(key, p.start||null, p.end||null)) {
+        r.project = p.name;
+      }
+    }
+  }
 
-        saveCell(year, month, key, r, tr); saveUserData(); updateInputTotals();
-      });
+  // 👇 Pas dropdown visueel aan
+  projSel.value = r.project || '';
+
+  // ✅ Vul tijden en pauze in
+  const sh = all[chosen];
+  if (sh) {
+    if (!r.start || r.start==='00:00') r.start = sh.start || '00:00';
+    if (!r.end   || r.end==='00:00') r.end   = sh.end   || '00:00';
+    if (!r.break || r.break===0)     r.break = Number(sh.break) || 0;
+  }
+
+  recalcRowMinutes(r);
+  tr.querySelector('.startInput').value = r.start;
+  tr.querySelector('.endInput').value = r.end;
+  tr.querySelector('.breakInput').value = r.break;
+  tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+
+  saveCell(year, month, key, r, tr);
+  saveUserData();
+  updateInputTotals();
+});
     }
 
     function ensureProjectExists(name){
