@@ -3,528 +3,373 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shift Planner — Dashboard</title>
 
-  <title>Shift Planner — projecten & shifts</title>
-
-  <!-- 🔹 Materialize CSS -->
-  <link
-    href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"
-    rel="stylesheet"
-  />
-
-  <!-- 🔹 Favicon -->
-  <link rel="icon" type="image/x-icon" href="favicon.ico" />
-
-  <!-- 🔹 Material Icons -->
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <!-- Bootstrap 5.3 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Material Icons -->
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet" />
 
   <style>
-    body {
-      padding: 18px;
+    :root {
+      --sp-sidebar-w: 260px;
+      --sp-sidebar-w-collapsed: 78px;
     }
-
-    nav .brand-logo {
-      margin-left: 16px;
+    body { background: #f5f7fb; }
+    /* Sidebar */
+    .sp-sidebar {
+      position: fixed; inset: 0 auto 0 0;
+      width: var(--sp-sidebar-w); background: #0d6efd; color: #fff;
+      padding-top: 64px; transition: width .25s ease, left .25s ease;
+      z-index: 1031;
     }
-
-    table {
-      font-size: 0.95rem;
+    .sp-sidebar.collapsed { width: var(--sp-sidebar-w-collapsed); }
+    .sp-sidebar .nav-link {
+      color: #fff; display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+      border-radius: .375rem; margin: 2px 10px;
     }
+    .sp-sidebar .nav-link.active, .sp-sidebar .nav-link:hover { background: rgba(255,255,255,.18); }
+    .sp-sidebar .label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sp-sidebar.collapsed .label { display: none; }
 
-    th,
-    td {
-      text-align: center;
-      vertical-align: middle;
-    }
+    /* Topbar */
+    .sp-topbar { position: fixed; top: 0; left: 0; right: 0; height: 64px; background: #fff; border-bottom: 1px solid #e9edf5; z-index: 1032; }
 
-    .positive {
-      color: green;
-      font-weight: 700;
-    }
+    /* Main content */
+    .sp-main { padding: 86px 20px 24px; margin-left: var(--sp-sidebar-w); transition: margin-left .25s ease; }
+    .sp-main.collapsed { margin-left: var(--sp-sidebar-w-collapsed); }
 
-    .negative {
-      color: red;
-      font-weight: 700;
-    }
-
-    label {
-      font-size: 0.95rem !important;
-      font-weight: 600;
-    }
-
-    input,
-    select {
-      font-size: 0.95rem !important;
-      padding: 6px 8px;
-    }
-
-    .dur {
-      font-size: 1.05rem;
-      font-weight: 700;
-    }
-
-    .totals {
-      margin-top: 10px;
-      font-size: 1rem;
-    }
-
-    .small {
-      font-size: 0.85rem;
-    }
-
-    /* Floating Action Button */
-    .fixed-action-btn {
-      z-index: 1000;
-    }
-
-    /* 🔹 Uitloggen FAB */
-    .logout-zone {
-      position: fixed;
-      bottom: 0;
-      right: 0;
-      width: 80px;
-      height: 80px;
-      z-index: 999;
-    }
-
-    .logout-hover {
-      position: absolute;
-      bottom: 24px;
-      right: 24px;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s ease;
-    }
-
-    .logout-zone:hover .logout-hover {
-      opacity: 1;
-      pointer-events: auto;
-    }
-
-    /* 🔹 Admin FAB */
-    .admin-zone {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      width: 80px;
-      height: 80px;
-      z-index: 999;
-    }
-
-    .admin-hover {
-      position: absolute;
-      bottom: 24px;
-      left: 24px;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s ease;
-    }
-
-    .admin-zone:hover .admin-hover {
-      opacity: 1;
-      pointer-events: auto;
-    }
-
-    #adminModal {
-      max-width: 90% !important;
-      width: 90% !important;
-      height: 80% !important;
-    }
-
-    #adminModal .modal-content {
-      overflow-y: auto;
-      height: calc(100% - 64px);
-    }
-
-    /* 🔹 Quick input FAB */
-    .quick-zone {
-      position: fixed;
-      bottom: 0;
-      right: 80px;
-      width: 80px;
-      height: 80px;
-      z-index: 999;
-    }
-
-    .quick-hover {
-      position: absolute;
-      bottom: 24px;
-      right: 24px;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s ease;
-    }
-
-    .quick-zone:hover .quick-hover {
-      opacity: 1;
-      pointer-events: auto;
-    }
-
-    /* 🔹 Mobiele weergave */
+    /* Mobile: sidebar overlay */
     @media (max-width: 768px) {
-      .quick-hover {
-        opacity: 1 !important;
-        pointer-events: auto !important;
-      }
+      .sp-sidebar { left: -100%; }
+      .sp-sidebar.show { left: 0; }
+      .sp-main, .sp-main.collapsed { margin-left: 0; }
     }
+
+    .table-nowrap td, .table-nowrap th { white-space: nowrap; }
+    .text-mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+    .chip {display:inline-flex;align-items:center;gap:6px;padding:.25rem .5rem;border-radius:999px;background:#eef4ff;color:#0d6efd;font-size:.8rem}
+    .chip .dot{width:.5rem;height:.5rem;border-radius:50%;background:#0d6efd}
   </style>
 </head>
 <body>
 
-  <!-- 🔹 UITLOGGEN FAB -->
-  <div class="logout-zone">
-    <div class="fixed-action-btn logout-hover">
-      <a id="logoutBtn" class="btn-floating btn-large red tooltipped" data-tooltip="Uitloggen">
-        <i class="material-icons">logout</i>
+  <!-- Sidebar -->
+  <aside id="sidebar" class="sp-sidebar">
+    <div class="px-3 mb-3">
+      <div class="d-flex align-items-center gap-2 ps-2">
+        <span class="material-icons-outlined">event_note</span>
+        <strong class="label">Shift Planner</strong>
+      </div>
+    </div>
+    <nav class="nav flex-column" id="navTabs">
+      <a class="nav-link active" data-bs-toggle="tab" href="#tab-shifts">
+        <span class="material-icons-outlined">schedule</span> <span class="label">Shifts</span>
       </a>
-    </div>
-  </div>
-
-  <!-- 🔹 ADMIN FAB -->
-  <div class="admin-zone">
-    <div id="adminFab" class="fixed-action-btn admin-hover" style="display: none;">
-      <a
-        id="adminFabBtn"
-        class="btn-floating btn-large orange tooltipped modal-trigger"
-        data-tooltip="Admin beheer"
-        href="#adminModal"
-      >
-        <i class="material-icons">admin_panel_settings</i>
+      <a class="nav-link" data-bs-toggle="tab" href="#tab-invoer">
+        <span class="material-icons-outlined">list_alt</span> <span class="label">Invoer</span>
       </a>
-    </div>
-  </div>
+      <a class="nav-link" data-bs-toggle="tab" href="#tab-historiek">
+        <span class="material-icons-outlined">query_stats</span> <span class="label">Historiek</span>
+      </a>
+      <a class="nav-link" data-bs-toggle="tab" href="#tab-converter">
+        <span class="material-icons-outlined">calculate</span> <span class="label">Converter</span>
+      </a>
+      <a class="nav-link d-none" id="adminTabBtn" data-bs-toggle="tab" href="#tab-admin">
+        <span class="material-icons-outlined">admin_panel_settings</span> <span class="label">Admin</span>
+      </a>
+    </nav>
+  </aside>
 
-  <!-- 🔹 ADMIN MODAL -->
-<div id="adminModal" class="modal">
-  <div class="modal-content">
-    <h5>🔑 Admin Beheer</h5>
-
-    <p><strong>Ingelogd als:</strong> <span id="loggedInUserLabel">-</span></p>
-    <p><strong>Actieve gebruiker:</strong> <span id="activeUserLabel">-</span></p>
-
-    <!-- Gebruikersbeheer -->
-    <h6>Gebruikersbeheer</h6>
-    <div class="row">
-      <div class="input-field col s6">
-        <select id="adminUserSelect"></select>
-        <label for="adminUserSelect">Gebruiker selecteren</label>
+  <!-- Topbar -->
+  <nav class="sp-topbar">
+    <div class="container-fluid h-100 d-flex align-items-center justify-content-between">
+      <div class="d-flex align-items-center gap-2">
+        <button id="sidebarToggle" class="btn btn-outline-primary btn-sm d-none d-md-inline-flex">
+          <span class="material-icons-outlined">menu_open</span>
+        </button>
+        <button id="sidebarMobile" class="btn btn-outline-primary btn-sm d-inline-flex d-md-none">
+          <span class="material-icons-outlined">menu</span>
+        </button>
+        <div class="chip d-none d-sm-inline-flex"><span class="dot"></span> <span id="envBadge">Online</span></div>
       </div>
-      <div class="input-field col s6">
-        <button id="addUserBtn" class="btn blue">Nieuwe gebruiker</button>
-        <button id="removeUserBtn" class="btn red">Verwijder gebruiker</button>
-      </div>
-    </div>
 
-    <!-- Projectbeheer -->
-    <h6>Projectbeheer</h6>
-    <div class="row">
-      <div class="input-field col s4">
-        <input id="newProjectName" type="text" />
-        <label>Project naam</label>
+      <div class="d-flex align-items-center gap-3">
+        <span class="text-secondary small">Ingelogd als <strong id="currentUserName">-</strong></span>
+        <button id="logoutBtn" class="btn btn-outline-danger btn-sm">
+          <span class="material-icons-outlined">logout</span>
+          Uitloggen
+        </button>
       </div>
-      <div class="input-field col s3">
-        <input id="newProjectStart" type="date" />
-        <label>Start datum</label>
-      </div>
-      <div class="input-field col s3">
-        <input id="newProjectEnd" type="date" />
-        <label>Eind datum</label>
-      </div>
-      <div class="input-field col s2">
-        <button id="addProjectBtn" class="btn green">Toevoegen</button>
-      </div>
-    </div>
-
-    <table class="striped">
-      <thead>
-        <tr>
-          <th>Project</th>
-          <th>Start</th>
-          <th>Eind</th>
-          <th>Acties</th>
-        </tr>
-      </thead>
-      <tbody id="projectTableBody"></tbody>
-    </table>
-  </div>
-
-  <div class="modal-footer">
-    <a href="#!" class="modal-close btn-flat">Sluiten</a>
-  </div>
-</div>
-
-  <!-- 🔹 NAVIGATIE -->
-  <nav>
-    <div class="nav-wrapper blue">
-      <a href="#!" class="brand-logo">Shift Planner</a>
-      <ul id="tabs-swipe" class="tabs tabs-fixed-width right">
-        <li class="tab col s3"><a class="active" href="#tab-shifts">Shift aanmaken</a></li>
-        <li class="tab col s3"><a href="#tab-invoer">Invoer</a></li>
-        <li class="tab col s3"><a href="#tab-historiek">Historiek</a></li>
-        <li class="tab col s3"><a href="#tab-converter">Tijd omrekenen</a></li>
-      </ul>
     </div>
   </nav>
 
-  <div class="row">
-    <!-- 🔹 SNELLE INVOER FAB -->
-    <div class="quick-zone">
-      <div id="quickFab" class="fixed-action-btn quick-hover">
-        <a
-          id="quickFabBtn"
-          class="btn-floating btn-large teal tooltipped modal-trigger"
-          data-tooltip="Snelle invoer"
-          href="#quickModal"
-        >
-          <i class="material-icons">event</i>
-        </a>
-      </div>
-    </div>
+  <!-- Main -->
+  <main id="main" class="sp-main">
+    <div class="tab-content">
 
-    <!-- 🔹 SNELLE INVOER MODAL -->
-    <div id="quickModal" class="modal">
+      <!-- SHIFTS -->
+      <section id="tab-shifts" class="tab-pane fade show active">
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+          <h5 class="mb-0">Shifts</h5>
+          <div class="d-flex flex-wrap gap-2">
+            <select id="filterShiftYear" class="form-select form-select-sm"></select>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#shiftModal">
+              <span class="material-icons-outlined">add</span> Nieuwe shift
+            </button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-striped table-hover align-middle table-nowrap">
+            <thead class="table-light">
+              <tr>
+                <th>Naam</th><th>Start</th><th>Einde</th><th>Pauze (min)</th><th>Project</th><th>Periode</th><th class="text-end">Acties</th>
+              </tr>
+            </thead>
+            <tbody id="shiftTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="alert alert-info small">
+          Tip: je kan de volgorde bewaren via de “volgorde opslaan”-knop (drag & drop is browser-afhankelijk in tabellen; alternatief: gebruik sorteerknoppen).
+        </div>
+      </section>
+
+      <!-- INVOER -->
+      <section id="tab-invoer" class="tab-pane fade">
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+          <h5 class="mb-0">Invoer</h5>
+          <div class="d-flex flex-wrap gap-2">
+            <select id="monthSelectMain" class="form-select form-select-sm">
+              <option value="0">Januari</option><option value="1">Februari</option><option value="2">Maart</option>
+              <option value="3">April</option><option value="4">Mei</option><option value="5">Juni</option>
+              <option value="6">Juli</option><option value="7">Augustus</option><option value="8">September</option>
+              <option value="9">Oktober</option><option value="10">November</option><option value="11">December</option>
+            </select>
+            <select id="yearSelectMain" class="form-select form-select-sm"></select>
+            <select id="projectFilterSelect" class="form-select form-select-sm">
+              <option value="">Alle projecten</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-6 col-md-2">
+            <label class="form-label">Doel uren</label>
+            <input id="monthTargetHours" type="number" min="0" value="0" class="form-control form-control-sm" />
+          </div>
+          <div class="col-6 col-md-2">
+            <label class="form-label">Doel min</label>
+            <input id="monthTargetMinutes" type="number" min="0" value="0" class="form-control form-control-sm" />
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-striped table-hover align-middle table-nowrap">
+            <thead class="table-light">
+              <tr>
+                <th>Dag</th><th>Datum</th><th>Project</th><th>Shift</th><th>Start</th><th>Einde</th><th>Pauze</th><th>Omschrijving</th><th>Duur</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="row g-3 mt-2">
+          <div class="col-sm-4"><strong>Doel totaal:</strong> <span id="inputTotDoel" class="text-mono">0u 0min</span></div>
+          <div class="col-sm-4"><strong>Totaal uren:</strong> <span id="inputTotGepland" class="text-mono">0u 0min</span></div>
+          <div class="col-sm-4"><strong>Verschil:</strong> <span id="inputTotVerschil" class="text-mono">0u 0min</span></div>
+        </div>
+
+        <div class="mt-3">
+          <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#quickModal">
+            <span class="material-icons-outlined">event</span> Snelle invoer
+          </button>
+        </div>
+      </section>
+
+      <!-- HISTORIEK -->
+      <section id="tab-historiek" class="tab-pane fade">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Historiek — <span id="currentUserHistoriek">-</span> — Jaar: <span id="historiekJaar"></span></h5>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-striped table-hover align-middle table-nowrap">
+            <thead class="table-light">
+              <tr>
+                <th>Maand</th><th>Doel uren</th><th>Gepland</th><th>Verschil</th>
+                <th>Verlof</th><th>Ziekte</th><th>Schoolverlof</th><th>Feestdag</th><th>Bench</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+            <tfoot class="table-light">
+              <tr>
+                <th>Totaal</th>
+                <th id="totDoel">0u 0min</th>
+                <th id="totGepland">0u 0min</th>
+                <th id="totVerschil">0u 0min</th>
+                <th id="totVerlof">0u 0min</th>
+                <th id="totZiekte">0u 0min</th>
+                <th id="totSchool">0u 0min</th>
+                <th id="totFeest">0u 0min</th>
+                <th id="totBench">0u 0min</th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+
+      <!-- CONVERTER -->
+      <section id="tab-converter" class="tab-pane fade">
+        <h5>Uren/minuten ↔ decimale uren</h5>
+        <div class="row g-3">
+          <div class="col-6 col-md-2">
+            <label class="form-label">Uren</label>
+            <input id="convHours" type="number" min="0" value="0" class="form-control" />
+          </div>
+          <div class="col-6 col-md-2">
+            <label class="form-label">Minuten</label>
+            <input id="convMinutes" type="number" min="0" value="0" class="form-control" />
+          </div>
+          <div class="col-12 col-md-3">
+            <label class="form-label">Decimale uren</label>
+            <input id="decimalInput" type="number" step="0.01" min="0" value="0" class="form-control" />
+          </div>
+        </div>
+      </section>
+
+      <!-- ADMIN -->
+      <section id="tab-admin" class="tab-pane fade">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <h5 class="mb-0">Admin beheer</h5>
+          <div class="text-secondary small">Actieve gebruiker: <strong id="activeUserLabel">-</strong></div>
+        </div>
+
+        <div class="card p-3 mb-3">
+          <h6 class="mb-3">Gebruikersbeheer</h6>
+          <div class="row g-2 align-items-end">
+            <div class="col-md-5">
+              <label class="form-label">Gebruiker selecteren</label>
+              <select id="adminUserSelect" class="form-select"></select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Rol wijzigen</label>
+              <select id="roleSelect" class="form-select">
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div class="col-md-4 d-flex gap-2">
+              <button id="addUserBtn" class="btn btn-primary flex-fill">Nieuwe gebruiker</button>
+              <button id="updateRoleBtn" class="btn btn-warning flex-fill">Update rol</button>
+              <button id="removeUserBtn" class="btn btn-danger flex-fill">Verwijder gebruiker</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-3 mb-3">
+          <h6 class="mb-3">Projectbeheer</h6>
+          <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+              <label class="form-label">Project naam</label>
+              <input id="newProjectName" class="form-control" />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Start datum</label>
+              <input id="newProjectStart" type="date" class="form-control" />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Eind datum</label>
+              <input id="newProjectEnd" type="date" class="form-control" />
+            </div>
+            <div class="col-md-2">
+              <button id="addProjectBtn" class="btn btn-success w-100">Toevoegen</button>
+            </div>
+          </div>
+
+          <div class="table-responsive mt-3">
+            <table class="table table-striped align-middle table-nowrap">
+              <thead class="table-light"><tr><th>Project</th><th>Start</th><th>Eind</th><th>Acties</th></tr></thead>
+              <tbody id="projectTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card p-3">
+          <h6 class="mb-3">Audit log (laatste 50)</h6>
+          <ul id="auditLog" class="list-group small"></ul>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- MODALS -->
+  <!-- Shift modal -->
+  <div class="modal fade" id="shiftModal" tabindex="-1">
+    <div class="modal-dialog">
       <div class="modal-content">
-        <h5>📅 Snelle Invoer</h5>
-        <p>Selecteer datum + shift om snel een dag in te plannen:</p>
-
-        <div class="row">
-          <div class="input-field col s6">
-            <input type="date" id="quickDate" />
-            <label for="quickDate">Datum</label>
-          </div>
-          <div class="input-field col s6">
-            <select id="quickShift" class="browser-default"></select>
-          </div>
-        </div>
-
-        <div class="row">
-          <div class="input-field col s12">
-            <input type="text" id="quickNote" />
-            <label for="quickNote">Omschrijving (optioneel)</label>
+        <div class="modal-header"><h5 class="modal-title">Nieuwe / bewerk shift</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="row g-2">
+            <div class="col-md-6"><label class="form-label">Naam</label><input id="newShiftName" class="form-control" /></div>
+            <div class="col-6 col-md-3"><label class="form-label">Start</label><input id="newShiftStart" type="time" value="08:00" class="form-control" /></div>
+            <div class="col-6 col-md-3"><label class="form-label">Einde</label><input id="newShiftEnd" type="time" value="16:00" class="form-control" /></div>
+            <div class="col-6 col-md-3"><label class="form-label">Pauze (min)</label><input id="newShiftBreak" type="number" min="0" value="0" class="form-control" /></div>
+            <div class="col-6 col-md-5"><label class="form-label">Project</label><select id="newShiftProjectSelect" class="form-select"><option value="">Geen project</option></select></div>
+            <div class="col-6 col-md-4"><label class="form-label">Vanaf</label><input id="newShiftStartDate" type="date" class="form-control" /></div>
+            <div class="col-6 col-md-4"><label class="form-label">Tot</label><input id="newShiftEndDate" type="date" class="form-control" /></div>
           </div>
         </div>
-      </div>
-
-      <div class="modal-footer">
-        <a href="#!" id="saveQuickBtn" class="btn green">Opslaan</a>
-        <a href="#!" class="modal-close btn-flat">Sluiten</a>
-      </div>
-    </div>
-
-    <!-- 🔹 TAB: SHIFTS -->
-    <div id="tab-shifts" class="col s12">
-      <h5>Shift aanmaken — Gebruiker: <span id="currentUserLabel">-</span></h5>
-
-      <div class="row compact">
-        <div class="input-field col s3">
-          <input id="newShiftName" type="text" />
-          <label for="newShiftName">Shift naam</label>
-        </div>
-        <div class="input-field col s2">
-          <input id="newShiftStart" type="time" value="08:00" />
-          <label for="newShiftStart">Start</label>
-        </div>
-        <div class="input-field col s2">
-          <input id="newShiftEnd" type="time" value="16:00" />
-          <label for="newShiftEnd">Einde</label>
-        </div>
-        <div class="input-field col s1">
-          <input id="newShiftBreak" type="number" min="0" value="0" />
-          <label for="newShiftBreak">Pauze</label>
-        </div>
-        <div class="input-field col s2">
-          <select id="newShiftProjectSelect" class="browser-default">
-            <option value="">Geen project</option>
-          </select>
-        </div>
-        <div class="input-field col s2">
-          <input id="newShiftStartDate" type="date" />
-          <label for="newShiftStartDate">Vanaf (opt)</label>
-        </div>
-        <div class="input-field col s2">
-          <input id="newShiftEndDate" type="date" />
-          <label for="newShiftEndDate">Tot (opt)</label>
-        </div>
-        <div class="input-field col s1">
-          <button id="addShiftBtn" class="btn green">Toevoegen</button>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="input-field col s2">
-          <select id="filterShiftYear" class="browser-default"></select>
-        </div>
-      </div>
-
-      <table class="striped">
-        <thead>
-          <tr>
-            <th>Naam</th>
-            <th>Start</th>
-            <th>Einde</th>
-            <th>Pauze</th>
-            <th>Project</th>
-            <th>Periode</th>
-            <th>Acties</th>
-          </tr>
-        </thead>
-        <tbody id="shiftTableBody"></tbody>
-      </table>
-
-      <p class="small">Je kan shifts herschikken via drag & drop (sleep de rijen).</p>
-    </div>
-
-    <!-- 🔹 TAB: INVOER -->
-    <div id="tab-invoer" class="col s12">
-      <h5>Invoer — Gebruiker: <span id="currentUserInvoer">-</span></h5>
-
-      <div class="row compact">
-        <div class="input-field col s1">
-          <input id="monthTargetHours" type="number" min="0" value="0" />
-          <label for="monthTargetHours">Doel uren</label>
-        </div>
-        <div class="input-field col s1">
-          <input id="monthTargetMinutes" type="number" min="0" value="0" />
-          <label for="monthTargetMinutes">Doel min</label>
-        </div>
-        <div class="input-field col s2">
-          <select id="monthSelectMain" class="browser-default">
-            <option value="0">Januari</option>
-            <option value="1">Februari</option>
-            <option value="2">Maart</option>
-            <option value="3">April</option>
-            <option value="4">Mei</option>
-            <option value="5">Juni</option>
-            <option value="6">Juli</option>
-            <option value="7">Augustus</option>
-            <option value="8">September</option>
-            <option value="9">Oktober</option>
-            <option value="10">November</option>
-            <option value="11">December</option>
-          </select>
-        </div>
-        <div class="input-field col s2">
-          <select id="yearSelectMain" class="browser-default"></select>
-        </div>
-        <div class="input-field col s3">
-          <select id="projectFilterSelect" class="browser-default">
-            <option value="">Alle projecten</option>
-          </select>
-        </div>
-      </div>
-
-      <table class="striped">
-        <thead>
-          <tr>
-            <th>Dag</th>
-            <th>Datum</th>
-            <th>Project</th>
-            <th>Shift</th>
-            <th>Start</th>
-            <th>Einde</th>
-            <th>Pauze (min)</th>
-            <th>Omschrijving</th>
-            <th>Duur</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
-
-      <div class="row totals">
-        <div class="col s4">
-          <strong>Doel totaal:</strong> <span id="inputTotDoel">0u 0min</span>
-        </div>
-        <div class="col s4">
-          <strong>Totaal uren:</strong> <span id="inputTotGepland">0u 0min</span>
-        </div>
-        <div class="col s4">
-          <strong>Verschil:</strong> <span id="inputTotVerschil">0u 0min</span>
-        </div>
-      </div>
-    <!-- 🔹 Overzicht per Shift -->
-<h6 style="margin-top: 25px;">Totaal per Shift (huidige maand)</h6>
-<table class="striped">
-  <thead>
-    <tr>
-      <th>Shift</th>
-      <th>Totaal uren</th>
-    </tr>
-  </thead>
-  <tbody id="shiftTotalsBodyInvoer">
-    <tr><td colspan="2">Nog geen gegevens</td></tr>
-  </tbody>
-</table>
-</div> <!-- ✅ EINDE tab-invoer -->
-    <!-- 🔹 TAB: HISTORIEK -->
-    <div id="tab-historiek" class="col s12">
-      <h5>
-        Historiek — Gebruiker: <span id="currentUserHistoriek">-</span> —
-        Jaar: <span id="historiekJaar"></span>
-      </h5>
-
-      <table class="striped">
-        <thead>
-          <tr>
-            <th>Maand</th>
-            <th>Doel uren</th>
-            <th>Gepland</th>
-            <th>Verschil</th>
-            <th>Verlof</th>
-            <th>Ziekte</th>
-            <th>Schoolverlof</th>
-            <th>Feestdag</th>
-            <th>Bench</th>
-          </tr>
-        </thead>
-        <tbody id="historyBody"></tbody>
-        <tfoot>
-          <tr>
-            <th>Totaal</th>
-            <th id="totDoel">0u 0min</th>
-            <th id="totGepland">0u 0min</th>
-            <th id="totVerschil">0u 0min</th>
-            <th id="totVerlof">0u 0min</th>
-            <th id="totZiekte">0u 0min</th>
-            <th id="totSchool">0u 0min</th>
-            <th id="totFeest">0u 0min</th>
-            <th id="totBench">0u 0min</th>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-
-    <!-- 🔹 TAB: CONVERTER -->
-    <div id="tab-converter" class="col s12">
-      <h5>🕒 — Uren/minuten ↔ Decimale uren</h5>
-      <div class="row compact">
-        <div class="input-field col s2">
-          <input id="convHours" type="number" min="0" value="0" />
-          <label for="convHours">Uren</label>
-        </div>
-        <div class="input-field col s2">
-          <input id="convMinutes" type="number" min="0" value="0" />
-          <label for="convMinutes">Minuten</label>
-        </div>
-        <div class="input-field col s3">
-          <input id="decimalInput" type="number" step="0.01" min="0" value="0" />
-          <label for="decimalInput">Decimale uren</label>
+        <div class="modal-footer">
+          <button id="addShiftBtn" class="btn btn-primary">Opslaan</button>
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuleren</button>
         </div>
       </div>
     </div>
   </div>
-  <!-- ================== SCRIPTS ================== -->
-  <!-- 🔹 Materialize JS -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
 
-  <!-- 🔹 Firebase SDK's -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <!-- Quick input modal -->
+  <div class="modal fade" id="quickModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Snelle invoer</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Datum</label>
+              <input type="date" id="quickDate" class="form-control" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Shift</label>
+              <select id="quickShift" class="form-select"></select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Omschrijving (optioneel)</label>
+              <input type="text" id="quickNote" class="form-control" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="saveQuickBtn" class="btn btn-success">Opslaan</button>
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Sluiten</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-  <script>
-    // =========================================
-    // 🔹 Firebase Configuratie
-    // =========================================
+  <!-- Bootstrap -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Firebase (Modular CDN) -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
+    import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, getDocs, addDoc, deleteDoc, collection, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+
+    // ===== Firebase config (jouw bestaande waarden) =====
     const firebaseConfig = {
       apiKey: "AIzaSyB8uHwRXCe1iV7z6T80YPxEbeB64qdMpNY",
       authDomain: "shift-planner-dc7ad.firebaseapp.com",
@@ -534,1298 +379,762 @@
       appId: "1:719441527396:web:de87d6f950fe23702a5571"
     };
 
-    // 🔹 Firebase initialiseren
-    const app = firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-    const auth = firebase.auth();
+    // ===== App init =====
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
 
-    // =========================================
-    // 🔹 Admin logica (zonder audit / rol)
-    // =========================================
+    // ======= State =======
+    let currentUserId = null;
+    const dataStore = { users: {}, currentUser: null };
 
-    // Toon admin-FAB alleen voor admins
-    auth.onAuthStateChanged(async (user) => {
-      if (!user) return;
+    // ======= Elements =======
+    const sidebar = document.getElementById('sidebar');
+    const main = document.getElementById('main');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const currentUserName = document.getElementById('currentUserName');
+    const adminTabBtn = document.getElementById('adminTabBtn');
 
-      document.getElementById("loggedInUserLabel").textContent = user.displayName || user.email;
+    // Tabs: Shifts
+    const filterShiftYear = document.getElementById('filterShiftYear');
+    const shiftTableBody = document.getElementById('shiftTableBody');
 
-      const snap = await db.collection("users").doc(user.uid).get();
-      if (!snap.exists) return;
+    // Invoer elements
+    const monthSelectMain = document.getElementById('monthSelectMain');
+    const yearSelectMain = document.getElementById('yearSelectMain');
+    const projectFilterSelect = document.getElementById('projectFilterSelect');
+    const monthTargetHours = document.getElementById('monthTargetHours');
+    const monthTargetMinutes = document.getElementById('monthTargetMinutes');
+    const tbody = document.getElementById('tbody');
+    const inputTotDoel = document.getElementById('inputTotDoel');
+    const inputTotGepland = document.getElementById('inputTotGepland');
+    const inputTotVerschil = document.getElementById('inputTotVerschil');
 
-      const data = snap.data();
-      if (data.role === "admin") {
-        document.getElementById("adminFab").style.display = "block";
-        await renderAdminUserSelect();
-      }
-    });
+    // Historiek
+    const historyBody = document.getElementById('historyBody');
+    const historiekJaar = document.getElementById('historiekJaar');
+    const currentUserHistoriek = document.getElementById('currentUserHistoriek');
 
-    // Gebruikerslijst vullen
-    async function renderAdminUserSelect() {
-      const sel = document.getElementById("adminUserSelect");
-      sel.innerHTML = "";
+    // Admin
+    const adminUserSelect = document.getElementById('adminUserSelect');
+    const roleSelect = document.getElementById('roleSelect');
+    const addUserBtn = document.getElementById('addUserBtn');
+    const updateRoleBtn = document.getElementById('updateRoleBtn');
+    const removeUserBtn = document.getElementById('removeUserBtn');
+    const activeUserLabel = document.getElementById('activeUserLabel');
+    const projectTableBody = document.getElementById('projectTableBody');
+    const newProjectName = document.getElementById('newProjectName');
+    const newProjectStart = document.getElementById('newProjectStart');
+    const newProjectEnd = document.getElementById('newProjectEnd');
+    const addProjectBtn = document.getElementById('addProjectBtn');
+    const auditLog = document.getElementById('auditLog');
 
-      const snapshot = await db.collection("users").get();
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        const opt = document.createElement("option");
-        opt.value = doc.id;
-        opt.textContent = data.name || data.email || doc.id;
-        sel.appendChild(opt);
-      });
+    // Shift modal fields
+    const newShiftName = document.getElementById('newShiftName');
+    const newShiftStart = document.getElementById('newShiftStart');
+    const newShiftEnd = document.getElementById('newShiftEnd');
+    const newShiftBreak = document.getElementById('newShiftBreak');
+    const newShiftProjectSelect = document.getElementById('newShiftProjectSelect');
+    const newShiftStartDate = document.getElementById('newShiftStartDate');
+    const newShiftEndDate = document.getElementById('newShiftEndDate');
+    const addShiftBtn = document.getElementById('addShiftBtn');
 
-      // Initialiseer Materialize select
-      M.FormSelect.init(sel);
-    }
+    // Quick input
+    const quickDate = document.getElementById('quickDate');
+    const quickShift = document.getElementById('quickShift');
+    const quickNote = document.getElementById('quickNote');
+    const saveQuickBtn = document.getElementById('saveQuickBtn');
 
-    // Nieuwe gebruiker toevoegen
-    document.getElementById("addUserBtn").addEventListener("click", async () => {
-      const name = prompt("Nieuwe gebruikersnaam:");
-      if (!name) return;
+    // ======= UI helpers =======
+    const daysFull = ["Zondag","Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag"];
+    const monthsFull = ["Januari","Februari","Maart","April","Mei","Juni","Juli","Augustus","September","Oktober","November","December"];
+    const toast = (msg, type='primary') => {
+      const el = document.createElement('div');
+      el.className = `toast align-items-center text-bg-${type} border-0 position-fixed bottom-0 end-0 m-3`;
+      el.role = 'alert'; el.ariaLive='assertive'; el.ariaAtomic='true';
+      el.innerHTML = `<div class="d-flex"><div class="toast-body">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+      document.body.appendChild(el);
+      new bootstrap.Toast(el, { delay: 2500 }).show();
+      el.addEventListener('hidden.bs.toast', ()=> el.remove());
+    };
 
-      try {
-        const userRef = db.collection("users").doc();
-        await userRef.set({
-          name: name,
-          role: "user",
-          shifts: {},
-          monthData: {},
-          projects: []
-        });
-
-        alert("✅ Gebruiker toegevoegd!");
-        renderAdminUserSelect();
-      } catch (err) {
-        console.error("❌ Fout bij gebruiker toevoegen:", err);
-      }
-    });
-
-    // Gebruiker verwijderen
-    document.getElementById("removeUserBtn").addEventListener("click", async () => {
-      const sel = document.getElementById("adminUserSelect");
-      const uid = sel.value;
-      if (!uid) return alert("Selecteer eerst een gebruiker.");
-      if (!confirm("Weet je zeker dat je deze gebruiker wilt verwijderen?")) return;
-
-      try {
-        await db.collection("users").doc(uid).delete();
-        alert("❌ Gebruiker verwijderd!");
-        renderAdminUserSelect();
-      } catch (err) {
-        console.error("❌ Fout bij gebruiker verwijderen:", err);
-      }
-    });
-
-    // Project toevoegen
-    document.getElementById("addProjectBtn").addEventListener("click", async () => {
-      const name = document.getElementById("newProjectName").value.trim();
-      const start = document.getElementById("newProjectStart").value;
-      const end = document.getElementById("newProjectEnd").value;
-
-      if (!name || !start || !end) return alert("Vul alle velden in.");
-
-      try {
-        const projectRef = db.collection("projects").doc();
-        await projectRef.set({
-          name: name,
-          start: start,
-          end: end,
-          createdBy: auth.currentUser.uid
-        });
-
-        alert("✅ Project toegevoegd!");
-        document.getElementById("newProjectName").value = "";
-        document.getElementById("newProjectStart").value = "";
-        document.getElementById("newProjectEnd").value = "";
-      } catch (err) {
-        console.error("❌ Fout bij project toevoegen:", err);
-      }
-    });
-
-    // Admin-modal initialiseren
-    document.addEventListener("DOMContentLoaded", () => {
-      const adminModalEl = document.getElementById("adminModal");
-      M.Modal.init(adminModalEl);
-    });
-  </script>
-  <script>
-    /* =========================================
-       App state
-    ============================================*/
-    let dataStore = { users: {}, currentUser: null };
-    let currentUser = null;
-
-    /* =========================================
-       Materialize: Tabs + Modals
-    ============================================*/
-    document.addEventListener("DOMContentLoaded", () => {
-      const tabs = document.querySelectorAll(".tabs");
-      M.Tabs.init(tabs, { swipeable: false });
-      const instance = M.Tabs.getInstance(tabs[0]);
-      instance.select("tab-shifts");
-
-      const modals = document.querySelectorAll(".modal");
-      M.Modal.init(modals);
-    });
-
-    /* =========================================
-       Auth state + init
-    ============================================*/
-    document.addEventListener("DOMContentLoaded", () => {
-      auth.onAuthStateChanged(async (user) => {
-        if (!user) {
-          if (!DEBUG) window.location.href = "index.html";
-          return;
-        }
-
-        currentUser = user.uid;
-        dataStore.currentUser = currentUser;
-
-        // Zorg dat user-doc altijd minimale velden heeft
-        const userRef = db.collection("users").doc(user.uid);
-        const snap = await userRef.get();
-
-        if (!snap.exists) {
-          await userRef.set({
-            email: user.email,
-            name: user.displayName || user.email.split("@")[0],
-            role: "user",
-            shifts: {},
-            monthData: {},
-            projects: []
-          });
-        } else {
-          const data = snap.data();
-          const updates = {};
-          if (!("email" in data)) updates.email = user.email;
-          if (!("name" in data)) updates.name = user.displayName || user.email.split("@")[0];
-          if (!("role" in data)) updates.role = "user";
-          if (!("shifts" in data)) updates.shifts = {};
-          if (!("monthData" in data)) updates.monthData = {};
-          if (!("projects" in data)) updates.projects = [];
-          if (Object.keys(updates).length) await userRef.update(updates);
-        }
-
-        await initApp();
-
-        // Admin FAB tonen indien admin
-        const roleData = (await userRef.get()).data();
-        if (roleData.role === "admin") {
-          document.getElementById("adminFab").style.display = "block";
-          await renderAdminUserSelect();
-          document.getElementById("adminUserSelect").value = currentUser;
-        } else if (DEBUG) {
-          document.getElementById("adminFab").style.display = "block";
-        }
-
-        updateCurrentUserLabels();
-      });
-    });
-
-    /* =========================================
-       Firestore helpers
-    ============================================*/
-    async function saveAll() {
-      if (!currentUser) return;
-      await db.collection("users").doc(currentUser).set(dataStore.users[currentUser]);
-    }
-
-    async function loadUser(uid) {
-      const doc = await db.collection("users").doc(uid).get();
-      if (doc.exists) {
-        dataStore.users[uid] = doc.data();
-      } else {
-        dataStore.users[uid] = { shifts: {}, monthData: {}, projects: [] };
-        await saveAll();
-      }
-    }
-
-    async function loadAllUsers() {
-      if (!auth.currentUser) return;
-      const meRef = db.collection("users").doc(auth.currentUser.uid);
-      const meSnap = await meRef.get();
-      const role = meSnap.data().role;
-
-      dataStore.users = {};
-      if (role === "admin") {
-        const snapshot = await db.collection("users").get();
-        snapshot.forEach((d) => (dataStore.users[d.id] = d.data()));
-      } else {
-        dataStore.users[auth.currentUser.uid] = meSnap.data();
-      }
-    }
-
-    /* =========================================
-       Init App
-    ============================================*/
-    async function initApp() {
-      await loadAllUsers();
-
-      if (!currentUser) {
-        const ids = Object.keys(dataStore.users);
-        currentUser = ids.length ? ids[0] : null;
-        dataStore.currentUser = currentUser;
-      }
-      if (currentUser) await loadUser(currentUser);
-
-      populateYearSelect();
-      renderProjects();
-      renderShifts();
-      updateCurrentUserLabels();
-      renderHistory();
-      renderProjectFilterForMonth();
-      populateFilterShiftYears();
-      generateMonth();
-
-      initQuickInputModal();
-      initConverter();
-      initLogout();
-    }
-
-    /* =========================================
-       Elements
-    ============================================*/
-    const currentUserLabel = document.getElementById("currentUserLabel");
-    const currentUserInvoer = document.getElementById("currentUserInvoer");
-    const currentUserHistoriek = document.getElementById("currentUserHistoriek");
-
-    const projectTableBody = document.getElementById("projectTableBody");
-    const newProjectName = document.getElementById("newProjectName");
-    const newProjectStart = document.getElementById("newProjectStart");
-    const newProjectEnd = document.getElementById("newProjectEnd");
-    const addProjectBtn = document.getElementById("addProjectBtn");
-
-    const newShiftName = document.getElementById("newShiftName");
-    const newShiftStart = document.getElementById("newShiftStart");
-    const newShiftEnd = document.getElementById("newShiftEnd");
-    const newShiftBreak = document.getElementById("newShiftBreak");
-    const newShiftProjectSelect = document.getElementById("newShiftProjectSelect");
-    const newShiftStartDate = document.getElementById("newShiftStartDate");
-    const newShiftEndDate = document.getElementById("newShiftEndDate");
-    const addShiftBtn = document.getElementById("addShiftBtn");
-    const shiftTableBody = document.getElementById("shiftTableBody");
-    const filterShiftYear = document.getElementById("filterShiftYear");
-
-    const monthSelectMain = document.getElementById("monthSelectMain");
-    const yearSelectMain = document.getElementById("yearSelectMain");
-    const projectFilterSelect = document.getElementById("projectFilterSelect");
-    const monthTargetHours = document.getElementById("monthTargetHours");
-    const monthTargetMinutes = document.getElementById("monthTargetMinutes");
-    const tbody = document.getElementById("tbody");
-
-    const inputTotDoel = document.getElementById("inputTotDoel");
-    const inputTotGepland = document.getElementById("inputTotGepland");
-    const inputTotVerschil = document.getElementById("inputTotVerschil");
-
-    const historyBody = document.getElementById("historyBody");
-    const historiekJaar = document.getElementById("historiekJaar");
-    const projectFilterSelect_el = projectFilterSelect;
-
-    /* =========================================
-       Utils
-    ============================================*/
-    const daysFull = ["Zondag", "Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag"];
-    const monthsFull = ["Januari", "Februari", "Maart", "April", "Mei", "Juni", "Juli", "Augustus", "September", "Oktober", "November", "December"];
-
-    function getCurrentUserData() {
-      if (!currentUser) return { shifts: {}, monthData: {}, projects: [] };
-      if (!dataStore.users[currentUser]) dataStore.users[currentUser] = { shifts: {}, monthData: {}, projects: [] };
-      return dataStore.users[currentUser];
-    }
-
-    function dateKey(y, m, d) {
-      return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    }
-
-    function minutesBetween(startStr, endStr, breakMin) {
-      if (!startStr || !endStr) return 0;
-      const [sh, sm] = startStr.split(":").map(Number);
-      const [eh, em] = endStr.split(":").map(Number);
-      let mins = (eh * 60 + em) - (sh * 60 + sm) - (Number(breakMin) || 0);
-      if (mins < 0) mins += 24 * 60; // over-midnight
+    const dateKey = (y,m,d)=> `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const toDisplayDate = iso => !iso ? '-' : iso.split('-').reverse().join('-');
+    const fromDisplayDate = disp => {const [d,m,y]=disp.split('-'); return `${y}-${m}-${d}`;};
+    const minutesBetween = (s,e,b)=> {
+      if(!s||!e) return 0;
+      const [sh,sm]=s.split(':').map(Number), [eh,em]=e.split(':').map(Number);
+      let mins = (eh*60+em) - (sh*60+sm) - (Number(b)||0);
+      if(mins<0) mins+=1440;
       return mins;
-    }
+    };
+    const isDateWithin = (iso, start, end) => {
+      const d = iso?.replaceAll('-',''); if(!d) return false;
+      const s = start? start.replaceAll('-',''): null;
+      const e = end? end.replaceAll('-',''): null;
+      if(s && d < s) return false; if(e && d > e) return false; return true;
+    };
 
-    function toDisplayDate(iso) {
-      if (!iso) return "-";
-      const parts = iso.split("-");
-      if (parts.length !== 3) return iso;
-      const [y, m, d] = parts;
-      return `${d.padStart(2, "0")}-${m.padStart(2, "0")}-${y}`;
-    }
+    // ======= Auth =======
+    onAuthStateChanged(auth, async (user)=>{
+      if(!user){
+        // Voor demo: toon eenvoudige melding
+        currentUserName.textContent = 'Niet ingelogd';
+        toast('Geen gebruiker ingelogd. Redirect naar login…', 'warning');
+        // Je kan hier een loginpagina openen of FirebaseUI integreren.
+        return;
+      }
+      currentUserId = user.uid;
+      currentUserName.textContent = user.displayName || user.email;
 
-    function fromDisplayDate(display) {
-      if (!display) return null;
-      const parts = display.split("-");
-      if (parts.length !== 3) return null;
-      const [day, month, year] = parts;
-      return `${year}-${month}-${day}`;
-    }
+      await ensureUserDoc(user);
+      await loadAllUsers();
+      initSelectors();
+      renderAll();
+      await revealAdminIfNeeded();
+    });
 
-    function isDateWithin(isoDate, startIso, endIso) {
-      const d = isoDate ? isoDate.replaceAll("-", "") : null;
-      const s = startIso ? startIso.replaceAll("-", "") : null;
-      const e = endIso ? endIso.replaceAll("-", "") : null;
-      if (!d) return false;
-      if (s && d < s) return false;
-      if (e && d > e) return false;
-      return true;
-    }
+    logoutBtn?.addEventListener('click', async ()=>{
+      await signOut(auth);
+      location.reload();
+    });
 
-    function projectByName(name) {
-      return (getCurrentUserData().projects || []).find((p) => p.name === name) || null;
-    }
-
-    function projectIsValidForDate(p, isoDate) {
-      if (!p) return false;
-      if (!(p.start || p.end)) return false;
-      return isDateWithin(isoDate, p.start || null, p.end || null);
-    }
-
-    function ensureOptionInSelect(selectEl, value, label) {
-      const exists = Array.from(selectEl.options).some((o) => o.value === value);
-      if (!exists) {
-        const opt = document.createElement("option");
-        opt.value = value;
-        opt.textContent = label || value;
-        selectEl.appendChild(opt);
+    async function ensureUserDoc(user){
+      const ref = doc(db, 'users', user.uid);
+      const snap = await getDoc(ref);
+      if(!snap.exists()){
+        await setDoc(ref, { email: user.email, name: user.displayName || user.email.split('@')[0], role:'user', shifts:{}, monthData:{}, projects:[], shiftOrder:[] });
+      } else {
+        const data = snap.data(), updates={};
+        if(!('email' in data)) updates.email = user.email;
+        if(!('name' in data)) updates.name = user.displayName || user.email.split('@')[0];
+        if(!('role' in data)) updates.role = 'user';
+        if(!('shifts' in data)) updates.shifts = {};
+        if(!('monthData' in data)) updates.monthData = {};
+        if(!('projects' in data)) updates.projects = [];
+        if(!('shiftOrder' in data)) updates.shiftOrder = [];
+        if(Object.keys(updates).length) await updateDoc(ref, updates);
       }
     }
 
-    function ensurePXLProjectExists() {
+    // ======= Data loading/saving =======
+    async function loadAllUsers(){
+      const meRef = doc(db,'users', currentUserId);
+      const meSnap = await getDoc(meRef);
+      const me = meSnap.data();
+      dataStore.users = {};
+      if(me.role === 'admin'){
+        const qs = await getDocs(collection(db,'users'));
+        qs.forEach(d=> dataStore.users[d.id] = d.data());
+      } else {
+        dataStore.users[currentUserId] = me;
+      }
+      dataStore.currentUser = currentUserId;
+    }
+
+    async function saveUserData(){
+      if(!dataStore.currentUser) return;
+      const ref = doc(db,'users', dataStore.currentUser);
+      await setDoc(ref, dataStore.users[dataStore.currentUser], { merge: true });
+    }
+
+    function getCurrentUserData(){
+      const id = dataStore.currentUser;
+      if(!id) return { shifts:{}, monthData:{}, projects:[], shiftOrder:[] };
+      if(!dataStore.users[id]) dataStore.users[id] = { shifts:{}, monthData:{}, projects:[], shiftOrder:[] };
+      return dataStore.users[id];
+    }
+
+    // ======= UI init =======
+    function initSelectors(){
+      // years
+      const yNow = new Date().getFullYear();
+      yearSelectMain.innerHTML = '';
+      for(let y = yNow-2; y <= yNow+3; y++){
+        const opt = document.createElement('option');
+        opt.value = y; opt.textContent = y; if(y===yNow) opt.selected = true; yearSelectMain.appendChild(opt);
+      }
+    }
+
+    async function revealAdminIfNeeded(){
+      const meSnap = await getDoc(doc(db,'users', currentUserId));
+      const role = meSnap.data().role;
+      if(role === 'admin'){ adminTabBtn.classList.remove('d-none'); }
+    }
+
+    // ======= Projects =======
+    function renderProjects(){
       const ud = getCurrentUserData();
-      ud.projects = ud.projects || [];
-      let p = ud.projects.find((p) => p.name === "PXL Verpleegkunde Hasselt");
-      if (!p) {
-        p = { name: "PXL Verpleegkunde Hasselt", start: null, end: null };
-        ud.projects.push(p);
-        saveAll();
-        renderProjects();
-      }
-      return p;
-    }
+      const list = (ud.projects || []).slice().sort((a,b)=>{
+        const as = a.start? new Date(a.start): new Date('1900-01-01');
+        const bs = b.start? new Date(b.start): new Date('1900-01-01');
+        if(as.getTime() !== bs.getTime()) return as - bs;
+        const ae = a.end? new Date(a.end): new Date('9999-12-31');
+        const be = b.end? new Date(b.end): new Date('9999-12-31');
+        return ae - be;
+      });
 
-    function ensureEghtCareProjectExists() {
-      const ud = getCurrentUserData();
-      ud.projects = ud.projects || [];
-      let p = ud.projects.find((p) => p.name === "Eght Care");
-      if (!p) {
-        p = { name: "Eght Care", start: null, end: null };
-        ud.projects.push(p);
-        saveAll();
-        renderProjects();
-      }
-      return p;
-    }
-
-    /* =========================================
-       Projects
-    ============================================*/
-    function renderProjects() {
-      projectTableBody.innerHTML = "";
+      // table
+      projectTableBody.innerHTML = '';
       newShiftProjectSelect.innerHTML = '<option value="">Geen project</option>';
-      projectFilterSelect_el.innerHTML = '<option value="">Alle projecten</option>';
+      projectFilterSelect.innerHTML = '<option value="">Alle projecten</option>';
 
-      const userData = getCurrentUserData();
-      let projects = userData.projects || [];
-
-      projects = projects
-        .slice()
-        .sort((a, b) => {
-          const aStart = a.start ? new Date(a.start) : new Date("1900-01-01");
-          const bStart = b.start ? new Date(b.start) : new Date("1900-01-01");
-          if (aStart.getTime() !== bStart.getTime()) return aStart - bStart;
-          const aEnd = a.end ? new Date(a.end) : new Date("9999-12-31");
-          const bEnd = b.end ? new Date(b.end) : new Date("9999-12-31");
-          return aEnd - bEnd;
-        });
-
-      projects.forEach((p, idx) => {
-        const tr = document.createElement("tr");
+      list.forEach((p, idx)=>{
+        const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${p.name}</td>
           <td>${toDisplayDate(p.start)}</td>
           <td>${toDisplayDate(p.end)}</td>
-          <td>
-            <button class="btn orange btn-small" onclick="extendProject(${idx})">Verleng</button>
-            <button class="btn red btn-small" onclick="deleteProject(${idx})">Verwijder</button>
+          <td class="text-end">
+            <button class="btn btn-sm btn-warning me-1" data-idx="${idx}" data-act="extend">Verleng</button>
+            <button class="btn btn-sm btn-danger" data-idx="${idx}" data-act="delete">Verwijder</button>
           </td>`;
         projectTableBody.appendChild(tr);
 
-        const opt1 = document.createElement("option");
-        opt1.value = p.name;
-        opt1.textContent = p.name;
-        newShiftProjectSelect.appendChild(opt1);
-
-        const opt2 = document.createElement("option");
-        opt2.value = p.name;
-        opt2.textContent = p.name;
-        projectFilterSelect_el.appendChild(opt2);
+        const o1 = document.createElement('option'); o1.value=p.name; o1.textContent=p.name; newShiftProjectSelect.appendChild(o1);
+        const o2 = document.createElement('option'); o2.value=p.name; o2.textContent=p.name; projectFilterSelect.appendChild(o2);
       });
 
-      userData.projects = projects;
-      saveAll();
+      // actions
+      projectTableBody.querySelectorAll('button').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          const ud = getCurrentUserData();
+          const idx = Number(btn.dataset.idx);
+          const p = ud.projects[idx]; if(!p) return;
+          if(btn.dataset.act==='extend'){
+            const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', toDisplayDate(p.end) || '');
+            if(!v) return;
+            p.end = fromDisplayDate(v);
+            await saveUserData(); renderProjects(); renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+          } else {
+            if(!confirm('Project verwijderen?')) return;
+            ud.projects.splice(idx,1);
+            await saveUserData(); renderProjects(); renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+          }
+        });
+      });
     }
 
-    addProjectBtn?.addEventListener("click", () => {
-      if (!currentUser) return alert("Kies eerst een gebruiker");
-      const name = newProjectName.value.trim();
-      if (!name) return alert("Vul projectnaam in");
-      const start = newProjectStart.value || null;
-      const end = newProjectEnd.value || null;
+    addProjectBtn?.addEventListener('click', async ()=>{
+      const name = newProjectName.value.trim(); if(!name) return toast('Vul projectnaam in','warning');
       const ud = getCurrentUserData();
       ud.projects = ud.projects || [];
-      ud.projects.push({ name, start, end });
-      saveAll();
-      newProjectName.value = "";
-      newProjectStart.value = "";
-      newProjectEnd.value = "";
-      renderProjects();
+      ud.projects.push({ name, start: newProjectStart.value || null, end: newProjectEnd.value || null });
+      await saveUserData();
+      newProjectName.value = ''; newProjectStart.value=''; newProjectEnd.value='';
+      renderProjects(); toast('Project toegevoegd','success');
     });
 
-    window.extendProject = function (index) {
-      const ud = getCurrentUserData();
-      const p = ud.projects[index];
-      if (!p) return;
-      const newEnd = prompt("Nieuwe einddatum (DD-MM-YYYY):", toDisplayDate(p.end) || "");
-      if (!newEnd) return;
-      p.end = fromDisplayDate(newEnd);
-      saveAll();
-      renderProjects();
-    };
-
-    window.deleteProject = function (index) {
-      if (!confirm("Project verwijderen?")) return;
-      const ud = getCurrentUserData();
-      ud.projects.splice(index, 1);
-      saveAll();
-      renderProjects();
-    };
-
-    function renderProjectFilterForMonth() {
-      projectFilterSelect_el.innerHTML = '<option value="">Alle projecten</option>';
-
-      const y = Number(yearSelectMain.value);
-      const m = Number(monthSelectMain.value);
-      const daysInMonth = new Date(y, m + 1, 0).getDate();
-      const monthStart = `${y}-${String(m + 1).padStart(2, "0")}-01`.replaceAll("-", "");
-      const monthEnd = `${y}-${String(m + 1).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`.replaceAll("-", "");
-
-      (getCurrentUserData().projects || []).forEach((p) => {
-        if (p.start || p.end) {
-          const projStart = (p.start || "0000-01-01").replaceAll("-", "");
-          const projEnd = (p.end || "9999-12-31").replaceAll("-", "");
-          if (projStart <= monthEnd && projEnd >= monthStart) {
-            const opt = document.createElement("option");
-            opt.value = p.name;
-            opt.textContent = p.name;
-            projectFilterSelect_el.appendChild(opt);
-          }
-        } else {
-          const opt = document.createElement("option");
-          opt.value = p.name;
-          opt.textContent = p.name;
-          projectFilterSelect_el.appendChild(opt);
-        }
-      });
-    }
-
-    /* =========================================
-       Shifts
-    ============================================*/
-    function renderShifts() {
-      shiftTableBody.innerHTML = "";
+    // ======= Shifts =======
+    function renderShifts(){
       const ud = getCurrentUserData();
       const shifts = ud.shifts || {};
-      const order = ud.shiftOrder || Object.keys(shifts);
-      const selectedYear = filterShiftYear.value;
+      const order = ud.shiftOrder && ud.shiftOrder.length ? ud.shiftOrder : Object.keys(shifts);
 
-      order.forEach((sName) => {
-        const sh = shifts[sName];
-        if (!sh) return;
-
-        if (selectedYear && sh.startDate) {
-          const year = new Date(sh.startDate).getFullYear().toString();
-          if (year !== selectedYear) return;
-        } else if (selectedYear && !sh.startDate) {
-          return;
+      // filter by year (if any)
+      shiftTableBody.innerHTML = '';
+      order.forEach(name=>{
+        const sh = shifts[name]; if(!sh) return;
+        const yFilter = filterShiftYear.value;
+        if(yFilter){
+          if(!sh.startDate) return; // only show those with start date for that filter
+          const yr = new Date(sh.startDate).getFullYear().toString();
+          if(yr !== yFilter) return;
         }
 
-        const tr = document.createElement("tr");
-        tr.setAttribute("draggable", "true");
-        tr.dataset.shiftName = sName;
+        const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td class="nowrap">${sName}</td>
-          <td>${sh.start || ""}</td>
-          <td>${sh.end || ""}</td>
+          <td class="fw-medium">${name}</td>
+          <td class="text-mono">${sh.start || ''}</td>
+          <td class="text-mono">${sh.end || ''}</td>
           <td>${sh.break || 0}</td>
-          <td>${sh.project || ""}</td>
+          <td>${sh.project || ''}</td>
           <td>${toDisplayDate(sh.startDate)} → ${toDisplayDate(sh.endDate)}</td>
-          <td>
-            <button class="btn orange btn-small" onclick="editShift('${sName}')">Bewerk</button>
-            <button class="btn red btn-small" onclick="deleteShift('${sName}')">Verwijder</button>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-secondary me-1" data-name="${name}" data-act="up">▲</button>
+            <button class="btn btn-sm btn-outline-secondary me-2" data-name="${name}" data-act="down">▼</button>
+            <button class="btn btn-sm btn-warning me-1" data-name="${name}" data-act="edit">Bewerk</button>
+            <button class="btn btn-sm btn-danger" data-name="${name}" data-act="delete">Verwijder</button>
           </td>`;
         shiftTableBody.appendChild(tr);
       });
 
-      enableDragAndDropOnShifts();
+      // actions
+      shiftTableBody.querySelectorAll('button').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          const act = btn.dataset.act, name = btn.dataset.name;
+          const ud = getCurrentUserData();
+          if(act==='delete'){
+            if(!confirm(`Shift ${name} verwijderen?`)) return;
+            delete ud.shifts[name];
+            ud.shiftOrder = (ud.shiftOrder||[]).filter(n=> n!==name);
+            await saveUserData(); renderShifts();
+          } else if(act==='edit'){
+            const sh = ud.shifts[name];
+            newShiftName.value = name;
+            newShiftStart.value = sh.start || '08:00';
+            newShiftEnd.value = sh.end || '16:00';
+            newShiftBreak.value = sh.break || 0;
+            newShiftProjectSelect.value = sh.project || '';
+            newShiftStartDate.value = sh.startDate || '';
+            newShiftEndDate.value = sh.endDate || '';
+            delete ud.shifts[name];
+            await saveUserData();
+            new bootstrap.Modal(document.getElementById('shiftModal')).show();
+          } else if(act==='up' || act==='down'){
+            const order = ud.shiftOrder || Object.keys(ud.shifts||{});
+            const i = order.indexOf(name);
+            if(i<0) return;
+            const j = act==='up' ? i-1 : i+1;
+            if(j<0 || j>=order.length) return;
+            [order[i], order[j]] = [order[j], order[i]];
+            ud.shiftOrder = order;
+            await saveUserData(); renderShifts();
+          }
+        });
+      });
     }
 
-    addShiftBtn?.addEventListener("click", () => {
-      if (!currentUser) return alert("Kies eerst een gebruiker");
-      const name = newShiftName.value.trim();
-      if (!name) return alert("Vul shift naam in");
-
+    addShiftBtn?.addEventListener('click', async ()=>{
+      const name = newShiftName.value.trim(); if(!name) return toast('Vul shift naam in','warning');
       const ud = getCurrentUserData();
       ud.shifts = ud.shifts || {};
       ud.shifts[name] = {
-        start: newShiftStart.value || "00:00",
-        end: newShiftEnd.value || "00:00",
+        start: newShiftStart.value || '00:00',
+        end: newShiftEnd.value || '00:00',
         break: Number(newShiftBreak.value) || 0,
         project: newShiftProjectSelect.value || null,
         startDate: newShiftStartDate.value || null,
         endDate: newShiftEndDate.value || null
       };
-
-      if (!ud.shiftOrder) ud.shiftOrder = [];
-      if (!ud.shiftOrder.includes(name)) ud.shiftOrder.push(name);
-
-      saveAll();
-      newShiftName.value = "";
-      newShiftBreak.value = 0;
-      newShiftStartDate.value = "";
-      newShiftEndDate.value = "";
-      renderShifts();
+      ud.shiftOrder = ud.shiftOrder || [];
+      if(!ud.shiftOrder.includes(name)) ud.shiftOrder.push(name);
+      await saveUserData(); renderShifts();
+      bootstrap.Modal.getInstance(document.getElementById('shiftModal')).hide();
+      newShiftName.value=''; newShiftBreak.value=0; newShiftStartDate.value=''; newShiftEndDate.value='';
+      toast('Shift opgeslagen','success');
     });
 
-    window.deleteShift = function (s) {
-      if (!confirm(`Shift ${s} verwijderen?`)) return;
-      const ud = getCurrentUserData();
-      delete ud.shifts[s];
-      saveAll();
-      renderShifts();
-    };
+    filterShiftYear.addEventListener('change', ()=> renderShifts());
 
-    window.editShift = function (name) {
-      const ud = getCurrentUserData();
-      const sh = ud.shifts[name];
-      if (!sh) return;
-
-      newShiftName.value = name;
-      newShiftStart.value = sh.start;
-      newShiftEnd.value = sh.end;
-      newShiftBreak.value = sh.break;
-      newShiftProjectSelect.value = sh.project || "";
-      newShiftStartDate.value = sh.startDate || "";
-      newShiftEndDate.value = sh.endDate || "";
-
-      delete ud.shifts[name];
-      saveAll();
-      renderShifts();
-    };
-
-    function enableDragAndDropOnShifts() {
-      const rows = shiftTableBody.querySelectorAll("tr");
-      let dragSrc = null;
-      rows.forEach((r) => {
-        r.addEventListener("dragstart", (e) => {
-          dragSrc = r;
-          e.dataTransfer.effectAllowed = "move";
-        });
-        r.addEventListener("dragover", (e) => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
-        });
-        r.addEventListener("drop", (e) => {
-          e.preventDefault();
-          if (dragSrc && dragSrc !== r) {
-            shiftTableBody.insertBefore(dragSrc, r.nextSibling);
-            saveShiftOrder();
-          }
-        });
-      });
-    }
-
-    function saveShiftOrder() {
-      if (!currentUser) return;
-      const ud = getCurrentUserData();
-      ud.shiftOrder = Array.from(shiftTableBody.querySelectorAll("tr")).map((tr) => tr.dataset.shiftName);
-      saveAll();
-    }
-
-    filterShiftYear.addEventListener("change", renderShifts);
-
-    /* =========================================
-       Year/Month selects
-    ============================================*/
-    function populateYearSelect() {
-      const now = new Date();
-      const yNow = now.getFullYear();
-      yearSelectMain.innerHTML = "";
-      for (let y = yNow - 2; y <= yNow + 3; y++) {
-        const opt = document.createElement("option");
-        opt.value = y;
-        opt.textContent = y;
-        if (y === yNow) opt.selected = true;
-        yearSelectMain.appendChild(opt);
-      }
-    }
-
-    function populateFilterShiftYears() {
+    function populateFilterShiftYears(){
       const ud = getCurrentUserData();
       const years = new Set();
-      Object.values(ud.shifts || {}).forEach((sh) => {
-        if (sh.startDate) years.add(new Date(sh.startDate).getFullYear());
-      });
+      Object.values(ud.shifts||{}).forEach(sh=> { if(sh.startDate) years.add(new Date(sh.startDate).getFullYear()); });
       filterShiftYear.innerHTML = '<option value="">Alle jaren</option>';
-      [...years].sort().forEach((y) => {
-        const opt = document.createElement("option");
-        opt.value = y;
-        opt.textContent = y;
-        filterShiftYear.appendChild(opt);
+      [...years].sort().forEach(y=>{
+        const o = document.createElement('option'); o.value=y; o.textContent=y; filterShiftYear.appendChild(o);
       });
     }
 
-    /* =========================================
-       Invoer — maand genereren & renderen
-    ============================================*/
-    function generateMonth() {
-      if (!currentUser) return alert("Kies eerst een gebruiker");
-      const year = Number(yearSelectMain.value);
-      const month = Number(monthSelectMain.value);
-
+    // ======= Invoer (maand) =======
+    function renderProjectFilterForMonth(){
       const ud = getCurrentUserData();
-      ud.monthData = ud.monthData || {};
-      ud.monthData[year] = ud.monthData[year] || {};
-      if (!ud.monthData[year][month]) {
-        ud.monthData[year][month] = { targetHours: 0, targetMinutes: 0, rows: {} };
-      }
+      const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
+      const daysInMonth = new Date(y, m+1, 0).getDate();
+      const monthStart = `${y}-${String(m+1).padStart(2,'0')}-01`.replaceAll('-','');
+      const monthEnd = `${y}-${String(m+1).padStart(2,'0')}-${String(daysInMonth).padStart(2,'0')}`.replaceAll('-','');
 
-      saveAll();
-      renderMonth(year, month);
-      updateInputTotals();
-      renderShiftTotalsInvoer();
-      renderHistory();
+      projectFilterSelect.innerHTML = '<option value="">Alle projecten</option>';
+      (ud.projects||[]).forEach(p=>{
+        const ps = (p.start || '0000-01-01').replaceAll('-','');
+        const pe = (p.end || '9999-12-31').replaceAll('-','');
+        if(ps <= monthEnd && pe >= monthStart){
+          const o = document.createElement('option'); o.value=p.name; o.textContent=p.name; projectFilterSelect.appendChild(o);
+        }
+      });
     }
 
-    function renderMonth(year, month) {
-      tbody.innerHTML = "";
+    function generateMonth(){
+      const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
       const ud = getCurrentUserData();
       ud.monthData = ud.monthData || {};
+      ud.monthData[y] = ud.monthData[y] || {};
+      if(!ud.monthData[y][m]) ud.monthData[y][m] = { targetHours:0, targetMinutes:0, rows:{} };
+      saveUserData();
+      renderMonth(y,m); updateInputTotals(); renderHistory();
+    }
+
+    function renderMonth(year, month){
+      const ud = getCurrentUserData();
       ud.monthData[year] = ud.monthData[year] || {};
-      ud.monthData[year][month] = ud.monthData[year][month] || { targetHours: 0, targetMinutes: 0, rows: {} };
+      ud.monthData[year][month] = ud.monthData[year][month] || { targetHours:0, targetMinutes:0, rows:{} };
       const md = ud.monthData[year][month];
+      tbody.innerHTML = '';
 
       monthTargetHours.value = md.targetHours || 0;
       monthTargetMinutes.value = md.targetMinutes || 0;
 
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-      for (let d = 1; d <= daysInMonth; d++) {
+      const daysInMonth = new Date(year, month+1, 0).getDate();
+      for(let d=1; d<=daysInMonth; d++){
         const key = dateKey(year, month, d);
-        if (!md.rows[key]) {
-          md.rows[key] = { project: "", shift: "", start: "00:00", end: "00:00", break: 0, omschrijving: "", minutes: 0 };
-        }
-        const rowData = md.rows[key];
+        if(!md.rows[key]) md.rows[key] = { project:'', shift:'', start:'00:00', end:'00:00', break:0, omschrijving:'', minutes:0 };
+        const r = md.rows[key];
         const dayName = daysFull[new Date(year, month, d).getDay()];
 
-        const tr = document.createElement("tr");
+        const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${dayName}</td>
-          <td>${String(d).padStart(2, "0")}-${String(month + 1).padStart(2, "0")}-${year}</td>
-          <td><select class="browser-default projectSelect"></select></td>
-          <td><select class="browser-default shiftSelect"></select></td>
-          <td><input class="startInput" type="time" value="${rowData.start}"></td>
-          <td><input class="endInput" type="time" value="${rowData.end}"></td>
-          <td><input class="breakInput" type="number" min="0" value="${rowData.break}"></td>
-          <td><input class="omschrijvingInput" type="text" value="${rowData.omschrijving}"></td>
-          <td class="dur">${Math.floor(rowData.minutes / 60)}u ${rowData.minutes % 60}min</td>`;
+          <td>${String(d).padStart(2,'0')}-${String(month+1).padStart(2,'0')}-${year}</td>
+          <td><select class="form-select form-select-sm projectSelect"></select></td>
+          <td><select class="form-select form-select-sm shiftSelect"></select></td>
+          <td><input class="form-control form-control-sm startInput" type="time" value="${r.start}"></td>
+          <td><input class="form-control form-control-sm endInput" type="time" value="${r.end}"></td>
+          <td><input class="form-control form-control-sm breakInput" type="number" min="0" value="${r.break}"></td>
+          <td><input class="form-control form-control-sm omschrijvingInput" type="text" value="${r.omschrijving}"></td>
+          <td class="dur text-mono">${Math.floor(r.minutes/60)}u ${r.minutes%60}min</td>`;
         tbody.appendChild(tr);
 
-        if (projectFilterSelect_el.value && rowData.project !== projectFilterSelect_el.value) {
-          tr.style.display = "none";
-        }
-
-        // Project dropdown
-        const projSel = tr.querySelector(".projectSelect");
+        // project dropdown (alleen geldige voor datum)
+        const projSel = tr.querySelector('.projectSelect');
         projSel.innerHTML = '<option value="">--</option>';
-
-        const eligible = [];
-        (ud.projects || []).forEach((p) => {
-          if ((p.start || p.end) && isDateWithin(key, p.start || null, p.end || null)) {
-            eligible.push(p.name);
-            const opt = document.createElement("option");
-            opt.value = p.name;
-            opt.textContent = p.name;
-            projSel.appendChild(opt);
+        (ud.projects || []).forEach(p=>{
+          if((p.start || p.end) && isDateWithin(key, p.start || null, p.end || null)){
+            const o = document.createElement('option'); o.value=p.name; o.textContent=p.name; projSel.appendChild(o);
           }
         });
+        if(r.project) projSel.value = r.project;
 
-        // Forceer specifieke projecten per speciale shift
-        if (rowData.shift === "Schoolverlof" || rowData.shift === "School") {
-          ensurePXLProjectExists();
-          ensureOptionInSelect(projSel, "PXL Verpleegkunde Hasselt", "PXL Verpleegkunde Hasselt");
-          rowData.project = "PXL Verpleegkunde Hasselt";
-          projSel.value = "PXL Verpleegkunde Hasselt";
-          saveCell(year, month, key, rowData, tr);
-          saveAll();
-        }
-        if (rowData.shift === "Verlof" || rowData.shift === "Teammeeting") {
-          ensureEghtCareProjectExists();
-          ensureOptionInSelect(projSel, "Eght Care", "Eght Care");
-          rowData.project = "Eght Care";
-          projSel.value = "Eght Care";
-          saveCell(year, month, key, rowData, tr);
-          saveAll();
-        }
-
-        // Automatisch geldig project kiezen (indien nodig)
-        if (
-          (!rowData.shift || (eligible.length > 0 && !eligible.includes(rowData.project))) &&
-          !["Bench", "School", "Schoolverlof", "Verlof", "Teammeeting"].includes(rowData.shift)
-        ) {
-          rowData.project = eligible.length > 0 ? eligible[0] : "";
-          saveCell(year, month, key, rowData, tr);
-        }
-
-        if (rowData.project) projSel.value = rowData.project;
-
-        projSel.addEventListener("change", () => {
-          rowData.project = projSel.value || "";
-          saveCell(year, month, key, rowData, tr);
+        projSel.addEventListener('change', ()=>{
+          r.project = projSel.value || '';
+          saveCell(year, month, key, r, tr);
           populateShiftSelectForRow(tr, d, month, year);
           updateInputTotals();
-          saveAll();
+          saveUserData();
         });
 
         populateShiftSelectForRow(tr, d, month, year);
 
-        tr.querySelector(".startInput").addEventListener("change", (e) => {
-          rowData.start = e.target.value;
-          recalcRowMinutes(rowData);
-          saveCell(year, month, key, rowData, tr);
-          tr.querySelector(".dur").textContent = `${Math.floor(rowData.minutes / 60)}u ${rowData.minutes % 60}min`;
-          updateInputTotals();
-          saveAll();
-          renderHistory();
+        tr.querySelector('.startInput').addEventListener('change', e=>{
+          r.start = e.target.value; recalcRowMinutes(r);
+          saveCell(year, month, key, r, tr); tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+          updateInputTotals(); saveUserData(); renderHistory();
         });
-
-        tr.querySelector(".endInput").addEventListener("change", (e) => {
-          rowData.end = e.target.value;
-          recalcRowMinutes(rowData);
-          saveCell(year, month, key, rowData, tr);
-          tr.querySelector(".dur").textContent = `${Math.floor(rowData.minutes / 60)}u ${rowData.minutes % 60}min`;
-          updateInputTotals();
-          saveAll();
-          renderHistory();
+        tr.querySelector('.endInput').addEventListener('change', e=>{
+          r.end = e.target.value; recalcRowMinutes(r);
+          saveCell(year, month, key, r, tr); tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+          updateInputTotals(); saveUserData(); renderHistory();
         });
-
-        tr.querySelector(".breakInput").addEventListener("input", (e) => {
-          rowData.break = Number(e.target.value) || 0;
-          recalcRowMinutes(rowData);
-          saveCell(year, month, key, rowData, tr);
-          tr.querySelector(".dur").textContent = `${Math.floor(rowData.minutes / 60)}u ${rowData.minutes % 60}min`;
-          updateInputTotals();
-          saveAll();
-          renderHistory();
+        tr.querySelector('.breakInput').addEventListener('input', e=>{
+          r.break = Number(e.target.value)||0; recalcRowMinutes(r);
+          saveCell(year, month, key, r, tr); tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+          updateInputTotals(); saveUserData(); renderHistory();
         });
-
-        tr.querySelector(".omschrijvingInput").addEventListener("change", (e) => {
-          rowData.omschrijving = e.target.value;
-          saveCell(year, month, key, rowData, tr);
-          saveAll();
-          renderHistory();
+        tr.querySelector('.omschrijvingInput').addEventListener('change', e=>{
+          r.omschrijving = e.target.value; saveCell(year, month, key, r, tr); saveUserData(); renderHistory();
         });
       }
-
-      saveAll();
     }
 
-    function populateShiftSelectForRow(tr, day, month, year) {
+    function populateShiftSelectForRow(tr, day, month, year){
       const key = dateKey(year, month, day);
       const ud = getCurrentUserData();
       const md = ud.monthData[year][month];
-      const rowData = md.rows[key];
-      const projSel = tr.querySelector(".projectSelect");
-      const shiftSel = tr.querySelector(".shiftSelect");
-      shiftSel.innerHTML = '<option value=""></option>';
+      const r = md.rows[key];
+      const projSel = tr.querySelector('.projectSelect');
+      const sel = tr.querySelector('.shiftSelect');
+      sel.innerHTML = '<option value=""></option>';
 
-      const isoDate = key;
-      const projectFilterVal = projectFilterSelect_el.value;
-      const selectedRowProject = projSel.value || "";
-      const allShifts = ud.shifts || {};
-      const shiftOrder = ud.shiftOrder || Object.keys(allShifts);
+      const all = ud.shifts || {};
+      const order = ud.shiftOrder || Object.keys(all);
+      const entries = order.map(n=> [n, all[n]]).filter(([,sh])=> !!sh);
 
-      const withPeriod = [];
-      const withoutPeriod = [];
-
-      shiftOrder.forEach((sName) => {
-        const sh = allShifts[sName];
-        if (!sh) return;
-        if (sh.startDate || sh.endDate) withPeriod.push([sName, sh]);
-        else withoutPeriod.push([sName, sh]);
-      });
-
-      const shiftEntries = [...withPeriod, ...withoutPeriod];
-
-      for (const [sName, sh] of shiftEntries) {
-        // Project filter
-        let projectAllowed = false;
-        if (sh.project) {
-          if (selectedRowProject && sh.project === selectedRowProject) projectAllowed = true;
-          else if (!selectedRowProject && projectFilterVal && sh.project === projectFilterVal) projectAllowed = true;
-          else if (!selectedRowProject && !projectFilterVal) projectAllowed = true;
-        } else {
-          projectAllowed = true;
+      for(const [name, sh] of entries){
+        // project rule
+        let allowed = true;
+        if(sh.project){
+          if(projSel.value && sh.project !== projSel.value) allowed = false;
         }
-        if (!projectAllowed) continue;
+        if(!allowed) continue;
+        if(!isDateWithin(key, sh.startDate || null, sh.endDate || null)) continue;
 
-        // Datum filter
-        if (!isDateWithin(isoDate, sh.startDate || null, sh.endDate || null)) continue;
-
-        const opt = document.createElement("option");
-        opt.value = sName;
-        opt.textContent = sName;
-        if (rowData.shift === sName) opt.selected = true;
-        shiftSel.appendChild(opt);
+        const o = document.createElement('option');
+        o.value = name; o.textContent = name; if(r.shift===name) o.selected = true; sel.appendChild(o);
       }
 
-      shiftSel.addEventListener("change", () => {
-        const chosen = shiftSel.value;
-        const allShifts2 = getCurrentUserData().shifts || {};
-        const projSel = tr.querySelector(".projectSelect");
-
-        if (!chosen) {
-          rowData.shift = "";
-          const valid = (getCurrentUserData().projects || []).find((p) => (p.start || p.end) && isDateWithin(key, p.start || null, p.end || null));
-          rowData.project = valid ? valid.name : "";
-          projSel.value = rowData.project;
-          saveCell(year, month, key, rowData, tr);
-          saveAll();
-          renderHistory();
-          updateInputTotals();
-          return;
+      sel.addEventListener('change', ()=>{
+        const chosen = sel.value;
+        if(!chosen){
+          r.shift = '';
+          const valid = (ud.projects||[]).find(p=> (p.start||p.end) && isDateWithin(key, p.start||null, p.end||null));
+          r.project = valid? valid.name: '';
+          projSel.value = r.project;
+          saveCell(year, month, key, r, tr); saveUserData(); renderHistory(); updateInputTotals(); return;
         }
+        r.shift = chosen;
 
-        rowData.shift = chosen;
-
-        if (chosen === "Bench") {
-          rowData.project = "";
-          projSel.value = "";
-        } else if (chosen === "Schoolverlof" || chosen === "School") {
-          ensurePXLProjectExists();
-          ensureOptionInSelect(projSel, "PXL Verpleegkunde Hasselt", "PXL Verpleegkunde Hasselt");
-          rowData.project = "PXL Verpleegkunde Hasselt";
-          projSel.value = "PXL Verpleegkunde Hasselt";
-        } else if (chosen === "Verlof" || chosen === "Teammeeting") {
-          ensureEghtCareProjectExists();
-          ensureOptionInSelect(projSel, "Eght Care", "Eght Care");
-          rowData.project = "Eght Care";
-          projSel.value = "Eght Care";
+        // project defaults voor speciale shifts
+        if(['Bench'].includes(chosen)){
+          r.project = ''; projSel.value = '';
+        } else if(['Schoolverlof','School'].includes(chosen)){
+          ensureProjectExists('PXL Verpleegkunde Hasselt');
+          r.project = 'PXL Verpleegkunde Hasselt'; projSel.value = r.project;
+        } else if(['Verlof','Teammeeting'].includes(chosen)){
+          ensureProjectExists('Eght Care');
+          r.project = 'Eght Care'; projSel.value = r.project;
         } else {
-          const sh = allShifts2[chosen];
-          if (sh && sh.project) {
-            const p = projectByName(sh.project);
-            if (projectIsValidForDate(p, key)) {
-              rowData.project = p.name;
-              projSel.value = p.name;
-            } else {
-              const valid = (getCurrentUserData().projects || []).find((p) => (p.start || p.end) && isDateWithin(key, p.start || null, p.end || null));
-              rowData.project = valid ? valid.name : "";
-              projSel.value = rowData.project;
+          const sh = all[chosen];
+          if(sh && sh.project){
+            const p = (ud.projects||[]).find(px => px.name===sh.project);
+            if(p && isDateWithin(key, p.start||null, p.end||null)){
+              r.project = p.name; projSel.value = p.name;
             }
-          } else {
-            const valid = (getCurrentUserData().projects || []).find((p) => (p.start || p.end) && isDateWithin(key, p.start || null, p.end || null));
-            rowData.project = valid ? valid.name : "";
-            projSel.value = rowData.project;
           }
         }
 
-        if (allShifts2[chosen]) {
-          const sh = allShifts2[chosen];
-          if (!rowData.start || rowData.start === "00:00") rowData.start = sh.start || "00:00";
-          if (!rowData.end || rowData.end === "00:00") rowData.end = sh.end || "00:00";
-          if (!rowData.break || rowData.break === 0) rowData.break = Number(sh.break) || 0;
+        if(all[chosen]){
+          const sh = all[chosen];
+          if(!r.start || r.start==='00:00') r.start = sh.start || '00:00';
+          if(!r.end   || r.end==='00:00') r.end   = sh.end   || '00:00';
+          if(!r.break || r.break===0)     r.break = Number(sh.break)||0;
         }
+        recalcRowMinutes(r);
+        tr.querySelector('.startInput').value = r.start;
+        tr.querySelector('.endInput').value = r.end;
+        tr.querySelector('.breakInput').value = r.break;
+        tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
 
-        recalcRowMinutes(rowData);
-        tr.querySelector(".startInput").value = rowData.start;
-        tr.querySelector(".endInput").value = rowData.end;
-        tr.querySelector(".breakInput").value = rowData.break;
-        tr.querySelector(".dur").textContent = `${Math.floor(rowData.minutes / 60)}u ${rowData.minutes % 60}min`;
-
-        saveCell(year, month, key, rowData, tr);
-        saveAll();
-        updateInputTotals();
+        saveCell(year, month, key, r, tr); saveUserData(); updateInputTotals();
       });
     }
 
-    function recalcRowMinutes(rowData) {
-      rowData.minutes = minutesBetween(rowData.start, rowData.end, rowData.break);
-    }
-
-    function saveCell(year, month, key, rowData, tr) {
+    function ensureProjectExists(name){
       const ud = getCurrentUserData();
-      ud.monthData = ud.monthData || {};
-      ud.monthData[year] = ud.monthData[year] || {};
-      ud.monthData[year][month] = ud.monthData[year][month] || { targetHours: 0, targetMinutes: 0, rows: {} };
-
-      ud.monthData[year][month].rows[key] = { ...rowData };
-      ud.monthData[year][month].rows[key].minutes = rowData.minutes || minutesBetween(rowData.start, rowData.end, rowData.break);
-
-      saveAll();
-      renderHistory();
+      ud.projects = ud.projects || [];
+      let p = ud.projects.find(p=> p.name===name);
+      if(!p){ ud.projects.push({ name, start:null, end:null }); }
     }
 
-    function updateInputTotals() {
-      const year = Number(yearSelectMain.value);
-      const month = Number(monthSelectMain.value);
+    function recalcRowMinutes(r){ r.minutes = minutesBetween(r.start, r.end, r.break); }
+    function saveCell(year, month, key, r, tr){
       const ud = getCurrentUserData();
-      const md = ud.monthData && ud.monthData[year] && ud.monthData[year][month] ? ud.monthData[year][month] : null;
-      const totalMin = md ? Object.values(md.rows).reduce((s, r) => s + (r.minutes || 0), 0) : 0;
-      const targetMin = md ? ((md.targetHours || 0) * 60 + (md.targetMinutes || 0)) : 0;
-      const diff = totalMin - targetMin;
-
-      inputTotDoel.textContent = `${Math.floor(targetMin / 60)}u ${targetMin % 60}min`;
-      inputTotGepland.textContent = `${Math.floor(totalMin / 60)}u ${totalMin % 60}min`;
-      inputTotVerschil.textContent = `${diff >= 0 ? "+" : "-"}${Math.floor(Math.abs(diff) / 60)}u ${Math.abs(diff) % 60}min`;
-      inputTotVerschil.className = diff >= 0 ? "positive" : "negative";
+      ud.monthData = ud.monthData || {}; ud.monthData[year] = ud.monthData[year] || {};
+      ud.monthData[year][month] = ud.monthData[year][month] || { targetHours:0, targetMinutes:0, rows:{} };
+      ud.monthData[year][month].rows[key] = { ...r, minutes: r.minutes || minutesBetween(r.start, r.end, r.break) };
     }
-    function renderShiftTotalsInvoer() {
-  const body = document.getElementById("shiftTotalsBodyInvoer");
-  if (!body) return;
-  body.innerHTML = "";
 
-  if (!currentUser) return;
+    function updateInputTotals(){
+      const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
+      const ud = getCurrentUserData();
+      const md = ud.monthData?.[y]?.[m] || { targetHours:0, targetMinutes:0, rows:{} };
+      const total = Object.values(md.rows||{}).reduce((s,r)=> s + (r.minutes||0), 0);
+      const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
+      const diff = total - target;
 
-  const y = Number(yearSelectMain.value);
-  const m = Number(monthSelectMain.value);
-  const ud = getCurrentUserData();
-  const md = ud.monthData && ud.monthData[y] && ud.monthData[y][m] ? ud.monthData[y][m] : null;
-  if (!md || !md.rows) {
-    body.innerHTML = `<tr><td colspan="2">Nog geen gegevens</td></tr>`;
-    return;
-  }
+      const fmt = v => `${Math.floor(v/60)}u ${v%60}min`;
+      inputTotDoel.textContent = fmt(target);
+      inputTotGepland.textContent = fmt(total);
+      inputTotVerschil.textContent = `${diff>=0?'+':''}${fmt(Math.abs(diff))}`;
+      inputTotVerschil.className = `text-mono ${diff>=0? 'text-success':'text-danger'}`;
+    }
 
-  const totals = {}; // shiftNaam → minuten
-  for (const r of Object.values(md.rows)) {
-    if (!r.shift) continue;
-    totals[r.shift] = (totals[r.shift] || 0) + (r.minutes || 0);
-  }
+    // live target updates
+    monthTargetHours.addEventListener('input', async ()=>{
+      const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
+      const ud = getCurrentUserData();
+      ud.monthData[y][m].targetHours = Number(monthTargetHours.value)||0;
+      await saveUserData(); updateInputTotals(); renderHistory();
+    });
+    monthTargetMinutes.addEventListener('input', async ()=>{
+      const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
+      const ud = getCurrentUserData();
+      ud.monthData[y][m].targetMinutes = Number(monthTargetMinutes.value)||0;
+      await saveUserData(); updateInputTotals(); renderHistory();
+    });
 
-  const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    projectFilterSelect.addEventListener('change', ()=> { renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value)); updateInputTotals(); });
 
-  if (sorted.length === 0) {
-    body.innerHTML = `<tr><td colspan="2">Nog geen gegevens</td></tr>`;
-    return;
-  }
+    yearSelectMain.addEventListener('change', ()=> { renderProjectFilterForMonth(); generateMonth(); });
+    monthSelectMain.addEventListener('change', ()=> { renderProjectFilterForMonth(); generateMonth(); });
 
-  for (const [shiftName, min] of sorted) {
-    const uren = Math.floor(min / 60);
-    const minuten = min % 60;
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${shiftName}</td>
-      <td>${uren}u ${minuten}min</td>`;
-    body.appendChild(tr);
-  }
-}
-    /* =========================================
-       Historiek
-    ============================================*/
-    function renderHistory() {
-      historyBody.innerHTML = "";
-      if (!currentUser) return;
+    // ======= Quick input =======
+    quickDate.addEventListener('change', populateQuickShifts);
+    function populateQuickShifts(){
+      const ud = getCurrentUserData();
+      quickShift.innerHTML = '<option value="">-- Kies shift --</option>';
+      const all = ud.shifts || {};
+      const order = ud.shiftOrder || Object.keys(all);
+      const dateStr = quickDate.value; if(!dateStr) return;
+      const withPeriod = [], without = [];
+      order.forEach(n=> { const sh = all[n]; if(!sh) return; if(sh.startDate || sh.endDate) withPeriod.push([n,sh]); else without.push([n,sh]); });
+      [...withPeriod, ...without].forEach(([n,sh])=>{
+        if(!isDateWithin(dateStr, sh.startDate||null, sh.endDate||null)) return;
+        const o = document.createElement('option'); o.value=n; o.textContent=n; quickShift.appendChild(o);
+      });
+    }
+
+    saveQuickBtn.addEventListener('click', async ()=>{
+      const date = quickDate.value, shift = quickShift.value, note = quickNote.value;
+      if(!date || !shift) return toast('Kies minstens een datum en shift','warning');
+      const y = Number(date.split('-')[0]), m = Number(date.split('-')[1]) - 1, key = date;
+      const ud = getCurrentUserData();
+      ud.monthData = ud.monthData || {}; ud.monthData[y] = ud.monthData[y] || {};
+      ud.monthData[y][m] = ud.monthData[y][m] || { targetHours:0, targetMinutes:0, rows:{} };
+      const sh = ud.shifts[shift];
+      const minutes = minutesBetween(sh.start, sh.end, sh.break);
+      ud.monthData[y][m].rows[key] = {
+        project: sh.project || '',
+        shift, start: sh.start, end: sh.end, break: sh.break,
+        omschrijving: note, minutes
+      };
+      await saveUserData();
+      renderMonth(y, m); updateInputTotals(); renderHistory();
+      bootstrap.Modal.getInstance(document.getElementById('quickModal')).hide();
+      toast('Snelle invoer toegevoegd','success');
+    });
+
+    // ======= Historiek =======
+    function renderHistory(){
       const ud = getCurrentUserData();
       const year = Number(yearSelectMain.value) || new Date().getFullYear();
       historiekJaar.textContent = year;
+      currentUserHistoriek.textContent = ud.name || ud.email || '—';
 
-      let totDoel = 0, totGepland = 0, totVerschil = 0, totVerlof = 0, totZiekte = 0, totSchool = 0, totFeest = 0, totBench = 0;
-
-      for (let m = 0; m < 12; m++) {
-        const md = ud.monthData && ud.monthData[year] && ud.monthData[year][m] ? ud.monthData[year][m] : { targetHours: 0, targetMinutes: 0, rows: {} };
-        const targetMin = (md.targetHours || 0) * 60 + (md.targetMinutes || 0);
+      let totDoel=0, totGepland=0, totVerschil=0, totVerlof=0, totZiekte=0, totSchool=0, totFeest=0, totBench=0;
+      historyBody.innerHTML = '';
+      for(let m=0; m<12; m++){
+        const md = ud.monthData?.[year]?.[m] || { targetHours:0, targetMinutes:0, rows:{} };
+        const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
         const rows = md.rows || {};
-        const maandGepland = Object.values(rows).reduce((s, r) => s + (r.minutes || 0), 0);
-
-        let v = 0, z = 0, sf = 0, f = 0, b = 0;
-        Object.values(rows).forEach((r) => {
-          if (!r.shift) return;
-          if (r.shift === "Verlof") v += r.minutes || 0;
-          if (r.shift === "Ziekte") z += r.minutes || 0;
-          if (r.shift === "Schoolverlof") sf += r.minutes || 0;
-          if (r.shift === "Feestdag") f += r.minutes || 0;
-          if (r.shift === "Bench") b += r.minutes || 0;
+        const gepland = Object.values(rows).reduce((s,r)=> s + (r.minutes||0), 0);
+        let v=0,z=0,sf=0,f=0,b=0;
+        Object.values(rows).forEach(r=>{
+          if(!r.shift) return;
+          if(r.shift==='Verlof') v += r.minutes||0;
+          if(r.shift==='Ziekte') z += r.minutes||0;
+          if(r.shift==='Schoolverlof') sf += r.minutes||0;
+          if(r.shift==='Feestdag') f += r.minutes||0;
+          if(r.shift==='Bench') b += r.minutes||0;
         });
+        const diff = gepland - target;
 
-        const diff = maandGepland - targetMin;
+        totDoel += target; totGepland += gepland; totVerschil += diff;
+        totVerlof += v; totZiekte += z; totSchool += sf; totFeest += f; totBench += b;
 
-        totDoel += targetMin;
-        totGepland += maandGepland;
-        totVerschil += diff;
-        totVerlof += v;
-        totZiekte += z;
-        totSchool += sf;
-        totFeest += f;
-        totBench += b;
-
-        const tr = document.createElement("tr");
+        const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${monthsFull[m]}</td>
-          <td>${Math.floor(targetMin / 60)}u ${targetMin % 60}min</td>
-          <td>${Math.floor(maandGepland / 60)}u ${maandGepland % 60}min</td>
-          <td class="${diff >= 0 ? "positive" : "negative"}">${diff >= 0 ? "+" : ""}${Math.floor(Math.abs(diff) / 60)}u ${Math.abs(diff) % 60}min</td>
-          <td>${Math.floor(v / 60)}u ${v % 60}min</td>
-          <td>${Math.floor(z / 60)}u ${z % 60}min</td>
-          <td>${Math.floor(sf / 60)}u ${sf % 60}min</td>
-          <td>${Math.floor(f / 60)}u ${f % 60}min</td>
-          <td>${Math.floor(b / 60)}u ${b % 60}min</td>`;
+          <td>${Math.floor(target/60)}u ${target%60}min</td>
+          <td>${Math.floor(gepland/60)}u ${gepland%60}min</td>
+          <td class="${diff>=0? 'text-success':'text-danger'}">${diff>=0?'+':''}${Math.floor(Math.abs(diff)/60)}u ${Math.abs(diff)%60}min</td>
+          <td>${Math.floor(v/60)}u ${v%60}min</td>
+          <td>${Math.floor(z/60)}u ${z%60}min</td>
+          <td>${Math.floor(sf/60)}u ${sf%60}min</td>
+          <td>${Math.floor(f/60)}u ${f%60}min</td>
+          <td>${Math.floor(b/60)}u ${b%60}min</td>`;
         historyBody.appendChild(tr);
       }
 
-      document.getElementById("totDoel").textContent = `${Math.floor(totDoel / 60)}u ${totDoel % 60}min`;
-      document.getElementById("totGepland").textContent = `${Math.floor(totGepland / 60)}u ${totGepland % 60}min`;
-      document.getElementById("totVerschil").textContent = `${totVerschil >= 0 ? "+" : ""}${Math.floor(Math.abs(totVerschil) / 60)}u ${Math.abs(totVerschil) % 60}min`;
-      document.getElementById("totVerschil").className = totVerschil >= 0 ? "positive" : "negative";
-      document.getElementById("totVerlof").textContent = `${Math.floor(totVerlof / 60)}u ${totVerlof % 60}min`;
-      document.getElementById("totZiekte").textContent = `${Math.floor(totZiekte / 60)}u ${totZiekte % 60}min`;
-      document.getElementById("totSchool").textContent = `${Math.floor(totSchool / 60)}u ${totSchool % 60}min`;
-      document.getElementById("totFeest").textContent = `${Math.floor(totFeest / 60)}u ${totFeest % 60}min`;
-      document.getElementById("totBench").textContent = `${Math.floor(totBench / 60)}u ${totBench % 60}min`;
+      document.getElementById('totDoel').textContent = `${Math.floor(totDoel/60)}u ${totDoel%60}min`;
+      document.getElementById('totGepland').textContent = `${Math.floor(totGepland/60)}u ${totGepland%60}min`;
+      document.getElementById('totVerschil').textContent = `${totVerschil>=0?'+':''}${Math.floor(Math.abs(totVerschil)/60)}u ${Math.abs(totVerschil)%60}min`;
+      document.getElementById('totVerlof').textContent = `${Math.floor(totVerlof/60)}u ${totVerlof%60}min`;
+      document.getElementById('totZiekte').textContent = `${Math.floor(totZiekte/60)}u ${totZiekte%60}min`;
+      document.getElementById('totSchool').textContent = `${Math.floor(totSchool/60)}u ${totSchool%60}min`;
+      document.getElementById('totFeest').textContent = `${Math.floor(totFeest/60)}u ${totFeest%60}min`;
+      document.getElementById('totBench').textContent = `${Math.floor(totBench/60)}u ${totBench%60}min`;
     }
 
-    /* =========================================
-       Targets live opslaan
-    ============================================*/
-    monthTargetHours.addEventListener("input", () => {
-      const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
-      const ud = getCurrentUserData();
-      ud.monthData = ud.monthData || {};
-      ud.monthData[y] = ud.monthData[y] || {};
-      ud.monthData[y][m] = ud.monthData[y][m] || { targetHours: 0, targetMinutes: 0, rows: {} };
-      ud.monthData[y][m].targetHours = Number(monthTargetHours.value) || 0;
-      saveAll();
-      updateInputTotals();
-      renderHistory();
-    });
-
-    monthTargetMinutes.addEventListener("input", () => {
-      const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
-      const ud = getCurrentUserData();
-      ud.monthData = ud.monthData || {};
-      ud.monthData[y] = ud.monthData[y] || {};
-      ud.monthData[y][m] = ud.monthData[y][m] || { targetHours: 0, targetMinutes: 0, rows: {} };
-      ud.monthData[y][m].targetMinutes = Number(monthTargetMinutes.value) || 0;
-      saveAll();
-      updateInputTotals();
-      renderHistory();
-    });
-
-    projectFilterSelect_el.addEventListener("change", () => {
-      const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
-      const ud = getCurrentUserData();
-      if (ud.monthData && ud.monthData[y] && ud.monthData[y][m]) {
-        renderMonth(y, m);
-        updateInputTotals();
-      }
-    });
-
-    yearSelectMain.addEventListener("change", () => {
-      renderProjectFilterForMonth();
-      generateMonth();
-    });
-
-    monthSelectMain.addEventListener("change", () => {
-      renderProjectFilterForMonth();
-      generateMonth();
-    });
-
-    /* =========================================
-       Quick Input Modal
-    ============================================*/
-    function initQuickInputModal() {
-      const quickModal = document.getElementById("quickModal");
-      M.Modal.init(quickModal);
-
-      function populateQuickShifts() {
-        const ud = getCurrentUserData();
-        const quickShiftSel = document.getElementById("quickShift");
-        quickShiftSel.innerHTML = '<option value="">-- Kies shift --</option>';
-
-        const allShifts = ud.shifts || {};
-        const order = ud.shiftOrder || Object.keys(allShifts);
-
-        const dateStr = document.getElementById("quickDate").value;
-        if (!dateStr) return;
-
-        const isoDate = dateStr;
-
-        const withPeriod = [];
-        const withoutPeriod = [];
-        order.forEach((name) => {
-          const sh = allShifts[name];
-          if (!sh) return;
-          if (sh.startDate || sh.endDate) withPeriod.push([name, sh]);
-          else withoutPeriod.push([name, sh]);
-        });
-
-        const shiftEntries = [...withPeriod, ...withoutPeriod];
-        shiftEntries.forEach(([name, sh]) => {
-          if (!isDateWithin(isoDate, sh.startDate || null, sh.endDate || null)) return;
-          const opt = document.createElement("option");
-          opt.value = name;
-          opt.textContent = name;
-          quickShiftSel.appendChild(opt);
-        });
-      }
-
-      document.getElementById("quickDate").addEventListener("change", populateQuickShifts);
-
-      document.getElementById("saveQuickBtn").addEventListener("click", () => {
-        const date = document.getElementById("quickDate").value;
-        const shift = document.getElementById("quickShift").value;
-        const note = document.getElementById("quickNote").value;
-        if (!date || !shift) return alert("Kies minstens een datum en shift!");
-
-        const year = Number(date.split("-")[0]);
-        const month = Number(date.split("-")[1]) - 1;
-        const key = date;
-
-        const ud = getCurrentUserData();
-        ud.monthData = ud.monthData || {};
-        ud.monthData[year] = ud.monthData[year] || {};
-        ud.monthData[year][month] = ud.monthData[year][month] || { targetHours: 0, targetMinutes: 0, rows: {} };
-
-        const sh = ud.shifts[shift];
-        const minutes = minutesBetween(sh.start, sh.end, sh.break);
-
-        ud.monthData[year][month].rows[key] = {
-          project: sh.project || "",
-          shift: shift,
-          start: sh.start,
-          end: sh.end,
-          break: sh.break,
-          omschrijving: note,
-          minutes
-        };
-
-        saveAll();
-        renderMonth(year, month);
-        updateInputTotals();
-        renderHistory();
-
-        M.toast({ html: "✅ Snelle invoer toegevoegd!", classes: "green" });
-      });
-
-      // Prefill bij laden
-      if (auth.currentUser) populateQuickShifts();
-      else auth.onAuthStateChanged((u) => u && populateQuickShifts());
-
-      // Mobiel → auto open
-      if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768) {
-        setTimeout(() => M.Modal.getInstance(quickModal).open(), 500);
-      }
-    }
-
-    /* =========================================
-       Converter
-    ============================================*/
-    function initConverter() {
-      const convHours = document.getElementById("convHours");
-      const convMinutes = document.getElementById("convMinutes");
-      const decimalInput = document.getElementById("decimalInput");
-
-      function updateDecimal() {
-        const h = Number(convHours.value) || 0;
-        const m = Number(convMinutes.value) || 0;
-        const dec = h + m / 60;
-        decimalInput.value = dec.toFixed(2);
-      }
-
-      function updateHMFromDecimal() {
-        const dec = Number(decimalInput.value) || 0;
-        const h = Math.floor(dec);
-        const m = Math.round((dec - h) * 60);
-        convHours.value = h;
-        convMinutes.value = m;
-      }
-
-      convHours.addEventListener("input", updateDecimal);
-      convMinutes.addEventListener("input", updateDecimal);
-      decimalInput.addEventListener("input", updateHMFromDecimal);
-
-      updateDecimal();
-    }
-
-    /* =========================================
-       Labels + Logout
-    ============================================*/
-    function updateCurrentUserLabels() {
-      const ud = dataStore.users[currentUser];
-      let label = currentUser || "-";
-      if (ud) label = ud.name || ud.email || currentUser;
-
-      currentUserLabel.textContent = label;
-      currentUserInvoer.textContent = label;
-      currentUserHistoriek.textContent = label;
-    }
-
-    function initLogout() {
-      const logoutBtn = document.getElementById("logoutBtn");
-      if (!logoutBtn) return;
-      logoutBtn.addEventListener("click", async () => {
-        try {
-          await auth.signOut();
-          if (!DEBUG) window.location.href = "index.html";
-          else alert("DEBUG: uitgelogd, maar je blijft op de pagina.");
-        } catch (err) {
-          console.error("Fout bij uitloggen:", err);
-          alert("Uitloggen is mislukt. Probeer opnieuw.");
-        }
+    // ======= Admin =======
+    async function addAuditLog(action, targetUserId=null){
+      await addDoc(collection(db,'auditLogs'), {
+        timestamp: new Date(),
+        actor: auth.currentUser?.email || auth.currentUser?.uid || 'unknown',
+        targetUser: targetUserId || null,
+        action
       });
     }
 
-    // Expose voor debug
-    window.saveAll = saveAll;
-    window.getDataStore = () => dataStore;
-  // =========================================
-  // 🔹 Admin: gebruiker selecteren
-  // =========================================
-  document.addEventListener("DOMContentLoaded", () => {
-    const adminUserSelect = document.getElementById("adminUserSelect");
-    if (!adminUserSelect) return;
+    async function loadAuditLog(){
+      auditLog.innerHTML = '';
+      const qs = await getDocs(query(collection(db,'auditLogs'), orderBy('timestamp','desc'), limit(50)));
+      qs.forEach(docSnap=>{
+        const l = docSnap.data();
+        const ts = l.timestamp?.toDate ? l.timestamp.toDate() : new Date(l.timestamp);
+        const li = document.createElement('li');
+        li.className = 'list-group-item';
+        li.textContent = `${ts.toLocaleString()} — ${l.actor} → [${l.targetUser}] ${l.action}`;
+        auditLog.appendChild(li);
+      });
+    }
 
-    adminUserSelect.addEventListener("change", async () => {
-      const uid = adminUserSelect.value;
-      if (!uid) return;
+    async function renderAdminUserSelect(){
+      adminUserSelect.innerHTML = '';
+      const qs = await getDocs(collection(db,'users'));
+      qs.forEach(d=>{
+        const o = document.createElement('option');
+        const u = d.data();
+        o.value = d.id; o.textContent = u.name || u.email || d.id;
+        adminUserSelect.appendChild(o);
+      });
+      activeUserLabel.textContent = dataStore.users[dataStore.currentUser]?.name || '-';
+    }
 
-      console.log("🔄 Wissel naar gebruiker:", uid);
+    addUserBtn?.addEventListener('click', async ()=>{
+      const name = prompt('Nieuwe gebruikersnaam:'); if(!name) return;
+      const ref = await addDoc(collection(db,'users'), { name, role:'user', shifts:{}, monthData:{}, projects:[], shiftOrder:[] });
+      await addAuditLog(`Gebruiker toegevoegd: ${name}`, ref.id);
+      await renderAdminUserSelect(); await loadAuditLog();
+      toast('Gebruiker toegevoegd','success');
+    });
 
-      // Zet actieve gebruiker
-      currentUser = uid;
-      dataStore.currentUser = uid;
+    removeUserBtn?.addEventListener('click', async ()=>{
+      const uid = adminUserSelect.value; if(!uid) return toast('Geen gebruiker geselecteerd','warning');
+      if(!confirm('Weet je zeker dat je deze gebruiker wilt verwijderen?')) return;
+      await deleteDoc(doc(db,'users',uid));
+      await addAuditLog('Gebruiker verwijderd', uid);
+      await renderAdminUserSelect(); await loadAuditLog();
+      toast('Gebruiker verwijderd','success');
+    });
 
-      // Laad bijbehorende data uit Firestore
-      await loadUser(uid);
+    updateRoleBtn?.addEventListener('click', async ()=>{
+      const uid = adminUserSelect.value; const newRole = roleSelect.value;
+      if(!uid) return toast('Geen gebruiker geselecteerd','warning');
+      await updateDoc(doc(db,'users',uid), { role: newRole });
+      await addAuditLog(`Rol gewijzigd naar: ${newRole}`, uid);
+      await renderAdminUserSelect(); await loadAuditLog();
+      toast('Rol aangepast','success');
+    });
 
-      // Labels updaten
-      updateCurrentUserLabels();
+    // ======= Converter =======
+    const convHours = document.getElementById('convHours');
+    const convMinutes = document.getElementById('convMinutes');
+    const decimalInput = document.getElementById('decimalInput');
+    function updateDecimal(){
+      const h = Number(convHours.value)||0, m = Number(convMinutes.value)||0;
+      decimalInput.value = (h + m/60).toFixed(2);
+    }
+    function updateHM(){
+      const dec = Number(decimalInput.value)||0;
+      const h = Math.floor(dec), m = Math.round((dec-h)*60);
+      convHours.value = h; convMinutes.value = m;
+    }
+    convHours.addEventListener('input', updateDecimal);
+    convMinutes.addEventListener('input', updateDecimal);
+    decimalInput.addEventListener('input', updateHM);
 
-      // Alles opnieuw renderen
+    // ======= Layout toggles =======
+    document.getElementById('sidebarToggle').addEventListener('click', ()=>{
+      sidebar.classList.toggle('collapsed'); main.classList.toggle('collapsed');
+    });
+    document.getElementById('sidebarMobile').addEventListener('click', ()=>{
+      sidebar.classList.toggle('show');
+    });
+    // close sidebar on nav click (mobile)
+    document.querySelectorAll('#navTabs .nav-link').forEach(a=>{
+      a.addEventListener('click', ()=> sidebar.classList.remove('show'));
+    });
+
+    // ======= Render all =======
+    function renderAll(){
       renderProjects();
       renderShifts();
+      populateFilterShiftYears();
+      renderProjectFilterForMonth();
       generateMonth();
-      renderHistory();
-
-      // Active user tonen in adminmodal
-      const activeLabel = document.getElementById("activeUserLabel");
-      if (activeLabel) {
-        const ud = dataStore.users[uid];
-        activeLabel.textContent = ud?.name || ud?.email || uid;
-      }
-
-      M.toast({ html: `✅ Gebruiker gewijzigd naar ${uid}`, classes: "blue" });
-    });
-  });
+      loadAuditLog();
+      renderAdminUserSelect();
+    }
   </script>
 </body>
 </html>
