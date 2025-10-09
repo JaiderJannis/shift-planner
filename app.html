@@ -810,13 +810,96 @@ function renderProjectFilterForMonth(){
       saveUserData();
       renderMonth(y,m); updateInputTotals(); renderHistory();
     }
-// ✅ Automatische koppeling van project aan shift bij herladen
+// ✅ Automatische koppeling van project aan shift (houdt rekening met shiftinstellingen + speciale mapping)
 function autoAssignProjectIfNeeded(r) {
-  const sp = autoProjectForShift(r.shift);
-  if (sp && (!r.project || r.project === '')) {
-    ensureProjectExists(sp);
-    r.project = sp;
+  const ud = getCurrentUserData();
+  const shifts = ud.shifts || {};
+  const sh = r.shift && shifts[r.shift] ? shifts[r.shift] : null;
+
+  let autoProject = '';
+
+  // 1️⃣ Eerst: project dat aan de shift zelf is gekoppeld
+  if (sh && sh.project) {
+    autoProject = sh.project;
   }
+
+  // 2️⃣ Dan: speciale mapping (zoals Verlof → Eght Care)
+  if (!autoProject) {
+    const sp = autoProjectForShift(r.shift);
+    if (sp) autoProject = sp;
+  }
+
+  // 3️⃣ Indien gevonden project, voeg toe indien niet aanwezig of leeg
+  if (autoProject && (!r.project || r.project === '')) {
+    ensureProjectExists(autoProject);
+    r.project = autoProject;
+  }
+}
+// ✅ Vult de shift-dropdown per rij en koppelt automatisch het juiste project
+function populateShiftSelectForRow(tr, d, month, year) {
+  const ud = getCurrentUserData();
+  const shifts = ud.shifts || {};
+  const order = ud.shiftOrder && ud.shiftOrder.length ? ud.shiftOrder : Object.keys(shifts);
+
+  const key = dateKey(year, month, d);
+  const r = ud.monthData[year][month].rows[key];
+  const sel = tr.querySelector('.shiftSelect');
+  sel.innerHTML = '<option value="">--</option>';
+
+  // Shifts tonen die geldig zijn voor de datum
+  order.forEach(name => {
+    const sh = shifts[name];
+    if (!sh) return;
+    if (isDateWithin(key, sh.startDate || null, sh.endDate || null)) {
+      const o = document.createElement('option');
+      o.value = name;
+      o.textContent = name;
+      sel.appendChild(o);
+    }
+  });
+
+  sel.value = r.shift || '';
+
+  // 👉 Wanneer de shift wijzigt
+  sel.addEventListener('change', () => {
+    r.shift = sel.value || '';
+    if (!r.shift) return;
+
+    const sh = shifts[r.shift];
+    let autoProject = '';
+
+    // Eerst: project uit de shift
+    if (sh && sh.project) autoProject = sh.project;
+
+    // Anders: speciale mapping
+    if (!autoProject) {
+      const sp = autoProjectForShift(r.shift);
+      if (sp) autoProject = sp;
+    }
+
+    if (autoProject) {
+      ensureProjectExists(autoProject);
+      r.project = autoProject;
+      tr.querySelector('.projectSelect').value = autoProject;
+    }
+
+    // Update uren e.d.
+    if (sh) {
+      r.start = sh.start || '00:00';
+      r.end = sh.end || '00:00';
+      r.break = Number(sh.break) || 0;
+      recalcRowMinutes(r);
+      tr.querySelector('.startInput').value = r.start;
+      tr.querySelector('.endInput').value = r.end;
+      tr.querySelector('.breakInput').value = r.break;
+      tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+    }
+
+    saveCell(year, month, key, r, tr);
+    updateInputTotals();
+    saveUserData();
+    renderHistory();
+  });
 }
 function renderMonth(year, month){
   const ud = getCurrentUserData();
