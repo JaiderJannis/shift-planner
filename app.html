@@ -462,7 +462,18 @@
     const quickShift = document.getElementById('quickShift');
     const quickNote = document.getElementById('quickNote');
     const saveQuickBtn = document.getElementById('saveQuickBtn');
+// --- helpers: mapping & automatische projecttoewijzing ---
+const SPECIAL_PROJECT_MAP = {
+  'Verlof': 'Eght Care',
+  'Ziekte': 'Eght Care',
+  'Teammeeting': 'Eght Care',
+  'School': 'PXL Verpleegkunde Hasselt',
+  'Schoolverlof': 'PXL Verpleegkunde Hasselt'
+};
 
+function autoProjectForShift(shiftName){
+  return SPECIAL_PROJECT_MAP[shiftName] || null;
+}
     // ======= UI helpers =======
     const daysFull = ["Zondag","Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag"];
     const monthsFull = ["Januari","Februari","Maart","April","Mei","Juni","Juli","Augustus","September","Oktober","November","December"];
@@ -814,7 +825,16 @@ function renderProjectFilterForMonth(){
       const daysInMonth = new Date(year, month+1, 0).getDate();
       for(let d=1; d<=daysInMonth; d++){
         const key = dateKey(year, month, d);
-        if(!md.rows[key]) md.rows[key] = { project:'', shift:'', start:'00:00', end:'00:00', break:0, omschrijving:'', minutes:0 };
+       if(!md.rows[key]) {
+  md.rows[key] = { project:'', shift:'', start:'00:00', end:'00:00', break:0, omschrijving:'', minutes:0 };
+} else {
+  // ✅ Controleer of het een speciale shift is en vul automatisch project bij
+  const sp = autoProjectForShift(md.rows[key].shift);
+  if(sp && (!md.rows[key].project || md.rows[key].project==='')) {
+    ensureProjectExists(sp);
+    md.rows[key].project = sp;
+  }
+}
         const r = md.rows[key];
         const dayName = daysFull[new Date(year, month, d).getDay()];
   // 👇 Filter op project (alleen tonen wat overeenkomt)
@@ -1238,3 +1258,4 @@ removeUserBtn?.addEventListener('click', async () => {
   </script>
 </body>
 </html>
+
