@@ -493,9 +493,9 @@
     });
 
     logoutBtn?.addEventListener('click', async ()=>{
-      await signOut(auth);
-      location.reload();
-    });
+  await signOut(auth);
+  window.location.href = 'index.html'; // 👈 redirect in plaats van reload
+});
 
     async function ensureUserDoc(user){
       const ref = doc(db, 'users', user.uid);
@@ -1035,7 +1035,7 @@
 
 // ======= Admin =======
 async function renderAdminUserSelect() {
-  adminUserSelect.innerHTML = '';
+  adminUserSelect.innerHTML = '<option value="">-- Kies gebruiker --</option>'; // 👈 toegevoegd
   const qs = await getDocs(collection(db, 'users'));
   qs.forEach(d => {
     const o = document.createElement('option');
@@ -1054,20 +1054,22 @@ adminUserSelect?.addEventListener('change', async () => {
   const uid = adminUserSelect.value;
   if (!uid) return;
 
-  // Als admin wisselt van gebruiker
   dataStore.currentUser = uid;
 
-  // Als de data van die gebruiker nog niet geladen is → laad uit Firestore
   if (!dataStore.users[uid]) {
     const snap = await getDoc(doc(db, 'users', uid));
     if (snap.exists()) dataStore.users[uid] = snap.data();
   }
 
-  activeUserLabel.textContent = dataStore.users[uid]?.name || uid;
+  const u = dataStore.users[uid];
+  activeUserLabel.textContent = u?.name || uid;
 
-  // Alles opnieuw renderen
+  // 👇 nieuwe regels
+  document.getElementById('currentUserName').textContent = u?.name || u?.email || uid;
+  document.getElementById('currentUserHistoriek').textContent = u?.name || u?.email || uid;
+
   renderAll();
-  toast(`Beheer actief voor ${dataStore.users[uid]?.name || uid}`, 'primary');
+  toast(`Beheer actief voor ${u?.name || uid}`, 'primary');
 });
 
 // ✅ Rol bijwerken
