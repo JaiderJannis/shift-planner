@@ -66,10 +66,9 @@
     .text-mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
     .chip {display:inline-flex;align-items:center;gap:6px;padding:.25rem .5rem;border-radius:999px;background:#eef4ff;color:#0d6efd;font-size:.8rem}
     .chip .dot{width:.5rem;height:.5rem;border-radius:50%;background:#0d6efd}
-.drag-handle:hover {
-  color: #0d6efd;
-  transform: scale(1.1);
-}
+.drag-handle:hover { color: #0d6efd; transform: scale(1.15); }
+.sortable-chosen { background-color: #f0f8ff !important; }
+.sortable-ghost { opacity: 0.6; }
   </style>
 </head>
 <body>
@@ -380,7 +379,7 @@
 
   <!-- Bootstrap -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <!-- Verschuiven van shifts -->
+  <!-- ✅ SortableJS voor drag & drop -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   <!-- Firebase (Modular CDN) -->
   <script type="module">
@@ -650,84 +649,82 @@
     });
 
     // ======= Shifts =======
-    function renderShifts(){
-      const ud = getCurrentUserData();
-      const shifts = ud.shifts || {};
-      const order = ud.shiftOrder && ud.shiftOrder.length ? ud.shiftOrder : Object.keys(shifts);
+function renderShifts() {
+  const ud = getCurrentUserData();
+  const shifts = ud.shifts || {};
+  const order = ud.shiftOrder && ud.shiftOrder.length ? ud.shiftOrder : Object.keys(shifts);
 
-      // filter by year (if any)
-      shiftTableBody.innerHTML = '';
-      order.forEach(name=>{
-        const sh = shifts[name]; if(!sh) return;
-        const yFilter = filterShiftYear.value;
-        if(yFilter){
-          if(!sh.startDate) return; // only show those with start date for that filter
-          const yr = new Date(sh.startDate).getFullYear().toString();
-          if(yr !== yFilter) return;
-        }
+  // Leegmaken
+  shiftTableBody.innerHTML = '';
 
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td class="fw-medium">${name}</td>
-          <td class="text-mono">${sh.start || ''}</td>
-          <td class="text-mono">${sh.end || ''}</td>
-          <td>${sh.break || 0}</td>
-          <td>${sh.project || ''}</td>
-          <td>${toDisplayDate(sh.startDate)} → ${toDisplayDate(sh.endDate)}</td>
-          <td class="text-end">
-            <button class="btn btn-sm btn-outline-secondary me-1" data-name="${name}" data-act="up">▲</button>
-            <button class="btn btn-sm btn-outline-secondary me-2" data-name="${name}" data-act="down">▼</button>
-            <button class="btn btn-sm btn-warning me-1" data-name="${name}" data-act="edit">Bewerk</button>
-            <button class="btn btn-sm btn-danger" data-name="${name}" data-act="delete">Verwijder</button>
-          </td>`;
-        shiftTableBody.appendChild(tr);
-      });
- // ✅ Maak de tabel sorteerbaar via drag & drop
-  new Sortable(shiftTableBody, {
+  // Opnieuw opbouwen
+  order.forEach(name => {
+    const sh = shifts[name];
+    if (!sh) return;
+    const tr = document.createElement('tr');
+    tr.dataset.name = name;
+    tr.setAttribute('draggable', true); // 👈 belangrijk voor Safari
+    tr.innerHTML = `
+      <td class="fw-medium">
+        <span class="material-icons-outlined drag-handle me-1" style="cursor:grab;">drag_indicator</span>${name}
+      </td>
+      <td class="text-mono">${sh.start || ''}</td>
+      <td class="text-mono">${sh.end || ''}</td>
+      <td>${sh.break || 0}</td>
+      <td>${sh.project || ''}</td>
+      <td>${toDisplayDate(sh.startDate)} → ${toDisplayDate(sh.endDate)}</td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-warning me-1" data-name="${name}" data-act="edit">Bewerk</button>
+        <button class="btn btn-sm btn-danger" data-name="${name}" data-act="delete">Verwijder</button>
+      </td>`;
+    shiftTableBody.appendChild(tr);
+  });
+
+  // ✅ Activeer SortableJS
+  if (shiftTableBody.sortableInstance) {
+    shiftTableBody.sortableInstance.destroy();
+  }
+
+  shiftTableBody.sortableInstance = new Sortable(shiftTableBody, {
     handle: '.drag-handle',
     animation: 150,
-    onEnd: async () => {
+    fallbackOnBody: true,
+    swapThreshold: 0.65,
+    ghostClass: 'bg-light',
+    onEnd: async (evt) => {
       const newOrder = Array.from(shiftTableBody.querySelectorAll('tr')).map(tr => tr.dataset.name);
       ud.shiftOrder = newOrder;
       await saveUserData();
       toast('Volgorde opgeslagen', 'success');
     }
   });
-      // actions
-      shiftTableBody.querySelectorAll('button').forEach(btn=>{
-        btn.addEventListener('click', async ()=>{
-          const act = btn.dataset.act, name = btn.dataset.name;
-          const ud = getCurrentUserData();
-          if(act==='delete'){
-            if(!confirm(`Shift ${name} verwijderen?`)) return;
-            delete ud.shifts[name];
-            ud.shiftOrder = (ud.shiftOrder||[]).filter(n=> n!==name);
-            await saveUserData(); renderShifts();
-          } else if(act==='edit'){
-            const sh = ud.shifts[name];
-            newShiftName.value = name;
-            newShiftStart.value = sh.start || '08:00';
-            newShiftEnd.value = sh.end || '16:00';
-            newShiftBreak.value = sh.break || 0;
-            newShiftProjectSelect.value = sh.project || '';
-            newShiftStartDate.value = sh.startDate || '';
-            newShiftEndDate.value = sh.endDate || '';
-            delete ud.shifts[name];
-            await saveUserData();
-            new bootstrap.Modal(document.getElementById('shiftModal')).show();
-          } else if(act==='up' || act==='down'){
-            const order = ud.shiftOrder || Object.keys(ud.shifts||{});
-            const i = order.indexOf(name);
-            if(i<0) return;
-            const j = act==='up' ? i-1 : i+1;
-            if(j<0 || j>=order.length) return;
-            [order[i], order[j]] = [order[j], order[i]];
-            ud.shiftOrder = order;
-            await saveUserData(); renderShifts();
-          }
-        });
-      });
-    }
+
+  // acties
+  shiftTableBody.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const act = btn.dataset.act, name = btn.dataset.name;
+      if (act === 'delete') {
+        if (!confirm(`Shift ${name} verwijderen?`)) return;
+        delete ud.shifts[name];
+        ud.shiftOrder = (ud.shiftOrder || []).filter(n => n !== name);
+        await saveUserData();
+        renderShifts();
+      } else if (act === 'edit') {
+        const sh = ud.shifts[name];
+        newShiftName.value = name;
+        newShiftStart.value = sh.start || '08:00';
+        newShiftEnd.value = sh.end || '16:00';
+        newShiftBreak.value = sh.break || 0;
+        newShiftProjectSelect.value = sh.project || '';
+        newShiftStartDate.value = sh.startDate || '';
+        newShiftEndDate.value = sh.endDate || '';
+        delete ud.shifts[name];
+        await saveUserData();
+        new bootstrap.Modal(document.getElementById('shiftModal')).show();
+      }
+    });
+  });
+}
 
     addShiftBtn?.addEventListener('click', async ()=>{
       const name = newShiftName.value.trim(); if(!name) return toast('Vul shift naam in','warning');
