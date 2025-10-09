@@ -810,7 +810,14 @@ function renderProjectFilterForMonth(){
       saveUserData();
       renderMonth(y,m); updateInputTotals(); renderHistory();
     }
-
+// ✅ Automatische koppeling van project aan shift bij herladen
+function autoAssignProjectIfNeeded(r) {
+  const sp = autoProjectForShift(r.shift);
+  if (sp && (!r.project || r.project === '')) {
+    ensureProjectExists(sp);
+    r.project = sp;
+  }
+}
     function renderMonth(year, month){
   const ud = getCurrentUserData();
   ud.monthData[year] = ud.monthData[year] || {};
@@ -825,15 +832,10 @@ function renderProjectFilterForMonth(){
       const daysInMonth = new Date(year, month+1, 0).getDate();
       for(let d=1; d<=daysInMonth; d++){
         const key = dateKey(year, month, d);
-       if(!md.rows[key]) {
+if (!md.rows[key]) {
   md.rows[key] = { project:'', shift:'', start:'00:00', end:'00:00', break:0, omschrijving:'', minutes:0 };
 } else {
-  // ✅ Controleer of het een speciale shift is en vul automatisch project bij
-  const sp = autoProjectForShift(md.rows[key].shift);
-  if(sp && (!md.rows[key].project || md.rows[key].project==='')) {
-    ensureProjectExists(sp);
-    md.rows[key].project = sp;
-  }
+  autoAssignProjectIfNeeded(md.rows[key]);
 }
         const r = md.rows[key];
         const dayName = daysFull[new Date(year, month, d).getDay()];
@@ -1075,18 +1077,12 @@ function ensureDefaultProjects(){
   const minutes = minutesBetween(sh.start, sh.end, sh.break);
 
   // ✅ Automatische projecttoewijzing
-  let project = sh?.project || '';
-  if (['Bench'].includes(shift)) {
-    project = '';
-  } 
-  else if (['Schoolverlof','School'].includes(shift)) {
-    ensureProjectExists('PXL Verpleegkunde Hasselt');
-    project = 'PXL Verpleegkunde Hasselt';
-  } 
-  else if (['Verlof','Teammeeting'].includes(shift)) {
-    ensureProjectExists('Eght Care');
-    project = 'Eght Care';
-  }
+let project = sh?.project || '';
+const sp = autoProjectForShift(shift);
+if (sp) {
+  ensureProjectExists(sp);
+  project = sp;
+}
 
   ud.monthData[y][m].rows[key] = {
     project,
