@@ -915,7 +915,7 @@ function populateShiftSelectForRow(tr, day, month, year){
   saveCell(year, month, key, r, tr);
   saveUserData();
 }    
-    else if (['Verlof','Teammeeting'].includes(chosen)) {
+    else if (['Verlof','Teammeeting','Ziekte'].includes(chosen)) {
       ensureProjectExists('Eght Care');
       r.project = 'Eght Care';
   saveCell(year, month, key, r, tr);
