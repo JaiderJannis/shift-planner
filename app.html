@@ -240,68 +240,66 @@
         </div>
       </section>
 
-      <!-- ADMIN -->
-      <section id="tab-admin" class="tab-pane fade">
-        <div class="d-flex align-items-center justify-content-between mb-3">
-          <h5 class="mb-0">Admin beheer</h5>
-          <div class="text-secondary small">Actieve gebruiker: <strong id="activeUserLabel">-</strong></div>
-        </div>
+<!-- ADMIN -->
+<section id="tab-admin" class="tab-pane fade">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h5 class="mb-0">Admin beheer</h5>
+    <div class="text-secondary small">
+      Actief: <strong id="activeUserLabel">-</strong>
+    </div>
+  </div>
 
-        <div class="card p-3 mb-3">
-          <h6 class="mb-3">Gebruikersbeheer</h6>
-          <div class="row g-2 align-items-end">
-            <div class="col-md-5">
-              <label class="form-label">Gebruiker selecteren</label>
-              <select id="adminUserSelect" class="form-select"></select>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Rol wijzigen</label>
-              <select id="roleSelect" class="form-select">
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div class="col-md-4 d-flex gap-2">
-              <button id="addUserBtn" class="btn btn-primary flex-fill">Nieuwe gebruiker</button>
-              <button id="updateRoleBtn" class="btn btn-warning flex-fill">Update rol</button>
-              <button id="removeUserBtn" class="btn btn-danger flex-fill">Verwijder gebruiker</button>
-            </div>
-          </div>
-        </div>
+  <div class="card p-3 mb-3">
+    <h6 class="mb-3">Gebruikersbeheer</h6>
+    <div class="row g-2 align-items-end">
+      <div class="col-md-6">
+        <label class="form-label">Gebruiker selecteren</label>
+        <select id="adminUserSelect" class="form-select"></select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Rol</label>
+        <select id="roleSelect" class="form-select">
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="col-md-3 d-flex gap-2">
+        <button id="updateRoleBtn" class="btn btn-warning flex-fill">Rol opslaan</button>
+        <button id="removeUserBtn" class="btn btn-danger flex-fill">Verwijder</button>
+      </div>
+    </div>
+  </div>
 
-        <div class="card p-3 mb-3">
-          <h6 class="mb-3">Projectbeheer</h6>
-          <div class="row g-2 align-items-end">
-            <div class="col-md-4">
-              <label class="form-label">Project naam</label>
-              <input id="newProjectName" class="form-control" />
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Start datum</label>
-              <input id="newProjectStart" type="date" class="form-control" />
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Eind datum</label>
-              <input id="newProjectEnd" type="date" class="form-control" />
-            </div>
-            <div class="col-md-2">
-              <button id="addProjectBtn" class="btn btn-success w-100">Toevoegen</button>
-            </div>
-          </div>
+  <div class="card p-3 mb-3">
+    <h6 class="mb-3">Projectbeheer</h6>
+    <div class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">Projectnaam</label>
+        <input id="newProjectName" class="form-control" />
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Startdatum</label>
+        <input id="newProjectStart" type="date" class="form-control" />
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Einddatum</label>
+        <input id="newProjectEnd" type="date" class="form-control" />
+      </div>
+      <div class="col-md-2">
+        <button id="addProjectBtn" class="btn btn-success w-100">Toevoegen</button>
+      </div>
+    </div>
 
-          <div class="table-responsive mt-3">
-            <table class="table table-striped align-middle table-nowrap">
-              <thead class="table-light"><tr><th>Project</th><th>Start</th><th>Eind</th><th>Acties</th></tr></thead>
-              <tbody id="projectTableBody"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="card p-3">
-          <h6 class="mb-3">Audit log (laatste 50)</h6>
-          <ul id="auditLog" class="list-group small"></ul>
-        </div>
-      </section>
+    <div class="table-responsive mt-3">
+      <table class="table table-striped align-middle table-nowrap">
+        <thead class="table-light">
+          <tr><th>Project</th><th>Start</th><th>Eind</th><th>Acties</th></tr>
+        </thead>
+        <tbody id="projectTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
 
     </div>
   </main>
@@ -1035,66 +1033,62 @@
       document.getElementById('totBench').textContent = `${Math.floor(totBench/60)}u ${totBench%60}min`;
     }
 
-    // ======= Admin =======
-    async function addAuditLog(action, targetUserId=null){
-      await addDoc(collection(db,'auditLogs'), {
-        timestamp: new Date(),
-        actor: auth.currentUser?.email || auth.currentUser?.uid || 'unknown',
-        targetUser: targetUserId || null,
-        action
-      });
-    }
+// ======= Admin =======
+async function renderAdminUserSelect() {
+  adminUserSelect.innerHTML = '';
+  const qs = await getDocs(collection(db, 'users'));
+  qs.forEach(d => {
+    const o = document.createElement('option');
+    const u = d.data();
+    o.value = d.id;
+    o.textContent = `${u.name || u.email || d.id} (${u.role || 'user'})`;
+    adminUserSelect.appendChild(o);
+  });
 
-    async function loadAuditLog(){
-      auditLog.innerHTML = '';
-      const qs = await getDocs(query(collection(db,'auditLogs'), orderBy('timestamp','desc'), limit(50)));
-      qs.forEach(docSnap=>{
-        const l = docSnap.data();
-        const ts = l.timestamp?.toDate ? l.timestamp.toDate() : new Date(l.timestamp);
-        const li = document.createElement('li');
-        li.className = 'list-group-item';
-        li.textContent = `${ts.toLocaleString()} — ${l.actor} → [${l.targetUser}] ${l.action}`;
-        auditLog.appendChild(li);
-      });
-    }
+  activeUserLabel.textContent =
+    dataStore.users[dataStore.currentUser]?.name || '-';
+}
 
-    async function renderAdminUserSelect(){
-      adminUserSelect.innerHTML = '';
-      const qs = await getDocs(collection(db,'users'));
-      qs.forEach(d=>{
-        const o = document.createElement('option');
-        const u = d.data();
-        o.value = d.id; o.textContent = u.name || u.email || d.id;
-        adminUserSelect.appendChild(o);
-      });
-      activeUserLabel.textContent = dataStore.users[dataStore.currentUser]?.name || '-';
-    }
+// ✅ Gebruiker wisselen
+adminUserSelect?.addEventListener('change', async () => {
+  const uid = adminUserSelect.value;
+  if (!uid) return;
 
-    addUserBtn?.addEventListener('click', async ()=>{
-      const name = prompt('Nieuwe gebruikersnaam:'); if(!name) return;
-      const ref = await addDoc(collection(db,'users'), { name, role:'user', shifts:{}, monthData:{}, projects:[], shiftOrder:[] });
-      await addAuditLog(`Gebruiker toegevoegd: ${name}`, ref.id);
-      await renderAdminUserSelect(); await loadAuditLog();
-      toast('Gebruiker toegevoegd','success');
-    });
+  // Als admin wisselt van gebruiker
+  dataStore.currentUser = uid;
 
-    removeUserBtn?.addEventListener('click', async ()=>{
-      const uid = adminUserSelect.value; if(!uid) return toast('Geen gebruiker geselecteerd','warning');
-      if(!confirm('Weet je zeker dat je deze gebruiker wilt verwijderen?')) return;
-      await deleteDoc(doc(db,'users',uid));
-      await addAuditLog('Gebruiker verwijderd', uid);
-      await renderAdminUserSelect(); await loadAuditLog();
-      toast('Gebruiker verwijderd','success');
-    });
+  // Als de data van die gebruiker nog niet geladen is → laad uit Firestore
+  if (!dataStore.users[uid]) {
+    const snap = await getDoc(doc(db, 'users', uid));
+    if (snap.exists()) dataStore.users[uid] = snap.data();
+  }
 
-    updateRoleBtn?.addEventListener('click', async ()=>{
-      const uid = adminUserSelect.value; const newRole = roleSelect.value;
-      if(!uid) return toast('Geen gebruiker geselecteerd','warning');
-      await updateDoc(doc(db,'users',uid), { role: newRole });
-      await addAuditLog(`Rol gewijzigd naar: ${newRole}`, uid);
-      await renderAdminUserSelect(); await loadAuditLog();
-      toast('Rol aangepast','success');
-    });
+  activeUserLabel.textContent = dataStore.users[uid]?.name || uid;
+
+  // Alles opnieuw renderen
+  renderAll();
+  toast(`Beheer actief voor ${dataStore.users[uid]?.name || uid}`, 'primary');
+});
+
+// ✅ Rol bijwerken
+updateRoleBtn?.addEventListener('click', async () => {
+  const uid = adminUserSelect.value;
+  const newRole = roleSelect.value;
+  if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
+  await updateDoc(doc(db, 'users', uid), { role: newRole });
+  toast('Rol aangepast', 'success');
+  await renderAdminUserSelect();
+});
+
+// ✅ Gebruiker verwijderen
+removeUserBtn?.addEventListener('click', async () => {
+  const uid = adminUserSelect.value;
+  if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
+  if (!confirm('Weet je zeker dat je deze gebruiker wilt verwijderen?')) return;
+  await deleteDoc(doc(db, 'users', uid));
+  toast('Gebruiker verwijderd', 'danger');
+  await renderAdminUserSelect();
+});
 
     // ======= Converter =======
     const convHours = document.getElementById('convHours');
