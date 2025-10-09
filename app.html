@@ -507,6 +507,7 @@
 
       await ensureUserDoc(user);
       await loadAllUsers();
+      ensureDefaultProjects();
       initSelectors();
       renderAll();
       await revealAdminIfNeeded();
@@ -924,10 +925,17 @@ function populateShiftSelectForRow(tr, day, month, year){
       }
     }
 
-    // ✅ Herlaad dropdown nadat project is ingesteld
-    renderProjects();
-    setTimeout(()=> { projSel.value = r.project || ''; }, 100);
-
+// ✅ Herlaad project-dropdown in deze rij alleen
+projSel.innerHTML = '<option value="">--</option>';
+(getCurrentUserData().projects || []).forEach(p=>{
+  if(isDateWithin(key, p.start || null, p.end || null)){
+    const o = document.createElement('option');
+    o.value = p.name;
+    o.textContent = p.name;
+    projSel.appendChild(o);
+  }
+});
+setTimeout(()=> { projSel.value = r.project || ''; }, 50);
     // ✅ Vul tijden en pauze in
     const sh = all[chosen];
     if (sh) {
@@ -966,7 +974,20 @@ function ensureProjectExists(name){
       ud.monthData[year][month] = ud.monthData[year][month] || { targetHours:0, targetMinutes:0, rows:{} };
       ud.monthData[year][month].rows[key] = { ...r, minutes: r.minutes || minutesBetween(r.start, r.end, r.break) };
     }
-
+function ensureDefaultProjects(){
+  const ud = getCurrentUserData();
+  ud.projects = ud.projects || [];
+  const defaults = [
+    { name: 'Eght Care', start: '2000-01-01', end: '2099-12-31' },
+    { name: 'PXL Verpleegkunde Hasselt', start: '2000-01-01', end: '2099-12-31' }
+  ];
+  defaults.forEach(def => {
+    if(!ud.projects.find(p => p.name === def.name)){
+      ud.projects.push(def);
+    }
+  });
+  saveUserData();
+}
     function updateInputTotals(){
       const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
       const ud = getCurrentUserData();
