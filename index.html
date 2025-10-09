@@ -1,171 +1,101 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login - Shift Planner</title>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shift Planner — Login</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet" />
+
   <style>
     body {
       display: flex;
-      justify-content: center;
       align-items: center;
+      justify-content: center;
       height: 100vh;
-      font-family: 'Roboto', sans-serif;
-      margin: 0;
-      background: white;
+      background: linear-gradient(135deg, #0d6efd, #6610f2);
+      color: #fff;
     }
-
-    .card {
-      max-width: 380px;
-      width: 100%;
-      padding: 30px 25px;
+    .login-card {
+      background: #fff;
+      color: #212529;
       border-radius: 16px;
-      background: white;
-      box-shadow: 0 8px 25px rgba(0,0,0,0.25);
+      padding: 2rem;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+      width: 100%;
+      max-width: 380px;
+    }
+    .login-card h3 {
       text-align: center;
+      margin-bottom: 1.5rem;
     }
-
-    .logo {
-      width: 80px;
-      margin-bottom: 10px;
-    }
-
-    .brand-logo {
-      display: block;
-      font-size: 1.8rem;
-      margin-bottom: 10px;
-      color: #1565c0;
-      font-weight: bold;
-    }
-
-    .welcome-text {
-      font-size: 0.95rem;
-      color: #555;
-      margin-bottom: 20px;
-    }
-
-    .google-btn {
-      background-color: white !important;
-      color: #444 !important;
+    .btn-google {
+      background: #fff;
+      color: #444;
       border: 1px solid #ddd;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 10px;
-      font-weight: 600;
-      width: 100%;
-      padding: 12px 0;
-      margin-top: 15px;
+      padding: 10px 15px;
       border-radius: 8px;
-      transition: all 0.3s ease;
+      width: 100%;
     }
-    .google-btn:hover {
-      background: #f5f5f5 !important;
-      transform: scale(1.02);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    .btn-google img {
+      width: 22px;
+      height: 22px;
     }
-    .google-btn img {
-      height: 20px;
-    }
-
-    .spinner {
-      display: none;
-      margin: 20px auto;
-    }
-
-    .footer-links {
-      margin-top: 15px;
-      font-size: 0.8rem;
-    }
-    .footer-links a {
-      color: #1565c0;
-      text-decoration: none;
+    .footer-text {
+      text-align: center;
+      font-size: 0.85rem;
+      color: #ccc;
+      margin-top: 1rem;
     }
   </style>
 </head>
 <body>
-  <div class="card z-depth-3">
-    <!-- Logo -->
-    <img src="favicon.ico" alt="Shift Planner Logo" class="logo">
-
-    <!-- Titel -->
-    <span class="brand-logo">Shift Planner</span>
-    <p class="welcome-text">Welkom! Log in met je Google-account om verder te gaan.</p>
-
-    <!-- Enkel Google login -->
-    <button id="googleBtn" class="btn google-btn waves-effect">
+  <div class="login-card text-center">
+    <h3><span class="material-icons-outlined">event_note</span> Shift Planner</h3>
+    <p>Log in met je Google-account om verder te gaan</p>
+    <button id="googleLoginBtn" class="btn-google">
       <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google logo">
-      Login met Google
+      Inloggen met Google
     </button>
-
-    <!-- Spinner -->
-    <div class="preloader-wrapper big active spinner" id="loadingSpinner">
-      <div class="spinner-layer spinner-blue-only">
-        <div class="circle-clipper left"><div class="circle"></div></div>
-        <div class="gap-patch"><div class="circle"></div></div>
-        <div class="circle-clipper right"><div class="circle"></div></div>
-      </div>
-    </div>
-
-    <!-- Error -->
-    <p id="loginError" class="red-text small center"></p>
-
-    <!-- Footer -->
-    <div class="footer-links">
-      <a href="privacy.html">Privacyverklaring</a>
-    </div>
+    <div class="footer-text mt-3">© 2025 Shift Planner</div>
   </div>
 
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
+    import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
 
-  <script>
-    // 🔹 Firebase configuratie (gebruik jouw eigen API key enz. uit Firebase Console)
- const firebaseConfig = {
-  apiKey: "AIzaSyB8uHwRXCe1iV7z6T80YPxEbeB64qdMpNY",
-  authDomain: "shift-planner-dc7ad.firebaseapp.com",
-  projectId: "shift-planner-dc7ad",
-  storageBucket: "shift-planner-dc7ad.firebasestorage.app",
-  messagingSenderId: "719441527396",
-  appId: "1:719441527396:web:de87d6f950fe23702a5571"
-};
-firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
+    // 🔥 Jouw Firebase-config (zelfde als app.html)
+    const firebaseConfig = {
+      apiKey: "AIzaSyB8uHwRXCe1iV7z6T80YPxEbeB64qdMpNY",
+      authDomain: "shift-planner-dc7ad.firebaseapp.com",
+      projectId: "shift-planner-dc7ad",
+      storageBucket: "shift-planner-dc7ad.firebasestorage.app",
+      messagingSenderId: "719441527396",
+      appId: "1:719441527396:web:de87d6f950fe23702a5571"
+    };
 
-    const googleBtn = document.getElementById("googleBtn");
-    const spinner = document.getElementById("loadingSpinner");
-    const errorMsg = document.getElementById("loginError");
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
 
-    // 🔹 Provider instellen
-    const provider = new firebase.auth.GoogleAuthProvider();
+    // check if already logged in
+    onAuthStateChanged(auth, user => {
+      if (user) window.location.href = "app.html";
+    });
 
-    // 🔹 Login actie
-googleBtn.addEventListener("click", async () => {
-  spinner.style.display = "block";
-  errorMsg.textContent = "";
-  try {
-    await auth.signInWithPopup(provider);
-    // Succes → naar hoofdapp
-    window.location.href = "app.html";   // ✅ redirect naar app.html
-  } catch (error) {
-    console.error("Login error:", error);
-    errorMsg.textContent = "Login mislukt: " + error.message;
-  } finally {
-    spinner.style.display = "none";
-  }
-});
-
-// 🔹 Als user al ingelogd is → meteen doorsturen
-auth.onAuthStateChanged(user => {
-  if (user) {
-    console.log("Ingelogd als:", user.email);
-    window.location.href = "app.html";   // ✅ redirect naar app.html
-  }
-});
+    document.getElementById("googleLoginBtn").addEventListener("click", async () => {
+      try {
+        await signInWithPopup(auth, provider);
+        window.location.href = "app.html";
+      } catch (err) {
+        alert("Inloggen mislukt: " + err.message);
+      }
+    });
   </script>
 </body>
 </html>
