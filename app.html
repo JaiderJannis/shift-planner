@@ -873,91 +873,91 @@ function renderProjectFilterForMonth(){
     }
 
     function populateShiftSelectForRow(tr, day, month, year){
-      const key = dateKey(year, month, day);
-      const ud = getCurrentUserData();
-      const md = ud.monthData[year][month];
-      const r = md.rows[key];
-      const projSel = tr.querySelector('.projectSelect');
-      const sel = tr.querySelector('.shiftSelect');
-      sel.innerHTML = '<option value=""></option>';
+  const key = dateKey(year, month, day);
+  const ud = getCurrentUserData();
+  const md = ud.monthData[year][month];
+  const r = md.rows[key];
+  const projSel = tr.querySelector('.projectSelect');
+  const sel = tr.querySelector('.shiftSelect');
+  sel.innerHTML = '<option value=""></option>';
 
-      const all = ud.shifts || {};
-      const order = ud.shiftOrder || Object.keys(all);
-      const entries = order.map(n=> [n, all[n]]).filter(([,sh])=> !!sh);
-
-      for(const [name, sh] of entries){
-        // project rule
-        let allowed = true;
-        if(sh.project){
-          if(projSel.value && sh.project !== projSel.value) allowed = false;
-        }
-        if(!allowed) continue;
-        if(!isDateWithin(key, sh.startDate || null, sh.endDate || null)) continue;
-
-        const o = document.createElement('option');
-        o.value = name; o.textContent = name; if(r.shift===name) o.selected = true; sel.appendChild(o);
-      }
-
-sel.addEventListener('change', ()=>{
-  const chosen = sel.value;
   const all = ud.shifts || {};
-  if (!chosen) {
-    r.shift = '';
-    r.project = '';
-    projSel.value = '';
+  const order = ud.shiftOrder || Object.keys(all);
+  const entries = order.map(n=> [n, all[n]]).filter(([,sh])=> !!sh);
+
+  for(const [name, sh] of entries){
+    // project rule
+    let allowed = true;
+    if(sh.project){
+      if(projSel.value && sh.project !== projSel.value) allowed = false;
+    }
+    if(!allowed) continue;
+    if(!isDateWithin(key, sh.startDate || null, sh.endDate || null)) continue;
+
+    const o = document.createElement('option');
+    o.value = name; o.textContent = name; if(r.shift===name) o.selected = true; sel.appendChild(o);
+  }
+
+  sel.addEventListener('change', ()=>{
+    const chosen = sel.value;
+    const all = ud.shifts || {};
+    if (!chosen) {
+      r.shift = '';
+      r.project = '';
+      projSel.value = '';
+      saveCell(year, month, key, r, tr);
+      saveUserData();
+      renderHistory();
+      updateInputTotals();
+      return;
+    }
+
+    r.shift = chosen;
+
+    // ✅ Automatische projecttoewijzing
+    if (['Bench'].includes(chosen)) {
+      r.project = '';
+    } 
+    else if (['Schoolverlof','School'].includes(chosen)) {
+      ensureProjectExists('PXL Verpleegkunde Hasselt');
+      r.project = 'PXL Verpleegkunde Hasselt';
+    } 
+    else if (['Verlof','Teammeeting'].includes(chosen)) {
+      ensureProjectExists('Eght Care');
+      r.project = 'Eght Care';
+    } 
+    else {
+      const sh = all[chosen];
+      if (sh && sh.project) {
+        const p = (ud.projects||[]).find(px => px.name===sh.project);
+        if (p && isDateWithin(key, p.start||null, p.end||null)) {
+          r.project = p.name;
+        }
+      }
+    }
+
+    // 👇 Na de eventloop, als dropdown klaar is
+    setTimeout(()=> { projSel.value = r.project || ''; }, 0);
+
+    // ✅ Vul tijden en pauze in
+    const sh = all[chosen];
+    if (sh) {
+      if (!r.start || r.start==='00:00') r.start = sh.start || '00:00';
+      if (!r.end   || r.end==='00:00') r.end   = sh.end   || '00:00';
+      if (!r.break || r.break===0)     r.break = Number(sh.break) || 0;
+    }
+
+    recalcRowMinutes(r);
+    tr.querySelector('.startInput').value = r.start;
+    tr.querySelector('.endInput').value = r.end;
+    tr.querySelector('.breakInput').value = r.break;
+    tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+
     saveCell(year, month, key, r, tr);
     saveUserData();
-    renderHistory();
     updateInputTotals();
-    return;
-  }
-
-  r.shift = chosen;
-
-  // ✅ Automatische projecttoewijzing
-  if (['Bench'].includes(chosen)) {
-    r.project = ''; // geen project
-  } 
-  else if (['Schoolverlof','School'].includes(chosen)) {
-    ensureProjectExists('PXL Verpleegkunde Hasselt');
-    r.project = 'PXL Verpleegkunde Hasselt';
-  } 
-  else if (['Verlof','Teammeeting'].includes(chosen)) {
-    ensureProjectExists('Eght Care');
-    r.project = 'Eght Care';
-  } 
-  else {
-    const sh = all[chosen];
-    if (sh && sh.project) {
-      const p = (ud.projects||[]).find(px => px.name===sh.project);
-      if (p && isDateWithin(key, p.start||null, p.end||null)) {
-        r.project = p.name;
-      }
-    }
-  }
-
-  // 👇 Pas dropdown visueel aan
-  projSel.value = r.project || '';
-
-  // ✅ Vul tijden en pauze in
-  const sh = all[chosen];
-  if (sh) {
-    if (!r.start || r.start==='00:00') r.start = sh.start || '00:00';
-    if (!r.end   || r.end==='00:00') r.end   = sh.end   || '00:00';
-    if (!r.break || r.break===0)     r.break = Number(sh.break) || 0;
-  }
-
-  recalcRowMinutes(r);
-  tr.querySelector('.startInput').value = r.start;
-  tr.querySelector('.endInput').value = r.end;
-  tr.querySelector('.breakInput').value = r.break;
-  tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-
-  saveCell(year, month, key, r, tr);
-  saveUserData();
-  updateInputTotals();
-});
-    }
+  });
+}
 
     function ensureProjectExists(name){
       const ud = getCurrentUserData();
