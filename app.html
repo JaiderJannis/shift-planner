@@ -800,11 +800,12 @@ function renderProjectFilterForMonth(){
     }
 
     function renderMonth(year, month){
-      const ud = getCurrentUserData();
-      ud.monthData[year] = ud.monthData[year] || {};
-      ud.monthData[year][month] = ud.monthData[year][month] || { targetHours:0, targetMinutes:0, rows:{} };
-      const md = ud.monthData[year][month];
-      tbody.innerHTML = '';
+  const ud = getCurrentUserData();
+  ud.monthData[year] = ud.monthData[year] || {};
+  ud.monthData[year][month] = ud.monthData[year][month] || { targetHours:0, targetMinutes:0, rows:{} };
+  const md = ud.monthData[year][month];
+  const selectedProject = projectFilterSelect.value || ''; // 👈 gekozen filter
+  tbody.innerHTML = '';
 
       monthTargetHours.value = md.targetHours || 0;
       monthTargetMinutes.value = md.targetMinutes || 0;
@@ -815,7 +816,8 @@ function renderProjectFilterForMonth(){
         if(!md.rows[key]) md.rows[key] = { project:'', shift:'', start:'00:00', end:'00:00', break:0, omschrijving:'', minutes:0 };
         const r = md.rows[key];
         const dayName = daysFull[new Date(year, month, d).getDay()];
-
+  // 👇 Filter op project (alleen tonen wat overeenkomt)
+  if (selectedProject && r.project !== selectedProject) continue;
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${dayName}</td>
