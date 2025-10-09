@@ -818,7 +818,7 @@ function autoAssignProjectIfNeeded(r) {
     r.project = sp;
   }
 }
-    function renderMonth(year, month){
+function renderMonth(year, month){
   const ud = getCurrentUserData();
   ud.monthData[year] = ud.monthData[year] || {};
   ud.monthData[year][month] = ud.monthData[year][month] || { targetHours:0, targetMinutes:0, rows:{} };
@@ -826,162 +826,101 @@ function autoAssignProjectIfNeeded(r) {
   const selectedProject = projectFilterSelect.value || ''; // 👈 gekozen filter
   tbody.innerHTML = '';
 
-      monthTargetHours.value = md.targetHours || 0;
-      monthTargetMinutes.value = md.targetMinutes || 0;
+  monthTargetHours.value = md.targetHours || 0;
+  monthTargetMinutes.value = md.targetMinutes || 0;
 
-      const daysInMonth = new Date(year, month+1, 0).getDate();
-      for(let d=1; d<=daysInMonth; d++){
-        const key = dateKey(year, month, d);
-if (!md.rows[key]) {
-  md.rows[key] = { project:'', shift:'', start:'00:00', end:'00:00', break:0, omschrijving:'', minutes:0 };
-} else {
-  autoAssignProjectIfNeeded(md.rows[key]);
-}
-        const r = md.rows[key];
-        const dayName = daysFull[new Date(year, month, d).getDay()];
-  // 👇 Filter op project (alleen tonen wat overeenkomt)
-  if (selectedProject && r.project !== selectedProject) continue;
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${dayName}</td>
-          <td>${String(d).padStart(2,'0')}-${String(month+1).padStart(2,'0')}-${year}</td>
-          <td><select class="form-select form-select-sm projectSelect"></select></td>
-          <td><select class="form-select form-select-sm shiftSelect"></select></td>
-          <td><input class="form-control form-control-sm startInput" type="time" value="${r.start}"></td>
-          <td><input class="form-control form-control-sm endInput" type="time" value="${r.end}"></td>
-          <td><input class="form-control form-control-sm breakInput" type="number" min="0" value="${r.break}"></td>
-          <td><input class="form-control form-control-sm omschrijvingInput" type="text" value="${r.omschrijving}"></td>
-          <td class="dur text-mono">${Math.floor(r.minutes/60)}u ${r.minutes%60}min</td>`;
-        tbody.appendChild(tr);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = dateKey(year, month, d);
 
-        // project dropdown (alleen geldige voor datum)
-        const projSel = tr.querySelector('.projectSelect');
-        projSel.innerHTML = '<option value="">--</option>';
-        (ud.projects || []).forEach(p=>{
-          if((p.start || p.end) && isDateWithin(key, p.start || null, p.end || null)){
-            const o = document.createElement('option'); o.value=p.name; o.textContent=p.name; projSel.appendChild(o);
-          }
-        });
-        if(r.project) projSel.value = r.project;
+    // ✅ Zorg dat elke dag een rij heeft
+    if (!md.rows[key]) {
+      md.rows[key] = { project:'', shift:'', start:'00:00', end:'00:00', break:0, omschrijving:'', minutes:0 };
+    }
 
-        projSel.addEventListener('change', ()=>{
-          r.project = projSel.value || '';
-          saveCell(year, month, key, r, tr);
-          populateShiftSelectForRow(tr, d, month, year);
-          updateInputTotals();
-          saveUserData();
-        });
+    // ✅ Altijd project automatisch invullen bij bekende shift
+    autoAssignProjectIfNeeded(md.rows[key]);
 
-        populateShiftSelectForRow(tr, d, month, year);
+    const r = md.rows[key];
+    const dayName = daysFull[new Date(year, month, d).getDay()];
 
-        tr.querySelector('.startInput').addEventListener('change', e=>{
-          r.start = e.target.value; recalcRowMinutes(r);
-          saveCell(year, month, key, r, tr); tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-          updateInputTotals(); saveUserData(); renderHistory();
-        });
-        tr.querySelector('.endInput').addEventListener('change', e=>{
-          r.end = e.target.value; recalcRowMinutes(r);
-          saveCell(year, month, key, r, tr); tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-          updateInputTotals(); saveUserData(); renderHistory();
-        });
-        tr.querySelector('.breakInput').addEventListener('input', e=>{
-          r.break = Number(e.target.value)||0; recalcRowMinutes(r);
-          saveCell(year, month, key, r, tr); tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-          updateInputTotals(); saveUserData(); renderHistory();
-        });
-        tr.querySelector('.omschrijvingInput').addEventListener('change', e=>{
-          r.omschrijving = e.target.value; saveCell(year, month, key, r, tr); saveUserData(); renderHistory();
-        });
+    // 👇 Filter op project (alleen tonen wat overeenkomt)
+    if (selectedProject && r.project !== selectedProject) continue;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${dayName}</td>
+      <td>${String(d).padStart(2,'0')}-${String(month+1).padStart(2,'0')}-${year}</td>
+      <td><select class="form-select form-select-sm projectSelect"></select></td>
+      <td><select class="form-select form-select-sm shiftSelect"></select></td>
+      <td><input class="form-control form-control-sm startInput" type="time" value="${r.start}"></td>
+      <td><input class="form-control form-control-sm endInput" type="time" value="${r.end}"></td>
+      <td><input class="form-control form-control-sm breakInput" type="number" min="0" value="${r.break}"></td>
+      <td><input class="form-control form-control-sm omschrijvingInput" type="text" value="${r.omschrijving}"></td>
+      <td class="dur text-mono">${Math.floor(r.minutes/60)}u ${r.minutes%60}min</td>`;
+
+    tbody.appendChild(tr);
+
+    // ✅ Project dropdown (alleen geldige voor datum)
+    const projSel = tr.querySelector('.projectSelect');
+    projSel.innerHTML = '<option value="">--</option>';
+    (ud.projects || []).forEach(p => {
+      if (isDateWithin(key, p.start || null, p.end || null)) {
+        const o = document.createElement('option');
+        o.value = p.name;
+        o.textContent = p.name;
+        projSel.appendChild(o);
       }
-    }
+    });
+    projSel.value = r.project || '';
 
-function populateShiftSelectForRow(tr, day, month, year){
-  const key = dateKey(year, month, day);
-  const ud = getCurrentUserData();
-  const md = ud.monthData[year][month];
-  const r = md.rows[key];
-  const projSel = tr.querySelector('.projectSelect');
-  const sel = tr.querySelector('.shiftSelect');
-  sel.innerHTML = '<option value=""></option>';
+    projSel.addEventListener('change', () => {
+      r.project = projSel.value || '';
+      saveCell(year, month, key, r, tr);
+      populateShiftSelectForRow(tr, d, month, year);
+      updateInputTotals();
+      saveUserData();
+    });
 
-  const all = ud.shifts || {};
-  const order = ud.shiftOrder || Object.keys(all);
-  const entries = order.map(n=> [n, all[n]]).filter(([,sh])=> !!sh);
+    populateShiftSelectForRow(tr, d, month, year);
 
-  for(const [name, sh] of entries){
-    if(!isDateWithin(key, sh.startDate || null, sh.endDate || null)) continue;
-    const o = document.createElement('option');
-    o.value = name; o.textContent = name; if(r.shift===name) o.selected = true; sel.appendChild(o);
+    tr.querySelector('.startInput').addEventListener('change', e => {
+      r.start = e.target.value;
+      recalcRowMinutes(r);
+      saveCell(year, month, key, r, tr);
+      tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+      updateInputTotals();
+      saveUserData();
+      renderHistory();
+    });
+
+    tr.querySelector('.endInput').addEventListener('change', e => {
+      r.end = e.target.value;
+      recalcRowMinutes(r);
+      saveCell(year, month, key, r, tr);
+      tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+      updateInputTotals();
+      saveUserData();
+      renderHistory();
+    });
+
+    tr.querySelector('.breakInput').addEventListener('input', e => {
+      r.break = Number(e.target.value) || 0;
+      recalcRowMinutes(r);
+      saveCell(year, month, key, r, tr);
+      tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+      updateInputTotals();
+      saveUserData();
+      renderHistory();
+    });
+
+    tr.querySelector('.omschrijvingInput').addEventListener('change', e => {
+      r.omschrijving = e.target.value;
+      saveCell(year, month, key, r, tr);
+      saveUserData();
+      renderHistory();
+    });
   }
-
-  sel.addEventListener('change', ()=>{
-    const chosen = sel.value;
-    const all = ud.shifts || {};
-    if (!chosen) {
-      r.shift = ''; r.project = ''; projSel.value = '';
-      saveCell(year, month, key, r, tr); saveUserData(); updateInputTotals(); renderHistory();
-      return;
-    }
-
-    r.shift = chosen;
-
-    // ✅ Automatische projecttoewijzing
-    if (['Bench'].includes(chosen)) {
-      r.project = '';
-  saveCell(year, month, key, r, tr);
-  saveUserData();
-    } 
-    else if (['Schoolverlof','School'].includes(chosen)) {
-      ensureProjectExists('PXL Verpleegkunde Hasselt');
-      r.project = 'PXL Verpleegkunde Hasselt';
-  saveCell(year, month, key, r, tr);
-  saveUserData();
-}    
-    else if (['Verlof','Teammeeting','Ziekte'].includes(chosen)) {
-      ensureProjectExists('Eght Care');
-      r.project = 'Eght Care';
-  saveCell(year, month, key, r, tr);
-  saveUserData();
-    } 
-    else {
-      const sh = all[chosen];
-      if (sh && sh.project) {
-        const p = (ud.projects||[]).find(px => px.name===sh.project);
-        if (p && isDateWithin(key, p.start||null, p.end||null)) {
-          r.project = p.name;
-        }
-      }
-    }
-
-// ✅ Herlaad project-dropdown in deze rij alleen
-projSel.innerHTML = '<option value="">--</option>';
-(getCurrentUserData().projects || []).forEach(p=>{
-  if(isDateWithin(key, p.start || null, p.end || null)){
-    const o = document.createElement('option');
-    o.value = p.name;
-    o.textContent = p.name;
-    projSel.appendChild(o);
-  }
-});
-setTimeout(()=> { projSel.value = r.project || ''; }, 50);
-// ✅ Vul tijden en pauze in
-const sh = all[chosen];
-if (sh) {
-  r.start = sh.start || '00:00';
-  r.end   = sh.end   || '00:00';
-  r.break = Number(sh.break) || 0;
-}
-
-recalcRowMinutes(r);
-tr.querySelector('.startInput').value = r.start;
-tr.querySelector('.endInput').value = r.end;
-tr.querySelector('.breakInput').value = r.break;
-tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-
-    saveCell(year, month, key, r, tr);
-    saveUserData();
-    updateInputTotals();
-  });
 }
 function ensureProjectExists(name){
   const ud = getCurrentUserData();
