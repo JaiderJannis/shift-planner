@@ -906,14 +906,20 @@ function populateShiftSelectForRow(tr, day, month, year){
     // ✅ Automatische projecttoewijzing
     if (['Bench'].includes(chosen)) {
       r.project = '';
+  saveCell(year, month, key, r, tr);
+  saveUserData();
     } 
     else if (['Schoolverlof','School'].includes(chosen)) {
       ensureProjectExists('PXL Verpleegkunde Hasselt');
       r.project = 'PXL Verpleegkunde Hasselt';
-    } 
+  saveCell(year, month, key, r, tr);
+  saveUserData();
+}    
     else if (['Verlof','Teammeeting'].includes(chosen)) {
       ensureProjectExists('Eght Care');
       r.project = 'Eght Care';
+  saveCell(year, month, key, r, tr);
+  saveUserData();
     } 
     else {
       const sh = all[chosen];
