@@ -470,7 +470,10 @@ const SPECIAL_PROJECT_MAP = {
   'School': 'PXL Verpleegkunde Hasselt',
   'Schoolverlof': 'PXL Verpleegkunde Hasselt'
 };
-
+function isValidProject(name) {
+  const ud = getCurrentUserData();
+  return !!(ud.projects || []).find(p => p.name === name);
+}
 function autoProjectForShift(shiftName){
   return SPECIAL_PROJECT_MAP[shiftName] || null;
 }
@@ -801,24 +804,24 @@ function renderProjectFilterForMonth(){
   });
 }
 
-    function generateMonth(){
+    async function generateMonth(){
       const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
       const ud = getCurrentUserData();
       ud.monthData = ud.monthData || {};
       ud.monthData[y] = ud.monthData[y] || {};
       if(!ud.monthData[y][m]) ud.monthData[y][m] = { targetHours:0, targetMinutes:0, rows:{} };
-      saveUserData();
-      renderMonth(y,m); updateInputTotals(); renderHistory();
+      await saveUserData();
+      await renderMonth(y,m); updateInputTotals(); renderHistory();
     }
 // ✅ Automatische koppeling van project aan shift bij herladen
 function autoAssignProjectIfNeeded(r) {
   const sp = autoProjectForShift(r.shift);
-  if (sp && (!r.project || r.project === '')) {
+  if (sp && (!r.project || r.project === '' || !isValidProject(r.project))) {
     ensureProjectExists(sp);
     r.project = sp;
   }
 }
-    function renderMonth(year, month){
+   async function renderMonth(year, month){
   const ud = getCurrentUserData();
   ud.monthData[year] = ud.monthData[year] || {};
   ud.monthData[year][month] = ud.monthData[year][month] || { targetHours:0, targetMinutes:0, rows:{} };
@@ -858,21 +861,21 @@ if (!md.rows[key]) {
         const projSel = tr.querySelector('.projectSelect');
         projSel.innerHTML = '<option value="">--</option>';
         (ud.projects || []).forEach(p=>{
-          if((p.start || p.end) && isDateWithin(key, p.start || null, p.end || null)){
+          if (isDateWithin(key, p.start || null, p.end || null)) {
             const o = document.createElement('option'); o.value=p.name; o.textContent=p.name; projSel.appendChild(o);
           }
         });
         if(r.project) projSel.value = r.project;
 
-        projSel.addEventListener('change', ()=>{
+        projSel.addEventListener('change', async ()=>{
           r.project = projSel.value || '';
           saveCell(year, month, key, r, tr);
-          populateShiftSelectForRow(tr, d, month, year);
+          await populateShiftSelectForRow(tr, d, month, year);
           updateInputTotals();
           saveUserData();
         });
 
-        populateShiftSelectForRow(tr, d, month, year);
+        await populateShiftSelectForRow(tr, d, month, year);
 
         tr.querySelector('.startInput').addEventListener('change', e=>{
           r.start = e.target.value; recalcRowMinutes(r);
@@ -893,9 +896,10 @@ if (!md.rows[key]) {
           r.omschrijving = e.target.value; saveCell(year, month, key, r, tr); saveUserData(); renderHistory();
         });
       }
+    await saveUserData();
     }
 
-function populateShiftSelectForRow(tr, day, month, year){
+async function populateShiftSelectForRow(tr, day, month, year){
   const key = dateKey(year, month, day);
   const ud = getCurrentUserData();
   const md = ud.monthData[year][month];
@@ -914,44 +918,46 @@ function populateShiftSelectForRow(tr, day, month, year){
     o.value = name; o.textContent = name; if(r.shift===name) o.selected = true; sel.appendChild(o);
   }
 
-  sel.addEventListener('change', ()=>{
+  sel.addEventListener('change', async ()=>{
     const chosen = sel.value;
     const all = ud.shifts || {};
     if (!chosen) {
       r.shift = ''; r.project = ''; projSel.value = '';
-      saveCell(year, month, key, r, tr); saveUserData(); updateInputTotals(); renderHistory();
+      saveCell(year, month, key, r, tr); await saveUserData(); updateInputTotals(); renderHistory();
       return;
     }
 
     r.shift = chosen;
-
-    // ✅ Automatische projecttoewijzing
-    if (['Bench'].includes(chosen)) {
-      r.project = '';
+await saveUserData();
+// ✅ Automatische projecttoewijzing
+if (['Bench'].includes(chosen)) {
+  r.project = '';
   saveCell(year, month, key, r, tr);
-  saveUserData();
-    } 
-    else if (['Schoolverlof','School'].includes(chosen)) {
-      ensureProjectExists('PXL Verpleegkunde Hasselt');
-      r.project = 'PXL Verpleegkunde Hasselt';
+  await saveUserData();
+} 
+else if (['Schoolverlof','School'].includes(chosen)) {
+  ensureProjectExists('PXL Verpleegkunde Hasselt');
+  r.project = 'PXL Verpleegkunde Hasselt';
   saveCell(year, month, key, r, tr);
-  saveUserData();
-}    
-    else if (['Verlof','Teammeeting','Ziekte'].includes(chosen)) {
-      ensureProjectExists('Eght Care');
-      r.project = 'Eght Care';
+  await saveUserData();
+  console.log(`📘 Project toegewezen: ${r.project}`);
+} 
+else if (['Verlof','Teammeeting','Ziekte'].includes(chosen)) {
+  ensureProjectExists('Eght Care');
+  r.project = 'Eght Care';
   saveCell(year, month, key, r, tr);
-  saveUserData();
-    } 
-    else {
-      const sh = all[chosen];
-      if (sh && sh.project) {
-        const p = (ud.projects||[]).find(px => px.name===sh.project);
-        if (p && isDateWithin(key, p.start||null, p.end||null)) {
-          r.project = p.name;
-        }
-      }
+  await saveUserData();
+  console.log(`💼 Project toegewezen: ${r.project}`);
+} 
+else {
+  const sh = all[chosen];
+  if (sh && sh.project) {
+    const p = (ud.projects||[]).find(px => px.name===sh.project);
+    if (p && isDateWithin(key, p.start||null, p.end||null)) {
+      r.project = p.name;
     }
+  }
+}
 
 // ✅ Herlaad project-dropdown in deze rij alleen
 projSel.innerHTML = '<option value="">--</option>';
@@ -979,11 +985,11 @@ tr.querySelector('.breakInput').value = r.break;
 tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
 
     saveCell(year, month, key, r, tr);
-    saveUserData();
+    await saveUserData();
     updateInputTotals();
   });
 }
-function ensureProjectExists(name){
+async function ensureProjectExists(name){
   const ud = getCurrentUserData();
   ud.projects = ud.projects || [];
   let p = ud.projects.find(p=> p.name===name);
@@ -1047,8 +1053,8 @@ function ensureDefaultProjects(){
 
     projectFilterSelect.addEventListener('change', ()=> { renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value)); updateInputTotals(); });
 
-    yearSelectMain.addEventListener('change', ()=> { renderProjectFilterForMonth(); generateMonth(); });
-    monthSelectMain.addEventListener('change', ()=> { renderProjectFilterForMonth(); generateMonth(); });
+    yearSelectMain.addEventListener('change', async ()=> { renderProjectFilterForMonth(); generateMonth(); });
+    monthSelectMain.addEventListener('change', async ()=> { renderProjectFilterForMonth(); generateMonth(); });
 
     // ======= Quick input =======
     quickDate.addEventListener('change', populateQuickShifts);
