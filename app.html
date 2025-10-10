@@ -1549,6 +1549,7 @@ const notifBadge = document.getElementById('notifBadge');
 const markAllReadBtn = document.getElementById('markAllReadBtn');
 
 notifBtn?.addEventListener('click', () => {
+  if (!notifDropdown) return;
   notifDropdown.classList.toggle('d-none');
 });
 
@@ -1756,8 +1757,8 @@ async function createUniqueNotification(uid, text) {
   console.log('🔔 Automatische melding aangemaakt:', text);
 }
 // 🔔 Stuur melding naar gebruiker bij projectwijziging (door admin)
-async function notifyProjectChange(uid, type, projectName, newEndDate = null) {
-  const colRef = collection(db, 'users', uid, 'notifications');
+async function notifyProjectChange(userId, type, projectName, newEndDate = null) {
+  const colRef = collection(db, 'users', userId, 'notifications'); // 👈 userId, niet uid
   const todayKey = new Date().toISOString().slice(0, 10);
   let text = '';
 
@@ -1769,7 +1770,7 @@ async function notifyProjectChange(uid, type, projectName, newEndDate = null) {
 
   const q = query(colRef, where('text', '==', text), where('dateKey', '==', todayKey));
   const snap = await getDocs(q);
-  if (!snap.empty) return; // voorkomen van dubbele meldingen
+  if (!snap.empty) return;
 
   await addDoc(colRef, {
     text,
