@@ -1561,7 +1561,11 @@ onAuthStateChanged(auth, async (user) => {
 });
 // 🔔 Automatisch meldingsysteem
 async function autoCheckNotifications() {
+ console.log('🟢 AutoCheck gestart'); // 👈 testlog
   if (!currentUserId) return;
+
+  // 🔥 Testmelding forceren
+  await createUniqueNotification(currentUserId, '🔥 Testmelding — systeem actief!');
   const uid = currentUserId;
   const ud = getCurrentUserData();
   if (!ud || !ud.monthData) return;
