@@ -579,7 +579,7 @@ function autoProjectForShift(shiftName){
         // Je kan hier een loginpagina openen of FirebaseUI integreren.
         return;
       }
-      currentUserId = user.uid;
+      currentUserId = user.userId;
       currentUserName.textContent = user.displayName || user.email;
 
       await ensureUserDoc(user);
@@ -598,7 +598,7 @@ await autoCheckNotifications();
 });
 
     async function ensureUserDoc(user){
-      const ref = doc(db, 'users', user.uid);
+      const ref = doc(db, 'users', user.userId);
       const snap = await getDoc(ref);
       if(!snap.exists()){
         await setDoc(ref, { email: user.email, name: user.displayName || user.email.split('@')[0], role:'user', shifts:{}, monthData:{}, projects:[], shiftOrder:[] });
@@ -1316,11 +1316,11 @@ async function renderAdminUserSelect() {
 
 // ✅ Gebruiker selecteren zonder adminstatus te verliezen
 adminUserSelect?.addEventListener('change', async () => {
-  const uid = adminUserSelect.value;
-  if (!uid) return;
+  const userId = adminUserSelect.value;
+  if (!userId) return;
 
   try {
-    const snap = await getDoc(doc(db, 'users', uid));
+    const snap = await getDoc(doc(db, 'users', userId));
     if (!snap.exists()) {
       toast('Gebruiker niet gevonden', 'warning');
       return;
@@ -1328,17 +1328,17 @@ adminUserSelect?.addEventListener('change', async () => {
 
     const u = snap.data();
     // Plaats de gebruiker tijdelijk in dataStore voor weergave
-    dataStore.users[uid] = u;
+    dataStore.users[userId] = u;
 
     // UI labels bijwerken
-    activeUserLabel.textContent = u.name || u.email || uid;
+    activeUserLabel.textContent = u.name || u.email || userId;
     roleSelect.value = u.role || 'user';
-    document.getElementById('currentUserName').textContent = u.name || u.email || uid;
-    document.getElementById('currentUserHistoriek').textContent = u.name || u.email || uid;
+    document.getElementById('currentUserName').textContent = u.name || u.email || userId;
+    document.getElementById('currentUserHistoriek').textContent = u.name || u.email || userId;
 
     // We tonen enkel hun data (zonder rechten te verliezen)
-    await renderUserDataAsAdmin(uid);
-    toast(`Beheer actief voor ${u.name || uid}`, 'primary');
+    await renderUserDataAsAdmin(userId);
+    toast(`Beheer actief voor ${u.name || userId}`, 'primary');
   } catch (err) {
     console.error(err);
     toast('Fout bij laden van gebruiker', 'danger');
@@ -1346,14 +1346,14 @@ adminUserSelect?.addEventListener('change', async () => {
 });
 
 // ✅ Alleen UI renderen voor geselecteerde gebruiker
-async function renderUserDataAsAdmin(uid) {
-  const snap = await getDoc(doc(db, 'users', uid));
+async function renderUserDataAsAdmin(userId) {
+  const snap = await getDoc(doc(db, 'users', userId));
   if (!snap.exists()) return;
   const u = snap.data();
 
   // Tijdelijk: toon deze data in invoer & historiek
-  dataStore.users[uid] = u;
-  dataStore.viewUserId = uid;
+  dataStore.users[userId] = u;
+  dataStore.viewUserId = userId;
 
   renderProjects();
   renderShifts();
@@ -1365,12 +1365,12 @@ async function renderUserDataAsAdmin(uid) {
 
 // ✅ Rol bijwerken
 updateRoleBtn?.addEventListener('click', async () => {
-  const uid = adminUserSelect.value;
+  const userId = adminUserSelect.value;
   const newRole = roleSelect.value;
-  if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
+  if (!userId) return toast('Geen gebruiker geselecteerd', 'warning');
 
   try {
-    await updateDoc(doc(db, 'users', uid), { role: newRole });
+    await updateDoc(doc(db, 'users', userId), { role: newRole });
     toast(`Rol aangepast naar ${newRole}`, 'success');
     await renderAdminUserSelect();
   } catch (err) {
@@ -1381,13 +1381,13 @@ updateRoleBtn?.addEventListener('click', async () => {
 
 // ✅ Gebruiker verwijderen
 removeUserBtn?.addEventListener('click', async () => {
-  const uid = adminUserSelect.value;
-  if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
-  if (uid === currentUserId) return toast('Je kunt jezelf niet verwijderen', 'warning');
+  const userId = adminUserSelect.value;
+  if (!userId) return toast('Geen gebruiker geselecteerd', 'warning');
+  if (userId === currentUserId) return toast('Je kunt jezelf niet verwijderen', 'warning');
   if (!confirm('Weet je zeker dat je deze gebruiker wilt verwijderen?')) return;
 
   try {
-    await deleteDoc(doc(db, 'users', uid));
+    await deleteDoc(doc(db, 'users', userId));
     toast('Gebruiker verwijderd', 'danger');
     await renderAdminUserSelect();
     dataStore.viewUserId = null;
@@ -1572,8 +1572,8 @@ markAllReadBtn?.addEventListener('click', async () => {
 let lastVisible = null; // houdt bij tot waar we geladen hebben
 
 // 🔁 Laad de eerste reeks meldingen
-function listenToNotifications(uid) {
-  const colRef = collection(db, 'users', uid, 'notifications');
+function listenToNotifications(userId {
+  const colRef = collection(db, 'users', userId, 'notifications');
   const q = query(colRef, orderBy('timestamp', 'desc'), limit(20));
 
   onSnapshot(q, (snapshot) => {
@@ -1605,9 +1605,9 @@ function listenToNotifications(uid) {
 }
 
 // 📥 Extra meldingen ophalen
-async function loadMoreNotifications(uid) {
+async function loadMoreNotifications(userId) {
   if (!lastVisible) return;
-  const colRef = collection(db, 'users', uid, 'notifications');
+  const colRef = collection(db, 'users', userId, 'notifications');
   const qMore = query(
     colRef,
     orderBy('timestamp', 'desc'),
@@ -1643,7 +1643,7 @@ document.getElementById('loadMoreNotifBtn')?.addEventListener('click', async () 
 // ✅ Start luisteren na login
 onAuthStateChanged(auth, async (user) => {
   if (user) {
-    listenToNotifications(user.uid);
+    listenToNotifications(user.userId);
 
     // 🕒 Start automatische meldingensysteem
     await autoCheckNotifications(); // direct uitvoeren bij login
@@ -1657,7 +1657,7 @@ onAuthStateChanged(auth, async (user) => {
 // 🔔 Automatisch meldingsysteem — controleert volledige jaar
 async function autoCheckNotifications() {
   if (!currentUserId) return;
-  const uid = currentUserId;
+  const userId = currentUserId;
   const ud = getCurrentUserData();
   if (!ud || !ud.monthData) return;
 
@@ -1684,7 +1684,7 @@ async function autoCheckNotifications() {
   });
 
   if (!hasShiftThisWeek) {
-    await createUniqueNotification(uid, 'Je hebt deze week nog geen shifts ingevuld.');
+    await createUniqueNotification(userId, 'Je hebt deze week nog geen shifts ingevuld.');
   }
 
   // 🔹 2. Controleer maanddoel vs. werkelijk (alleen huidige maand)
@@ -1692,7 +1692,7 @@ async function autoCheckNotifications() {
   const doel = (md.targetHours || 0) * 60 + (md.targetMinutes || 0);
   const gepland = Object.values(md.rows || {}).reduce((s, r) => s + (r.minutes || 0), 0);
   if (doel > 0 && gepland < doel * 0.8) {
-    await createUniqueNotification(uid, 'Je hebt nog minder dan 80% van je maanddoel behaald.');
+    await createUniqueNotification(userId, 'Je hebt nog minder dan 80% van je maanddoel behaald.');
   }
 
   // 🔹 3. Controleer of projecten binnenkort aflopen
@@ -1704,7 +1704,7 @@ async function autoCheckNotifications() {
   });
   if (soon?.length) {
     const names = soon.map(p => p.name).join(', ');
-    await createUniqueNotification(uid, `Project(en) bijna afgelopen: ${names}`);
+    await createUniqueNotification(userId, `Project(en) bijna afgelopen: ${names}`);
   }
 
   // 🔹 4. NIEUW — controleer ALLE dagen van het lopende jaar
@@ -1719,11 +1719,11 @@ async function autoCheckNotifications() {
     const r = monthData?.rows?.[key];
 
     if (!r || !r.shift) {
-      await createUniqueNotification(uid, `Geen shift ingevuld op ${String(day).padStart(2, '0')}-${String(m + 1).padStart(2, '0')}-${y}.`);
+      await createUniqueNotification(userId, `Geen shift ingevuld op ${String(day).padStart(2, '0')}-${String(m + 1).padStart(2, '0')}-${y}.`);
     }
   }
   // 🔹 5. Automatisch opruimen van meldingen ouder dan 30 dagen
-  const notifCol = collection(db, 'users', uid, 'notifications');
+  const notifCol = collection(db, 'users', userId, 'notifications');
   const notifSnap = await getDocs(notifCol);
   const now = new Date();
 
@@ -1740,8 +1740,8 @@ async function autoCheckNotifications() {
   });
 
 // ⚙️ Helper
-async function createUniqueNotification(uid, text) {
-  const colRef = collection(db, 'users', uid, 'notifications');
+async function createUniqueNotification(userId, text) {
+  const colRef = collection(db, 'users', userId, 'notifications');
   const todayKey = new Date().toISOString().slice(0, 10);
   const q = query(colRef, where('text', '==', text), where('dateKey', '==', todayKey));
   const snap = await getDocs(q);
