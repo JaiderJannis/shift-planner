@@ -745,9 +745,10 @@ function renderShifts() {
       <td>${sh.break || 0}</td>
       <td>${sh.project || ''}</td>
       <td>${toDisplayDate(sh.startDate)} → ${toDisplayDate(sh.endDate)}</td>
-      <td class="text-end">
-        <button class="btn btn-sm btn-warning me-1" data-name="${name}" data-act="edit">Bewerk</button>
-        <button class="btn btn-sm btn-danger" data-name="${name}" data-act="delete">Verwijder</button>
+    <td class="align-middle text-center">
+  <div class="d-flex justify-content-center align-items-center gap-2">
+<button class="btn btn-warning btn-sm" data-name="${p.name}" data-act="extend">Verleng</button>
+    <button class="btn btn-danger btn-sm" data-name="${p.name}" data-act="delete">Verwijder</button>
       </td>`;
     shiftTableBody.appendChild(tr);
   });
