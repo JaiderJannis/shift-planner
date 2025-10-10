@@ -80,6 +80,12 @@
   color: #fff !important;
   transform: scale(1.05);
 }
+@media (max-width: 768px) {
+  #exportPdfBtn {
+    font-size: 0.9rem;
+    padding: 6px 10px;
+  }
+}
   </style>
 </head>
 <body>
@@ -175,8 +181,9 @@
       <!-- INVOER -->
       <section id="tab-invoer" class="tab-pane fade">
         <div class="d-flex justify-content-between align-items-center mb-3">
-  <div class="d-flex gap-2">
-    <select id="monthSelectMain" class="form-select form-select-sm w-auto">
+  <div class="row g-2 align-items-center mb-3">
+  <div class="col-12 col-md-auto d-flex flex-wrap gap-2">
+    <select id="monthSelectMain" class="form-select form-select-sm w-auto flex-fill flex-md-grow-0">
       <option value="0">Januari</option>
       <option value="1">Februari</option>
       <option value="2">Maart</option>
@@ -191,14 +198,14 @@
       <option value="11">December</option>
     </select>
 
-    <select id="yearSelectMain" class="form-select form-select-sm w-auto"></select>
-    <select id="projectFilterSelect" class="form-select form-select-sm w-auto">
+    <select id="yearSelectMain" class="form-select form-select-sm w-auto flex-fill flex-md-grow-0"></select>
+    <select id="projectFilterSelect" class="form-select form-select-sm w-auto flex-fill flex-md-grow-0">
       <option value="">Alle projecten</option>
     </select>
   </div>
 
-  <div class="d-flex gap-2">
-    <button id="exportPdfBtn" class="btn btn-outline-danger btn-sm">
+  <div class="col-12 col-md-auto mt-2 mt-md-0">
+    <button id="exportPdfBtn" class="btn btn-outline-danger btn-sm w-100 w-md-auto">
       <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
     </button>
   </div>
