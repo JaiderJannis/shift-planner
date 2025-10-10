@@ -669,6 +669,8 @@ function renderShifts() {
   const shifts = ud.shifts || {};
   const order = ud.shiftOrder && ud.shiftOrder.length ? ud.shiftOrder : Object.keys(shifts);
 
+  const selectedYear = filterShiftYear.value ? Number(filterShiftYear.value) : null;
+
   // Leegmaken
   shiftTableBody.innerHTML = '';
 
@@ -676,9 +678,25 @@ function renderShifts() {
   order.forEach(name => {
     const sh = shifts[name];
     if (!sh) return;
+
+    // ✅ Filteren op gekozen jaar
+    if (selectedYear) {
+      const startY = sh.startDate ? new Date(sh.startDate).getFullYear() : null;
+      const endY = sh.endDate ? new Date(sh.endDate).getFullYear() : null;
+
+      // Geen overlap → overslaan
+      if (
+        (startY && endY && (selectedYear < startY || selectedYear > endY)) ||
+        (startY && !endY && selectedYear < startY) ||
+        (!startY && endY && selectedYear > endY)
+      ) {
+        return;
+      }
+    }
+
     const tr = document.createElement('tr');
     tr.dataset.name = name;
-    tr.setAttribute('draggable', true); // 👈 belangrijk voor Safari
+    tr.setAttribute('draggable', true);
     tr.innerHTML = `
       <td class="fw-medium">
         <span class="material-icons-outlined drag-handle me-1" style="cursor:grab;">drag_indicator</span>${name}
@@ -763,15 +781,32 @@ function renderShifts() {
 
     filterShiftYear.addEventListener('change', ()=> renderShifts());
 
-    function populateFilterShiftYears(){
-      const ud = getCurrentUserData();
-      const years = new Set();
-      Object.values(ud.shifts||{}).forEach(sh=> { if(sh.startDate) years.add(new Date(sh.startDate).getFullYear()); });
-      filterShiftYear.innerHTML = '<option value="">Alle jaren</option>';
-      [...years].sort().forEach(y=>{
-        const o = document.createElement('option'); o.value=y; o.textContent=y; filterShiftYear.appendChild(o);
-      });
-    }
+function populateFilterShiftYears() {
+  const ud = getCurrentUserData();
+  const years = new Set();
+
+  // Verzamel jaartallen uit startDate en endDate
+  Object.values(ud.shifts || {}).forEach(sh => {
+    if (sh.startDate) years.add(new Date(sh.startDate).getFullYear());
+    if (sh.endDate) years.add(new Date(sh.endDate).getFullYear());
+  });
+
+  const sortedYears = [...years].sort((a, b) => a - b);
+
+  filterShiftYear.innerHTML = '<option value="">Alle jaren</option>';
+  sortedYears.forEach(y => {
+    const o = document.createElement('option');
+    o.value = y;
+    o.textContent = y;
+    filterShiftYear.appendChild(o);
+  });
+
+  // Automatisch huidig jaar selecteren (indien aanwezig)
+  const currentYear = new Date().getFullYear();
+  if (sortedYears.includes(currentYear)) {
+    filterShiftYear.value = currentYear;
+  }
+}
 
     // ======= Invoer (maand) =======
 function renderProjectFilterForMonth(){
