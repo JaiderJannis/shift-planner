@@ -156,15 +156,22 @@
   </button>
 
   <!-- Dropdown -->
-  <div id="notifDropdown" class="card shadow position-absolute end-0 mt-2 d-none" 
-       style="width: 320px; z-index: 1050;">
-    <div class="card-body p-2">
-      <h6 class="border-bottom pb-1 mb-2">Meldingen</h6>
-      <ul id="notifList" class="list-unstyled m-0 small"></ul>
-      <div class="text-center mt-2">
-        <button id="markAllReadBtn" class="btn btn-sm btn-outline-primary">Alles gelezen</button>
-      </div>
-    </div>
+<div id="notifDropdown" class="dropdown-menu dropdown-menu-end shadow p-2 d-none" style="min-width:300px;">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <strong>Meldingen</strong>
+    <button id="markAllReadBtn" class="btn btn-link btn-sm text-decoration-none">Alles gelezen</button>
+  </div>
+
+  <!-- Lijst van meldingen -->
+  <ul id="notifList" class="list-unstyled mb-2" style="max-height: 300px; overflow-y: auto;"></ul>
+
+  <!-- 👇 Voeg DIT stuk hier toe -->
+  <div class="text-center mt-2">
+    <button id="loadMoreNotifBtn" class="btn btn-outline-secondary btn-sm d-none">
+      Toon meer
+    </button>
+  </div>
+</div>
   </div>
 </div>
         <button id="logoutBtn" class="btn btn-outline-danger btn-sm">
@@ -1707,7 +1714,7 @@ async function autoCheckNotifications() {
     await createUniqueNotification(uid, `Project(en) bijna afgelopen: ${names}`);
   }
 
-  // 🔹 4. NIEUW — controleer ALLE dagen van het lopende jaar
+  // 🔹 4. Controleer ALLE dagen van het lopende jaar
   const startOfYear = new Date(currentYear, 0, 1);
   const endOfYear = new Date(today);
   for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) {
@@ -1722,23 +1729,25 @@ async function autoCheckNotifications() {
       await createUniqueNotification(uid, `Geen shift ingevuld op ${String(day).padStart(2, '0')}-${String(m + 1).padStart(2, '0')}-${y}.`);
     }
   }
-}
+
   // 🔹 5. Automatisch opruimen van meldingen ouder dan 30 dagen
   const notifCol = collection(db, 'users', uid, 'notifications');
   const notifSnap = await getDocs(notifCol);
-  const now = new Date();
+  const nowClean = new Date();
 
   notifSnap.forEach(async (docSnap) => {
     const n = docSnap.data();
     if (n.timestamp) {
       const created = new Date(n.timestamp);
-      const ageDays = (now - created) / (1000 * 60 * 60 * 24);
+      const ageDays = (nowClean - created) / (1000 * 60 * 60 * 24);
       if (ageDays > 30) {
         await deleteDoc(docSnap.ref);
         console.log(`🧹 Oude melding verwijderd (${n.text})`);
       }
     }
   });
+}
+
 
 // ⚙️ Helper
 async function createUniqueNotification(uid, text) {
