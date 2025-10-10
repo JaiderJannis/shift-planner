@@ -697,40 +697,74 @@ async function saveUserData(){
       });
 
       // actions
-      projectTableBody.querySelectorAll('button').forEach(btn=>{
-        btn.addEventListener('click', async ()=>{
-          const ud = getCurrentUserData();
-          const idx = Number(btn.dataset.idx);
-          const p = ud.projects[idx]; if(!p) return;
-          if(btn.dataset.act==='extend'){
-            const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', toDisplayDate(p.end) || '');
-            if(!v) return;
-            p.end = fromDisplayDate(v);
-            await saveUserData(); renderProjects(); renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-          } else {
-            if(!confirm('Project verwijderen?')) return;
-            ud.projects.splice(idx,1);
-            await saveUserData(); 
-            renderProjects(); 
-            renderProjectFilterForMonth();
-            renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-          }
-        });
-      });
+// actions
+projectTableBody.querySelectorAll('button').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const ud = getCurrentUserData();
+    const idx = Number(btn.dataset.idx);
+    const p = ud.projects[idx];
+    if (!p) return;
+
+    if (btn.dataset.act === 'extend') {
+      const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', toDisplayDate(p.end) || '');
+      if (!v) return;
+      p.end = fromDisplayDate(v);
+
+      await saveUserData();
+      renderProjects();
+      renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+      toast('Project verlengd', 'success');
+
+      // 🔔 Melding naar alle gebruikers (behalve admin zelf)
+      const qs = await getDocs(collection(db, 'users'));
+      for (const u of qs.docs) {
+        if (u.id !== currentUserId) {
+          await notifyProjectChange(u.id, 'extended', p.name, v);
+        }
+      }
+    } else if (btn.dataset.act === 'delete') {
+      if (!confirm('Project verwijderen?')) return;
+      ud.projects.splice(idx, 1);
+      await saveUserData();
+      renderProjects();
+      renderProjectFilterForMonth();
+      renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+      toast('Project verwijderd', 'danger');
+    }
+  });
+});
     }
 
-    addProjectBtn?.addEventListener('click', async ()=>{
-      const name = newProjectName.value.trim(); if(!name) return toast('Vul projectnaam in','warning');
-      const ud = getCurrentUserData();
-      ud.projects = ud.projects || [];
-      ud.projects.push({ name, start: newProjectStart.value || null, end: newProjectEnd.value || null });
-      await saveUserData();
-      newProjectName.value = ''; newProjectStart.value=''; newProjectEnd.value='';
-      renderProjects(); 
-      renderProjectFilterForMonth(); 
-      toast('Project toegevoegd','success');
-    });
+addProjectBtn?.addEventListener('click', async () => {
+  const name = newProjectName.value.trim();
+  if (!name) return toast('Vul projectnaam in', 'warning');
 
+  const ud = getCurrentUserData();
+  ud.projects = ud.projects || [];
+  ud.projects.push({
+    name,
+    start: newProjectStart.value || null,
+    end: newProjectEnd.value || null
+  });
+
+  await saveUserData();
+
+  newProjectName.value = '';
+  newProjectStart.value = '';
+  newProjectEnd.value = '';
+
+  renderProjects();
+  renderProjectFilterForMonth();
+  toast('Project toegevoegd', 'success');
+
+  // 🔔 Melding naar alle gebruikers (behalve admin zelf)
+  const qs = await getDocs(collection(db, 'users'));
+  for (const u of qs.docs) {
+    if (u.id !== currentUserId) {
+      await notifyProjectChange(u.id, 'added', name);
+    }
+  }
+});
     // ======= Shifts =======
 function renderShifts() {
   const ud = getCurrentUserData();
@@ -1520,14 +1554,20 @@ notifBtn?.addEventListener('click', () => {
 
 markAllReadBtn?.addEventListener('click', async () => {
   if (!currentUserId) return;
+
   const colRef = collection(db, 'users', currentUserId, 'notifications');
   const snap = await getDocs(colRef);
-  snap.forEach(async (d) => {
-    if (!d.data().read) await updateDoc(d.ref, { read: true });
-  });
-  toast('Alle meldingen gemarkeerd als gelezen', 'success');
-});
 
+  // 🔥 Verwijder alle meldingen
+  const batchDeletes = snap.docs.map(d => deleteDoc(d.ref));
+  await Promise.all(batchDeletes);
+
+  // UI opschonen
+  notifList.innerHTML = '';
+  notifBadge.classList.add('d-none');
+
+  toast('Alle meldingen verwijderd', 'success');
+});
 let lastVisible = null; // houdt bij tot waar we geladen hebben
 
 // 🔁 Laad de eerste reeks meldingen
@@ -1682,6 +1722,22 @@ async function autoCheckNotifications() {
     }
   }
 }
+  // 🔹 5. Automatisch opruimen van meldingen ouder dan 30 dagen
+  const notifCol = collection(db, 'users', uid, 'notifications');
+  const notifSnap = await getDocs(notifCol);
+  const now = new Date();
+
+  notifSnap.forEach(async (docSnap) => {
+    const n = docSnap.data();
+    if (n.timestamp) {
+      const created = new Date(n.timestamp);
+      const ageDays = (now - created) / (1000 * 60 * 60 * 24);
+      if (ageDays > 30) {
+        await deleteDoc(docSnap.ref);
+        console.log(`🧹 Oude melding verwijderd (${n.text})`);
+      }
+    }
+  });
 
 // ⚙️ Helper
 async function createUniqueNotification(uid, text) {
@@ -1698,6 +1754,31 @@ async function createUniqueNotification(uid, text) {
     read: false
   });
   console.log('🔔 Automatische melding aangemaakt:', text);
+}
+// 🔔 Stuur melding naar gebruiker bij projectwijziging (door admin)
+async function notifyProjectChange(uid, type, projectName, newEndDate = null) {
+  const colRef = collection(db, 'users', uid, 'notifications');
+  const todayKey = new Date().toISOString().slice(0, 10);
+  let text = '';
+
+  if (type === 'added') {
+    text = `Admin heeft een nieuw project toegevoegd: ${projectName}`;
+  } else if (type === 'extended') {
+    text = `Admin heeft het project "${projectName}" verlengd tot ${newEndDate}`;
+  }
+
+  const q = query(colRef, where('text', '==', text), where('dateKey', '==', todayKey));
+  const snap = await getDocs(q);
+  if (!snap.empty) return; // voorkomen van dubbele meldingen
+
+  await addDoc(colRef, {
+    text,
+    timestamp: new Date().toISOString(),
+    dateKey: todayKey,
+    read: false
+  });
+
+  console.log('🔔 Melding gestuurd naar gebruiker:', text);
 }
   </script>
 </body>
