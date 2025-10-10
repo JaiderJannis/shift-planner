@@ -637,10 +637,12 @@ function autoProjectForShift(shiftName){
           <td>${p.name}</td>
           <td>${toDisplayDate(p.start)}</td>
           <td>${toDisplayDate(p.end)}</td>
-          <td class="text-end">
-            <button class="btn btn-sm btn-warning me-1" data-idx="${idx}" data-act="extend">Verleng</button>
-            <button class="btn btn-sm btn-danger" data-idx="${idx}" data-act="delete">Verwijder</button>
-          </td>`;
+  <td class="text-center align-middle">
+    <div class="d-flex justify-content-center gap-2">
+      <button class="btn btn-warning btn-sm verlengBtn" data-id="${docSnap.id}">Verleng</button>
+      <button class="btn btn-danger btn-sm removeBtn" data-id="${docSnap.id}">Verwijder</button>
+    </div>
+  </td>`;
         projectTableBody.appendChild(tr);
 
         const o1 = document.createElement('option'); o1.value=p.name; o1.textContent=p.name; newShiftProjectSelect.appendChild(o1);
