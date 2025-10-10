@@ -562,12 +562,17 @@ function autoProjectForShift(shiftName){
       currentUserId = user.uid;
       currentUserName.textContent = user.displayName || user.email;
 
-      await ensureUserDoc(user);
-      await loadAllUsers();
-      ensureDefaultProjects();
-      initSelectors();
-      renderAll();
-      await revealAdminIfNeeded();
+await ensureUserDoc(user);
+await loadAllUsers();
+dataStore.users[currentUserId] = {
+  email: user.email,
+  name: user.displayName || user.email.split('@')[0],
+  role: 'admin'
+};
+ensureDefaultProjects();
+initSelectors();
+renderAll();
+await revealAdminIfNeeded();
     });
 
     logoutBtn?.addEventListener('click', async ()=>{
