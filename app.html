@@ -1215,24 +1215,34 @@ adminUserSelect?.addEventListener('change', async () => {
   const uid = adminUserSelect.value;
   if (!uid) return;
 
-  // Haal data van geselecteerde gebruiker
-  const snap = await getDoc(doc(db, 'users', uid));
-  if (!snap.exists()) return toast('Gebruiker niet gevonden', 'warning');
-  const u = snap.data();
+  try {
+    // Haal Firestore-data van de geselecteerde gebruiker
+    const snap = await getDoc(doc(db, 'users', uid));
+    if (!snap.exists()) {
+      toast('Gebruiker niet gevonden', 'warning');
+      return;
+    }
 
-  // Toon info
-  activeUserLabel.textContent = u.name || u.email || uid;
-  roleSelect.value = u.role || 'user';
+    const u = snap.data();
 
-  // ✅ NIET renderAll() aanroepen (anders verlies je admin-context!)
-  toast(`Gebruiker geladen: ${u.name || uid}`, 'primary');
+    // ✅ Zet de actieve gebruiker in de datastore
+    dataStore.users[uid] = u;
+    dataStore.currentUser = uid;
 
-  // 👇 nieuwe regels
-  document.getElementById('currentUserName').textContent = u?.name || u?.email || uid;
-  document.getElementById('currentUserHistoriek').textContent = u?.name || u?.email || uid;
+    // ✅ Update labels in de UI
+    activeUserLabel.textContent = u.name || u.email || uid;
+    document.getElementById('currentUserName').textContent = u.name || u.email || uid;
+    document.getElementById('currentUserHistoriek').textContent = u.name || u.email || uid;
+    roleSelect.value = u.role || 'user';
 
-  // 🔹 NIET renderAll() aanroepen – anders verlies je admin-context
-  toast(`Gebruiker geladen: ${u.name || uid}`, 'primary');
+    // ✅ Herlaad UI met data van de gekozen gebruiker
+    renderAll();
+
+    toast(`Beheer actief voor ${u.name || uid}`, 'primary');
+  } catch (err) {
+    console.error(err);
+    toast('Fout bij laden van gebruiker', 'danger');
+  }
 });
 
 // ✅ Rol bijwerken
@@ -1254,10 +1264,22 @@ removeUserBtn?.addEventListener('click', async () => {
   const uid = adminUserSelect.value;
   if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
   if (!confirm('Weet je zeker dat je deze gebruiker wilt verwijderen?')) return;
+ // ✅ Bescherming tegen zelfverwijdering
+  if (uid === currentUserId) {
+    return toast('Je kunt jezelf niet verwijderen', 'warning');
+  }
+
   try {
     await deleteDoc(doc(db, 'users', uid));
     toast('Gebruiker verwijderd', 'danger');
+
+    // 🔁 Gebruikerslijst opnieuw laden
     await renderAdminUserSelect();
+
+    // ✅ Terug naar admin zelf na verwijderen
+    dataStore.currentUser = currentUserId;
+    renderAll();
+
   } catch (err) {
     console.error(err);
     toast('Fout bij verwijderen — controleer Firestore-regels', 'danger');
