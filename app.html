@@ -1528,14 +1528,19 @@ markAllReadBtn?.addEventListener('click', async () => {
   toast('Alle meldingen gemarkeerd als gelezen', 'success');
 });
 
-// 🔄 Realtime listener
+let lastVisible = null; // houdt bij tot waar we geladen hebben
+
+// 🔁 Laad de eerste reeks meldingen
 function listenToNotifications(uid) {
   const colRef = collection(db, 'users', uid, 'notifications');
-  const q = query(colRef, orderBy('timestamp', 'desc'), limit(500));
+  const q = query(colRef, orderBy('timestamp', 'desc'), limit(20));
 
   onSnapshot(q, (snapshot) => {
     notifList.innerHTML = '';
     let unread = 0;
+
+    const docs = snapshot.docs;
+    lastVisible = docs[docs.length - 1]; // laatste document bewaren
 
     snapshot.forEach((docSnap) => {
       const n = docSnap.data();
@@ -1552,9 +1557,48 @@ function listenToNotifications(uid) {
 
     notifBadge.textContent = unread;
     notifBadge.classList.toggle('d-none', unread === 0);
+
+    // Toon 'Toon meer' als er minstens 20 meldingen zijn
+    document.getElementById('loadMoreNotifBtn').classList.toggle('d-none', docs.length < 20);
   });
 }
 
+// 📥 Extra meldingen ophalen
+async function loadMoreNotifications(uid) {
+  if (!lastVisible) return;
+  const colRef = collection(db, 'users', uid, 'notifications');
+  const qMore = query(
+    colRef,
+    orderBy('timestamp', 'desc'),
+    startAfter(lastVisible),
+    limit(20)
+  );
+
+  const snap = await getDocs(qMore);
+  if (snap.empty) {
+    document.getElementById('loadMoreNotifBtn').classList.add('d-none');
+    return;
+  }
+
+  snap.forEach((docSnap) => {
+    const n = docSnap.data();
+    const time = n.timestamp ? new Date(n.timestamp).toLocaleString('nl-BE') : '';
+    const li = document.createElement('li');
+    li.className = `mb-1 p-1 rounded ${n.read ? '' : 'bg-light unread'}`;
+    li.innerHTML = `
+      <div>${n.text}</div>
+      <div class="text-muted small">${time}</div>
+    `;
+    notifList.appendChild(li);
+  });
+
+  lastVisible = snap.docs[snap.docs.length - 1]; // update naar nieuw einde
+}
+
+// 🎛️ Koppel knop aan event
+document.getElementById('loadMoreNotifBtn')?.addEventListener('click', async () => {
+  await loadMoreNotifications(currentUserId);
+});
 // ✅ Start luisteren na login
 onAuthStateChanged(auth, async (user) => {
   if (user) {
