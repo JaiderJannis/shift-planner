@@ -1722,7 +1722,6 @@ async function autoCheckNotifications() {
       await createUniqueNotification(uid, `Geen shift ingevuld op ${String(day).padStart(2, '0')}-${String(m + 1).padStart(2, '0')}-${y}.`);
     }
   }
-}
   // 🔹 5. Automatisch opruimen van meldingen ouder dan 30 dagen
   const notifCol = collection(db, 'users', uid, 'notifications');
   const notifSnap = await getDocs(notifCol);
