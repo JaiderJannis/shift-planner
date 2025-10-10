@@ -69,6 +69,13 @@
 .drag-handle:hover { color: #0d6efd; transform: scale(1.15); }
 .sortable-chosen { background-color: #f0f8ff !important; }
 .sortable-ghost { opacity: 0.6; }
+#quickTopBtn {
+  box-shadow: 0 0 4px rgba(13,110,253,.4);
+  transition: transform .15s ease;
+}
+#quickTopBtn:hover {
+  transform: scale(1.05);
+}
   </style>
 </head>
 <body>
@@ -104,14 +111,21 @@
   <nav class="sp-topbar">
     <div class="container-fluid h-100 d-flex align-items-center justify-content-between">
       <div class="d-flex align-items-center gap-2">
-        <button id="sidebarToggle" class="btn btn-outline-primary btn-sm d-none d-md-inline-flex">
-          <span class="material-icons-outlined">menu_open</span>
-        </button>
-        <button id="sidebarMobile" class="btn btn-outline-primary btn-sm d-inline-flex d-md-none">
-          <span class="material-icons-outlined">menu</span>
-        </button>
-        <div class="chip d-none d-sm-inline-flex"><span class="dot"></span> <span id="envBadge">Online</span></div>
-      </div>
+  <button id="sidebarToggle" class="btn btn-outline-primary btn-sm d-none d-md-inline-flex">
+    <span class="material-icons-outlined">menu_open</span>
+  </button>
+  <button id="sidebarMobile" class="btn btn-outline-primary btn-sm d-inline-flex d-md-none">
+    <span class="material-icons-outlined">menu</span>
+  </button>
+
+  <!-- ✅ Nieuw: Snelle invoer-knop -->
+  <button id="quickTopBtn" class="btn btn-primary btn-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#quickModal">
+    <span class="material-icons-outlined">event</span> 
+    <span class="d-none d-sm-inline">Snelle invoer</span>
+  </button>
+
+  <div class="chip d-none d-sm-inline-flex"><span class="dot"></span> <span id="envBadge">Online</span></div>
+</div>
 
       <div class="d-flex align-items-center gap-3">
         <span class="text-secondary small">Ingelogd als <strong id="currentUserName">-</strong></span>
