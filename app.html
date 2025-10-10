@@ -117,7 +117,6 @@
         <span class="text-secondary small">Ingelogd als <strong id="currentUserName">-</strong></span>
         <button id="logoutBtn" class="btn btn-outline-danger btn-sm">
           <span class="material-icons-outlined">logout</span>
-          Uitloggen
         </button>
       </div>
     </div>
@@ -1212,15 +1211,13 @@ async function renderAdminUserSelect() {
 }
 
 // ✅ Gebruiker wisselen
-adminUserSelect?.addEventListener('change', async () => {
+adminUserSelect.addEventListener('change', async () => {
   const uid = adminUserSelect.value;
   if (!uid) return;
-
-  dataStore.currentUser = uid;
-
-  if (!dataStore.users[uid]) {
-    const snap = await getDoc(doc(db, 'users', uid));
-    if (snap.exists()) dataStore.users[uid] = snap.data();
+  const snap = await getDoc(doc(db, 'users', uid));
+  if (snap.exists()) {
+    const u = snap.data();
+    roleSelect.value = u.role || 'user';
   }
 
   const u = dataStore.users[uid];
@@ -1239,9 +1236,15 @@ updateRoleBtn?.addEventListener('click', async () => {
   const uid = adminUserSelect.value;
   const newRole = roleSelect.value;
   if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
-  await updateDoc(doc(db, 'users', uid), { role: newRole });
-  toast('Rol aangepast', 'success');
-  await renderAdminUserSelect();
+
+  try {
+    await updateDoc(doc(db, 'users', uid), { role: newRole });
+    toast(`Rol van gebruiker aangepast naar ${newRole}`, 'success');
+    await renderAdminUserSelect(); // herladen
+  } catch (err) {
+    console.error(err);
+    toast('Fout: geen schrijfrechten. Controleer Firestore-regels.', 'danger');
+  }
 });
 
 // ✅ Gebruiker verwijderen
@@ -1249,9 +1252,15 @@ removeUserBtn?.addEventListener('click', async () => {
   const uid = adminUserSelect.value;
   if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
   if (!confirm('Weet je zeker dat je deze gebruiker wilt verwijderen?')) return;
-  await deleteDoc(doc(db, 'users', uid));
-  toast('Gebruiker verwijderd', 'danger');
-  await renderAdminUserSelect();
+
+  try {
+    await deleteDoc(doc(db, 'users', uid));
+    toast('Gebruiker verwijderd', 'danger');
+    await renderAdminUserSelect();
+  } catch (err) {
+    console.error(err);
+    toast('Fout bij verwijderen. Controleer Firestore-regels.', 'danger');
+  }
 });
 
     // ======= Converter =======
