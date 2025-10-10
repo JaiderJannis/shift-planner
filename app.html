@@ -1557,15 +1557,21 @@ function listenToNotifications(uid) {
 
 // ✅ Start luisteren na login
 onAuthStateChanged(auth, async (user) => {
-  if (user) listenToNotifications(user.uid);
+  if (user) {
+    listenToNotifications(user.uid);
+
+    // 🕒 Start automatische meldingensysteem
+    await autoCheckNotifications(); // direct uitvoeren bij login
+
+    // 🔁 Herhaal automatisch elke 6 uur (21600000 ms)
+    setInterval(async () => {
+      await autoCheckNotifications();
+    }, 21600000);
+  }
 });
 // 🔔 Automatisch meldingsysteem
 async function autoCheckNotifications() {
- console.log('🟢 AutoCheck gestart'); // 👈 testlog
   if (!currentUserId) return;
-
-  // 🔥 Testmelding forceren
-  await createUniqueNotification(currentUserId, '🔥 Testmelding — systeem actief!');
   const uid = currentUserId;
   const ud = getCurrentUserData();
   if (!ud || !ud.monthData) return;
