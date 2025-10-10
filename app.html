@@ -198,9 +198,6 @@
   </div>
 
   <div class="d-flex gap-2">
-    <button id="quickInputBtn" class="btn btn-primary btn-sm">
-      <i class="bi bi-lightning-fill me-1"></i> Snelle invoer
-    </button>
     <button id="exportPdfBtn" class="btn btn-outline-danger btn-sm">
       <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
     </button>
@@ -1371,78 +1368,91 @@ document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
     return toast('Geen data voor deze maand', 'warning');
   }
 
-  // === HEADERBALK (branding) ===
+  // === Header met branding ===
   const pageWidth = doc.internal.pageSize.width;
-  doc.setFillColor(13, 110, 253); // Bootstrap blauw
-  doc.rect(0, 0, pageWidth, 25, 'F'); // Blauwe kopbalk
-
+  doc.setFillColor(13, 110, 253);
+  doc.rect(0, 0, pageWidth, 25, 'F');
   doc.setFontSize(16);
   doc.setTextColor(255, 255, 255);
   doc.text('Shift Planner', 14, 15);
   doc.setFontSize(11);
   doc.text(`${monthName} ${year}`, pageWidth - 50, 15);
 
-  // === Gebruikersinfo onder de balk ===
+  // Gebruikersinfo
   doc.setTextColor(0, 0, 0);
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.text(`Gebruiker: ${ud.name || ud.email || '-'}`, 14, 32);
-  doc.text(`Exportdatum: ${new Date().toLocaleDateString('nl-BE')}`, 14, 38);
+  doc.text(`Exportdatum: ${new Date().toLocaleDateString('nl-BE')}`, 14, 37);
 
-  // === Data tabel ===
-  const body = [];
-  Object.entries(md.rows).forEach(([key, r]) => {
-    const date = key.split('-').reverse().join('-');
-    const duration = `${Math.floor(r.minutes / 60)}u ${r.minutes % 60}m`;
-    body.push([
-      date,
-      r.project || '-',
-      r.shift || '-',
-      r.start || '',
-      r.end || '',
-      r.break || 0,
-      duration,
-      r.omschrijving || ''
-    ]);
-  });
+  // === Data voorbereiden ===
+  const body = Object.entries(md.rows)
+    .sort(([a], [b]) => a.localeCompare(b)) // chronologisch sorteren
+    .map(([key, r]) => {
+      const date = key.split('-').reverse().join('-');
+      const duration = `${Math.floor(r.minutes / 60)}u ${r.minutes % 60}m`;
+      return [
+        date,
+        r.project || '-',
+        r.shift || '-',
+        r.start || '',
+        r.end || '',
+        r.break || 0,
+        duration,
+        r.omschrijving || ''
+      ];
+    });
 
+  // === AutoTable met compacte styling ===
   doc.autoTable({
     head: [['Datum', 'Project', 'Shift', 'Start', 'Einde', 'Pauze', 'Duur', 'Omschrijving']],
     body,
-    startY: 45,
+    startY: 43,
     theme: 'grid',
-    styles: { fontSize: 9, cellPadding: 2 },
-    headStyles: { fillColor: [13, 110, 253], textColor: 255, fontStyle: 'bold' },
-    alternateRowStyles: { fillColor: [245, 247, 251] },
-    margin: { left: 10, right: 10 },
-    didDrawPage: function (data) {
+    styles: {
+      fontSize: 8,
+      cellPadding: 1.5,
+      lineWidth: 0.1
+    },
+    headStyles: { fillColor: [13, 110, 253], textColor: 255 },
+    alternateRowStyles: { fillColor: [248, 249, 252] },
+    margin: { left: 8, right: 8 },
+    tableWidth: 'auto',
+    columnStyles: {
+      0: { cellWidth: 20 }, // datum
+      1: { cellWidth: 30 }, // project
+      2: { cellWidth: 25 }, // shift
+      3: { cellWidth: 15 }, // start
+      4: { cellWidth: 15 }, // einde
+      5: { cellWidth: 12 }, // pauze
+      6: { cellWidth: 18 }, // duur
+      7: { cellWidth: 'auto' } // omschrijving
+    },
+    didDrawPage: (data) => {
       const pageCount = doc.internal.getNumberOfPages();
-      const pageSize = doc.internal.pageSize;
-      const pageHeight = pageSize.height;
-
-      // Footer balk
-      doc.setFontSize(9);
-      doc.setTextColor(150);
-      doc.text(`Pagina ${pageCount}`, pageWidth - 30, pageHeight - 10);
+      const pageHeight = doc.internal.pageSize.height;
+      doc.setFontSize(8);
+      doc.setTextColor(120);
+      doc.text(`Pagina ${pageCount}`, pageWidth - 30, pageHeight - 8);
     }
   });
 
-  // === Samenvatting ===
+  // === Samenvatting onder tabel ===
   const total = Object.values(md.rows).reduce((s, r) => s + (r.minutes || 0), 0);
   const doel = ((md.targetHours || 0) * 60) + (md.targetMinutes || 0);
   const diff = total - doel;
   const fmt = v => `${Math.floor(v / 60)}u ${v % 60}m`;
+  const endY = doc.lastAutoTable.finalY + 6;
 
-  const endY = doc.lastAutoTable.finalY + 10;
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.setTextColor(13, 110, 253);
   doc.text('Maandoverzicht', 14, endY);
   doc.setTextColor(0, 0, 0);
-  doc.setFontSize(10);
-  doc.text(`Doel: ${fmt(doel)}`, 20, endY + 6);
-  doc.text(`Gepland: ${fmt(total)}`, 20, endY + 12);
-  doc.text(`Verschil: ${(diff >= 0 ? '+' : '-') + fmt(Math.abs(diff))}`, 20, endY + 18);
+  doc.setFontSize(9);
+  doc.text(`Doel: ${fmt(doel)}`, 20, endY + 5);
+  doc.text(`Gepland: ${fmt(total)}`, 20, endY + 10);
+  doc.text(`Verschil: ${(diff >= 0 ? '+' : '-') + fmt(Math.abs(diff))}`, 20, endY + 15);
 
-  // === Opslaan ===
+  // === PDF genereren ===
   const filename = `Shiftplanning_${ud.name || 'gebruiker'}_${monthName}_${year}.pdf`;
   doc.save(filename);
   toast('PDF geëxporteerd', 'success');
