@@ -80,6 +80,16 @@
   color: #fff !important;
   transform: scale(1.05);
 }
+#viewBanner {
+  border-left: 5px solid #fd7e14;
+  background-color: #fff7e6;
+  font-size: 0.9rem;
+  animation: fadeIn 0.4s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
   </style>
 </head>
 <body>
@@ -289,8 +299,13 @@
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h5 class="mb-0">Admin beheer</h5>
     <div class="text-secondary small">
-      Actief: <strong id="activeUserLabel">-</strong>
+      Ingelogd als: <strong id="adminSelfLabel">-</strong>
     </div>
+  </div>
+
+  <!-- 👇 Nieuw: melding wie wordt beheerd -->
+  <div id="viewBanner" class="alert alert-warning py-2 px-3 mb-3 d-none">
+    <strong>Beheer actief voor:</strong> <span id="viewedUserName">-</span>
   </div>
 
   <div class="card p-3 mb-3">
@@ -1273,6 +1288,15 @@ adminUserSelect?.addEventListener('change', async () => {
     dataStore.currentUser = currentUserId;
 
     toast(`Gebruiker geladen: ${u.name || uid}`, 'primary');
+    // ✅ Toon visuele banner met actieve gebruiker
+const viewBanner = document.getElementById('viewBanner');
+const viewedUserName = document.getElementById('viewedUserName');
+viewBanner.classList.remove('d-none');
+viewedUserName.textContent = u.name || u.email || uid;
+
+// ✅ Toon ingelogde admin links bovenaan
+document.getElementById('adminSelfLabel').textContent =
+  dataStore.users[currentUserId]?.name || 'Admin';
   } catch (err) {
     console.error(err);
     toast('Fout bij laden van gebruiker', 'danger');
