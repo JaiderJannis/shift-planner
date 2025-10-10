@@ -1569,7 +1569,7 @@ onAuthStateChanged(auth, async (user) => {
     }, 21600000);
   }
 });
-// 🔔 Automatisch meldingsysteem
+// 🔔 Automatisch meldingsysteem (uitgebreid: controleert alle dagen)
 async function autoCheckNotifications() {
   if (!currentUserId) return;
   const uid = currentUserId;
@@ -1579,7 +1579,6 @@ async function autoCheckNotifications() {
   const today = new Date();
   const year = today.getFullYear();
   const month = today.getMonth();
-
   const monthData = ud.monthData?.[year]?.[month];
   if (!monthData) return;
 
@@ -1619,6 +1618,16 @@ async function autoCheckNotifications() {
   if (soon?.length) {
     const names = soon.map(p => p.name).join(', ');
     await createUniqueNotification(uid, `Project(en) bijna afgelopen: ${names}`);
+  }
+
+  // 🔹 4. NIEUW — controleer ALLE afgelopen dagen in deze maand
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  for (let d = 1; d < today.getDate(); d++) {
+    const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const r = rows[key];
+    if (!r || !r.shift) {
+      await createUniqueNotification(uid, `Geen shift ingevuld op ${String(d).padStart(2, '0')}-${String(month + 1).padStart(2, '0')}-${year}.`);
+    }
   }
 }
 
