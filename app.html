@@ -577,7 +577,9 @@ function autoProjectForShift(shiftName){
         if(Object.keys(updates).length) await updateDoc(ref, updates);
       }
     }
-
+function getActiveUserId() {
+  return dataStore.viewUserId || dataStore.currentUser;
+}
     // ======= Data loading/saving =======
     async function loadAllUsers(){
       const meRef = doc(db,'users', currentUserId);
@@ -593,18 +595,19 @@ function autoProjectForShift(shiftName){
       dataStore.currentUser = currentUserId;
     }
 
-    async function saveUserData(){
-      if(!dataStore.currentUser) return;
-      const ref = doc(db,'users', dataStore.currentUser);
-      await setDoc(ref, dataStore.users[dataStore.currentUser], { merge: true });
-    }
+async function saveUserData(){
+  const id = getActiveUserId();
+  if (!id) return;
+  const ref = doc(db,'users', id);
+  await setDoc(ref, dataStore.users[id], { merge: true });
+}
 
-    function getCurrentUserData(){
-      const id = dataStore.currentUser;
-      if(!id) return { shifts:{}, monthData:{}, projects:[], shiftOrder:[] };
-      if(!dataStore.users[id]) dataStore.users[id] = { shifts:{}, monthData:{}, projects:[], shiftOrder:[] };
-      return dataStore.users[id];
-    }
+   function getCurrentUserData() {
+  const id = getActiveUserId();
+  if (!id) return { shifts:{}, monthData:{}, projects:[], shiftOrder:[] };
+  if (!dataStore.users[id]) dataStore.users[id] = { shifts:{}, monthData:{}, projects:[], shiftOrder:[] };
+  return dataStore.users[id];
+}
 
     // ======= UI init =======
     function initSelectors(){
