@@ -156,21 +156,38 @@
 
       <!-- INVOER -->
       <section id="tab-invoer" class="tab-pane fade">
-        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
-          <h5 class="mb-0">Invoer</h5>
-          <div class="d-flex flex-wrap gap-2">
-            <select id="monthSelectMain" class="form-select form-select-sm">
-              <option value="0">Januari</option><option value="1">Februari</option><option value="2">Maart</option>
-              <option value="3">April</option><option value="4">Mei</option><option value="5">Juni</option>
-              <option value="6">Juli</option><option value="7">Augustus</option><option value="8">September</option>
-              <option value="9">Oktober</option><option value="10">November</option><option value="11">December</option>
-            </select>
-            <select id="yearSelectMain" class="form-select form-select-sm"></select>
-            <select id="projectFilterSelect" class="form-select form-select-sm">
-              <option value="">Alle projecten</option>
-            </select>
-          </div>
-        </div>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="d-flex gap-2">
+    <select id="monthSelectMain" class="form-select form-select-sm w-auto">
+      <option value="0">Januari</option>
+      <option value="1">Februari</option>
+      <option value="2">Maart</option>
+      <option value="3">April</option>
+      <option value="4">Mei</option>
+      <option value="5">Juni</option>
+      <option value="6">Juli</option>
+      <option value="7">Augustus</option>
+      <option value="8">September</option>
+      <option value="9">Oktober</option>
+      <option value="10">November</option>
+      <option value="11">December</option>
+    </select>
+
+    <select id="yearSelectMain" class="form-select form-select-sm w-auto"></select>
+    <select id="projectFilterSelect" class="form-select form-select-sm w-auto">
+      <option value="">Alle projecten</option>
+    </select>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button id="quickInputBtn" class="btn btn-primary btn-sm">
+      <i class="bi bi-lightning-fill me-1"></i> Snelle invoer
+    </button>
+    <button id="exportPdfBtn" class="btn btn-outline-danger btn-sm">
+      <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
+    </button>
+  </div>
+</div>
 
         <div class="row g-3 mb-3">
           <div class="col-6 col-md-2">
@@ -198,12 +215,6 @@
           <div class="col-sm-4"><strong>Doel totaal:</strong> <span id="inputTotDoel" class="text-mono">0u 0min</span></div>
           <div class="col-sm-4"><strong>Totaal uren:</strong> <span id="inputTotGepland" class="text-mono">0u 0min</span></div>
           <div class="col-sm-4"><strong>Verschil:</strong> <span id="inputTotVerschil" class="text-mono">0u 0min</span></div>
-        </div>
-
-        <div class="mt-3">
-          <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#quickModal">
-            <span class="material-icons-outlined">event</span> Snelle invoer
-          </button>
         </div>
       </section>
 
@@ -378,6 +389,9 @@
 
   <!-- Bootstrap -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- JSPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <!-- ✅ SortableJS voor drag & drop -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   <!-- Firebase (Modular CDN) -->
@@ -1324,6 +1338,98 @@ removeUserBtn?.addEventListener('click', async () => {
       generateMonth();
       renderAdminUserSelect();
     }
+     // ✅ Plaats DIT hier:
+document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+  const monthIndex = Number(document.getElementById('monthSelectMain').value);
+  const year = document.getElementById('yearSelectMain').value;
+  const monthName = monthsFull[monthIndex];
+  const ud = getCurrentUserData();
+  const md = ud.monthData?.[year]?.[monthIndex];
+
+  if (!md || !md.rows || Object.keys(md.rows).length === 0) {
+    return toast('Geen data voor deze maand', 'warning');
+  }
+
+  // === HEADERBALK (branding) ===
+  const pageWidth = doc.internal.pageSize.width;
+  doc.setFillColor(13, 110, 253); // Bootstrap blauw
+  doc.rect(0, 0, pageWidth, 25, 'F'); // Blauwe kopbalk
+
+  doc.setFontSize(16);
+  doc.setTextColor(255, 255, 255);
+  doc.text('Shift Planner', 14, 15);
+  doc.setFontSize(11);
+  doc.text(`${monthName} ${year}`, pageWidth - 50, 15);
+
+  // === Gebruikersinfo onder de balk ===
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(10);
+  doc.text(`Gebruiker: ${ud.name || ud.email || '-'}`, 14, 32);
+  doc.text(`Exportdatum: ${new Date().toLocaleDateString('nl-BE')}`, 14, 38);
+
+  // === Data tabel ===
+  const body = [];
+  Object.entries(md.rows).forEach(([key, r]) => {
+    const date = key.split('-').reverse().join('-');
+    const duration = `${Math.floor(r.minutes / 60)}u ${r.minutes % 60}m`;
+    body.push([
+      date,
+      r.project || '-',
+      r.shift || '-',
+      r.start || '',
+      r.end || '',
+      r.break || 0,
+      duration,
+      r.omschrijving || ''
+    ]);
+  });
+
+  doc.autoTable({
+    head: [['Datum', 'Project', 'Shift', 'Start', 'Einde', 'Pauze', 'Duur', 'Omschrijving']],
+    body,
+    startY: 45,
+    theme: 'grid',
+    styles: { fontSize: 9, cellPadding: 2 },
+    headStyles: { fillColor: [13, 110, 253], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [245, 247, 251] },
+    margin: { left: 10, right: 10 },
+    didDrawPage: function (data) {
+      const pageCount = doc.internal.getNumberOfPages();
+      const pageSize = doc.internal.pageSize;
+      const pageHeight = pageSize.height;
+
+      // Footer balk
+      doc.setFontSize(9);
+      doc.setTextColor(150);
+      doc.text(`Pagina ${pageCount}`, pageWidth - 30, pageHeight - 10);
+    }
+  });
+
+  // === Samenvatting ===
+  const total = Object.values(md.rows).reduce((s, r) => s + (r.minutes || 0), 0);
+  const doel = ((md.targetHours || 0) * 60) + (md.targetMinutes || 0);
+  const diff = total - doel;
+  const fmt = v => `${Math.floor(v / 60)}u ${v % 60}m`;
+
+  const endY = doc.lastAutoTable.finalY + 10;
+  doc.setFontSize(12);
+  doc.setTextColor(13, 110, 253);
+  doc.text('Maandoverzicht', 14, endY);
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(10);
+  doc.text(`Doel: ${fmt(doel)}`, 20, endY + 6);
+  doc.text(`Gepland: ${fmt(total)}`, 20, endY + 12);
+  doc.text(`Verschil: ${(diff >= 0 ? '+' : '-') + fmt(Math.abs(diff))}`, 20, endY + 18);
+
+  // === Opslaan ===
+  const filename = `Shiftplanning_${ud.name || 'gebruiker'}_${monthName}_${year}.pdf`;
+  doc.save(filename);
+  toast('PDF geëxporteerd', 'success');
+});
+
   </script>
 </body>
 </html>
