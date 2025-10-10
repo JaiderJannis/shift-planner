@@ -1569,7 +1569,7 @@ onAuthStateChanged(auth, async (user) => {
     }, 21600000);
   }
 });
-// 🔔 Automatisch meldingsysteem (uitgebreid: controleert alle dagen)
+// 🔔 Automatisch meldingsysteem — controleert volledige jaar
 async function autoCheckNotifications() {
   if (!currentUserId) return;
   const uid = currentUserId;
@@ -1577,12 +1577,7 @@ async function autoCheckNotifications() {
   if (!ud || !ud.monthData) return;
 
   const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const monthData = ud.monthData?.[year]?.[month];
-  if (!monthData) return;
-
-  const rows = monthData.rows || {};
+  const currentYear = today.getFullYear();
 
   // 🔹 1. Controleer of gebruiker deze week nog niets heeft ingevoerd
   const now = new Date();
@@ -1596,14 +1591,21 @@ async function autoCheckNotifications() {
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     weekKeys.push(key);
   }
-  const hasShiftThisWeek = weekKeys.some(k => rows[k]?.shift);
+
+  const currentMonthData = ud.monthData?.[currentYear]?.[today.getMonth()] || {};
+  const hasShiftThisWeek = weekKeys.some(k => {
+    const [y, m] = k.split('-').map(Number);
+    return ud.monthData?.[y]?.[m - 1]?.rows?.[k]?.shift;
+  });
+
   if (!hasShiftThisWeek) {
     await createUniqueNotification(uid, 'Je hebt deze week nog geen shifts ingevuld.');
   }
 
-  // 🔹 2. Controleer maanddoel vs. werkelijk
-  const doel = (monthData.targetHours || 0) * 60 + (monthData.targetMinutes || 0);
-  const gepland = Object.values(rows).reduce((s, r) => s + (r.minutes || 0), 0);
+  // 🔹 2. Controleer maanddoel vs. werkelijk (alleen huidige maand)
+  const md = currentMonthData;
+  const doel = (md.targetHours || 0) * 60 + (md.targetMinutes || 0);
+  const gepland = Object.values(md.rows || {}).reduce((s, r) => s + (r.minutes || 0), 0);
   if (doel > 0 && gepland < doel * 0.8) {
     await createUniqueNotification(uid, 'Je hebt nog minder dan 80% van je maanddoel behaald.');
   }
@@ -1613,20 +1615,26 @@ async function autoCheckNotifications() {
     if (!p.end) return false;
     const end = new Date(p.end);
     const diff = (end - today) / (1000 * 60 * 60 * 24);
-    return diff > 0 && diff < 14;
+    return diff > 0 && diff < 14; // binnen 2 weken
   });
   if (soon?.length) {
     const names = soon.map(p => p.name).join(', ');
     await createUniqueNotification(uid, `Project(en) bijna afgelopen: ${names}`);
   }
 
-  // 🔹 4. NIEUW — controleer ALLE afgelopen dagen in deze maand
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  for (let d = 1; d < today.getDate(); d++) {
-    const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const r = rows[key];
+  // 🔹 4. NIEUW — controleer ALLE dagen van het lopende jaar
+  const startOfYear = new Date(currentYear, 0, 1);
+  const endOfYear = new Date(today);
+  for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) {
+    const y = d.getFullYear();
+    const m = d.getMonth();
+    const day = d.getDate();
+    const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const monthData = ud.monthData?.[y]?.[m];
+    const r = monthData?.rows?.[key];
+
     if (!r || !r.shift) {
-      await createUniqueNotification(uid, `Geen shift ingevuld op ${String(d).padStart(2, '0')}-${String(month + 1).padStart(2, '0')}-${year}.`);
+      await createUniqueNotification(uid, `Geen shift ingevuld op ${String(day).padStart(2, '0')}-${String(m + 1).padStart(2, '0')}-${y}.`);
     }
   }
 }
