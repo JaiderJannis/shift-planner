@@ -80,16 +80,6 @@
   color: #fff !important;
   transform: scale(1.05);
 }
-#viewBanner {
-  border-left: 5px solid #fd7e14;
-  background-color: #fff7e6;
-  font-size: 0.9rem;
-  animation: fadeIn 0.4s ease;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-5px); }
-  to { opacity: 1; transform: translateY(0); }
-}
   </style>
 </head>
 <body>
@@ -299,13 +289,8 @@
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h5 class="mb-0">Admin beheer</h5>
     <div class="text-secondary small">
-      Ingelogd als: <strong id="adminSelfLabel">-</strong>
+      Actief: <strong id="activeUserLabel">-</strong>
     </div>
-  </div>
-
-  <!-- 👇 Nieuw: melding wie wordt beheerd -->
-  <div id="viewBanner" class="alert alert-warning py-2 px-3 mb-3 d-none">
-    <strong>Beheer actief voor:</strong> <span id="viewedUserName">-</span>
   </div>
 
   <div class="card p-3 mb-3">
@@ -562,17 +547,12 @@ function autoProjectForShift(shiftName){
       currentUserId = user.uid;
       currentUserName.textContent = user.displayName || user.email;
 
-await ensureUserDoc(user);
-await loadAllUsers();
-dataStore.users[currentUserId] = {
-  email: user.email,
-  name: user.displayName || user.email.split('@')[0],
-  role: 'admin'
-};
-ensureDefaultProjects();
-initSelectors();
-renderAll();
-await revealAdminIfNeeded();
+      await ensureUserDoc(user);
+      await loadAllUsers();
+      ensureDefaultProjects();
+      initSelectors();
+      renderAll();
+      await revealAdminIfNeeded();
     });
 
     logoutBtn?.addEventListener('click', async ()=>{
@@ -1259,14 +1239,13 @@ async function renderAdminUserSelect() {
     dataStore.users[dataStore.currentUser]?.name || '-';
 }
 
-// ✅ Gebruiker selecteren in admin (scheiding tussen admin en bekijk-gebruiker)
-let viewUserId = null;
-
+// ✅ Gebruiker selecteren in admin
 adminUserSelect?.addEventListener('change', async () => {
   const uid = adminUserSelect.value;
   if (!uid) return;
 
   try {
+    // Haal Firestore-data van de geselecteerde gebruiker
     const snap = await getDoc(doc(db, 'users', uid));
     if (!snap.exists()) {
       toast('Gebruiker niet gevonden', 'warning');
@@ -1275,33 +1254,20 @@ adminUserSelect?.addEventListener('change', async () => {
 
     const u = snap.data();
 
-    // Bewaar wie we bekijken (niet verwarren met wie is ingelogd)
-    viewUserId = uid;
+    // ✅ Zet de actieve gebruiker in de datastore
     dataStore.users[uid] = u;
+    dataStore.currentUser = uid;
 
-    // UI bijwerken
+    // ✅ Update labels in de UI
     activeUserLabel.textContent = u.name || u.email || uid;
-    roleSelect.value = u.role || 'user';
     document.getElementById('currentUserName').textContent = u.name || u.email || uid;
     document.getElementById('currentUserHistoriek').textContent = u.name || u.email || uid;
+    roleSelect.value = u.role || 'user';
 
-    // Render interface voor de geselecteerde gebruiker
-    dataStore.currentUser = uid;
+    // ✅ Herlaad UI met data van de gekozen gebruiker
     renderAll();
 
-    // Zet terug naar de admin in de datastore (zodat jij adminrechten behoudt)
-    dataStore.currentUser = currentUserId;
-
-    toast(`Gebruiker geladen: ${u.name || uid}`, 'primary');
-    // ✅ Toon visuele banner met actieve gebruiker
-const viewBanner = document.getElementById('viewBanner');
-const viewedUserName = document.getElementById('viewedUserName');
-viewBanner.classList.remove('d-none');
-viewedUserName.textContent = u.name || u.email || uid;
-
-// ✅ Toon ingelogde admin links bovenaan
-document.getElementById('adminSelfLabel').textContent =
-  dataStore.users[currentUserId]?.name || 'Admin';
+    toast(`Beheer actief voor ${u.name || uid}`, 'primary');
   } catch (err) {
     console.error(err);
     toast('Fout bij laden van gebruiker', 'danger');
