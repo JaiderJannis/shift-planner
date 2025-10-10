@@ -1531,7 +1531,7 @@ markAllReadBtn?.addEventListener('click', async () => {
 // 🔄 Realtime listener
 function listenToNotifications(uid) {
   const colRef = collection(db, 'users', uid, 'notifications');
-  const q = query(colRef, orderBy('timestamp', 'desc'), limit(20));
+  const q = query(colRef, orderBy('timestamp', 'desc'), limit(500));
 
   onSnapshot(q, (snapshot) => {
     notifList.innerHTML = '';
