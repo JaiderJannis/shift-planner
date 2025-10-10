@@ -98,6 +98,17 @@
 .sp-topbar .ms-auto {
   margin-left: auto !important;
 }
+#notifDropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 1050; /* hoger dan navbar */
+  display: none;
+}
+
+#notifDropdown.show {
+  display: block !important;
+}
   </style>
 </head>
 <body>
@@ -1556,9 +1567,22 @@ const notifList = document.getElementById('notifList');
 const notifBadge = document.getElementById('notifBadge');
 const markAllReadBtn = document.getElementById('markAllReadBtn');
 
-notifBtn?.addEventListener('click', () => {
-  if (!notifDropdown) return;
-  notifDropdown.classList.toggle('d-none');
+notifBtn?.addEventListener('click', (e) => {
+  e.stopPropagation(); // voorkom dat klik buiten dropdown het meteen sluit
+
+  // Sluit andere openstaande dropdowns
+  document.querySelectorAll('.dropdown-menu.show').forEach(el => {
+    if (el !== notifDropdown) el.classList.remove('show');
+  });
+
+  notifDropdown.classList.toggle('show');
+});
+
+// Klik buiten dropdown → sluit hem
+document.addEventListener('click', (e) => {
+  if (!notifDropdown.contains(e.target) && e.target !== notifBtn) {
+    notifDropdown.classList.remove('show');
+  }
 });
 
 markAllReadBtn?.addEventListener('click', async () => {
