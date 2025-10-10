@@ -86,6 +86,15 @@
     padding: 6px 10px;
   }
 }
+#notifDropdown {
+  background: #fff;
+  max-height: 300px;
+  overflow-y: auto;
+  right: 0;
+}
+#notifList li.unread {
+  font-weight: 600;
+}
   </style>
 </head>
 <body>
@@ -139,6 +148,25 @@
 
       <div class="d-flex align-items-center gap-3">
         <span class="text-secondary small">Ingelogd als <strong id="currentUserName">-</strong></span>
+<!-- 🔔 Notificatieknop -->
+<div class="position-relative">
+  <button id="notifBtn" class="btn btn-outline-secondary btn-sm position-relative">
+    <span class="material-icons-outlined">notifications</span>
+    <span id="notifBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">0</span>
+  </button>
+
+  <!-- Dropdown -->
+  <div id="notifDropdown" class="card shadow position-absolute end-0 mt-2 d-none" 
+       style="width: 320px; z-index: 1050;">
+    <div class="card-body p-2">
+      <h6 class="border-bottom pb-1 mb-2">Meldingen</h6>
+      <ul id="notifList" class="list-unstyled m-0 small"></ul>
+      <div class="text-center mt-2">
+        <button id="markAllReadBtn" class="btn btn-sm btn-outline-primary">Alles gelezen</button>
+      </div>
+    </div>
+  </div>
+</div>
         <button id="logoutBtn" class="btn btn-outline-danger btn-sm">
           <span class="material-icons-outlined">logout</span>
         </button>
@@ -560,7 +588,9 @@ function autoProjectForShift(shiftName){
       initSelectors();
       renderAll();
       await revealAdminIfNeeded();
-    });
+// ✅ Automatische meldingen uitvoeren
+await autoCheckNotifications();
+});
 
     logoutBtn?.addEventListener('click', async ()=>{
   await signOut(auth);
@@ -1475,7 +1505,129 @@ document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
   doc.save(filename);
   toast('PDF geëxporteerd', 'success');
 });
+// 🔔 In-app notificaties
+import { onSnapshot, where } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
 
+const notifBtn = document.getElementById('notifBtn');
+const notifDropdown = document.getElementById('notifDropdown');
+const notifList = document.getElementById('notifList');
+const notifBadge = document.getElementById('notifBadge');
+const markAllReadBtn = document.getElementById('markAllReadBtn');
+
+notifBtn?.addEventListener('click', () => {
+  notifDropdown.classList.toggle('d-none');
+});
+
+markAllReadBtn?.addEventListener('click', async () => {
+  if (!currentUserId) return;
+  const colRef = collection(db, 'users', currentUserId, 'notifications');
+  const snap = await getDocs(colRef);
+  snap.forEach(async (d) => {
+    if (!d.data().read) await updateDoc(d.ref, { read: true });
+  });
+  toast('Alle meldingen gemarkeerd als gelezen', 'success');
+});
+
+// 🔄 Realtime listener
+function listenToNotifications(uid) {
+  const colRef = collection(db, 'users', uid, 'notifications');
+  const q = query(colRef, orderBy('timestamp', 'desc'), limit(20));
+
+  onSnapshot(q, (snapshot) => {
+    notifList.innerHTML = '';
+    let unread = 0;
+
+    snapshot.forEach((docSnap) => {
+      const n = docSnap.data();
+      const time = n.timestamp ? new Date(n.timestamp).toLocaleString('nl-BE') : '';
+      if (!n.read) unread++;
+      const li = document.createElement('li');
+      li.className = `mb-1 p-1 rounded ${n.read ? '' : 'bg-light unread'}`;
+      li.innerHTML = `
+        <div>${n.text}</div>
+        <div class="text-muted small">${time}</div>
+      `;
+      notifList.appendChild(li);
+    });
+
+    notifBadge.textContent = unread;
+    notifBadge.classList.toggle('d-none', unread === 0);
+  });
+}
+
+// ✅ Start luisteren na login
+onAuthStateChanged(auth, async (user) => {
+  if (user) listenToNotifications(user.uid);
+});
+// 🔔 Automatisch meldingsysteem
+async function autoCheckNotifications() {
+  if (!currentUserId) return;
+  const uid = currentUserId;
+  const ud = getCurrentUserData();
+  if (!ud || !ud.monthData) return;
+
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+
+  const monthData = ud.monthData?.[year]?.[month];
+  if (!monthData) return;
+
+  const rows = monthData.rows || {};
+
+  // 🔹 1. Controleer of gebruiker deze week nog niets heeft ingevoerd
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - dayOfWeek);
+  const weekKeys = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(startOfWeek);
+    d.setDate(startOfWeek.getDate() + i);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    weekKeys.push(key);
+  }
+  const hasShiftThisWeek = weekKeys.some(k => rows[k]?.shift);
+  if (!hasShiftThisWeek) {
+    await createUniqueNotification(uid, 'Je hebt deze week nog geen shifts ingevuld.');
+  }
+
+  // 🔹 2. Controleer maanddoel vs. werkelijk
+  const doel = (monthData.targetHours || 0) * 60 + (monthData.targetMinutes || 0);
+  const gepland = Object.values(rows).reduce((s, r) => s + (r.minutes || 0), 0);
+  if (doel > 0 && gepland < doel * 0.8) {
+    await createUniqueNotification(uid, 'Je hebt nog minder dan 80% van je maanddoel behaald.');
+  }
+
+  // 🔹 3. Controleer of projecten binnenkort aflopen
+  const soon = ud.projects?.filter(p => {
+    if (!p.end) return false;
+    const end = new Date(p.end);
+    const diff = (end - today) / (1000 * 60 * 60 * 24);
+    return diff > 0 && diff < 14;
+  });
+  if (soon?.length) {
+    const names = soon.map(p => p.name).join(', ');
+    await createUniqueNotification(uid, `Project(en) bijna afgelopen: ${names}`);
+  }
+}
+
+// ⚙️ Helper
+async function createUniqueNotification(uid, text) {
+  const colRef = collection(db, 'users', uid, 'notifications');
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const q = query(colRef, where('text', '==', text), where('dateKey', '==', todayKey));
+  const snap = await getDocs(q);
+  if (!snap.empty) return;
+
+  await addDoc(colRef, {
+    text,
+    timestamp: new Date().toISOString(),
+    dateKey: todayKey,
+    read: false
+  });
+  console.log('🔔 Automatische melding aangemaakt:', text);
+}
   </script>
 </body>
 </html>
