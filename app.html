@@ -70,10 +70,14 @@
 .sortable-chosen { background-color: #f0f8ff !important; }
 .sortable-ghost { opacity: 0.6; }
 #quickTopBtn {
-  box-shadow: 0 0 4px rgba(13,110,253,.4);
-  transition: transform .15s ease;
+  border-color: #fd7e14 !important;   /* zachter oranje */
+  color: #fd7e14 !important;
+  transition: all .15s ease;
 }
+
 #quickTopBtn:hover {
+  background-color: #fd7e14 !important;
+  color: #fff !important;
   transform: scale(1.05);
 }
   </style>
@@ -119,8 +123,9 @@
   </button>
 
   <!-- ✅ Nieuw: Snelle invoer-knop -->
-  <button id="quickTopBtn" class="btn btn-primary btn-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#quickModal">
+  <button id="quickTopBtn" class="btn btn-outline-warning btn-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#quickModal">
     <span class="material-icons-outlined">event</span> 
+    <span class="d-none d-sm-inline">Snelle invoer</span>
   </button>
 
   <div class="chip d-none d-sm-inline-flex"><span class="dot"></span> <span id="envBadge">Online</span></div>
