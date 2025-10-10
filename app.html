@@ -1210,25 +1210,29 @@ async function renderAdminUserSelect() {
     dataStore.users[dataStore.currentUser]?.name || '-';
 }
 
-// ✅ Gebruiker wisselen
-adminUserSelect.addEventListener('change', async () => {
+// ✅ Gebruiker selecteren in admin
+adminUserSelect?.addEventListener('change', async () => {
   const uid = adminUserSelect.value;
   if (!uid) return;
-  const snap = await getDoc(doc(db, 'users', uid));
-  if (snap.exists()) {
-    const u = snap.data();
-    roleSelect.value = u.role || 'user';
-  }
 
-  const u = dataStore.users[uid];
-  activeUserLabel.textContent = u?.name || uid;
+  // Haal data van geselecteerde gebruiker
+  const snap = await getDoc(doc(db, 'users', uid));
+  if (!snap.exists()) return toast('Gebruiker niet gevonden', 'warning');
+  const u = snap.data();
+
+  // Toon info
+  activeUserLabel.textContent = u.name || u.email || uid;
+  roleSelect.value = u.role || 'user';
+
+  // ✅ NIET renderAll() aanroepen (anders verlies je admin-context!)
+  toast(`Gebruiker geladen: ${u.name || uid}`, 'primary');
 
   // 👇 nieuwe regels
   document.getElementById('currentUserName').textContent = u?.name || u?.email || uid;
   document.getElementById('currentUserHistoriek').textContent = u?.name || u?.email || uid;
 
-  renderAll();
-  toast(`Beheer actief voor ${u?.name || uid}`, 'primary');
+  // 🔹 NIET renderAll() aanroepen – anders verlies je admin-context
+  toast(`Gebruiker geladen: ${u.name || uid}`, 'primary');
 });
 
 // ✅ Rol bijwerken
@@ -1236,30 +1240,27 @@ updateRoleBtn?.addEventListener('click', async () => {
   const uid = adminUserSelect.value;
   const newRole = roleSelect.value;
   if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
-
   try {
     await updateDoc(doc(db, 'users', uid), { role: newRole });
-    toast(`Rol van gebruiker aangepast naar ${newRole}`, 'success');
-    await renderAdminUserSelect(); // herladen
+    toast(`Rol aangepast naar ${newRole}`, 'success');
+    await renderAdminUserSelect(); // herlaad lijst
   } catch (err) {
     console.error(err);
-    toast('Fout: geen schrijfrechten. Controleer Firestore-regels.', 'danger');
+    toast('Fout bij rol aanpassen — controleer Firestore-regels', 'danger');
   }
 });
 
-// ✅ Gebruiker verwijderen
 removeUserBtn?.addEventListener('click', async () => {
   const uid = adminUserSelect.value;
   if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
   if (!confirm('Weet je zeker dat je deze gebruiker wilt verwijderen?')) return;
-
   try {
     await deleteDoc(doc(db, 'users', uid));
     toast('Gebruiker verwijderd', 'danger');
     await renderAdminUserSelect();
   } catch (err) {
     console.error(err);
-    toast('Fout bij verwijderen. Controleer Firestore-regels.', 'danger');
+    toast('Fout bij verwijderen — controleer Firestore-regels', 'danger');
   }
 });
 
