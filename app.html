@@ -639,8 +639,8 @@ function autoProjectForShift(shiftName){
           <td>${toDisplayDate(p.end)}</td>
   <td class="text-center align-middle">
     <div class="d-flex justify-content-center gap-2">
-      <button class="btn btn-warning btn-sm verlengBtn" data-id="${docSnap.id}">Verleng</button>
-      <button class="btn btn-danger btn-sm removeBtn" data-id="${docSnap.id}">Verwijder</button>
+<button class="btn btn-sm btn-warning me-1" data-name="${p.name}" data-act="extend">Verleng</button>
+<button class="btn btn-sm btn-danger" data-name="${p.name}" data-act="delete">Verwijder</button>
     </div>
   </td>`;
         projectTableBody.appendChild(tr);
@@ -652,9 +652,11 @@ function autoProjectForShift(shiftName){
       // actions
       projectTableBody.querySelectorAll('button').forEach(btn=>{
         btn.addEventListener('click', async ()=>{
-          const ud = getCurrentUserData();
-          const idx = Number(btn.dataset.idx);
-          const p = ud.projects[idx]; if(!p) return;
+    const ud = getCurrentUserData();
+    const name = btn.dataset.name;
+    const p = ud.projects.find(pr => pr.name === name);
+    if (!p) return;
+
           if(btn.dataset.act==='extend'){
             const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', toDisplayDate(p.end) || '');
             if(!v) return;
