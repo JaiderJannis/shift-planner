@@ -1239,13 +1239,14 @@ async function renderAdminUserSelect() {
     dataStore.users[dataStore.currentUser]?.name || '-';
 }
 
-// ✅ Gebruiker selecteren in admin
+// ✅ Gebruiker selecteren in admin (scheiding tussen admin en bekijk-gebruiker)
+let viewUserId = null;
+
 adminUserSelect?.addEventListener('change', async () => {
   const uid = adminUserSelect.value;
   if (!uid) return;
 
   try {
-    // Haal Firestore-data van de geselecteerde gebruiker
     const snap = await getDoc(doc(db, 'users', uid));
     if (!snap.exists()) {
       toast('Gebruiker niet gevonden', 'warning');
@@ -1254,20 +1255,24 @@ adminUserSelect?.addEventListener('change', async () => {
 
     const u = snap.data();
 
-    // ✅ Zet de actieve gebruiker in de datastore
+    // Bewaar wie we bekijken (niet verwarren met wie is ingelogd)
+    viewUserId = uid;
     dataStore.users[uid] = u;
-    dataStore.currentUser = uid;
 
-    // ✅ Update labels in de UI
+    // UI bijwerken
     activeUserLabel.textContent = u.name || u.email || uid;
+    roleSelect.value = u.role || 'user';
     document.getElementById('currentUserName').textContent = u.name || u.email || uid;
     document.getElementById('currentUserHistoriek').textContent = u.name || u.email || uid;
-    roleSelect.value = u.role || 'user';
 
-    // ✅ Herlaad UI met data van de gekozen gebruiker
+    // Render interface voor de geselecteerde gebruiker
+    dataStore.currentUser = uid;
     renderAll();
 
-    toast(`Beheer actief voor ${u.name || uid}`, 'primary');
+    // Zet terug naar de admin in de datastore (zodat jij adminrechten behoudt)
+    dataStore.currentUser = currentUserId;
+
+    toast(`Gebruiker geladen: ${u.name || uid}`, 'primary');
   } catch (err) {
     console.error(err);
     toast('Fout bij laden van gebruiker', 'danger');
