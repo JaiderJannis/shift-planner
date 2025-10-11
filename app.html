@@ -467,7 +467,23 @@
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
     import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, getDocs, addDoc, deleteDoc, collection, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+   import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  getDocs,
+  addDoc,
+  deleteDoc,
+  collection,
+  query,
+  orderBy,
+  limit,
+  onSnapshot,
+  where,
+  startAfter
+} from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
 
     // ===== Firebase config (jouw bestaande waarden) =====
     const firebaseConfig = {
@@ -1559,17 +1575,6 @@ document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
   toast('PDF geëxporteerd', 'success');
 });
 // 🔔 In-app notificaties
-import {
-  collection,
-  query,
-  orderBy,
-  limit,
-  getDocs,
-  onSnapshot,
-  where,
-  startAfter
-} from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
-
 const notifBtn = document.getElementById('notifBtn');
 const notifDropdown = document.getElementById('notifDropdown');
 const notifList = document.getElementById('notifList');
