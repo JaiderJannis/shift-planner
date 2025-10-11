@@ -1559,7 +1559,8 @@ document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
   toast('PDF geëxporteerd', 'success');
 });
 // 🔔 In-app notificaties
-import { onSnapshot, where } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+import { onSnapshot, where, startAfter } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+import { collection, query, orderBy, limit, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
 
 const notifBtn = document.getElementById('notifBtn');
 const notifDropdown = document.getElementById('notifDropdown');
@@ -1712,7 +1713,6 @@ async function autoCheckNotifications() {
 // 🔹 1. Controleer of gebruiker deze week nog niets heeft ingevoerd
 {
   const thisWeek = isoWeekId(new Date());
-
   let hasShiftThisWeek = false;
   const yearMap = ud.monthData || {};
 
@@ -1724,7 +1724,11 @@ async function autoCheckNotifications() {
       for (const key of Object.keys(rowsObj)) {
         const [Y, M, D] = key.split('-').map(Number);
         const rowDate = new Date(Y, M - 1, D);
-        const filled = !!(rowsObj[key]?.shift && rowsObj[key].shift.trim());
+
+        // ✅ Negeer "Vrij weekend"
+        const shiftName = rowsObj[key]?.shift?.trim() || '';
+        const filled = shiftName && shiftName !== 'Vrij weekend';
+
         if (isoWeekId(rowDate) === thisWeek && filled) {
           hasShiftThisWeek = true;
           break;
