@@ -603,7 +603,6 @@ function autoProjectForShift(shiftName){
 
       await ensureUserDoc(user);
       await loadAllUsers();
-      await autoCheckNotifications();
       ensureDefaultProjects();
       initSelectors();
       renderAll();
@@ -1687,6 +1686,19 @@ onAuthStateChanged(auth, async (user) => {
     }, 21600000);
   }
 });
+// helpers bovenin
+function getISOWeekParts(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7;           // ma=1..zo=7
+  d.setUTCDate(d.getUTCDate() + 4 - day);   // naar donderdag
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return { week, year: d.getUTCFullYear() };
+}
+function isoWeekId(date) {
+  const { week, year } = getISOWeekParts(date);
+  return `${year}-W${String(week).padStart(2, '0')}`;
+}
 // 🔔 Automatisch meldingsysteem — controleert volledige jaar
 async function autoCheckNotifications() {
   if (!currentUserId) return;
@@ -1697,31 +1709,39 @@ async function autoCheckNotifications() {
   const today = new Date();
   const currentYear = today.getFullYear();
 
-  // 🔹 1. Controleer of gebruiker deze week nog niets heeft ingevoerd
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - dayOfWeek);
-  const weekKeys = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(startOfWeek);
-    d.setDate(startOfWeek.getDate() + i);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    weekKeys.push(key);
-  }
+// 🔹 1. Controleer of gebruiker deze week nog niets heeft ingevoerd
+{
+  const thisWeek = isoWeekId(new Date());
 
-  const currentMonthData = ud.monthData?.[currentYear]?.[today.getMonth()] || {};
-  const hasShiftThisWeek = weekKeys.some(k => {
-    const [y, m] = k.split('-').map(Number);
-    return ud.monthData?.[y]?.[m - 1]?.rows?.[k]?.shift;
-  });
+  let hasShiftThisWeek = false;
+  const yearMap = ud.monthData || {};
+
+  // Loop alle jaren/maanden/rijen af
+  for (const yStr of Object.keys(yearMap)) {
+    const months = yearMap[yStr] || {};
+    for (const mStr of Object.keys(months)) {
+      const rowsObj = months[mStr]?.rows || {};
+      for (const key of Object.keys(rowsObj)) {
+        const [Y, M, D] = key.split('-').map(Number);
+        const rowDate = new Date(Y, M - 1, D);
+        const filled = !!(rowsObj[key]?.shift && rowsObj[key].shift.trim());
+        if (isoWeekId(rowDate) === thisWeek && filled) {
+          hasShiftThisWeek = true;
+          break;
+        }
+      }
+      if (hasShiftThisWeek) break;
+    }
+    if (hasShiftThisWeek) break;
+  }
 
   if (!hasShiftThisWeek) {
     await createUniqueNotification(uid, 'Je hebt deze week nog geen shifts ingevuld.');
   }
-
+}
+const currentMonthData = ud.monthData?.[currentYear]?.[today.getMonth()] || { rows: {}, targetHours: 0, targetMinutes: 0 };
+const md = currentMonthData;
   // 🔹 2. Controleer maanddoel vs. werkelijk (alleen huidige maand)
-  const md = currentMonthData;
   const doel = (md.targetHours || 0) * 60 + (md.targetMinutes || 0);
   const gepland = Object.values(md.rows || {}).reduce((s, r) => s + (r.minutes || 0), 0);
   if (doel > 0 && gepland < doel * 0.8) {
