@@ -1794,12 +1794,21 @@ for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) 
   const r = rows[key];
   const hasShift = r && typeof r.shift === 'string' && r.shift.trim() !== '';
 
-  if (!hasShift) {
-    await createUniqueNotification(
-      uid,
-      `Geen shift ingevuld op ${String(day).padStart(2, '0')}-${String(m + 1).padStart(2, '0')}-${y}.`
-    );
-  }
+  const skipShifts = ['Vrij weekend', 'Verlof', 'Ziekte', 'Feestdag', 'Schoolverlof', 'Bench'];
+
+// Geen melding voor toekomst
+if (d > today) continue;
+
+// Controleer inhoud
+const shiftName = (r?.shift || '').trim();
+const isEmpty = !shiftName;
+const isSkipped = skipShifts.includes(shiftName);
+
+if (isEmpty && !isSkipped) {
+  await createUniqueNotification(
+    uid,
+    `Geen shift ingevuld op ${String(day).padStart(2, '0')}-${String(m + 1).padStart(2, '0')}-${y}.`
+  );
 }
 
   // 🔹 5. Automatisch opruimen van meldingen ouder dan 30 dagen
