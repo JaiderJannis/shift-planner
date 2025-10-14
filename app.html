@@ -2435,9 +2435,17 @@ async function refreshPlannedDays() {
   const year = Number(document.getElementById('yearSelectMain').value);
   const month = Number(document.getElementById('monthSelectMain').value);
   const ud = getCurrentUserData();
-  const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
+const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
+const currentMonthStr = String(month + 1).padStart(2, '0');
 
-  const plannedDates = Object.keys(maandData).filter(key => key.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`));
+const plannedDates = Object.entries(maandData)
+  .filter(([date, row]) => {
+    const [y, m] = date.split('-');
+    const hasShift = row?.shift && row.shift !== "Niet ingepland" && row.shift.trim() !== "";
+    return y === String(year) && m === currentMonthStr && hasShift;
+  })
+  .map(([date]) => date);
+  console.log("Planned dates:", plannedDates);
   if (window.multiDayPicker) {
     highlightPlannedDays(window.multiDayPicker, plannedDates);
   }
