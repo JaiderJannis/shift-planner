@@ -2242,25 +2242,30 @@ function populateMultiShiftSelect() {
   const ud = getCurrentUserData();
   const sel = document.getElementById('multiShiftName');
   sel.innerHTML = '<option value="">Kies shift</option>';
-  if (!ud || !ud.shifts) return;
+  if (!ud) return;
 
+  // 📅 Huidige maand + jaar
   const year = Number(document.getElementById('yearSelectMain').value);
   const month = Number(document.getElementById('monthSelectMain').value);
 
-  // Loop over alle shifts
-  Object.entries(ud.shifts).forEach(([name, sh]) => {
-    const start = sh.startDate || null;
-    const end = sh.endDate || null;
+  // 🧩 Gebruik de echte shift-definities (niet de ingevoerde dagen)
+  const allShifts = ud.shiftTemplates || ud.shifts || {};
 
-    // Geen periode → altijd zichtbaar
+  Object.entries(allShifts).forEach(([name, shift]) => {
+    // ⛔ sla over als de naam lijkt op een datum
+    if (/^\d{4}-\d{2}-\d{2}$/.test(name)) return;
+
+    const start = shift.startDate || null;
+    const end = shift.endDate || null;
+
+    // Geen periode → altijd tonen
     if (!start && !end) {
       addShiftOption(sel, name);
       return;
     }
 
-    // Alleen toevoegen als de shiftperiode overlapt met de gekozen maand
-    const overlaps = monthOverlapsPeriod(year, month, start, end);
-    if (overlaps) {
+    // Alleen tonen als de shiftperiode overlapt met de huidige maand
+    if (monthOverlapsPeriod(year, month, start, end)) {
       addShiftOption(sel, name);
     }
   });
