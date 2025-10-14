@@ -196,10 +196,12 @@ body.dark-mode .alert-info {
 
 /* 📱 Mobiel — iets breder */
 @media (max-width: 768px) {
-  #remainingHoursAlert {
-    width: 90%;
-    font-size: 0.95rem;
-    bottom: 0.75rem;
+  #exportPdfBtn,
+  #multiDayShiftBtn {
+    width: 100% !important;
+    display: block !important;
+    font-size: 1rem;
+    padding: 10px;
   }
 }
 /* === 🔄 Loading overlay === */
@@ -2240,33 +2242,30 @@ function populateMultiShiftSelect() {
   const ud = getCurrentUserData();
   const sel = document.getElementById('multiShiftName');
   sel.innerHTML = '<option value="">Kies shift</option>';
-
   if (!ud || !ud.shifts) return;
 
-  // 📅 Haal de geselecteerde maand en jaar op
   const year = Number(document.getElementById('yearSelectMain').value);
-  const month = Number(document.getElementById('monthSelectMain').value); // 0 = januari
+  const month = Number(document.getElementById('monthSelectMain').value);
 
-  // 🔍 Loop over alle shiften (shiftdefinities)
-  Object.entries(ud.shifts).forEach(([shiftName, shiftData]) => {
-    // Controleer of deze shift een periode heeft
-    const start = shiftData.startDate || null;
-    const end = shiftData.endDate || null;
+  // Loop over alle shifts
+  Object.entries(ud.shifts).forEach(([name, sh]) => {
+    const start = sh.startDate || null;
+    const end = sh.endDate || null;
 
     // Geen periode → altijd zichtbaar
     if (!start && !end) {
-      addShiftOption(sel, shiftName);
+      addShiftOption(sel, name);
       return;
     }
 
-    // Controleer overlap met geselecteerde maand
-    if (monthOverlapsPeriod(year, month, start, end)) {
-      addShiftOption(sel, shiftName);
+    // Alleen toevoegen als de shiftperiode overlapt met de gekozen maand
+    const overlaps = monthOverlapsPeriod(year, month, start, end);
+    if (overlaps) {
+      addShiftOption(sel, name);
     }
   });
 }
 
-// 🔧 Kleine helper om een optie toe te voegen
 function addShiftOption(selectEl, name) {
   const opt = document.createElement('option');
   opt.value = name;
@@ -2330,10 +2329,30 @@ document.getElementById('saveMultiShift')?.addEventListener('click', () => {
   const dates = picker.selectedDates.map(d => d.toISOString().split('T')[0]);
 
   // Voeg de shift toe aan alle gekozen dagen
-  dates.forEach(date => {
-    ud.shifts = ud.shifts || {};
-    ud.shifts[date] = shiftName;
-  });
+dates.forEach(dateStr => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const year = y;
+  const month = m - 1; // 0-based
+  const key = dateStr;
+
+  ud.monthData = ud.monthData || {};
+  ud.monthData[year] = ud.monthData[year] || {};
+  ud.monthData[year][month] = ud.monthData[year][month] || { rows: {} };
+
+  const md = ud.monthData[year][month];
+  const shift = ud.shifts[shiftName];
+  if (!shift) return;
+
+  md.rows[key] = {
+    shift: shiftName,
+    start: shift.start,
+    end: shift.end,
+    break: shift.break,
+    omschrijving: '',
+    minutes: minutesBetween(shift.start, shift.end, shift.break),
+    project: shift.project || ''
+  };
+});
 
   saveUserData(ud);
   alert(`Shift "${shiftName}" toegepast op ${dates.length} dag(en).`);
