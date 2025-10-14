@@ -2430,6 +2430,8 @@ dates.forEach(dateStr => {
     project: shift.project || ''
   };
 });
+console.log("User data (ud):", ud);
+console.log("Month data check:", ud?.monthData?.[year]?.[month]);
 // 🔄 Na opslaan meteen de geplande dagen opnieuw kleuren
 async function refreshPlannedDays() {
   const year = Number(document.getElementById('yearSelectMain').value);
@@ -2445,7 +2447,6 @@ const plannedDates = Object.entries(maandData)
     return y === String(year) && m === currentMonthStr && hasShift;
   })
   .map(([date]) => date);
-  console.log("Planned dates:", plannedDates);
   if (window.multiDayPicker) {
     highlightPlannedDays(window.multiDayPicker, plannedDates);
   }
@@ -2466,6 +2467,7 @@ const modalEl = document.getElementById('multiDayModal');
 const modalInstance = bootstrap.Modal.getInstance(modalEl);
 modalInstance.hide();
 });
+ console.log("Planned dates:", plannedDates);
 // 🧩 Functie om direct 1 dag op de kalender te updaten
 function updateCalendarDay(date, shiftName) {
   // Zoek het cel-element dat overeenkomt met deze datum
