@@ -2181,6 +2181,16 @@ document.addEventListener('DOMContentLoaded', () => {
     threshold = getThreshold();
     toggleFloating();
   });
+document.addEventListener("DOMContentLoaded", () => {
+  const alertBox = document.getElementById('remainingHoursAlert');
+  if (alertBox) {
+    alertBox.style.position = "fixed";
+    alertBox.style.bottom = "1rem";
+    alertBox.style.left = "50%";
+    alertBox.style.transform = "translateX(-50%)";
+    alertBox.style.zIndex = "2000";
+  }
+});
 });
 function populateMultiShiftSelect() {
   const ud = getCurrentUserData();
