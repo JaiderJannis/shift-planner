@@ -2181,18 +2181,19 @@ document.addEventListener('DOMContentLoaded', () => {
     threshold = getThreshold();
     toggleFloating();
   });
+// ✅ Fix: resterende uren-balk altijd onderaan direct bij laden
 document.addEventListener("DOMContentLoaded", () => {
-  const alertBox = document.getElementById('remainingHoursAlert');
+  const alertBox = document.getElementById("remainingHoursAlert");
   if (!alertBox) return;
 
-  // ✅ Forceren dat de balk altijd onderaan blijft
+  // Direct forceren
   alertBox.style.position = "fixed";
   alertBox.style.bottom = "1rem";
   alertBox.style.left = "50%";
   alertBox.style.transform = "translateX(-50%)";
   alertBox.style.zIndex = "2000";
 
-  // 👇 Optioneel: kleine check na 0.5s (voor hertekenen van DOM)
+  // Hercontrole na 0,5s (voor het geval DOM later rendert)
   setTimeout(() => {
     alertBox.style.position = "fixed";
     alertBox.style.bottom = "1rem";
