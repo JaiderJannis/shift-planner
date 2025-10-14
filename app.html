@@ -2205,7 +2205,7 @@ function populateMultiShiftSelect() {
 function initMultiDayPicker() {
   const year = Number(document.getElementById('yearSelectMain').value);
   const month = Number(document.getElementById('monthSelectMain').value);
-  const start = new Date(year, month - 1, 1);
+  const start = new Date(year, month 1, 1);
   const end = new Date(year, month, 0);
 
   if (window.multiDayPicker) {
