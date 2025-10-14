@@ -1727,32 +1727,6 @@ document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
   modal.show();
 });
 
-// 📅 Multi-date kalender beperken tot geselecteerde maand
-function initMultiDayPicker() {
-  const year = Number(document.getElementById('yearSelectMain').value);
-  const month = Number(document.getElementById('monthSelectMain').value);
-  const start = new Date(year, month, 1);
-  const end = new Date(year, month + 1, 0); // laatste dag van de maand
-
-  // Als er al een flatpickr bestaat → verwijder eerst
-  if (window.multiDayPicker && window.multiDayPicker.destroy) {
-    window.multiDayPicker.destroy();
-  }
-
-  window.multiDayPicker = flatpickr("#multiShiftDays", {
-    mode: "multiple",
-    dateFormat: "d-m-Y",
-    altInput: true,
-    altFormat: "d F Y",
-    locale: "nl",
-    weekNumbers: true,
-    defaultDate: [start],
-    minDate: start,
-    maxDate: end,
-    disableMobile: false,
-  });
-}
-
 // 🖱️ Open modal en stel kalender in op huidige maand
 document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
   const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
@@ -2279,10 +2253,32 @@ document.getElementById('saveMultiShift')?.addEventListener('click', () => {
   saveUserData(ud);
   alert(`Shift "${shiftName}" toegepast op ${dates.length} dag(en).`);
 
-  // Sluit modal en vernieuw kalender
-  document.querySelector('#multiDayModal .btn-close').click();
-  renderCalendar(); // ✅ herlaadt je kalender direct
+// ✅ Update kalender live zonder herladen
+dates.forEach(date => updateCalendarDay(date, shiftName));
+
+// Sluit modal
+document.querySelector('#multiDayModal .btn-close').click();
 });
+// 🧩 Functie om direct 1 dag op de kalender te updaten
+function updateCalendarDay(date, shiftName) {
+  // Zoek het cel-element dat overeenkomt met deze datum
+  const cell = document.querySelector(`[data-date="${date}"]`);
+  if (!cell) return;
+
+  // Shift-informatie ophalen (kleur + label)
+  const ud = getCurrentUserData();
+  const shiftColor = ud.shiftColors?.[shiftName] || "#6c757d"; // grijs fallback
+
+  // Update visuele weergave
+  cell.classList.add("has-shift");
+  cell.style.backgroundColor = shiftColor;
+  cell.style.color = "#fff";
+  cell.dataset.shift = shiftName;
+  cell.innerHTML = `
+    <div class="shift-label">${shiftName}</div>
+    <div class="shift-date">${new Date(date).getDate()}</div>
+  `;
+}
   </script>
 <!-- 🔄 Loading overlay -->
 <div id="loadingOverlay" class="loading-overlay d-none">
