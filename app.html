@@ -172,26 +172,27 @@ body.dark-mode .alert-info {
 #remainingHoursAlert {
   position: fixed !important;
   bottom: 1rem;
-  right: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 2000;
+  width: auto;
+  max-width: 90%;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-  background-color: var(--bs-info-bg-subtle, #e0f7ff);
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 0.75rem;
-  padding: 8px 12px;
+  padding: 8px 16px;
   font-size: 0.9rem;
+  text-align: center;
   transition: all 0.3s ease-in-out;
+  opacity: 0.95; /* subtiel transparant */
 }
 
-/* 📱 Mobiel — centreren onderaan */
+/* 📱 Mobiel — iets breder */
 @media (max-width: 768px) {
   #remainingHoursAlert {
-    right: 50%;
-    transform: translateX(50%);
-    width: 85%;
-    bottom: 0.75rem;
+    width: 90%;
     font-size: 0.95rem;
-    text-align: center;
+    bottom: 0.75rem;
   }
 }
 /* === 🔄 Loading overlay === */
@@ -359,7 +360,7 @@ body.dark-mode .alert-info {
   </div>
 </div>
 <!-- 🎯 Sticky resterende uren-balk -->
-<div id="remainingHoursAlert" class="alert alert-info small d-none mb-3"></div>
+<div id="remainingHoursAlert" class="alert small d-none mb-3"></div>
 </div>
         <div class="row g-3 mb-3">
           <div class="col-6 col-md-2">
