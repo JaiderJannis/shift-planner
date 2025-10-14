@@ -1996,36 +1996,52 @@ function showLoading(show = true) {
 
 // 🎯 Resterende uren-teller
 function updateRemainingHours() {
-  const y = Number(yearSelectMain.value);
-  const m = Number(monthSelectMain.value);
-  const ud = getCurrentUserData();
-  const md = ud.monthData?.[y]?.[m];
   const alertBox = document.getElementById('remainingHoursAlert');
-  if (!md) return alertBox.classList.add('d-none');
+  if (!alertBox) return;
 
-  const doel = ((md.targetHours || 0) * 60) + (md.targetMinutes || 0);
-  const gepland = Object.values(md.rows || {}).reduce((s, r) => s + (r.minutes || 0), 0);
-  const resterend = Math.max(0, doel - gepland);
-  const fmt = v => `${Math.floor(v / 60)}u ${v % 60}min`;
-
-  alertBox.innerHTML = `
-    🎯 <strong>Doel:</strong> ${fmt(doel)} &nbsp; | &nbsp;
-    ⏱️ <strong>Gepland:</strong> ${fmt(gepland)} &nbsp; | &nbsp;
-    🕒 <strong>Resterend:</strong> ${fmt(resterend)}
-  `;
-
-  // 🔹 Kleur afhankelijk van voortgang
-  const pct = doel > 0 ? (gepland / doel) * 100 : 0;
-
-  alertBox.classList.remove('alert-danger', 'alert-success');
-  if (pct >= 100) {
-    // 🟢 Doel bereikt of overschreden
-    alertBox.classList.add('alert-success');
-  } else {
-    // 🔴 Nog weinig gepland
-    alertBox.classList.add('alert-danger');
+  const year = parseInt(yearSelectMain.value);
+  const month = parseInt(monthSelectMain.value);
+  const ud = getCurrentUserData();
+  const monthData = ud?.monthData?.[year]?.[month];
+  if (!monthData) {
+    alertBox.classList.add('d-none');
+    return;
   }
 
+  const doel = (monthData.targetHours || 0) * 60 + (monthData.targetMinutes || 0);
+  const gepland = Object.values(monthData.rows || {}).reduce((s, r) => s + (r.minutes || 0), 0);
+  const verschil = doel - gepland;
+  const pct = doel > 0 ? Math.round((gepland / doel) * 100) : 0;
+
+  // 🔹 Bereken tekst voor resterende of extra uren
+  let resterendTekst = '';
+  if (verschil > 0) {
+    const uren = Math.floor(verschil / 60);
+    const min = verschil % 60;
+    resterendTekst = `🕓 <b>Resterend:</b> ${uren}u ${min}min`;
+  } else if (verschil < 0) {
+    const extra = Math.abs(verschil);
+    const uren = Math.floor(extra / 60);
+    const min = extra % 60;
+    resterendTekst = `✅ <b>Meer uren:</b> ${uren}u ${min}min`;
+  } else {
+    resterendTekst = `✅ <b>Doel exact behaald!</b>`;
+  }
+
+  // 🔹 Kleur aanpassen volgens voortgang
+  alertBox.classList.remove('alert-danger', 'alert-success');
+  if (pct >= 100) {
+    alertBox.classList.add('alert-success'); // groen
+  } else {
+    alertBox.classList.add('alert-danger'); // rood
+  }
+
+  // 🔹 HTML samenstellen
+  alertBox.innerHTML = `
+    🎯 <b>Doel:</b> ${Math.floor(doel / 60)}u ${doel % 60}min 
+    &nbsp;|&nbsp; ⏱ <b>Gepland:</b> ${Math.floor(gepland / 60)}u ${gepland % 60}min 
+    &nbsp;|&nbsp; ${resterendTekst}
+  `;
   alertBox.classList.remove('d-none');
 }
 // 💡 Laat de balk zweven zodra hij uit beeld zou scollen
