@@ -227,12 +227,26 @@ body.dark-mode .alert-info {
     margin: 0 auto 0.5rem auto;
   }
 }
-/* 🔵 Kleurt dagen die al ingepland zijn */
+/* 🔵 Ingeplande dagen — subtiel maar duidelijk */
 .flatpickr-day.planned-day {
-  background-color: #007bff20 !important; /* zacht blauw */
-  border-color: #007bff40 !important;
-  color: #0056b3 !important;
-  border-radius: 6px;
+  background-color: #ffd966 !important;  /* zacht geel */
+  color: #222 !important;
+  border-color: #e0b800 !important;
+  border-radius: 50%;
+  font-weight: bold;
+}
+
+/* 🔵 Zowel ingepland + geselecteerd → combineer kleuren */
+.flatpickr-day.planned-day.selected {
+  background-color: #ffb347 !important;  /* oranje tint */
+  color: white !important;
+  border-color: #ff9800 !important;
+}
+
+/* Hover effect zodat het beter opvalt */
+.flatpickr-day.planned-day:hover {
+  background-color: #ffe58f !important;
+  border-color: #d4af37 !important;
 }
   </style>
 </head>
