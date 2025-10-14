@@ -2183,12 +2183,18 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 function populateMultiShiftSelect() {
-  const ud = getCurrentUserData(); // haalt de huidige gebruiker + maanddata op
+  const ud = getCurrentUserData();
   const sel = document.getElementById('multiShiftName');
   sel.innerHTML = '<option value="">Kies shift</option>';
 
-  // Vul de dropdown met bestaande shifts
-  Object.keys(ud.shifts || {}).forEach(shiftName => {
+  // ✅ Filter shiften die geldig zijn voor de geselecteerde maand
+  const year = Number(document.getElementById('yearSelectMain').value);
+  const month = Number(document.getElementById('monthSelectMain').value);
+  const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+
+  const monthShifts = ud.monthlyShiftTemplates?.[monthKey] || ud.shiftTemplates || ud.shifts || {};
+
+  Object.keys(monthShifts).forEach(shiftName => {
     const o = document.createElement('option');
     o.value = shiftName;
     o.textContent = shiftName;
@@ -2206,23 +2212,22 @@ function initMultiDayPicker() {
     window.multiDayPicker.destroy();
   }
 
-window.multiDayPicker = flatpickr("#multiShiftDays", {
-  mode: "multiple",
-  dateFormat: "d-m-Y",
-  altInput: true,
-  altFormat: "d F Y",
-  locale: flatpickr.l10ns.nl,
-  weekNumbers: true,
-  defaultDate: [start],          // ✅ zet kalender meteen op juiste maand
-  minDate: start,
-  maxDate: end,
-  disableMobile: false,
-  onReady: function(selectedDates, dateStr, instance) {
-    instance.currentYear = year;   // ✅ forceer juiste jaar
-    instance.currentMonth = month - 1; // ✅ forceer juiste maand
-    instance.redraw();
-  }
-});
+  window.multiDayPicker = flatpickr("#multiShiftDays", {
+    mode: "multiple",
+    dateFormat: "d-m-Y",
+    altInput: true,
+    altFormat: "d F Y",
+    locale: flatpickr.l10ns.nl,
+    weekNumbers: true,
+    minDate: start,
+    maxDate: end,
+    disableMobile: false,
+    defaultDate: [start], // ✅ start altijd bij geselecteerde maand
+    onReady: function(selectedDates, dateStr, instance) {
+      instance.changeMonth(month - 1); // ✅ juiste maand forceren
+      instance.changeYear(year);       // ✅ juiste jaar forceren
+    }
+  });
 }
 
 // 🔘 Open de modal
