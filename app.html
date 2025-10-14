@@ -2421,8 +2421,20 @@ dates.forEach(dateStr => {
     project: shift.project || ''
   };
 });
+// 🔄 Na opslaan meteen de geplande dagen opnieuw kleuren
+async function refreshPlannedDays() {
+  const year = Number(document.getElementById('yearSelectMain').value);
+  const month = Number(document.getElementById('monthSelectMain').value);
+  const ud = getCurrentUserData();
+  const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
 
+  const plannedDates = Object.keys(maandData);
+  if (window.multiDayPicker) {
+    highlightPlannedDays(window.multiDayPicker, plannedDates);
+  }
+}
   saveUserData(ud);
+  refreshPlannedDays();
   // ✅ Direct de tabel en uren vernieuwen
   renderMonth(Number(document.getElementById('yearSelectMain').value), Number(document.getElementById('monthSelectMain').value));
   updateInputTotals();
@@ -2430,7 +2442,7 @@ dates.forEach(dateStr => {
   alert(`Shift "${shiftName}" toegepast op ${dates.length} dag(en).`);
 
 // ✅ Update kalender live zonder herladen
-dates.forEach(date => updateCalendarDay(date, shiftName));
+refreshPlannedDays();
 
 // Sluit modal
 const modalEl = document.getElementById('multiDayModal');
