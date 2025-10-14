@@ -147,7 +147,11 @@ body.dark-mode .btn-outline-secondary {
   color: #eaeaea !important;
   border-color: #666 !important;
 }
-
+body.dark-mode .alert-info {
+  background-color: #2b3e50 !important;
+  color: #eaeaea !important;
+  border-color: #3d5065 !important;
+}
 /* === 🔄 Loading overlay === */
 .loading-overlay {
   position: fixed;
@@ -1123,6 +1127,7 @@ if (!md.rows[key]) {
         });
       }
     await saveUserData();
+    updateRemainingHours();
     }
 
 async function populateShiftSelectForRow(tr, day, month, year){
@@ -1261,6 +1266,7 @@ function ensureDefaultProjects(){
       inputTotGepland.textContent = fmt(total);
       inputTotVerschil.textContent = `${diff>=0?'+':''}${fmt(Math.abs(diff))}`;
       inputTotVerschil.className = `text-mono ${diff>=0? 'text-success':'text-danger'}`;
+      updateRemainingHours();
     }
 
     // live target updates
@@ -1330,6 +1336,7 @@ if (sp) {
   renderMonth(y, m);
   updateInputTotals();
   renderHistory();
+  updateRemainingHours();
   bootstrap.Modal.getInstance(document.getElementById('quickModal')).hide();
   toast('Snelle invoer toegevoegd','success');
 });
@@ -1523,6 +1530,7 @@ removeUserBtn?.addEventListener('click', async () => {
       renderProjectFilterForMonth();
       generateMonth();
       renderAdminUserSelect();
+      updateRemainingHours();
     }
      // ✅ Plaats DIT hier:
 document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
