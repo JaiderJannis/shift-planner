@@ -1348,12 +1348,6 @@ function ensureDefaultProjects(){
       const total = Object.values(md.rows||{}).reduce((s,r)=> s + (r.minutes||0), 0);
       const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
       const diff = total - target;
-
-      const fmt = v => `${Math.floor(v/60)}u ${v%60}min`;
-      inputTotDoel.textContent = fmt(target);
-      inputTotGepland.textContent = fmt(total);
-      inputTotVerschil.textContent = `${diff>=0?'+':''}${fmt(Math.abs(diff))}`;
-      inputTotVerschil.className = `text-mono ${diff>=0? 'text-success':'text-danger'}`;
       updateRemainingHours();
     }
 
