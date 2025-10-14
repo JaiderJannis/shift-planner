@@ -215,6 +215,16 @@ body.dark-mode .alert-info {
 .main-content, .container {
   overflow: visible !important;
 }
+/* 📱 Op mobiel: knoppen onder elkaar even breed maken */
+@media (max-width: 768px) {
+  #exportPdfBtn,
+  #multiDayShiftBtn {
+    display: block;
+    width: 100%;
+    max-width: 320px;   /* optioneel: begrenst de breedte */
+    margin: 0 auto 0.5rem auto;
+  }
+}
   </style>
 </head>
 <body>
