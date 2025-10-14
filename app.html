@@ -86,6 +86,12 @@
     padding: 6px 10px;
   }
 }
+@media (max-width: 768px) {
+  #multiDayShiftBtn {
+    font-size: 0.9rem;
+    padding: 6px 10px;
+  }
+}
 #notifDropdown {
   background: #fff;
   max-height: 300px;
@@ -561,7 +567,44 @@ body.dark-mode .alert-info {
       </div>
     </div>
   </div>
+<!-- Multi-day shift modal -->
+<div class="modal fade" id="multiDayModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Invoer op meerdere dagen</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
 
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label">Shiftnaam</label>
+            <input id="multiShiftName" type="text" class="form-control" placeholder="Bijv. Late shift">
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">Start</label>
+            <input id="multiShiftStart" type="time" class="form-control" value="08:00">
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">Einde</label>
+            <input id="multiShiftEnd" type="time" class="form-control" value="16:00">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Dagen</label>
+            <input id="multiShiftDays" type="text" class="form-control" placeholder="Bijv. 01,02,03,05,06">
+            <small class="text-muted">Gebruik komma’s om meerdere dagen in te voeren</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="saveMultiShiftBtn" class="btn btn-success">Opslaan</button>
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuleren</button>
+      </div>
+    </div>
+  </div>
+</div>
   <!-- Bootstrap -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <!-- JSPDF -->
@@ -1595,12 +1638,29 @@ document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
     return toast('Geen data voor deze maand', 'warning');
   }
 // 🔁 Shift toepassen op meerdere dagen
-document.getElementById('multiDayShiftBtn')?.addEventListener('click', async () => {
-  const shift = prompt('Shiftnaam (bijv. Late Shift):');
-  const start = prompt('Starttijd (bijv. 14:00):');
-  const end = prompt('Eindtijd (bijv. 22:00):');
-  const days = prompt('Welke dagen? (bijv. 01,02,03,05,06)');
-  if (!days) return;
+const multiShiftName = document.getElementById('multiShiftName');
+const multiShiftStart = document.getElementById('multiShiftStart');
+const multiShiftEnd = document.getElementById('multiShiftEnd');
+const multiShiftDays = document.getElementById('multiShiftDays');
+const saveMultiShiftBtn = document.getElementById('saveMultiShiftBtn');
+
+// knop opent modal
+document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
+  const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
+  modal.show();
+});
+
+// opslaan
+saveMultiShiftBtn?.addEventListener('click', async () => {
+  const shift = multiShiftName.value.trim();
+  const start = multiShiftStart.value;
+  const end = multiShiftEnd.value;
+  const days = multiShiftDays.value.trim();
+
+  if (!shift || !start || !end || !days) {
+    toast('Vul alle velden in', 'warning');
+    return;
+  }
 
   const dayList = days.split(',').map(d => d.trim());
   const ud = getCurrentUserData();
@@ -1612,13 +1672,33 @@ document.getElementById('multiDayShiftBtn')?.addEventListener('click', async () 
   const md = ud.monthData[year][month] = ud.monthData[year][month] || { rows: {} };
 
   dayList.forEach(d => {
-    const key = `${String(d).padStart(2, '0')}-${String(month + 1).padStart(2, '0')}-${year}`;
-    md.rows[key] = { shift, start, end, project: md.rows[key]?.project || '-' };
+    const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const minutes = minutesBetween(start, end, 0);
+    md.rows[key] = {
+      shift,
+      start,
+      end,
+      break: 0,
+      omschrijving: '',
+      minutes,
+      project: md.rows[key]?.project || '-'
+    };
   });
 
   await saveUserData();
-  renderMonth(month, year);
+  renderMonth(year, month);
+  updateInputTotals();
+  updateRemainingHours();
+  renderHistory();
+
+  bootstrap.Modal.getInstance(document.getElementById('multiDayModal')).hide();
   toast('Shift toegepast op meerdere dagen', 'success');
+
+  // velden resetten
+  multiShiftName.value = '';
+  multiShiftStart.value = '08:00';
+  multiShiftEnd.value = '16:00';
+  multiShiftDays.value = '';
 });
   // === Header met branding ===
   const pageWidth = doc.internal.pageSize.width;
