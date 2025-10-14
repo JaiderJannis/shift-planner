@@ -2206,17 +2206,23 @@ function initMultiDayPicker() {
     window.multiDayPicker.destroy();
   }
 
-  window.multiDayPicker = flatpickr("#multiShiftDays", {
-    mode: "multiple",
-    dateFormat: "d-m-Y",
-    altInput: true,
-    altFormat: "d F Y",
-    locale: flatpickr.l10ns.nl,  // ✅ juiste locale
-    weekNumbers: true,
-    minDate: start,
-    maxDate: end,
-    disableMobile: false
-  });
+window.multiDayPicker = flatpickr("#multiShiftDays", {
+  mode: "multiple",
+  dateFormat: "d-m-Y",
+  altInput: true,
+  altFormat: "d F Y",
+  locale: flatpickr.l10ns.nl,
+  weekNumbers: true,
+  defaultDate: [start],          // ✅ zet kalender meteen op juiste maand
+  minDate: start,
+  maxDate: end,
+  disableMobile: false,
+  onReady: function(selectedDates, dateStr, instance) {
+    instance.currentYear = year;   // ✅ forceer juiste jaar
+    instance.currentMonth = month - 1; // ✅ forceer juiste maand
+    instance.redraw();
+  }
+});
 }
 
 // 🔘 Open de modal
