@@ -584,7 +584,6 @@ body.dark-mode .alert-info {
 
         <div class="mb-3">
           <label for="multiShiftName" class="form-label">Shift</label>
-          <!-- 🔽 vervangen van input naar dropdown -->
           <select id="multiShiftName" class="form-select">
             <option value="">Kies shift</option>
           </select>
@@ -598,6 +597,7 @@ body.dark-mode .alert-info {
     </div>
   </div>
 </div>
+
   <!-- Bootstrap -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <!-- JSPDF -->
@@ -2213,17 +2213,20 @@ function populateMultiShiftSelect() {
   const sel = document.getElementById('multiShiftName');
   sel.innerHTML = '<option value="">Kies shift</option>';
 
-  Object.keys(ud.shifts || {}).forEach(name => {
+  // Vul de dropdown met bestaande shifts
+  Object.keys(ud.shifts || {}).forEach(shiftName => {
     const o = document.createElement('option');
-    o.value = name;
-    o.textContent = name;
+    o.value = shiftName;
+    o.textContent = shiftName;
     sel.appendChild(o);
   });
 }
 
 function initMultiDayPicker() {
-  const start = getStartOfMonth();
-  const end = getEndOfMonth();
+  const year = Number(document.getElementById('yearSelectMain').value);
+  const month = Number(document.getElementById('monthSelectMain').value);
+  const start = new Date(year, month - 1, 1);
+  const end = new Date(year, month, 0);
 
   if (window.multiDayPicker) {
     window.multiDayPicker.destroy();
@@ -2234,24 +2237,23 @@ function initMultiDayPicker() {
     dateFormat: "d-m-Y",
     altInput: true,
     altFormat: "d F Y",
-    locale: flatpickr.l10ns.nl, // ✅ juiste locale
+    locale: flatpickr.l10ns.nl,  // ✅ juiste locale
     weekNumbers: true,
-    defaultDate: [start],
     minDate: start,
     maxDate: end,
     disableMobile: false
   });
 }
 
-// 🔘 open modal
+// 🔘 Open de modal
 document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
   const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
   modal.show();
-  populateMultiShiftSelect(); // ✅ vult dropdown bij openen
+  populateMultiShiftSelect(); // ✅ vul dropdown bij openen
   setTimeout(initMultiDayPicker, 150);
 });
 
-// 💾 opslaan van meerdere dagen
+// 💾 Opslaan van meerdere dagen
 document.getElementById('saveMultiShift')?.addEventListener('click', () => {
   const picker = window.multiDayPicker;
   const shiftName = document.getElementById('multiShiftName').value;
@@ -2265,17 +2267,21 @@ document.getElementById('saveMultiShift')?.addEventListener('click', () => {
     return;
   }
 
-  const dates = picker.selectedDates.map(d => d.toISOString().split('T')[0]);
   const ud = getCurrentUserData();
+  const dates = picker.selectedDates.map(d => d.toISOString().split('T')[0]);
 
+  // Voeg de shift toe aan alle gekozen dagen
   dates.forEach(date => {
     ud.shifts = ud.shifts || {};
     ud.shifts[date] = shiftName;
   });
 
   saveUserData(ud);
-  alert("Shifts opgeslagen voor " + dates.length + " dagen.");
+  alert(`Shift "${shiftName}" toegepast op ${dates.length} dag(en).`);
+
+  // Sluit modal en vernieuw kalender
   document.querySelector('#multiDayModal .btn-close').click();
+  renderCalendar(); // ✅ herlaadt je kalender direct
 });
   </script>
 <!-- 🔄 Loading overlay -->
