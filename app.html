@@ -168,53 +168,32 @@ body.dark-mode .alert-info {
   background-color: #2b3e50 !important;
   color: #eaeaea !important;
 }
-/* 🌙 Basispositie - onder filters */
+/* 🌊 Altijd zwevende resterende uren-balk */
 #remainingHoursAlert {
-  position: sticky;
-  top: 70px;
-  z-index: 1030;
-  margin-bottom: 0.75rem;
-  max-width: 100%;
-  width: fit-content;
-  padding: 8px 12px;
-  transition: all 0.4s ease-in-out;
-  border-radius: 0.75rem;
-}
-
-/* 📱 Mobiel basisstijl */
-@media (max-width: 768px) {
-  #remainingHoursAlert {
-    display: block;
-    width: 95%;
-    margin: 0 auto 0.75rem auto;
-    font-size: 0.9rem;
-    text-align: center;
-  }
-}
-
-/* 🧲 Wanneer zwevend */
-#remainingHoursAlert.floating {
   position: fixed !important;
   bottom: 1rem;
   right: 1rem;
-  top: auto;
   z-index: 2000;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   background-color: var(--bs-info-bg-subtle, #e0f7ff);
   border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 0.75rem;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  transition: all 0.3s ease-in-out;
 }
 
-/* 📱 Mobiel variant: iets groter en centreren */
+/* 📱 Mobiel — centreren onderaan */
 @media (max-width: 768px) {
-  #remainingHoursAlert.floating {
+  #remainingHoursAlert {
     right: 50%;
     transform: translateX(50%);
-    bottom: 0.75rem;
     width: 85%;
+    bottom: 0.75rem;
     font-size: 0.95rem;
+    text-align: center;
   }
 }
-
 /* === 🔄 Loading overlay === */
 .loading-overlay {
   position: fixed;
