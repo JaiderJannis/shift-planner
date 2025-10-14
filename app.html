@@ -568,40 +568,32 @@ body.dark-mode .alert-info {
       </div>
     </div>
   </div>
-<!-- Multi-day shift modal -->
-<div class="modal fade" id="multiDayModal" tabindex="-1">
-  <div class="modal-dialog">
+<!-- Meerdere dagen invoeren Modal -->
+<div class="modal fade" id="multiDayModal" tabindex="-1" aria-labelledby="multiDayModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Invoer op meerdere dagen</h5>
-        <button class="btn-close" data-bs-dismiss="modal"></button>
+        <h5 class="modal-title" id="multiDayModalLabel">Meerdere dagen invoeren</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Sluiten"></button>
       </div>
-
       <div class="modal-body">
-        <div class="row g-2">
-          <div class="col-md-6">
-            <label class="form-label">Shiftnaam</label>
-            <input id="multiShiftName" type="text" class="form-control" placeholder="Bijv. Late shift">
-          </div>
-          <div class="col-6 col-md-3">
-            <label class="form-label">Start</label>
-            <input id="multiShiftStart" type="time" class="form-control" value="08:00">
-          </div>
-          <div class="col-6 col-md-3">
-            <label class="form-label">Einde</label>
-            <input id="multiShiftEnd" type="time" class="form-control" value="16:00">
-          </div>
-          <div class="col-12">
-  <label class="form-label">Dagen</label>
-  <input id="multiShiftDays" type="text" class="form-control" placeholder="Selecteer dagen">
-  <small class="text-muted">Klik in het veld om meerdere dagen te kiezen</small>
-</div>
+        <div class="mb-3">
+          <label for="multiShiftDays" class="form-label">Selecteer dagen</label>
+          <input id="multiShiftDays" type="text" class="form-control" placeholder="Klik om dagen te kiezen">
+        </div>
+
+        <div class="mb-3">
+          <label for="multiShiftName" class="form-label">Shift</label>
+          <!-- 🔽 vervangen van input naar dropdown -->
+          <select id="multiShiftName" class="form-select">
+            <option value="">Kies shift</option>
+          </select>
         </div>
       </div>
 
       <div class="modal-footer">
-        <button id="saveMultiShiftBtn" class="btn btn-success">Opslaan</button>
-        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuleren</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+        <button type="button" id="saveMultiShift" class="btn btn-primary">Opslaan</button>
       </div>
     </div>
   </div>
@@ -613,8 +605,10 @@ body.dark-mode .alert-info {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <!-- ✅ SortableJS voor drag & drop -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-<!-- 📅 Flatpickr JS -->
+<!-- Flatpickr JS -->
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<!-- Flatpickr NL taal -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/nl.js"></script>
   <!-- Firebase (Modular CDN) -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
@@ -2213,6 +2207,75 @@ document.addEventListener('DOMContentLoaded', () => {
     threshold = getThreshold();
     toggleFloating();
   });
+});
+function populateMultiShiftSelect() {
+  const ud = getCurrentUserData(); // haalt de huidige gebruiker + maanddata op
+  const sel = document.getElementById('multiShiftName');
+  sel.innerHTML = '<option value="">Kies shift</option>';
+
+  Object.keys(ud.shifts || {}).forEach(name => {
+    const o = document.createElement('option');
+    o.value = name;
+    o.textContent = name;
+    sel.appendChild(o);
+  });
+}
+
+function initMultiDayPicker() {
+  const start = getStartOfMonth();
+  const end = getEndOfMonth();
+
+  if (window.multiDayPicker) {
+    window.multiDayPicker.destroy();
+  }
+
+  window.multiDayPicker = flatpickr("#multiShiftDays", {
+    mode: "multiple",
+    dateFormat: "d-m-Y",
+    altInput: true,
+    altFormat: "d F Y",
+    locale: flatpickr.l10ns.nl, // ✅ juiste locale
+    weekNumbers: true,
+    defaultDate: [start],
+    minDate: start,
+    maxDate: end,
+    disableMobile: false
+  });
+}
+
+// 🔘 open modal
+document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
+  const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
+  modal.show();
+  populateMultiShiftSelect(); // ✅ vult dropdown bij openen
+  setTimeout(initMultiDayPicker, 150);
+});
+
+// 💾 opslaan van meerdere dagen
+document.getElementById('saveMultiShift')?.addEventListener('click', () => {
+  const picker = window.multiDayPicker;
+  const shiftName = document.getElementById('multiShiftName').value;
+
+  if (!picker || !picker.selectedDates.length) {
+    alert("Selecteer eerst één of meer dagen.");
+    return;
+  }
+  if (!shiftName) {
+    alert("Kies een shift om toe te passen.");
+    return;
+  }
+
+  const dates = picker.selectedDates.map(d => d.toISOString().split('T')[0]);
+  const ud = getCurrentUserData();
+
+  dates.forEach(date => {
+    ud.shifts = ud.shifts || {};
+    ud.shifts[date] = shiftName;
+  });
+
+  saveUserData(ud);
+  alert("Shifts opgeslagen voor " + dates.length + " dagen.");
+  document.querySelector('#multiDayModal .btn-close').click();
 });
   </script>
 <!-- 🔄 Loading overlay -->
