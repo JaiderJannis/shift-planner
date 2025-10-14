@@ -2261,20 +2261,11 @@ function monthOverlapsPeriod(year, month0, startISO, endISO) {
 // 🟡 Helper: kleur reeds ingeplande dagen
 function highlightPlannedDays(instance, plannedDates) {
   setTimeout(() => {
-    if (!instance?.days) return;
-    const days = instance.days.childNodes;
-    const currentMonth = instance.currentMonth;
-    const currentYear = instance.currentYear;
+    if (!instance?.days?.childNodes) return;
 
-    days.forEach(dayElem => {
+    instance.days.childNodes.forEach(dayElem => {
       const dateObj = dayElem.dateObj;
       if (!dateObj) return;
-
-      // ❌ Alleen kleur als dag binnen huidige maand ligt
-      if (dateObj.getMonth() !== currentMonth || dateObj.getFullYear() !== currentYear) {
-        dayElem.classList.remove('planned-day');
-        return;
-      }
 
       const dateStr = dateObj.toISOString().split('T')[0];
       if (plannedDates.includes(dateStr)) {
@@ -2283,24 +2274,20 @@ function highlightPlannedDays(instance, plannedDates) {
         dayElem.classList.remove('planned-day');
       }
     });
-  }, 100);
+  }, 10);
 }
 
 // 📋 Vul de shiftselectie in de modal
 function populateMultiShiftSelect() {
-  const ud = getCurrentUserData();
+  const ud = getCurrentUserData(); 
   const sel = document.getElementById('multiShiftName');
   sel.innerHTML = '<option value="">Kies shift</option>';
-  if (!ud) return;
 
-  const allShifts = ud.shiftTemplates || ud.shifts || {};
-  Object.entries(allShifts).forEach(([name, shift]) => {
-    // sla datums over, toon enkel sjablonen
-    if (/^\d{4}-\d{2}-\d{2}$/.test(name)) return;
-    const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = name;
-    sel.appendChild(opt);
+  Object.keys(ud.shifts || {}).forEach(name => {
+    const o = document.createElement('option');
+    o.value = name;
+    o.textContent = name;
+    sel.appendChild(o);
   });
 }
 
