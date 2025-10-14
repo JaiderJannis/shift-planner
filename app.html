@@ -2257,7 +2257,9 @@ document.getElementById('saveMultiShift')?.addEventListener('click', () => {
 dates.forEach(date => updateCalendarDay(date, shiftName));
 
 // Sluit modal
-document.querySelector('#multiDayModal .btn-close').click();
+const modalEl = document.getElementById('multiDayModal');
+const modalInstance = bootstrap.Modal.getInstance(modalEl);
+modalInstance.hide();
 });
 // 🧩 Functie om direct 1 dag op de kalender te updaten
 function updateCalendarDay(date, shiftName) {
@@ -2279,6 +2281,12 @@ function updateCalendarDay(date, shiftName) {
     <div class="shift-date">${new Date(date).getDate()}</div>
   `;
 }
+// Verwijder grijze overlay als die per ongeluk blijft staan
+document.getElementById('multiDayModal').addEventListener('hidden.bs.modal', () => {
+  document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+  document.body.classList.remove('modal-open');
+  document.body.style.removeProperty('overflow');
+});
   </script>
 <!-- 🔄 Loading overlay -->
 <div id="loadingOverlay" class="loading-overlay d-none">
