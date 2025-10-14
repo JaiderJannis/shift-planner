@@ -2041,7 +2041,7 @@ function updateRemainingHours() {
   `;
   alertBox.classList.remove('d-none');
 }
-// 💡 Zwevende resterende uren-balk die meescrolt bij de onderkant
+// 💡 Laat de balk zweven — maar schuif omhoog bij paginabodem
 document.addEventListener('DOMContentLoaded', () => {
   const alertBox = document.getElementById('remainingHoursAlert');
   if (!alertBox) return;
@@ -2052,24 +2052,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const toggleFloating = () => {
     const shouldFloat = window.scrollY > threshold;
-    const pageHeight = document.body.offsetHeight;
+    alertBox.classList.toggle('floating', shouldFloat);
+
+    // ⬆️ Extra: schuif omhoog bij het bereiken van de paginabodem
     const scrollBottom = window.innerHeight + window.scrollY;
+    const pageHeight = document.body.offsetHeight;
 
-    // ✅ Als je bijna aan de onderkant bent → stop met vastzetten
-    const nearBottom = scrollBottom >= pageHeight - 20;
-
-    if (nearBottom) {
-      alertBox.style.position = 'static'; // gewoon in de flow van de pagina
-      alertBox.classList.remove('floating');
-    } else if (shouldFloat) {
-      alertBox.style.position = 'fixed';
-      alertBox.style.bottom = '1rem';
-      alertBox.style.left = '50%';
-      alertBox.style.transform = 'translateX(-50%)';
-      alertBox.classList.add('floating');
+    if (pageHeight - scrollBottom < 120) {
+      // binnen 120px van onderkant → schuif omhoog
+      alertBox.style.bottom = `${120 - (pageHeight - scrollBottom)}px`;
     } else {
-      alertBox.style.position = 'static';
-      alertBox.classList.remove('floating');
+      alertBox.style.bottom = '1rem';
     }
   };
 
