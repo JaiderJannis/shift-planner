@@ -235,20 +235,8 @@ body.dark-mode .alert-info {
   font-weight: 600;
   border: 2px solid #e0a800 !important;
 }
-
-/* 🔷 Geselecteerde dag (klik) */
-.flatpickr-day.selected:not(.planned-day) {
-  background-color: #007bff !important;
-  color: #fff !important;
-}
-
-/* 🟠 Dag die zowel gepland als geselecteerd is */
-.flatpickr-day.selected.planned-day {
-  background-color: #ff9800 !important;
-  color: #fff !important;
-}
 .flatpickr-day.planned-day {
-  background-color: #ffd54f !important;
+  background-color: #ffeb3b !important; /* helder geel */
   color: #000 !important;
   border-radius: 50% !important;
   font-weight: 600;
@@ -256,7 +244,7 @@ body.dark-mode .alert-info {
 }
 
 .flatpickr-day.selected.planned-day {
-  background-color: #ff9800 !important;
+  background-color: #ff9800 !important; /* oranje */
   color: white !important;
 }
   </style>
@@ -2270,19 +2258,57 @@ function monthOverlapsPeriod(year, month0, startISO, endISO) {
   const e = end   || new Date('9999-12-31');
   return !(e < monthStart || s > monthEnd);
 }
-function initMultiDayPicker() {
-  const year = Number(document.getElementById('yearSelectMain').value);
-  const month = Number(document.getElementById('monthSelectMain').value); // 0-based
-  const start = new Date(year, month, 1);
-  const end = new Date(year, month + 1, 0);
+// 🟡 Helper: kleur reeds ingeplande dagen
+function highlightPlannedDays(instance, plannedDates) {
+  setTimeout(() => {
+    if (!instance?.days) return;
+    const days = instance.days.childNodes;
+    const currentMonth = instance.currentMonth;
+    const currentYear = instance.currentYear;
 
-  if (window.multiDayPicker) {
-    window.multiDayPicker.destroy();
-  }
+    days.forEach(dayElem => {
+      const dateObj = dayElem.dateObj;
+      if (!dateObj) return;
 
+      // ❌ Alleen kleur als dag binnen huidige maand ligt
+      if (dateObj.getMonth() !== currentMonth || dateObj.getFullYear() !== currentYear) {
+        dayElem.classList.remove('planned-day');
+        return;
+      }
+
+      const dateStr = dateObj.toISOString().split('T')[0];
+      if (plannedDates.includes(dateStr)) {
+        dayElem.classList.add('planned-day');
+      } else {
+        dayElem.classList.remove('planned-day');
+      }
+    });
+  }, 100);
+}
+
+// 📋 Vul de shiftselectie in de modal
+function populateMultiShiftSelect() {
   const ud = getCurrentUserData();
+  const sel = document.getElementById('multiShiftName');
+  sel.innerHTML = '<option value="">Kies shift</option>';
+  if (!ud) return;
 
-  // ✅ Correcte bron: haal ingeplande dagen uit ud.shifts (niet uit monthData)
+  const allShifts = ud.shiftTemplates || ud.shifts || {};
+  Object.entries(allShifts).forEach(([name, shift]) => {
+    // sla datums over, toon enkel sjablonen
+    if (/^\d{4}-\d{2}-\d{2}$/.test(name)) return;
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    sel.appendChild(opt);
+  });
+}
+
+// 🔄 Na opslaan meteen de geplande dagen opnieuw kleuren
+async function refreshPlannedDays() {
+  const year = Number(document.getElementById('yearSelectMain').value);
+  const month = Number(document.getElementById('monthSelectMain').value);
+  const ud = getCurrentUserData();
   const shifts = ud?.shifts || {};
   const currentMonthStr = String(month + 1).padStart(2, "0");
 
@@ -2299,9 +2325,32 @@ function initMultiDayPicker() {
     })
     .map(([date]) => date);
 
+  console.log("🔁 Refresh planned dates:", plannedDates);
+
+  if (window.multiDayPicker) {
+    highlightPlannedDays(window.multiDayPicker, plannedDates);
+  }
+}
+function initMultiDayPicker() {
+  const year = Number(document.getElementById('yearSelectMain').value);
+  const month = Number(document.getElementById('monthSelectMain').value); // 0-based
+  const start = new Date(year, month, 1);
+  const end = new Date(year, month + 1, 0);
+
+  // 🔄 Oude picker verwijderen als hij nog bestaat
+  if (window.multiDayPicker) {
+    window.multiDayPicker.destroy();
+  }
+
+  const ud = getCurrentUserData();
+
+  // ✅ Haal ingeplande dagen uit monthData
+  const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
+  const plannedDates = Object.keys(maandData).filter(d => !!maandData[d]?.shift);
+
   console.log("✅ Planned dates:", plannedDates);
 
-  // 📅 Flatpickr aanmaken
+  // 📅 Maak de Flatpickr-kalender
   window.multiDayPicker = flatpickr("#multiShiftDays", {
     mode: "multiple",
     dateFormat: "d-m-Y",
@@ -2312,11 +2361,13 @@ function initMultiDayPicker() {
     minDate: start,
     maxDate: end,
     disableMobile: false,
-    defaultDate: [],
+    defaultDate: [], // geen dag vooraf geselecteerd
     onReady: function (selectedDates, dateStr, instance) {
+      // 🟡 Kleuren bij het openen
       setTimeout(() => highlightPlannedDays(instance, plannedDates), 50);
     },
     onMonthChange: function (selectedDates, dateStr, instance) {
+      // 🟡 Kleuren bij maandwissel
       highlightPlannedDays(instance, plannedDates);
     },
   });
@@ -2379,25 +2430,13 @@ async function refreshPlannedDays() {
   const year = Number(document.getElementById('yearSelectMain').value);
   const month = Number(document.getElementById('monthSelectMain').value);
   const ud = getCurrentUserData();
-const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
-// ✅ Correcte versie: haal ingeplande dagen uit ud.shifts
-const shifts = ud?.shifts || {};
-const currentMonthStr = String(month + 1).padStart(2, "0");
 
-const plannedDates = Object.entries(shifts)
-  .filter(([date, shift]) => {
-    const [y, m] = date.split("-");
-    return (
-      y === String(year) &&
-      m === currentMonthStr &&
-      shift &&
-      shift !== "Niet ingepland" &&
-      shift.trim() !== ""
-    );
-  })
-  .map(([date]) => date);
+  // ✅ Zelfde bron als initMultiDayPicker
+  const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
+  const plannedDates = Object.keys(maandData).filter(d => !!maandData[d]?.shift);
 
-console.log("Planned dates:", plannedDates);
+  console.log("🔁 Refresh planned dates:", plannedDates);
+
   if (window.multiDayPicker) {
     highlightPlannedDays(window.multiDayPicker, plannedDates);
   }
