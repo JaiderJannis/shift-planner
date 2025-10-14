@@ -2301,16 +2301,23 @@ function addShiftOption(selectEl, name) {
 // ➕ Helper: kleur reeds ingeplande dagen
 function highlightPlannedDays(instance, plannedDates) {
   setTimeout(() => {
+    if (!instance?.days) return;
     const days = instance.days.childNodes;
     days.forEach(dayElem => {
-      const dateStr = dayElem.dateObj?.toISOString().split('T')[0];
+      const d = dayElem.dateObj;
+      if (!d) return;
+
+      // Zorg dat de datumstring exact overeenkomt
+      const dateStr = d.toISOString().split('T')[0];
+
+      // Markeer alleen als die datum echt in plannedDates zit
       if (plannedDates.includes(dateStr)) {
         dayElem.classList.add('planned-day');
       } else {
         dayElem.classList.remove('planned-day');
       }
     });
-  }, 10);
+  }, 25);
 }
 function initMultiDayPicker() {
   const year = Number(document.getElementById('yearSelectMain').value);
@@ -2326,7 +2333,9 @@ function initMultiDayPicker() {
   // 🧠 Haal alle dagen met bestaande shiften op
   const ud = getCurrentUserData();
   const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
-  const plannedDates = Object.keys(maandData);
+  const plannedDates = Object.keys(maandData)
+    .map(d => d.trim())
+    .filter(d => d.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`));
 
   // 🎨 Flatpickr configuratie
   window.multiDayPicker = flatpickr("#multiShiftDays", {
@@ -2338,7 +2347,7 @@ function initMultiDayPicker() {
     weekNumbers: true,
     minDate: start,
     maxDate: end,
-    disableMobile: false,
+    disableMobile: true,
     defaultDate: [start],
     onReady: function (selectedDates, dateStr, instance) {
       instance.currentYear = year;
