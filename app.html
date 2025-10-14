@@ -2270,74 +2270,6 @@ function monthOverlapsPeriod(year, month0, startISO, endISO) {
   const e = end   || new Date('9999-12-31');
   return !(e < monthStart || s > monthEnd);
 }
-function populateMultiShiftSelect() {
-  const ud = getCurrentUserData();
-  const sel = document.getElementById('multiShiftName');
-  sel.innerHTML = '<option value="">Kies shift</option>';
-  if (!ud) return;
-
-  // 📅 Huidige maand + jaar
-  const year = Number(document.getElementById('yearSelectMain').value);
-  const month = Number(document.getElementById('monthSelectMain').value);
-
-  // 🧩 Gebruik de echte shift-definities (niet de ingevoerde dagen)
-  const allShifts = ud.shiftTemplates || ud.shifts || {};
-
-  Object.entries(allShifts).forEach(([name, shift]) => {
-    // ⛔ sla over als de naam lijkt op een datum
-    if (/^\d{4}-\d{2}-\d{2}$/.test(name)) return;
-
-    const start = shift.startDate || null;
-    const end = shift.endDate || null;
-
-    // Geen periode → altijd tonen
-    if (!start && !end) {
-      addShiftOption(sel, name);
-      return;
-    }
-
-    // Alleen tonen als de shiftperiode overlapt met de huidige maand
-    if (monthOverlapsPeriod(year, month, start, end)) {
-      addShiftOption(sel, name);
-    }
-  });
-}
-
-function addShiftOption(selectEl, name) {
-  const opt = document.createElement('option');
-  opt.value = name;
-  opt.textContent = name;
-  selectEl.appendChild(opt);
-}
-// ➕ Helper: kleur reeds ingeplande dagen
-function highlightPlannedDays(instance, plannedDates) {
-  setTimeout(() => {
-    if (!instance?.days) return;
-    const days = instance.days.childNodes;
-
-    const currentMonth = instance.currentMonth; // 0-based maand van Flatpickr
-    const currentYear = instance.currentYear;
-
-    days.forEach(dayElem => {
-      const dateObj = dayElem.dateObj;
-      if (!dateObj) return;
-
-      // ❌ Alleen kleur als deze dag binnen de huidige maand ligt
-      if (dateObj.getMonth() !== currentMonth || dateObj.getFullYear() !== currentYear) {
-        dayElem.classList.remove('planned-day');
-        return;
-      }
-
-      const dateStr = dateObj.toISOString().split('T')[0];
-
-      if (plannedDates.includes(dateStr)) {
-        dayElem.classList.add('planned-day');
-      } else {
-        dayElem.classList.remove('planned-day');
-      }
-    });
-  }, 100);
-}
 function initMultiDayPicker() {
   const year = Number(document.getElementById('yearSelectMain').value);
   const month = Number(document.getElementById('monthSelectMain').value); // 0-based
@@ -2349,16 +2281,25 @@ function initMultiDayPicker() {
   }
 
   const ud = getCurrentUserData();
-  const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
 
-  // ✅ Fix: correcte filtering per maand (1-based maandnummer)
-  const currentMonthStr = String(month + 1).padStart(2, '0');
-  const plannedDates = Object.keys(maandData)
-    .map(d => d.trim())
-    .filter(d => {
-      const [y, m] = d.split('-');
-      return y === String(year) && m === currentMonthStr;
-    });
+  // ✅ Correcte bron: haal ingeplande dagen uit ud.shifts (niet uit monthData)
+  const shifts = ud?.shifts || {};
+  const currentMonthStr = String(month + 1).padStart(2, "0");
+
+  const plannedDates = Object.entries(shifts)
+    .filter(([date, shift]) => {
+      const [y, m] = date.split("-");
+      return (
+        y === String(year) &&
+        m === currentMonthStr &&
+        shift &&
+        shift !== "Niet ingepland" &&
+        shift.trim() !== ""
+      );
+    })
+    .map(([date]) => date);
+
+  console.log("✅ Planned dates:", plannedDates);
 
   // 📅 Flatpickr aanmaken
   window.multiDayPicker = flatpickr("#multiShiftDays", {
@@ -2371,7 +2312,7 @@ function initMultiDayPicker() {
     minDate: start,
     maxDate: end,
     disableMobile: false,
-    defaultDate: [], // ❌ niet automatisch 1e dag selecteren
+    defaultDate: [],
     onReady: function (selectedDates, dateStr, instance) {
       setTimeout(() => highlightPlannedDays(instance, plannedDates), 50);
     },
@@ -2380,6 +2321,7 @@ function initMultiDayPicker() {
     },
   });
 }
+
 // 🔘 Open de modal
 document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
   const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
@@ -2438,15 +2380,24 @@ async function refreshPlannedDays() {
   const month = Number(document.getElementById('monthSelectMain').value);
   const ud = getCurrentUserData();
 const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
-const currentMonthStr = String(month + 1).padStart(2, '0');
+// ✅ Correcte versie: haal ingeplande dagen uit ud.shifts
+const shifts = ud?.shifts || {};
+const currentMonthStr = String(month + 1).padStart(2, "0");
 
-const plannedDates = Object.entries(maandData)
-  .filter(([date, row]) => {
-    const [y, m] = date.split('-');
-    const hasShift = row?.shift && row.shift !== "Niet ingepland" && row.shift.trim() !== "";
-    return y === String(year) && m === currentMonthStr && hasShift;
+const plannedDates = Object.entries(shifts)
+  .filter(([date, shift]) => {
+    const [y, m] = date.split("-");
+    return (
+      y === String(year) &&
+      m === currentMonthStr &&
+      shift &&
+      shift !== "Niet ingepland" &&
+      shift.trim() !== ""
+    );
   })
   .map(([date]) => date);
+
+console.log("Planned dates:", plannedDates);
   if (window.multiDayPicker) {
     highlightPlannedDays(window.multiDayPicker, plannedDates);
   }
