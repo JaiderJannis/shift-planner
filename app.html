@@ -2205,7 +2205,9 @@ function populateMultiShiftSelect() {
 function initMultiDayPicker() {
   const year = Number(document.getElementById('yearSelectMain').value);
   const month = Number(document.getElementById('monthSelectMain').value);
-  const start = new Date(year, month 1, 1);
+
+  // ✅ JavaScript-maanden tellen van 0–11, dus hier is month-1 correct
+  const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 0);
 
   if (window.multiDayPicker) {
@@ -2222,11 +2224,13 @@ function initMultiDayPicker() {
     minDate: start,
     maxDate: end,
     disableMobile: false,
-    defaultDate: [start], // ✅ start altijd bij geselecteerde maand
+    defaultDate: [start],  // ✅ toont juiste maand
     onReady: function(selectedDates, dateStr, instance) {
-      instance.changeMonth(month - 1); // ✅ juiste maand forceren
-      instance.changeYear(year);       // ✅ juiste jaar forceren
-    }
+      // ⚙️ month in Flatpickr = 0-gebaseerd, dus GEEN extra -1 meer!
+      instance.changeMonth(month - 1);
+      instance.changeYear(year);
+      instance.redraw();
+    },
   });
 }
 
