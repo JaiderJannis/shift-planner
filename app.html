@@ -109,6 +109,55 @@
 #notifDropdown.show {
   display: block !important;
 }
+/* === 🌙 Donkere modus === */
+body.dark-mode {
+  background-color: #1e1e1e !important;
+  color: #eaeaea !important;
+}
+
+body.dark-mode .sp-topbar {
+  background-color: #2b2b2b !important;
+  border-bottom-color: #444 !important;
+}
+
+body.dark-mode .sp-sidebar {
+  background-color: #111 !important;
+}
+
+body.dark-mode .sp-main {
+  background-color: #1e1e1e !important;
+  color: #eaeaea !important;
+}
+
+body.dark-mode .table {
+  color: #ddd !important;
+}
+
+body.dark-mode .table thead {
+  background-color: #333 !important;
+  color: #fff !important;
+}
+
+body.dark-mode .modal-content {
+  background-color: #2b2b2b !important;
+  color: #eaeaea !important;
+}
+
+body.dark-mode .btn-outline-secondary {
+  color: #eaeaea !important;
+  border-color: #666 !important;
+}
+
+/* === 🔄 Loading overlay === */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
   </style>
 </head>
 <body>
@@ -162,7 +211,10 @@
 
 <div class="d-flex align-items-center gap-3 ms-auto">
   <span class="text-secondary small">Ingelogd als <strong id="currentUserName">-</strong></span>
-
+    <!-- Dark mode -->
+<button id="darkModeBtn" class="btn btn-outline-secondary btn-sm">
+  <span class="material-icons-outlined">dark_mode</span>
+</button>
   <!-- 🔔 Notificatieknop -->
   <div class="position-relative">
     <button id="notifBtn" class="btn btn-outline-secondary btn-sm position-relative">
@@ -257,6 +309,8 @@
     </button>
   </div>
 </div>
+<!-- 🎯 Resterende uren-teller -->
+<div id="remainingHoursAlert" class="alert alert-info small d-none mb-3"></div>
 </div>
         <div class="row g-3 mb-3">
           <div class="col-6 col-md-2">
@@ -1870,7 +1924,50 @@ async function notifyProjectChange(userId, type, projectName, newEndDate = null)
 
   console.log('🔔 Melding gestuurd naar gebruiker:', text);
 }
+// 🌙 Donkere modus
+const darkModeBtn = document.getElementById('darkModeBtn');
+const prefersDark = localStorage.getItem('darkMode') === 'true';
+if (prefersDark) document.body.classList.add('dark-mode');
+
+darkModeBtn?.addEventListener('click', () => {
+  document.body.classList.toggle('dark-mode');
+  const active = document.body.classList.contains('dark-mode');
+  localStorage.setItem('darkMode', active);
+});
+
+// 🔄 Loading overlay
+function showLoading(show = true) {
+  document.getElementById('loadingOverlay').classList.toggle('d-none', !show);
+}
+
+// 🎯 Resterende uren-teller
+function updateRemainingHours() {
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const ud = getCurrentUserData();
+  const md = ud.monthData?.[y]?.[m];
+  const alertBox = document.getElementById('remainingHoursAlert');
+  if (!md) return alertBox.classList.add('d-none');
+
+  const doel = ((md.targetHours || 0) * 60) + (md.targetMinutes || 0);
+  const gepland = Object.values(md.rows || {}).reduce((s, r) => s + (r.minutes || 0), 0);
+  const resterend = Math.max(0, doel - gepland);
+  const fmt = v => `${Math.floor(v / 60)}u ${v % 60}min`;
+
+  alertBox.innerHTML = `
+    🎯 <strong>Doel:</strong> ${fmt(doel)} &nbsp; | &nbsp;
+    ⏱️ <strong>Gepland:</strong> ${fmt(gepland)} &nbsp; | &nbsp;
+    🕒 <strong>Resterend:</strong> ${fmt(resterend)}
+  `;
+  alertBox.classList.remove('d-none');
+}
   </script>
+<!-- 🔄 Loading overlay -->
+<div id="loadingOverlay" class="loading-overlay d-none">
+  <div class="spinner-border text-light" role="status">
+    <span class="visually-hidden">Laden...</span>
+  </div>
+</div>  
 </body>
 </html>
 
