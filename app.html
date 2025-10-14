@@ -671,9 +671,6 @@ body.dark-mode .alert-info {
     const monthTargetHours = document.getElementById('monthTargetHours');
     const monthTargetMinutes = document.getElementById('monthTargetMinutes');
     const tbody = document.getElementById('tbody');
-    const inputTotDoel = document.getElementById('inputTotDoel');
-    const inputTotGepland = document.getElementById('inputTotGepland');
-    const inputTotVerschil = document.getElementById('inputTotVerschil');
 
     // Historiek
     const historyBody = document.getElementById('historyBody');
@@ -1637,69 +1634,6 @@ document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
   if (!md || !md.rows || Object.keys(md.rows).length === 0) {
     return toast('Geen data voor deze maand', 'warning');
   }
-// 🔁 Shift toepassen op meerdere dagen
-const multiShiftName = document.getElementById('multiShiftName');
-const multiShiftStart = document.getElementById('multiShiftStart');
-const multiShiftEnd = document.getElementById('multiShiftEnd');
-const multiShiftDays = document.getElementById('multiShiftDays');
-const saveMultiShiftBtn = document.getElementById('saveMultiShiftBtn');
-
-// knop opent modal
-document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
-  const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
-  modal.show();
-});
-
-// opslaan
-saveMultiShiftBtn?.addEventListener('click', async () => {
-  const shift = multiShiftName.value.trim();
-  const start = multiShiftStart.value;
-  const end = multiShiftEnd.value;
-  const days = multiShiftDays.value.trim();
-
-  if (!shift || !start || !end || !days) {
-    toast('Vul alle velden in', 'warning');
-    return;
-  }
-
-  const dayList = days.split(',').map(d => d.trim());
-  const ud = getCurrentUserData();
-  const year = Number(document.getElementById('yearSelectMain').value);
-  const month = Number(document.getElementById('monthSelectMain').value);
-
-  ud.monthData = ud.monthData || {};
-  ud.monthData[year] = ud.monthData[year] || {};
-  const md = ud.monthData[year][month] = ud.monthData[year][month] || { rows: {} };
-
-  dayList.forEach(d => {
-    const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const minutes = minutesBetween(start, end, 0);
-    md.rows[key] = {
-      shift,
-      start,
-      end,
-      break: 0,
-      omschrijving: '',
-      minutes,
-      project: md.rows[key]?.project || '-'
-    };
-  });
-
-  await saveUserData();
-  renderMonth(year, month);
-  updateInputTotals();
-  updateRemainingHours();
-  renderHistory();
-
-  bootstrap.Modal.getInstance(document.getElementById('multiDayModal')).hide();
-  toast('Shift toegepast op meerdere dagen', 'success');
-
-  // velden resetten
-  multiShiftName.value = '';
-  multiShiftStart.value = '08:00';
-  multiShiftEnd.value = '16:00';
-  multiShiftDays.value = '';
-});
   // === Header met branding ===
   const pageWidth = doc.internal.pageSize.width;
   doc.setFillColor(13, 110, 253);
@@ -1788,6 +1722,69 @@ saveMultiShiftBtn?.addEventListener('click', async () => {
   const filename = `Shiftplanning_${ud.name || 'gebruiker'}_${monthName}_${year}.pdf`;
   doc.save(filename);
   toast('PDF geëxporteerd', 'success');
+});
+// 🔁 Shift toepassen op meerdere dagen
+const multiShiftName = document.getElementById('multiShiftName');
+const multiShiftStart = document.getElementById('multiShiftStart');
+const multiShiftEnd = document.getElementById('multiShiftEnd');
+const multiShiftDays = document.getElementById('multiShiftDays');
+const saveMultiShiftBtn = document.getElementById('saveMultiShiftBtn');
+
+// knop opent modal
+document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
+  const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
+  modal.show();
+});
+
+// opslaan
+saveMultiShiftBtn?.addEventListener('click', async () => {
+  const shift = multiShiftName.value.trim();
+  const start = multiShiftStart.value;
+  const end = multiShiftEnd.value;
+  const days = multiShiftDays.value.trim();
+
+  if (!shift || !start || !end || !days) {
+    toast('Vul alle velden in', 'warning');
+    return;
+  }
+
+  const dayList = days.split(',').map(d => d.trim());
+  const ud = getCurrentUserData();
+  const year = Number(document.getElementById('yearSelectMain').value);
+  const month = Number(document.getElementById('monthSelectMain').value);
+
+  ud.monthData = ud.monthData || {};
+  ud.monthData[year] = ud.monthData[year] || {};
+  const md = ud.monthData[year][month] = ud.monthData[year][month] || { rows: {} };
+
+  dayList.forEach(d => {
+    const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const minutes = minutesBetween(start, end, 0);
+    md.rows[key] = {
+      shift,
+      start,
+      end,
+      break: 0,
+      omschrijving: '',
+      minutes,
+      project: md.rows[key]?.project || '-'
+    };
+  });
+
+  await saveUserData();
+  renderMonth(year, month);
+  updateInputTotals();
+  updateRemainingHours();
+  renderHistory();
+
+  bootstrap.Modal.getInstance(document.getElementById('multiDayModal')).hide();
+  toast('Shift toegepast op meerdere dagen', 'success');
+
+  // velden resetten
+  multiShiftName.value = '';
+  multiShiftStart.value = '08:00';
+  multiShiftEnd.value = '16:00';
+  multiShiftDays.value = '';
 });
 // 🔔 In-app notificaties
 const notifBtn = document.getElementById('notifBtn');
