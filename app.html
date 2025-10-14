@@ -168,35 +168,53 @@ body.dark-mode .alert-info {
   background-color: #2b3e50 !important;
   color: #eaeaea !important;
 }
-/* 🎯 Resterende uren-balk - sticky onder filters */
+/* 🌙 Basispositie - onder filters */
 #remainingHoursAlert {
   position: sticky;
-  top: 70px; /* onder topbar */
+  top: 70px;
   z-index: 1030;
   margin-bottom: 0.75rem;
   max-width: 100%;
   width: fit-content;
   padding: 8px 12px;
-  display: inline-block;
-  transition: box-shadow 0.2s ease-in-out;
+  transition: all 0.4s ease-in-out;
+  border-radius: 0.75rem;
 }
 
-/* Schaduw bij plakken */
-#remainingHoursAlert.is-stuck {
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-}
-
-/* 📱 Mobiel: centreren en minder breed */
+/* 📱 Mobiel basisstijl */
 @media (max-width: 768px) {
   #remainingHoursAlert {
     display: block;
     width: 95%;
     margin: 0 auto 0.75rem auto;
     font-size: 0.9rem;
-    padding: 10px;
     text-align: center;
   }
 }
+
+/* 🧲 Wanneer zwevend */
+#remainingHoursAlert.floating {
+  position: fixed !important;
+  bottom: 1rem;
+  right: 1rem;
+  top: auto;
+  z-index: 2000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  background-color: var(--bs-info-bg-subtle, #e0f7ff);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* 📱 Mobiel variant: iets groter en centreren */
+@media (max-width: 768px) {
+  #remainingHoursAlert.floating {
+    right: 50%;
+    transform: translateX(50%);
+    bottom: 0.75rem;
+    width: 85%;
+    font-size: 0.95rem;
+  }
+}
+
 /* === 🔄 Loading overlay === */
 .loading-overlay {
   position: fixed;
@@ -2036,14 +2054,30 @@ function updateRemainingHours() {
 
   alertBox.classList.remove('d-none');
 }
-  // ✅ Sticky shadow voor resterende uren-balk
-window.addEventListener('DOMContentLoaded', () => {
+// 💡 Laat de balk zweven zodra hij uit beeld zou scollen
+document.addEventListener('DOMContentLoaded', () => {
   const alertBox = document.getElementById('remainingHoursAlert');
   if (!alertBox) return;
-  window.addEventListener('scroll', () => {
-    const rect = alertBox.getBoundingClientRect();
-    const stuck = rect.top <= 70;
-    alertBox.classList.toggle('is-stuck', stuck);
+
+  // Drempel = positie van de balk onder de topbar (±64–70px)
+  const TOPBAR_H = 70;
+  const getThreshold = () =>
+    Math.max(0, alertBox.offsetTop - TOPBAR_H);
+
+  let threshold = getThreshold();
+
+  const toggleFloating = () => {
+    // Herbereken eens in de zoveel tijd (bijv. na resize of als layout wijzigt)
+    const shouldFloat = window.scrollY > threshold;
+    alertBox.classList.toggle('floating', shouldFloat);
+  };
+
+  // Init + listeners
+  toggleFloating();
+  window.addEventListener('scroll', toggleFloating, { passive: true });
+  window.addEventListener('resize', () => {
+    threshold = getThreshold();
+    toggleFloating();
   });
 });
   </script>
