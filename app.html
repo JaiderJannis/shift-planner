@@ -227,6 +227,13 @@ body.dark-mode .alert-info {
     margin: 0 auto 0.5rem auto;
   }
 }
+/* 🔵 Kleurt dagen die al ingepland zijn */
+.flatpickr-day.planned-day {
+  background-color: #007bff20 !important; /* zacht blauw */
+  border-color: #007bff40 !important;
+  color: #0056b3 !important;
+  border-radius: 6px;
+}
   </style>
 </head>
 <body>
@@ -1792,6 +1799,14 @@ saveMultiShiftBtn?.addEventListener('click', async () => {
   bootstrap.Modal.getInstance(document.getElementById('multiDayModal')).hide();
   toast('Shift toegepast op geselecteerde dagen', 'success');
 });
+
+// 🔵 Herkleur direct alle ingeplande dagen opnieuw
+const plannedDates = Object.keys(
+  getCurrentUserData()?.monthData?.[yearSelectMain.value]?.[monthSelectMain.value]?.rows || {}
+);
+if (window.multiDayPicker) {
+  highlightPlannedDays(window.multiDayPicker, plannedDates);
+}
 // 🔔 In-app notificaties
 const notifBtn = document.getElementById('notifBtn');
 const notifDropdown = document.getElementById('notifDropdown');
@@ -2269,18 +2284,37 @@ function addShiftOption(selectEl, name) {
   opt.textContent = name;
   selectEl.appendChild(opt);
 }
+// ➕ Helper: kleur reeds ingeplande dagen
+function highlightPlannedDays(instance, plannedDates) {
+  setTimeout(() => {
+    const days = instance.days.childNodes;
+    days.forEach(dayElem => {
+      const dateStr = dayElem.dateObj?.toISOString().split('T')[0];
+      if (plannedDates.includes(dateStr)) {
+        dayElem.classList.add('planned-day');
+      } else {
+        dayElem.classList.remove('planned-day');
+      }
+    });
+  }, 10);
+}
 function initMultiDayPicker() {
   const year = Number(document.getElementById('yearSelectMain').value);
-  const month = Number(document.getElementById('monthSelectMain').value); 
-  // ⬆️ maand is al 0-based (0 = januari)
+  const month = Number(document.getElementById('monthSelectMain').value); // 0-based
 
-  const start = new Date(year, month, 1);         // ✅ géén -1
-  const end = new Date(year, month + 1, 0);       // ✅ tot eind van geselecteerde maand
+  const start = new Date(year, month, 1);
+  const end = new Date(year, month + 1, 0);
 
   if (window.multiDayPicker) {
     window.multiDayPicker.destroy();
   }
 
+  // 🧠 Haal alle dagen met bestaande shiften op
+  const ud = getCurrentUserData();
+  const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
+  const plannedDates = Object.keys(maandData);
+
+  // 🎨 Flatpickr configuratie
   window.multiDayPicker = flatpickr("#multiShiftDays", {
     mode: "multiple",
     dateFormat: "d-m-Y",
@@ -2292,11 +2326,17 @@ function initMultiDayPicker() {
     maxDate: end,
     disableMobile: false,
     defaultDate: [start],
-    onReady: function(selectedDates, dateStr, instance) {
-      // ⚙️ month is 0-based → gewoon de waarde doorgeven
-      instance.changeMonth(month);
-      instance.changeYear(year);
+    onReady: function (selectedDates, dateStr, instance) {
+      instance.currentYear = year;
+      instance.currentMonth = month;
       instance.redraw();
+
+      // 🔵 Markeer reeds ingeplande dagen
+      highlightPlannedDays(instance, plannedDates);
+    },
+    onMonthChange: function (selectedDates, dateStr, instance) {
+      // als je van maand wisselt, kleuren opnieuw toepassen
+      highlightPlannedDays(instance, plannedDates);
     },
   });
 }
@@ -2352,6 +2392,10 @@ dates.forEach(dateStr => {
 });
 
   saveUserData(ud);
+  // ✅ Direct de tabel en uren vernieuwen
+  renderMonth(Number(document.getElementById('yearSelectMain').value), Number(document.getElementById('monthSelectMain').value));
+  updateInputTotals();
+  updateRemainingHours();
   alert(`Shift "${shiftName}" toegepast op ${dates.length} dag(en).`);
 
 // ✅ Update kalender live zonder herladen
