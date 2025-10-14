@@ -2017,16 +2017,10 @@ function updateRemainingHours() {
   // 🔹 Kleur afhankelijk van voortgang
   const pct = doel > 0 ? (gepland / doel) * 100 : 0;
 
-  alertBox.classList.remove('alert-info', 'alert-warning', 'alert-danger', 'alert-success');
+  alertBox.classList.remove('alert-danger', 'alert-success');
   if (pct >= 100) {
     // 🟢 Doel bereikt of overschreden
     alertBox.classList.add('alert-success');
-  } else if (pct >= 80) {
-    // 🔵 Goed op schema
-    alertBox.classList.add('alert-info');
-  } else if (pct >= 50) {
-    // 🟠 Achter op schema
-    alertBox.classList.add('alert-warning');
   } else {
     // 🔴 Nog weinig gepland
     alertBox.classList.add('alert-danger');
