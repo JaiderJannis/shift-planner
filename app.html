@@ -2204,42 +2204,42 @@ function monthOverlapsPeriod(year, month0, startISO, endISO) {
   return !(e < monthStart || s > monthEnd);
 }
 function populateMultiShiftSelect() {
-  const ud  = getCurrentUserData();
+  const ud = getCurrentUserData();
   const sel = document.getElementById('multiShiftName');
   sel.innerHTML = '<option value="">Kies shift</option>';
 
-  const year  = Number(document.getElementById('yearSelectMain').value);
-  const month = Number(document.getElementById('monthSelectMain').value); // 0..11
+  if (!ud || !ud.shifts) return;
 
-  const all = ud.shifts || {};
-  const order = (ud.shiftOrder && ud.shiftOrder.length)
-    ? ud.shiftOrder
-    : Object.keys(all);
+  // 📅 Haal de geselecteerde maand en jaar op
+  const year = Number(document.getElementById('yearSelectMain').value);
+  const month = Number(document.getElementById('monthSelectMain').value); // 0 = januari
 
-  order.forEach(name => {
-    const sh = all[name];
-    if (!sh) return;
+  // 🔍 Loop over alle shiften (shiftdefinities)
+  Object.entries(ud.shifts).forEach(([shiftName, shiftData]) => {
+    // Controleer of deze shift een periode heeft
+    const start = shiftData.startDate || null;
+    const end = shiftData.endDate || null;
 
-    const inMaand = monthOverlapsPeriod(
-      year,
-      month,
-      sh.startDate || null,
-      sh.endDate || null
-    );
+    // Geen periode → altijd zichtbaar
+    if (!start && !end) {
+      addShiftOption(sel, shiftName);
+      return;
+    }
 
-    // Alleen tonen als:
-    // - er géén periode is (start/end leeg)  → altijd
-    // - er wél een periode is en die overlapt de geopende maand
-    const heeftPeriode = !!(sh.startDate || sh.endDate);
-    if (!heeftPeriode || inMaand) {
-      const o = document.createElement('option');
-      o.value = name;
-      o.textContent = name;
-      sel.appendChild(o);
+    // Controleer overlap met geselecteerde maand
+    if (monthOverlapsPeriod(year, month, start, end)) {
+      addShiftOption(sel, shiftName);
     }
   });
 }
 
+// 🔧 Kleine helper om een optie toe te voegen
+function addShiftOption(selectEl, name) {
+  const opt = document.createElement('option');
+  opt.value = name;
+  opt.textContent = name;
+  selectEl.appendChild(opt);
+}
 function initMultiDayPicker() {
   const year = Number(document.getElementById('yearSelectMain').value);
   const month = Number(document.getElementById('monthSelectMain').value); 
