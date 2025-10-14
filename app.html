@@ -2163,17 +2163,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const shouldFloat = window.scrollY > threshold;
     alertBox.classList.toggle('floating', shouldFloat);
 
-    // ⬆️ Extra: schuif omhoog bij het bereiken van de paginabodem
     const scrollBottom = window.innerHeight + window.scrollY;
     const pageHeight = document.body.offsetHeight;
 
     if (pageHeight - scrollBottom < 120) {
-      // binnen 120px van onderkant → schuif omhoog
       alertBox.style.bottom = `${120 - (pageHeight - scrollBottom)}px`;
     } else {
       alertBox.style.bottom = '1rem';
     }
   };
+
+  // ✅ direct forceren bij laden
+  alertBox.style.position = "fixed";
+  alertBox.style.bottom = "1rem";
+  alertBox.style.left = "50%";
+  alertBox.style.transform = "translateX(-50%)";
+  alertBox.style.zIndex = "2000";
+
+  // hercontrole na 0,5s
+  setTimeout(() => {
+    alertBox.style.position = "fixed";
+    alertBox.style.bottom = "1rem";
+    alertBox.style.left = "50%";
+    alertBox.style.transform = "translateX(-50%)";
+  }, 500);
 
   toggleFloating();
   window.addEventListener('scroll', toggleFloating, { passive: true });
@@ -2181,6 +2194,7 @@ document.addEventListener('DOMContentLoaded', () => {
     threshold = getThreshold();
     toggleFloating();
   });
+});
 // ✅ Fix: resterende uren-balk altijd onderaan direct bij laden
 document.addEventListener("DOMContentLoaded", () => {
   const alertBox = document.getElementById("remainingHoursAlert");
@@ -2200,7 +2214,6 @@ document.addEventListener("DOMContentLoaded", () => {
     alertBox.style.left = "50%";
     alertBox.style.transform = "translateX(-50%)";
   }, 500);
-});
 });
 // ➕ Helper: controleer of een shiftperiode overlapt met een maand
 function monthOverlapsPeriod(year, month0, startISO, endISO) {
