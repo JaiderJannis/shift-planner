@@ -2315,9 +2315,18 @@ function highlightPlannedDays(instance, plannedDates) {
     if (!instance?.days) return;
     const days = instance.days.childNodes;
 
+    const currentMonth = instance.currentMonth; // 0-based maand van Flatpickr
+    const currentYear = instance.currentYear;
+
     days.forEach(dayElem => {
       const dateObj = dayElem.dateObj;
       if (!dateObj) return;
+
+      // ❌ Alleen kleur als deze dag binnen de huidige maand ligt
+      if (dateObj.getMonth() !== currentMonth || dateObj.getFullYear() !== currentYear) {
+        dayElem.classList.remove('planned-day');
+        return;
+      }
 
       const dateStr = dateObj.toISOString().split('T')[0];
 
@@ -2428,7 +2437,7 @@ async function refreshPlannedDays() {
   const ud = getCurrentUserData();
   const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
 
-  const plannedDates = Object.keys(maandData);
+  const plannedDates = Object.keys(maandData).filter(key => key.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`));
   if (window.multiDayPicker) {
     highlightPlannedDays(window.multiDayPicker, plannedDates);
   }
