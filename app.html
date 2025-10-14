@@ -2204,11 +2204,11 @@ function populateMultiShiftSelect() {
 
 function initMultiDayPicker() {
   const year = Number(document.getElementById('yearSelectMain').value);
-  const month = Number(document.getElementById('monthSelectMain').value);
+  const month = Number(document.getElementById('monthSelectMain').value); 
+  // ⬆️ maand is al 0-based (0 = januari)
 
-  // ✅ JavaScript-maanden tellen van 0–11, dus hier is month-1 correct
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 0);
+  const start = new Date(year, month, 1);         // ✅ géén -1
+  const end = new Date(year, month + 1, 0);       // ✅ tot eind van geselecteerde maand
 
   if (window.multiDayPicker) {
     window.multiDayPicker.destroy();
@@ -2224,16 +2224,15 @@ function initMultiDayPicker() {
     minDate: start,
     maxDate: end,
     disableMobile: false,
-    defaultDate: [start],  // ✅ toont juiste maand
+    defaultDate: [start],
     onReady: function(selectedDates, dateStr, instance) {
-      // ⚙️ month in Flatpickr = 0-gebaseerd, dus GEEN extra -1 meer!
-      instance.changeMonth(month - 1);
+      // ⚙️ month is 0-based → gewoon de waarde doorgeven
+      instance.changeMonth(month);
       instance.changeYear(year);
       instance.redraw();
     },
   });
 }
-
 // 🔘 Open de modal
 document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
   const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
