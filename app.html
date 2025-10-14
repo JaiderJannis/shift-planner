@@ -2192,23 +2192,51 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 });
+// ➕ Helper: controleer of een shiftperiode overlapt met een maand
+function monthOverlapsPeriod(year, month0, startISO, endISO) {
+  const monthStart = new Date(year, month0, 1);
+  const monthEnd   = new Date(year, month0 + 1, 0);
+  const start = startISO ? new Date(startISO) : null;
+  const end   = endISO   ? new Date(endISO)   : null;
+  if (!start && !end) return true;
+  const s = start || new Date('1900-01-01');
+  const e = end   || new Date('9999-12-31');
+  return !(e < monthStart || s > monthEnd);
+}
 function populateMultiShiftSelect() {
-  const ud = getCurrentUserData();
+  const ud  = getCurrentUserData();
   const sel = document.getElementById('multiShiftName');
   sel.innerHTML = '<option value="">Kies shift</option>';
 
-  // ✅ Filter shiften die geldig zijn voor de geselecteerde maand
-  const year = Number(document.getElementById('yearSelectMain').value);
-  const month = Number(document.getElementById('monthSelectMain').value);
-  const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+  const year  = Number(document.getElementById('yearSelectMain').value);
+  const month = Number(document.getElementById('monthSelectMain').value); // 0..11
 
-  const monthShifts = ud.monthlyShiftTemplates?.[monthKey] || ud.shiftTemplates || ud.shifts || {};
+  const all = ud.shifts || {};
+  const order = (ud.shiftOrder && ud.shiftOrder.length)
+    ? ud.shiftOrder
+    : Object.keys(all);
 
-  Object.keys(monthShifts).forEach(shiftName => {
-    const o = document.createElement('option');
-    o.value = shiftName;
-    o.textContent = shiftName;
-    sel.appendChild(o);
+  order.forEach(name => {
+    const sh = all[name];
+    if (!sh) return;
+
+    const inMaand = monthOverlapsPeriod(
+      year,
+      month,
+      sh.startDate || null,
+      sh.endDate || null
+    );
+
+    // Alleen tonen als:
+    // - er géén periode is (start/end leeg)  → altijd
+    // - er wél een periode is en die overlapt de geopende maand
+    const heeftPeriode = !!(sh.startDate || sh.endDate);
+    if (!heeftPeriode || inMaand) {
+      const o = document.createElement('option');
+      o.value = name;
+      o.textContent = name;
+      sel.appendChild(o);
+    }
   });
 }
 
