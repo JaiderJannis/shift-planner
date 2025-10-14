@@ -247,6 +247,18 @@ body.dark-mode .alert-info {
   background-color: #ff9800 !important;
   color: #fff !important;
 }
+.flatpickr-day.planned-day {
+  background-color: #ffd54f !important;
+  color: #000 !important;
+  border-radius: 50% !important;
+  font-weight: 600;
+  border: 2px solid #fbc02d !important;
+}
+
+.flatpickr-day.selected.planned-day {
+  background-color: #ff9800 !important;
+  color: white !important;
+}
   </style>
 </head>
 <body>
@@ -2330,12 +2342,16 @@ function initMultiDayPicker() {
   const ud = getCurrentUserData();
   const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
 
-  // ✅ haal enkel echte datums van die maand op
+  // ✅ Fix: correcte filtering per maand (1-based maandnummer)
+  const currentMonthStr = String(month + 1).padStart(2, '0');
   const plannedDates = Object.keys(maandData)
     .map(d => d.trim())
-    .filter(d => d.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`));
+    .filter(d => {
+      const [y, m] = d.split('-');
+      return y === String(year) && m === currentMonthStr;
+    });
 
-  // 📅 Maak Flatpickr aan
+  // 📅 Flatpickr aanmaken
   window.multiDayPicker = flatpickr("#multiShiftDays", {
     mode: "multiple",
     dateFormat: "d-m-Y",
@@ -2346,9 +2362,8 @@ function initMultiDayPicker() {
     minDate: start,
     maxDate: end,
     disableMobile: false,
-    defaultDate: [], // ❌ niet meer automatisch de 1e dag selecteren
+    defaultDate: [], // ❌ niet automatisch 1e dag selecteren
     onReady: function (selectedDates, dateStr, instance) {
-      // kleine vertraging zodat de DOM volledig geladen is
       setTimeout(() => highlightPlannedDays(instance, plannedDates), 50);
     },
     onMonthChange: function (selectedDates, dateStr, instance) {
