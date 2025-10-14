@@ -358,6 +358,11 @@ body.dark-mode .alert-info {
       <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
     </button>
   </div>
+    <div class="col-12 col-md-auto mt-2 mt-md-0">
+    <button id="multiDayShiftBtn" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-file-earmark-pdf me-1"></i> Invoer meerdere dagen
+    </button>
+  </div>
 </div>
 <!-- 🎯 Sticky resterende uren-balk -->
 <div id="remainingHoursAlert" class="alert small d-none mb-3"></div>
@@ -1589,7 +1594,32 @@ document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
   if (!md || !md.rows || Object.keys(md.rows).length === 0) {
     return toast('Geen data voor deze maand', 'warning');
   }
+// 🔁 Shift toepassen op meerdere dagen
+document.getElementById('multiDayShiftBtn')?.addEventListener('click', async () => {
+  const shift = prompt('Shiftnaam (bijv. Late Shift):');
+  const start = prompt('Starttijd (bijv. 14:00):');
+  const end = prompt('Eindtijd (bijv. 22:00):');
+  const days = prompt('Welke dagen? (bijv. 01,02,03,05,06)');
+  if (!days) return;
 
+  const dayList = days.split(',').map(d => d.trim());
+  const ud = getCurrentUserData();
+  const year = Number(document.getElementById('yearSelectMain').value);
+  const month = Number(document.getElementById('monthSelectMain').value);
+
+  ud.monthData = ud.monthData || {};
+  ud.monthData[year] = ud.monthData[year] || {};
+  const md = ud.monthData[year][month] = ud.monthData[year][month] || { rows: {} };
+
+  dayList.forEach(d => {
+    const key = `${String(d).padStart(2, '0')}-${String(month + 1).padStart(2, '0')}-${year}`;
+    md.rows[key] = { shift, start, end, project: md.rows[key]?.project || '-' };
+  });
+
+  await saveUserData();
+  renderMonth(month, year);
+  toast('Shift toegepast op meerdere dagen', 'success');
+});
   // === Header met branding ===
   const pageWidth = doc.internal.pageSize.width;
   doc.setFillColor(13, 110, 253);
