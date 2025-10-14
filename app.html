@@ -1733,22 +1733,45 @@ document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
   modal.show();
 });
 
-// 📅 Activeer multi-date kalender
-flatpickr("#multiShiftDays", {
-  mode: "multiple",
-  dateFormat: "d-m-Y",
-  locale: "nl",
-  altInput: true,
-  altFormat: "d F Y",
-  weekNumbers: true,
+// 📅 Multi-date kalender beperken tot geselecteerde maand
+function initMultiDayPicker() {
+  const year = Number(document.getElementById('yearSelectMain').value);
+  const month = Number(document.getElementById('monthSelectMain').value);
+  const start = new Date(year, month, 1);
+  const end = new Date(year, month + 1, 0); // laatste dag van de maand
+
+  // Als er al een flatpickr bestaat → verwijder eerst
+  if (window.multiDayPicker && window.multiDayPicker.destroy) {
+    window.multiDayPicker.destroy();
+  }
+
+  window.multiDayPicker = flatpickr("#multiShiftDays", {
+    mode: "multiple",
+    dateFormat: "d-m-Y",
+    altInput: true,
+    altFormat: "d F Y",
+    locale: "nl",
+    weekNumbers: true,
+    defaultDate: [start],
+    minDate: start,
+    maxDate: end,
+    disableMobile: false,
+  });
+}
+
+// 🖱️ Open modal en stel kalender in op huidige maand
+document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
+  const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
+  modal.show();
+  setTimeout(initMultiDayPicker, 150); // even wachten tot modal zichtbaar is
 });
 
-// ✅ Nieuw opslaan met flatpickr-data
+// ✅ Opslaan geselecteerde dagen
 saveMultiShiftBtn?.addEventListener('click', async () => {
   const shift = multiShiftName.value.trim();
   const start = multiShiftStart.value;
   const end = multiShiftEnd.value;
-  const fp = document.querySelector("#multiShiftDays")._flatpickr;
+  const fp = window.multiDayPicker;
 
   if (!shift || !start || !end || !fp || !fp.selectedDates.length) {
     toast('Vul alle velden in en selecteer minstens één dag', 'warning');
