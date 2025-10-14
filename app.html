@@ -168,33 +168,35 @@ body.dark-mode .alert-info {
   background-color: #2b3e50 !important;
   color: #eaeaea !important;
 }
-/* Sticky balk onder filters */
+/* 🎯 Resterende uren-balk - sticky onder filters */
 #remainingHoursAlert {
   position: sticky;
   top: 70px; /* onder topbar */
   z-index: 1030;
   margin-bottom: 0.75rem;
+  max-width: 100%;
+  width: fit-content;
+  padding: 8px 12px;
+  display: inline-block;
   transition: box-shadow 0.2s ease-in-out;
 }
 
-/* schaduw wanneer geplakt */
+/* Schaduw bij plakken */
 #remainingHoursAlert.is-stuck {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
-/* Subtiele schaduw wanneer hij “plakt” */
-#remainingHoursAlert.is-stuck {
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-}
 
-/* Mobiel */
+/* 📱 Mobiel: centreren en minder breed */
 @media (max-width: 768px) {
   #remainingHoursAlert {
-    top: 60px;
+    display: block;
+    width: 95%;
+    margin: 0 auto 0.75rem auto;
     font-size: 0.9rem;
-    padding: 8px 10px;
+    padding: 10px;
+    text-align: center;
   }
 }
-
 /* === 🔄 Loading overlay === */
 .loading-overlay {
   position: fixed;
