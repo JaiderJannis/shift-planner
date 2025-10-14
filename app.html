@@ -2183,13 +2183,22 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 document.addEventListener("DOMContentLoaded", () => {
   const alertBox = document.getElementById('remainingHoursAlert');
-  if (alertBox) {
+  if (!alertBox) return;
+
+  // ✅ Forceren dat de balk altijd onderaan blijft
+  alertBox.style.position = "fixed";
+  alertBox.style.bottom = "1rem";
+  alertBox.style.left = "50%";
+  alertBox.style.transform = "translateX(-50%)";
+  alertBox.style.zIndex = "2000";
+
+  // 👇 Optioneel: kleine check na 0.5s (voor hertekenen van DOM)
+  setTimeout(() => {
     alertBox.style.position = "fixed";
     alertBox.style.bottom = "1rem";
     alertBox.style.left = "50%";
     alertBox.style.transform = "translateX(-50%)";
-    alertBox.style.zIndex = "2000";
-  }
+  }, 500);
 });
 });
 // ➕ Helper: controleer of een shiftperiode overlapt met een maand
