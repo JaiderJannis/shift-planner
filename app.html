@@ -2264,7 +2264,7 @@ function highlightPlannedDays(inst, plannedDates = []) {
   if (!inst || !inst.daysContainer) return;
 
   inst.daysContainer.querySelectorAll('.flatpickr-day').forEach(d => {
-    if (!d.dateObj) return; // ⛔ voorkom 'toISOString' errors op lege cellen
+    if (!d.dateObj) return; // voorkomt toISOString errors
     const dateStr = d.dateObj.toISOString().split('T')[0];
     if (plannedDates.includes(dateStr)) {
       d.classList.add('planned-day');
@@ -2316,6 +2316,22 @@ async function refreshPlannedDays() {
   }
 }
 
+// --- Geeft alle ingeplande datums terug in ISO-formaat ---
+function getPlannedDates() {
+  const ud = getCurrentUserData();
+  const all = [];
+  if (!ud.monthData) return all;
+
+  for (const [year, months] of Object.entries(ud.monthData)) {
+    for (const [month, data] of Object.entries(months)) {
+      const rows = data.rows || {};
+      for (const [date, row] of Object.entries(rows)) {
+        if (row.shift) all.push(date); // alleen dagen met een shift
+      }
+    }
+  }
+  return all;
+}
 /* === Kalender voor invoer meerdere dagen === */
 function initMultiDayPicker() {
   const year = Number(document.getElementById("yearSelectMain").value);
@@ -2342,13 +2358,20 @@ window.multiDayPicker = flatpickr("#multiShiftDays", {
   maxDate: end,
   disableMobile: false,
   defaultDate: [],
+
+  // ✅ Eerste dag correct kleuren bij laden
   onReady(_, __, inst) {
-    highlightPlannedDays(inst, plannedDates);
+    setTimeout(() => {
+      highlightPlannedDays(inst, getPlannedDates());
+    }, 50);
   },
+
+  // ✅ Herkleur bij maandwisseling
   onMonthChange(_, __, inst) {
-    highlightPlannedDays(inst, plannedDates);
+    highlightPlannedDays(inst, getPlannedDates());
   },
-  // 🟢 nieuw toegevoegd:
+
+  // ✅ Filter shiften bij datumselectie
   onChange(selectedDates) {
     const isoDates = selectedDates.map(d => d.toISOString().split('T')[0]);
     populateMultiDayShifts(isoDates);
@@ -2466,7 +2489,8 @@ document.getElementById('saveMultiShift').addEventListener('click', async () => 
   markPlannedDays();
   updateInputTotals();
   renderHistory();
-
+// herlaad highlights na opslaan
+highlightPlannedDays(window.multiDayPicker, getPlannedDates());
   // ✅ Sluit modal
   bootstrap.Modal.getInstance(document.getElementById('multiDayModal')).hide();
 });
