@@ -93,12 +93,6 @@
     padding: 6px 10px;
   }
 }
-#notifDropdown {
-  background: #fff;
-  max-height: 300px;
-  overflow-y: auto;
-  right: 0;
-}
 #notifList li.unread {
   font-weight: 600;
 }
@@ -171,10 +165,6 @@ body.dark-mode .alert-danger {
   background-color: #5b1b1b !important;
   color: #ffbdbd !important;
 }
-body.dark-mode .alert-info {
-  background-color: #2b3e50 !important;
-  color: #eaeaea !important;
-}
 /* 🌊 Altijd zwevende resterende uren-balk */
 #remainingHoursAlert {
   position: fixed !important;
@@ -238,14 +228,6 @@ body.dark-mode .alert-info {
   font-weight: 600;
   border: 2px solid #e0a800 !important;
 }
-.flatpickr-day.planned-day {
-  background-color: #ffeb3b !important; /* helder geel */
-  color: #000 !important;
-  border-radius: 50% !important;
-  font-weight: 600;
-  border: 2px solid #fbc02d !important;
-}
-
 .flatpickr-day.selected.planned-day {
   background-color: #ff9800 !important; /* oranje */
   color: white !important;
@@ -256,6 +238,16 @@ body.dark-mode .alert-info {
 .badge-submitted { background:#e7f1ff; color:#0d6efd; }
 .badge-approved { background:#e6f4ea; color:#1e7e34; }
 .badge-rejected { background:#fdecea; color:#842029; }
+/* mini actieknoppen in de invoertabel */
+.btn-line{
+  --bs-btn-padding-y: .15rem;
+  --bs-btn-padding-x: .35rem;
+  --bs-btn-font-size: .75rem;
+  line-height: 1;
+}
+/* Acties-kolom smal + niet afbreken */
+#thActions{ width:1%; white-space:nowrap; }
+td.actions-cell{ white-space:nowrap; }  
   </style>
 </head>
 <body>
@@ -438,10 +430,11 @@ body.dark-mode .alert-info {
         <div class="table-responsive">
           <table class="table table-striped table-hover align-middle table-nowrap">
             <thead class="table-light">
-              <tr>
-                <th>Dag</th><th>Datum</th><th>Project</th><th>Shift</th><th>Start</th><th>Einde</th><th>Pauze</th><th>Omschrijving</th><th>Duur</th>
-              </tr>
-            </thead>
+  <tr>
+    <th id="thActions">Acties</th>
+    <th>Dag</th><th>Datum</th><th>Project</th><th>Shift</th><th>Start</th><th>Einde</th><th>Pauze</th><th>Omschrijving</th><th>Duur</th>
+  </tr>
+</thead>
             <tbody id="tbody"></tbody>
           </table>
         </div>
@@ -583,6 +576,35 @@ body.dark-mode .alert-info {
     </div>
   </div>
   <small class="text-muted d-block mt-2">Kies bovenaan in “Gebruikersbeheer” eerst de gebruiker.</small>
+</div>
+<div class="card p-3 mb-3" id="adminMultiMonthlyCard">
+  <h6 class="mb-3">Extra lijnen per maand (per gebruiker)</h6>
+  <p class="text-muted mb-2">
+    Selecteer bovenaan een gebruiker. Zet aan om in de gekozen maand extra shiften (onderbrekingen) toe te staan.
+  </p>
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label">Maand</label>
+      <select id="adminMultiMonth" class="form-select">
+        <option value="0">Januari</option><option value="1">Februari</option><option value="2">Maart</option>
+        <option value="3">April</option><option value="4">Mei</option><option value="5">Juni</option>
+        <option value="6">Juli</option><option value="7">Augustus</option><option value="8">September</option>
+        <option value="9">Oktober</option><option value="10">November</option><option value="11">December</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Jaar</label>
+      <input id="adminMultiYear" type="number" class="form-control" min="2000" step="1">
+    </div>
+    <div class="col-md-6">
+      <div class="form-check form-switch mt-4">
+        <input id="adminMultiAllow" class="form-check-input" type="checkbox">
+        <label class="form-check-label" for="adminMultiAllow">
+          Sta extra lijnen toe in deze maand (voor deze gebruiker)
+        </label>
+      </div>
+    </div>
+  </div>
 </div>
 </section>
 
@@ -823,6 +845,34 @@ function autoProjectForShift(shiftName){
       const e = end? end.replaceAll('-',''): null;
       if(s && d < s) return false; if(e && d > e) return false; return true;
     };
+// ===== per gebruiker per maand =====
+function ensureUserMonthlyMap(ud){
+  ud.settings ||= {};
+  ud.settings.multiByMonth ||= {}; // { 'YYYY-MM': true }
+  return ud.settings.multiByMonth;
+}
+function userAllowsMultiMonth(ud, year, month){ // month: 0..11
+  const key = `${year}-${String(month+1).padStart(2,'0')}`;
+  return !!(ud.settings?.multiByMonth?.[key]);
+}
+function canAddMultiForProject(projectName) {
+  const ud = getCurrentUserData();
+  if (!projectName) return false;
+  const p = (ud.projects || []).find(px => px.name === projectName);
+  return !!p?.allowMulti;
+}
+function listDayKeys(md, baseKey) {
+  const rows = md?.rows || {};
+  return Object.keys(rows)
+    .filter(k => k === baseKey || k.startsWith(baseKey + '#'))
+    .sort((a, b) => a.localeCompare(b, 'nl'));
+}
+function nextLineIndex(md, baseKey) {
+  const keys = listDayKeys(md, baseKey);
+  let n = 2;
+  while (keys.includes(`${baseKey}#${n}`)) n++;
+  return n;
+}
 // ======= Maandstatus helpers (global) =======
 // status: 'draft' | 'submitted' | 'approved' | 'rejected'
 function getMonthStatus(y, m){
@@ -978,14 +1028,21 @@ async function saveUserData(){
 
       list.forEach((p, idx)=>{
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${p.name}</td>
-          <td>${toDisplayDate(p.start)}</td>
-          <td>${toDisplayDate(p.end)}</td>
-          <td class="text-end">
-            <button class="btn btn-sm btn-warning me-1" data-idx="${idx}" data-act="extend">Verleng</button>
-            <button class="btn btn-sm btn-danger" data-idx="${idx}" data-act="delete">Verwijder</button>
-          </td>`;
+       // default-flag voor bestaande projecten
+if (p.allowMulti === undefined) p.allowMulti = false;
+
+tr.innerHTML = `
+  <td>${p.name}</td>
+  <td>${toDisplayDate(p.start)}</td>
+  <td>${toDisplayDate(p.end)}</td>
+  <td class="text-end">
+    <div class="d-inline-flex align-items-center gap-2 me-2">
+      <input type="checkbox" class="form-check-input" data-idx="${idx}" data-act="toggle-multi" ${p.allowMulti ? 'checked' : ''}>
+      <span class="small text-muted">extra lijn</span>
+    </div>
+    <button class="btn btn-sm btn-warning me-1" data-idx="${idx}" data-act="extend">Verleng</button>
+    <button class="btn btn-sm btn-danger" data-idx="${idx}" data-act="delete">Verwijder</button>
+  </td>`;
         projectTableBody.appendChild(tr);
 
         const o1 = document.createElement('option'); o1.value=p.name; o1.textContent=p.name; newShiftProjectSelect.appendChild(o1);
@@ -1027,6 +1084,18 @@ projectTableBody.querySelectorAll('button').forEach(btn => {
       renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
       toast('Project verwijderd', 'danger');
     }
+  });
+});
+// toggle "extra lijn" per project
+projectTableBody.querySelectorAll('input[data-act="toggle-multi"]').forEach(chk => {
+  chk.addEventListener('change', async () => {
+    const ud = getCurrentUserData();
+    const idx = Number(chk.dataset.idx);
+    const p = ud.projects[idx];
+    if (!p) return;
+    p.allowMulti = !!chk.checked;
+    await saveUserData();
+    toast(`Extra lijn ${p.allowMulti ? 'toegestaan' : 'uitgeschakeld'} voor ${p.name}`, 'success');
   });
 });
     }
@@ -1254,97 +1323,176 @@ function autoAssignProjectIfNeeded(r) {
     r.project = sp;
   }
 }
-   async function renderMonth(year, month){
+async function renderMonth(year, month){
   const ud = getCurrentUserData();
-  ud.monthData[year] = ud.monthData[year] || {};
-  ud.monthData[year][month] = ud.monthData[year][month] || { targetHours:0, targetMinutes:0, rows:{} };
+  ud.monthData[year] ||= {};
+  ud.monthData[year][month] ||= { targetHours:0, targetMinutes:0, rows:{} };
   const md = ud.monthData[year][month];
-  const selectedProject = projectFilterSelect.value || ''; // 👈 gekozen filter
+
+  const selectedProject = projectFilterSelect.value || '';
   tbody.innerHTML = '';
 
-      monthTargetHours.value = md.targetHours || 0;
-      monthTargetMinutes.value = md.targetMinutes || 0;
+  monthTargetHours.value = md.targetHours || 0;
+  monthTargetMinutes.value = md.targetMinutes || 0;
 
-      const daysInMonth = new Date(year, month+1, 0).getDate();
-      for(let d=1; d<=daysInMonth; d++){
-        const key = dateKey(year, month, d);
-if (!md.rows[key]) {
-  md.rows[key] = { project:'', shift:'', start:'00:00', end:'00:00', break:0, omschrijving:'', minutes:0 };
-} else {
-  autoAssignProjectIfNeeded(md.rows[key]);
-}
-        const r = md.rows[key];
-        const dayName = daysFull[new Date(year, month, d).getDay()];
-  // 👇 Filter op project (alleen tonen wat overeenkomt)
-  if (selectedProject && r.project !== selectedProject) continue;
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${dayName}</td>
-          <td>${String(d).padStart(2,'0')}-${String(month+1).padStart(2,'0')}-${year}</td>
-          <td><select class="form-select form-select-sm projectSelect"></select></td>
-          <td><select class="form-select form-select-sm shiftSelect"></select></td>
-          <td><input class="form-control form-control-sm startInput" type="time" value="${r.start}"></td>
-          <td><input class="form-control form-control-sm endInput" type="time" value="${r.end}"></td>
-          <td><input class="form-control form-control-sm breakInput" type="number" min="0" value="${r.break}"></td>
-          <td><input class="form-control form-control-sm omschrijvingInput" type="text" value="${r.omschrijving}"></td>
-          <td class="dur text-mono">${Math.floor(r.minutes/60)}u ${r.minutes%60}min</td>`;
-        tbody.appendChild(tr);
+  // lock & tonen acties-kolom
+  const statusNow = getMonthStatus(year, month);
+  const locked = (statusNow==='approved' || statusNow==='submitted');
 
-        // project dropdown (alleen geldige voor datum)
-        const projSel = tr.querySelector('.projectSelect');
-        projSel.innerHTML = '<option value="">--</option>';
-        (ud.projects || []).forEach(p=>{
-          if (isDateWithin(key, p.start || null, p.end || null)) {
-            const o = document.createElement('option'); o.value=p.name; o.textContent=p.name; projSel.appendChild(o);
-          }
-        });
-        if(r.project) projSel.value = r.project;
+  const showActions =
+    !locked && ( userAllowsMultiMonth(ud, year, month) || (ud.projects||[]).some(p => p.allowMulti) );
+  document.getElementById('thActions')?.classList.toggle('d-none', !showActions);
 
-        projSel.addEventListener('change', async ()=>{
-          r.project = projSel.value || '';
-          saveCell(year, month, key, r, tr);
-          await populateShiftSelectForRow(tr, d, month, year);
-          updateInputTotals();
-          saveUserData();
-        });
-
-        await populateShiftSelectForRow(tr, d, month, year);
-
-        tr.querySelector('.startInput').addEventListener('change', e=>{
-          r.start = e.target.value; recalcRowMinutes(r);
-          saveCell(year, month, key, r, tr); tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-          updateInputTotals(); saveUserData(); renderHistory();
-        });
-        tr.querySelector('.endInput').addEventListener('change', e=>{
-          r.end = e.target.value; recalcRowMinutes(r);
-          saveCell(year, month, key, r, tr); tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-          updateInputTotals(); saveUserData(); renderHistory();
-        });
-        tr.querySelector('.breakInput').addEventListener('input', e=>{
-          r.break = Number(e.target.value)||0; recalcRowMinutes(r);
-          saveCell(year, month, key, r, tr); tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-          updateInputTotals(); saveUserData(); renderHistory();
-        });
-        tr.querySelector('.omschrijvingInput').addEventListener('change', e=>{
-          r.omschrijving = e.target.value; saveCell(year, month, key, r, tr); saveUserData(); renderHistory();
-        });
-      }
-    await saveUserData();
-    updateRemainingHours();
-    // 🔒 vergrendel invoer bij 'approved' (wil je 'submitted' tijdelijk locken? zet die er bij)
-const statusNow = getMonthStatus(year, month);
-const locked = (statusNow==='approved' || statusNow==='submitted')
-tbody.querySelectorAll('select, input').forEach(el => { el.disabled = locked; });
-
-// badge updaten
-updateMonthStatusBadge();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  for(let d=1; d<=daysInMonth; d++){
+    const baseKey = dateKey(year, month, d);
+    if (!md.rows[baseKey]) {
+      md.rows[baseKey] = { project:'', shift:'', start:'00:00', end:'00:00', break:0, omschrijving:'', minutes:0 };
+    } else {
+      autoAssignProjectIfNeeded(md.rows[baseKey]);
     }
 
-async function populateShiftSelectForRow(tr, day, month, year){
-  const key = dateKey(year, month, day);
+    const allKeys = listDayKeys(md, baseKey);
+
+    // Filter per project (zichtbare lijst)
+    const visibleKeys = allKeys.filter(k => {
+      const r = md.rows[k];
+      if (!selectedProject) return true;
+      return (r.project || '') === selectedProject;
+    });
+
+    const renderKeys = visibleKeys.length ? visibleKeys : (selectedProject ? [] : allKeys);
+
+    for (let idx = 0; idx < renderKeys.length; idx++) {
+      const rowKey = renderKeys[idx];
+      const r = md.rows[rowKey];
+      const dayName = daysFull[new Date(year, month, d).getDay()];
+
+      // rechten voor + op deze rij
+      const allowByMonth   = userAllowsMultiMonth(ud, year, month);
+      const allowByProject = r.project ? canAddMultiForProject(r.project) : false;
+      const allowThisRow   = allowByMonth || allowByProject;
+
+      const tr = document.createElement('tr');
+
+      const actionsCell = showActions
+        ? (idx === 0
+            ? `<td class="actions-cell">
+                 <button class="btn btn-outline-success btn-line addLineBtn" ${allowThisRow ? '' : 'disabled'} title="Extra regel toevoegen">+</button>
+               </td>`
+            : `<td class="actions-cell">
+                 <button class="btn btn-outline-danger btn-line delLineBtn" data-key="${rowKey}" title="Deze regel verwijderen">−</button>
+               </td>`
+          )
+        : '';
+
+      tr.innerHTML = `
+        ${actionsCell}
+        <td>${idx === 0 ? dayName : ''}</td>
+        <td>${idx === 0 ? `${String(d).padStart(2,'0')}-${String(month+1).padStart(2,'0')}-${year}` : ''}</td>
+        <td><select class="form-select form-select-sm projectSelect"></select></td>
+        <td><select class="form-select form-select-sm shiftSelect"></select></td>
+        <td><input class="form-control form-control-sm startInput" type="time" value="${r.start}"></td>
+        <td><input class="form-control form-control-sm endInput" type="time" value="${r.end}"></td>
+        <td><input class="form-control form-control-sm breakInput" type="number" min="0" value="${r.break}"></td>
+        <td><input class="form-control form-control-sm omschrijvingInput" type="text" value="${r.omschrijving}"></td>
+        <td class="dur text-mono">${Math.floor(r.minutes/60)}u ${r.minutes%60}min</td>`;
+      tbody.appendChild(tr);
+
+      // project dropdown (gefilterd op datum)
+      const projSel = tr.querySelector('.projectSelect');
+      projSel.innerHTML = '<option value="">--</option>';
+      (ud.projects || []).forEach(p=>{
+        if (isDateWithin(baseKey, p.start || null, p.end || null)) {
+          const o = document.createElement('option'); o.value=p.name; o.textContent=p.name; projSel.appendChild(o);
+        }
+      });
+      if(r.project) projSel.value = r.project;
+
+      projSel.addEventListener('change', async ()=>{
+        r.project = projSel.value || '';
+        saveCell(year, month, rowKey, r, tr);
+        await populateShiftSelectForRow(tr, rowKey);
+        updateInputTotals();
+        saveUserData();
+
+        // + opnieuw (de)activeren
+        const addBtn = tr.querySelector('.addLineBtn');
+        if (addBtn) {
+          const allowByMonth   = userAllowsMultiMonth(getCurrentUserData(), year, month);
+          const allowByProject = r.project ? canAddMultiForProject(r.project) : false;
+          addBtn.disabled = !(allowByMonth || allowByProject);
+        }
+      });
+
+      await populateShiftSelectForRow(tr, rowKey);
+
+      tr.querySelector('.startInput').addEventListener('change', e=>{
+        r.start = e.target.value; recalcRowMinutes(r);
+        saveCell(year, month, rowKey, r, tr);
+        tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+        updateInputTotals(); saveUserData(); renderHistory();
+      });
+      tr.querySelector('.endInput').addEventListener('change', e=>{
+        r.end = e.target.value; recalcRowMinutes(r);
+        saveCell(year, month, rowKey, r, tr);
+        tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+        updateInputTotals(); saveUserData(); renderHistory();
+      });
+      tr.querySelector('.breakInput').addEventListener('input', e=>{
+        r.break = Number(e.target.value)||0; recalcRowMinutes(r);
+        saveCell(year, month, rowKey, r, tr);
+        tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+        updateInputTotals(); saveUserData(); renderHistory();
+      });
+      tr.querySelector('.omschrijvingInput').addEventListener('change', e=>{
+        r.omschrijving = e.target.value; saveCell(year, month, rowKey, r, tr); saveUserData(); renderHistory();
+      });
+
+      // + / − handlers
+      const addBtn = tr.querySelector('.addLineBtn');
+      if (addBtn) {
+        addBtn.addEventListener('click', async () => {
+          const idxNew = nextLineIndex(md, baseKey);
+          const newKey = `${baseKey}#${idxNew}`;
+          md.rows[newKey] = { project: r.project, shift:'', start:'00:00', end:'00:00', break:0, omschrijving:'', minutes:0 };
+          await saveUserData();
+          renderMonth(year, month);
+          updateInputTotals(); renderHistory();
+        });
+      }
+      const delBtn = tr.querySelector('.delLineBtn');
+      if (delBtn) {
+        delBtn.addEventListener('click', async () => {
+          const k = delBtn.dataset.key;
+          delete md.rows[k];
+          await saveUserData();
+          renderMonth(year, month);
+          updateInputTotals(); renderHistory();
+        });
+      }
+    }
+  }
+
+  await saveUserData();
+  updateRemainingHours();
+
+  // 🔒 velden vergrendelen bij submitted/approved
+  const lockedNow = (getMonthStatus(year, month)==='approved' || getMonthStatus(year, month)==='submitted');
+  tbody.querySelectorAll('select, input').forEach(el => { el.disabled = lockedNow; });
+
+  updateMonthStatusBadge();
+}
+
+async function populateShiftSelectForRow(tr, rowKey){
+  const base = rowKey.split('#')[0];                   // YYYY-MM-DD
+  const [yStr, mStr, dStr] = base.split('-');
+  const year = Number(yStr), month = Number(mStr)-1;
+
   const ud = getCurrentUserData();
   const md = ud.monthData[year][month];
-  const r = md.rows[key];
+  const r = md.rows[rowKey];
+
   const projSel = tr.querySelector('.projectSelect');
   const sel = tr.querySelector('.shiftSelect');
   sel.innerHTML = '<option value=""></option>';
@@ -1354,7 +1502,7 @@ async function populateShiftSelectForRow(tr, day, month, year){
   const entries = order.map(n=> [n, all[n]]).filter(([,sh])=> !!sh);
 
   for(const [name, sh] of entries){
-    if(!isDateWithin(key, sh.startDate || null, sh.endDate || null)) continue;
+    if(!isDateWithin(base, sh.startDate || null, sh.endDate || null)) continue;
     const o = document.createElement('option');
     o.value = name; o.textContent = name; if(r.shift===name) o.selected = true; sel.appendChild(o);
   }
@@ -1364,70 +1512,75 @@ async function populateShiftSelectForRow(tr, day, month, year){
     const all = ud.shifts || {};
     if (!chosen) {
       r.shift = ''; r.project = ''; projSel.value = '';
-      saveCell(year, month, key, r, tr); await saveUserData(); updateInputTotals(); renderHistory();
+      saveCell(year, month, rowKey, r, tr); await saveUserData(); updateInputTotals(); renderHistory();
       return;
     }
 
     r.shift = chosen;
-await saveUserData();
-// ✅ Automatische projecttoewijzing
-if (['Bench'].includes(chosen)) {
-  r.project = '';
-  saveCell(year, month, key, r, tr);
-  await saveUserData();
-} 
-else if (['Schoolverlof','School'].includes(chosen)) {
-  ensureProjectExists('PXL Verpleegkunde Hasselt');
-  r.project = 'PXL Verpleegkunde Hasselt';
-  saveCell(year, month, key, r, tr);
-  await saveUserData();
-  console.log(`📘 Project toegewezen: ${r.project}`);
-} 
-else if (['Verlof','Teammeeting','Ziekte'].includes(chosen)) {
-  ensureProjectExists('Eght Care');
-  r.project = 'Eght Care';
-  saveCell(year, month, key, r, tr);
-  await saveUserData();
-  console.log(`💼 Project toegewezen: ${r.project}`);
-} 
-else {
-  const sh = all[chosen];
-  if (sh && sh.project) {
-    const p = (ud.projects||[]).find(px => px.name===sh.project);
-    if (p && isDateWithin(key, p.start||null, p.end||null)) {
-      r.project = p.name;
+    await saveUserData();
+
+    // auto project (jouw bestaande logica)
+    if (['Bench'].includes(chosen)) {
+      r.project = '';
+      saveCell(year, month, rowKey, r, tr);
+      await saveUserData();
+    } 
+    else if (['Schoolverlof','School'].includes(chosen)) {
+      ensureProjectExists('PXL Verpleegkunde Hasselt');
+      r.project = 'PXL Verpleegkunde Hasselt';
+      saveCell(year, month, rowKey, r, tr);
+      await saveUserData();
+    } 
+    else if (['Verlof','Teammeeting','Ziekte'].includes(chosen)) {
+      ensureProjectExists('Eght Care');
+      r.project = 'Eght Care';
+      saveCell(year, month, rowKey, r, tr);
+      await saveUserData();
+    } 
+    else {
+      const sh = all[chosen];
+      if (sh && sh.project) {
+        const p = (ud.projects||[]).find(px => px.name===sh.project);
+        if (p && isDateWithin(base, p.start||null, p.end||null)) {
+          r.project = p.name;
+        }
+      }
     }
-  }
-}
 
-// ✅ Herlaad project-dropdown in deze rij alleen
-projSel.innerHTML = '<option value="">--</option>';
-(getCurrentUserData().projects || []).forEach(p=>{
-  if(isDateWithin(key, p.start || null, p.end || null)){
-    const o = document.createElement('option');
-    o.value = p.name;
-    o.textContent = p.name;
-    projSel.appendChild(o);
-  }
-});
-setTimeout(()=> { projSel.value = r.project || ''; }, 50);
-// ✅ Vul tijden en pauze in
-const sh = all[chosen];
-if (sh) {
-  r.start = sh.start || '00:00';
-  r.end   = sh.end   || '00:00';
-  r.break = Number(sh.break) || 0;
-}
+    // project dropdown herladen
+    projSel.innerHTML = '<option value="">--</option>';
+    (getCurrentUserData().projects || []).forEach(p=>{
+      if(isDateWithin(base, p.start || null, p.end || null)){
+        const o = document.createElement('option');
+        o.value = p.name; o.textContent = p.name; projSel.appendChild(o);
+      }
+    });
+    setTimeout(()=> { projSel.value = r.project || ''; }, 50);
 
-recalcRowMinutes(r);
-tr.querySelector('.startInput').value = r.start;
-tr.querySelector('.endInput').value = r.end;
-tr.querySelector('.breakInput').value = r.break;
-tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+    // tijden/pauze invullen
+    const sh = all[chosen];
+    if (sh) {
+      r.start = sh.start || '00:00';
+      r.end   = sh.end   || '00:00';
+      r.break = Number(sh.break) || 0;
+    }
+    recalcRowMinutes(r);
+    tr.querySelector('.startInput').value = r.start;
+    tr.querySelector('.endInput').value = r.end;
+    tr.querySelector('.breakInput').value = r.break;
+    tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
 
-    saveCell(year, month, key, r, tr);
+    saveCell(year, month, rowKey, r, tr);
     await saveUserData();
     updateInputTotals();
+
+    // + opnieuw (de)activeren
+    const addBtn = tr.querySelector('.addLineBtn');
+    if (addBtn) {
+      const allowByMonth   = userAllowsMultiMonth(getCurrentUserData(), year, month);
+      const allowByProject = r.project ? canAddMultiForProject(r.project) : false;
+      addBtn.disabled = !(allowByMonth || allowByProject);
+    }
   });
 }
 async function ensureProjectExists(name){
@@ -1844,7 +1997,7 @@ const multiShiftName = document.getElementById('multiShiftName');
 const multiShiftStart = document.getElementById('multiShiftStart');
 const multiShiftEnd = document.getElementById('multiShiftEnd');
 const multiShiftDays = document.getElementById('multiShiftDays');
-const saveMultiShiftBtn = document.getElementById('saveMultiShiftBtn');
+const multiDayShiftBtn = document.getElementById('multiDayShiftBtn');
 
 // knop opent modal
 document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
@@ -2417,19 +2570,19 @@ function getPlannedDates() {
   const ud = getCurrentUserData();
   const y = Number(yearSelectMain.value);
   const m = Number(monthSelectMain.value);
-
   const md = ud.monthData?.[y]?.[m];
   if (!md || !md.rows) return [];
-
-  const out = [];
-  for (const [dateKey, r] of Object.entries(md.rows)) {
+  const set = new Set();
+  for (const [k, r] of Object.entries(md.rows)) {
+    const base = k.split('#')[0]; // strip extra-lijn suffix
     const shiftName = (r?.shift || '').trim();
     if (shiftName && shiftName.toLowerCase() !== 'niet ingepland') {
-      out.push(dateKey);           // already YYYY-MM-DD
+      set.add(base);
     }
   }
-  return out;
+  return [...set];
 }
+
 /* === Kalender voor invoer meerdere dagen === */
 function initMultiDayPicker() {
   const year = Number(document.getElementById("yearSelectMain").value);
@@ -2695,6 +2848,53 @@ document.getElementById('adminReopenBtn')?.addEventListener('click', async () =>
     renderMonth(y, m);
   }
 });
+function renderAdminMonthlyMulti(){
+  const yInput   = document.getElementById('adminMultiYear');
+  const mSelect  = document.getElementById('adminMultiMonth');
+  const allowBox = document.getElementById('adminMultiAllow');
+  if (!yInput || !mSelect || !allowBox) return;
+
+  const uid = adminUserSelect?.value || getActiveUserId();
+  if (!uid){
+    allowBox.checked = false;
+    allowBox.disabled = true;
+    return;
+  }
+
+  const prev = dataStore.viewUserId;
+  dataStore.viewUserId = uid;
+  const ud = getCurrentUserData();
+  ensureUserMonthlyMap(ud);
+
+  if (!yInput.value)   yInput.value = new Date().getFullYear();
+  if (!mSelect.value)  mSelect.value = String(new Date().getMonth());
+
+  const y = Number(yInput.value);
+  const m = Number(mSelect.value);
+  allowBox.disabled = false;
+  allowBox.checked  = userAllowsMultiMonth(ud, y, m);
+
+  yInput.onchange = () => renderAdminMonthlyMulti();
+  mSelect.onchange = () => renderAdminMonthlyMulti();
+  allowBox.onchange = async () => {
+    const key = `${yInput.value}-${String(Number(mSelect.value)+1).padStart(2,'0')}`;
+    if (allowBox.checked) ud.settings.multiByMonth[key] = true;
+    else delete ud.settings.multiByMonth[key];
+    await saveUserData();
+
+    // herteken als het de zichtbare maand is
+    if (getActiveUserId() === uid &&
+        Number(yearSelectMain.value) === Number(yInput.value) &&
+        Number(monthSelectMain.value) === Number(mSelect.value)) {
+      renderMonth(Number(yInput.value), Number(mSelect.value));
+    }
+    toast(`Extra lijnen: ${allowBox.checked ? 'toegestaan' : 'uitgezet'} voor ${key}`, 'success');
+  };
+
+  dataStore.viewUserId = prev;
+}
+// aanroepen bij wisselen admin user
+adminUserSelect?.addEventListener('change', renderAdminMonthlyMulti);
   </script>
 <!-- 🔄 Loading overlay -->
 <div id="loadingOverlay" class="loading-overlay d-none">
