@@ -824,25 +824,6 @@ function autoProjectForShift(shiftName){
       const e = end? end.replaceAll('-',''): null;
       if(s && d < s) return false; if(e && d > e) return false; return true;
     };
-
-    // ======= Auth =======
-    onAuthStateChanged(auth, async (user)=>{
-      if(!user){
-        // Voor demo: toon eenvoudige melding
-        currentUserName.textContent = 'Niet ingelogd';
-        toast('Geen gebruiker ingelogd. Redirect naar login…', 'warning');
-        // Je kan hier een loginpagina openen of FirebaseUI integreren.
-        return;
-      }
-      currentUserId = user.uid;
-      currentUserName.textContent = user.displayName || user.email;
-
-      await ensureUserDoc(user);
-      await loadAllUsers();
-      ensureDefaultProjects();
-      initSelectors();
-      renderAll();
-      await revealAdminIfNeeded();
 // ======= Maandstatus helpers =====================================
 // status: 'draft' | 'submitted' | 'approved' | 'rejected'
 function getMonthStatus(y, m){
@@ -891,6 +872,25 @@ async function notifyApprovalChange(userId, action, year, month){
     }
   } catch(e){ console.warn('notifyApprovalChange:', e); }
 }
+    // ======= Auth =======
+    onAuthStateChanged(auth, async (user)=>{
+      if(!user){
+        // Voor demo: toon eenvoudige melding
+        currentUserName.textContent = 'Niet ingelogd';
+        toast('Geen gebruiker ingelogd. Redirect naar login…', 'warning');
+        // Je kan hier een loginpagina openen of FirebaseUI integreren.
+        return;
+      }
+      currentUserId = user.uid;
+      currentUserName.textContent = user.displayName || user.email;
+
+      await ensureUserDoc(user);
+      await loadAllUsers();
+      ensureDefaultProjects();
+      initSelectors();
+      renderAll();
+      await revealAdminIfNeeded();
+      updateMonthStatusBadge();
 // ✅ Automatische meldingen uitvoeren
 await autoCheckNotifications();
 });
@@ -1282,13 +1282,6 @@ if (!md.rows[key]) {
 }
         const r = md.rows[key];
         const dayName = daysFull[new Date(year, month, d).getDay()];
-// 🔒 vergrendel invoer bij 'approved' (wil je 'submitted' ook locken? voeg het erbij)
-const statusNow = getMonthStatus(year, month);
-const locked = (statusNow === 'approved' || statusNow === 'submitted');
-tbody.querySelectorAll('select, input').forEach(el => { el.disabled = locked; });
-
-// badge up-to-date houden
-updateMonthStatusBadge();
   // 👇 Filter op project (alleen tonen wat overeenkomt)
   if (selectedProject && r.project !== selectedProject) continue;
         const tr = document.createElement('tr');
@@ -1345,6 +1338,7 @@ updateMonthStatusBadge();
       }
     await saveUserData();
     updateRemainingHours();
+    updateMonthStatusBadge();
     }
 
 async function populateShiftSelectForRow(tr, day, month, year){
@@ -1722,12 +1716,14 @@ removeUserBtn?.addEventListener('click', async () => {
     decimalInput.addEventListener('input', updateHM);
 
     // ======= Layout toggles =======
-    document.getElementById('sidebarToggle').addEventListener('click', ()=>{
-      sidebar.classList.toggle('collapsed'); main.classList.toggle('collapsed');
-    });
-    document.getElementById('sidebarMobile').addEventListener('click', ()=>{
-      sidebar.classList.toggle('show');
-    });
+    document.getElementById('sidebarToggle')?.addEventListener('click', () => {
+  sidebar.classList.toggle('collapsed');
+  main.classList.toggle('collapsed');     // <- belangrijk
+});
+
+document.getElementById('sidebarMobile')?.addEventListener('click', () => {
+  sidebar.classList.toggle('show');
+});
     // close sidebar on nav click (mobile)
     document.querySelectorAll('#navTabs .nav-link').forEach(a=>{
       a.addEventListener('click', ()=> sidebar.classList.remove('show'));
@@ -2358,6 +2354,13 @@ function monthOverlapsPeriod(year, month0, startISO, endISO) {
   const e = end   || new Date('9999-12-31');
   return !(e < monthStart || s > monthEnd);
 }
+// 🔒 vergrendel invoer bij 'approved' (wil je 'submitted' ook locken? voeg het erbij)
+const statusNow = getMonthStatus(year, month);
+const locked = (statusNow === 'approved' || statusNow === 'submitted');
+tbody.querySelectorAll('select, input').forEach(el => { el.disabled = locked; });
+
+// badge up-to-date houden
+updateMonthStatusBadge();
 // 🟡 Kleurt de dagen die al een shift hebben
 function highlightPlannedDays(inst, plannedDates = []) {
   if (!inst || !inst.daysContainer) return;
