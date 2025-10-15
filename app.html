@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="nl">
 <head>
@@ -2289,20 +2290,31 @@ function highlightPlannedDays(instance, plannedDates) {
 }
 
 // 📋 Vult de shift-selectielijst in de modal
-function populateMultiShiftSelect() {
+document.getElementById('multiDayShiftBtn').addEventListener('click', () => {
+  populateMultiDayShifts();
+});
+function populateMultiDayShifts(selectedDates = []) {
   const ud = getCurrentUserData();
-  const sel = document.getElementById("multiShiftName");
+  const sel = document.getElementById('multiShiftName');
   sel.innerHTML = '<option value="">Kies shift</option>';
-  if (!ud) return;
 
-  const allShifts = ud.shiftTemplates || ud.shifts || {};
-  Object.entries(allShifts).forEach(([name, sh]) => {
-    // sla datums over, toon enkel sjablonen
-    if (/^\d{4}-\d{2}-\d{2}$/.test(name)) return;
-    const opt = document.createElement("option");
-    opt.value = name;
-    opt.textContent = name;
-    sel.appendChild(opt);
+  const all = ud.shifts || {};
+  const order = ud.shiftOrder || Object.keys(all);
+
+  order.forEach(name => {
+    const sh = all[name];
+    if (!sh) return;
+
+    // toon shift als er GEEN periode is, of als ten minste één dag binnen de periode valt
+    const match = !sh.startDate && !sh.endDate ||
+      selectedDates.some(d => isDateWithin(d, sh.startDate || null, sh.endDate || null));
+
+    if (match) {
+      const o = document.createElement('option');
+      o.value = name;
+      o.textContent = name;
+      sel.appendChild(o);
+    }
   });
 }
 
@@ -2352,7 +2364,19 @@ function initMultiDayPicker() {
       highlightPlannedDays(inst, plannedDates);
     },
   });
+setTimeout(markPlannedDays, 100);
 
+function markPlannedDays() {
+  const ud = getCurrentUserData();
+  const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
+  const md = ud.monthData?.[y]?.[m] || {};
+  const planned = Object.keys(md.rows || {}).filter(k => md.rows[k].shift);
+
+  document.querySelectorAll('.flatpickr-day').forEach(dayEl => {
+    const date = dayEl.dateObj.toISOString().split('T')[0];
+    if (planned.includes(date)) dayEl.classList.add('planned-day');
+  });
+}
   // 🟡 extra aanroep om te garanderen dat dag 1 direct mee kleurt
   highlightPlannedDays(window.multiDayPicker, plannedDates);
 }
@@ -2368,60 +2392,86 @@ document.getElementById("multiDayShiftBtn")?.addEventListener("click", () => {
 });
 
 // 💾 Opslaan van meerdere dagen
-document.getElementById("saveMultiShift")?.addEventListener("click", async () => {
-  const picker = window.multiDayPicker;
-  const shiftName = document.getElementById("multiShiftName").value;
-
-  if (!picker || picker.selectedDates.length === 0) {
-    alert("Selecteer minstens één dag.");
-    return;
-  }
-  if (!shiftName) {
-    alert("Kies een shift om toe te passen.");
-    return;
-  }
-
+document.getElementById('saveMultiShift').addEventListener('click', async () => {
   const ud = getCurrentUserData();
-  const sh = ud.shifts?.[shiftName];
-  if (!sh) {
-    alert("Onbekende shift.");
+  const dateInput = document.getElementById('multiShiftDays');
+  const shiftSelect = document.getElementById('multiShiftName');
+
+  const selectedShift = shiftSelect.value;
+  if (!selectedShift) {
+    toast('Kies eerst een shift', 'warning');
     return;
   }
 
-  const dates = picker.selectedDates.map(d => d.toISOString().split("T")[0]);
+  // flatpickr geeft comma-separated string terug → splits op ','
+  const selectedDates = (dateInput.value || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
 
-  dates.forEach(dateStr => {
-    const [y, m] = dateStr.split("-").map(Number);
+  if (selectedDates.length === 0) {
+    toast('Kies minstens één dag', 'warning');
+    return;
+  }
+
+  const sh = ud.shifts[selectedShift];
+  if (!sh) {
+    toast('Shift niet gevonden', 'danger');
+    return;
+  }
+
+  for (const dateStr of selectedDates) {
+    // ✅ Zorg voor correct formaat (YYYY-MM-DD)
+    const dateISO =
+      dateStr.includes('-') && dateStr.split('-')[0].length === 4
+        ? dateStr
+        : fromDisplayDate(dateStr);
+
+    const [y, m] = dateISO.split('-').map(Number);
+    const year = y;
+    const month = m - 1;
+
     ud.monthData = ud.monthData || {};
-    ud.monthData[y] = ud.monthData[y] || {};
-    ud.monthData[y][m - 1] = ud.monthData[y][m - 1] || { rows: {} };
+    ud.monthData[year] = ud.monthData[year] || {};
+    ud.monthData[year][month] = ud.monthData[year][month] || {
+      targetHours: 0,
+      targetMinutes: 0,
+      rows: {},
+    };
 
-    ud.monthData[y][m - 1].rows[dateStr] = {
-      project: sh.project || "",
-      shift: shiftName,
+    // ✅ Automatische projecttoewijzing
+    let project = sh.project || '';
+    const specialProject = autoProjectForShift(selectedShift);
+    if (specialProject) {
+      ensureProjectExists(specialProject);
+      project = specialProject;
+    }
+
+    const minutes = minutesBetween(sh.start, sh.end, sh.break);
+
+    ud.monthData[year][month].rows[dateISO] = {
+      project,
+      shift: selectedShift,
       start: sh.start,
       end: sh.end,
-      break: Number(sh.break) || 0,
-      omschrijving: "",
+      break: sh.break,
+      omschrijving: '',
+      minutes,
     };
-  });
+  }
 
-  await saveUserData(ud);
-  renderMonth(yearSelectMain.value, monthSelectMain.value);
+  await saveUserData();
+  toast('Shiften toegevoegd', 'success');
+
+  // ✅ Kalender/maand herladen
+  const currentYear = Number(yearSelectMain.value);
+  const currentMonth = Number(monthSelectMain.value);
+  await renderMonth(currentYear, currentMonth);
   updateInputTotals();
-  updateRemainingHours();
   renderHistory();
 
-  refreshPlannedDays();
-
-  bootstrap.Modal.getInstance(document.getElementById("multiDayModal")).hide();
-  alert(`Shift '${shiftName}' toegepast op ${dates.length} dag(en).`);
-
-
-// Sluit modal
-const modalEl = document.getElementById('multiDayModal');
-const modalInstance = bootstrap.Modal.getInstance(modalEl);
-modalInstance.hide();
+  // ✅ Sluit modal
+  bootstrap.Modal.getInstance(document.getElementById('multiDayModal')).hide();
 });
  console.log("Planned dates:", plannedDates);
 // 🧩 Functie om direct 1 dag op de kalender te updaten
@@ -2459,3 +2509,4 @@ document.getElementById('multiDayModal').addEventListener('hidden.bs.modal', () 
 </div>  
 </body>
 </html>
+
