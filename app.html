@@ -375,46 +375,50 @@ body.dark-mode .alert-info {
 
       <!-- INVOER -->
       <section id="tab-invoer" class="tab-pane fade">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-  <div class="row g-2 align-items-center mb-3">
-  <div class="col-12 col-md-auto d-flex flex-wrap gap-2">
-    <select id="monthSelectMain" class="form-select form-select-sm w-auto flex-fill flex-md-grow-0">
-      <option value="0">Januari</option>
-      <option value="1">Februari</option>
-      <option value="2">Maart</option>
-      <option value="3">April</option>
-      <option value="4">Mei</option>
-      <option value="5">Juni</option>
-      <option value="6">Juli</option>
-      <option value="7">Augustus</option>
-      <option value="8">September</option>
-      <option value="9">Oktober</option>
-      <option value="10">November</option>
-      <option value="11">December</option>
-    </select>
+       <!-- Invoer-toolbar -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="row g-2 align-items-center mb-3 w-100">
+    <!-- 📅 Selects -->
+    <div class="col-12 col-md-auto d-flex flex-wrap gap-2">
+      <select id="monthSelectMain" class="form-select form-select-sm w-auto flex-fill flex-md-grow-0">
+        <option value="0">Januari</option><option value="1">Februari</option><option value="2">Maart</option>
+        <option value="3">April</option><option value="4">Mei</option><option value="5">Juni</option>
+        <option value="6">Juli</option><option value="7">Augustus</option><option value="8">September</option>
+        <option value="9">Oktober</option><option value="10">November</option><option value="11">December</option>
+      </select>
 
-    <select id="yearSelectMain" class="form-select form-select-sm w-auto flex-fill flex-md-grow-0"></select>
-    <select id="projectFilterSelect" class="form-select form-select-sm w-auto flex-fill flex-md-grow-0">
-      <option value="">Alle projecten</option>
-    </select>
-  </div>
+      <select id="yearSelectMain" class="form-select form-select-sm w-auto flex-fill flex-md-grow-0"></select>
+      <select id="projectFilterSelect" class="form-select form-select-sm w-auto flex-fill flex-md-grow-0">
+        <option value="">Alle projecten</option>
+      </select>
+    </div>
 
-  <div class="col-12 col-md-auto mt-2 mt-md-0">
-    <button id="exportPdfBtn" class="btn btn-outline-danger btn-sm w-100 w-md-auto">
-      <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
-    </button>
+    <!-- ✅ Concept-badge: op mobiel BOVEN Export -->
+    <div class="col-12 col-md-auto mt-2 mt-md-0 order-1 order-md-0">
+      <span id="monthStatusBadge" class="badge badge-status badge-draft">Concept</span>
+    </div>
+
+    <!-- Export PDF -->
+    <div class="col-12 col-md-auto mt-2 mt-md-0 order-2 order-md-0">
+      <button id="exportPdfBtn" class="btn btn-outline-danger btn-sm w-100 w-md-auto">
+        Export PDF
+      </button>
+    </div>
+
+    <!-- Invoer meerdere dagen -->
+    <div class="col-12 col-md-auto mt-2 mt-md-0 order-3 order-md-0">
+      <button id="multiDayShiftBtn" class="btn btn-outline-primary btn-sm w-100 w-md-auto">
+        Invoer meerdere dagen
+      </button>
+    </div>
+
+    <!-- ✅ Indienen: op mobiel ONDER “Invoer meerdere dagen” -->
+    <div class="col-12 col-md-auto mt-2 mt-md-0 order-4 order-md-0">
+      <button id="submitMonthBtn" class="btn btn-outline-success btn-sm w-100 w-md-auto">
+        Indienen
+      </button>
+    </div>
   </div>
-    <div class="col-12 col-md-auto mt-2 mt-md-0">
-    <button id="multiDayShiftBtn" class="btn btn-outline-primary btn-sm">
-      <i class="bi bi-file-earmark-pdf me-1"></i> Invoer meerdere dagen
-    </button>
-  </div>
-</div>
-<!-- ✅ Status + Indienen -->
-<div class="col-12 col-md-auto mt-2 mt-md-0 order-3 order-md-0 d-flex align-items-center gap-2">
-  <span id="monthStatusBadge" class="badge badge-status badge-draft">Concept</span>
-  <button id="submitMonthBtn" class="btn btn-outline-success btn-sm">Indienen</button>
-</div>
 <!-- 🎯 Sticky resterende uren-balk -->
 <div id="remainingHoursAlert" class="alert small d-none mb-3"></div>
 </div>
