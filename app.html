@@ -1007,6 +1007,7 @@ async function saveUserData(){
       const meSnap = await getDoc(doc(db,'users', currentUserId));
       const role = meSnap.data().role;
       if(role === 'admin'){ adminTabBtn.classList.remove('d-none'); }
+      renderAdminMonthlyMulti();
     }
 
     // ======= Projects =======
@@ -2275,15 +2276,6 @@ for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) 
       }
     }
   });
-}
-
-async function revealAdminIfNeeded(){
-  const meSnap = await getDoc(doc(db,'users', currentUserId));
-  const role = meSnap.data().role;
-  if(role === 'admin'){ 
-    adminTabBtn.classList.remove('d-none');
-    renderAdminMonthlyMulti(); // ✅ meteen klaarzetten
-  }
 }
 // ⚙️ Helper
 async function createUniqueNotification(uid, text) {
