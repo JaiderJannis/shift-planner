@@ -213,13 +213,14 @@ body.dark-mode .alert-info {
 }
 
 /* 📱 Mobiel — iets breder */
-@media (max-width: 768px) {
+@media (max-width: 768px){
   #exportPdfBtn,
-  #multiDayShiftBtn {
-    width: 100% !important;
-    display: block !important;
+  #multiDayShiftBtn{
+    --bs-btn-padding-y: .375rem;   /* hoogte (≈ 6px) */
+    --bs-btn-padding-x: .75rem;    /* breedte */
+    --bs-btn-line-height: 1.2;
     font-size: 1rem;
-    padding: 10px;
+    padding: var(--bs-btn-padding-y) var(--bs-btn-padding-x) !important;
   }
 }
 /* === 🔄 Loading overlay === */
