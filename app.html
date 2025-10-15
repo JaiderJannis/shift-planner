@@ -2284,6 +2284,26 @@ function highlightPlannedDays(instance, plannedDates) {
     });
   }, 50);
 }
+// 🧩 Functie om de shift-dropdown te vullen in het "Meerdere dagen invoeren" venster
+function populateMultiShiftSelect() {
+  const select = document.getElementById("multiShiftName");
+  if (!select) return;
+
+  const ud = getCurrentUserData();
+  const allShifts = ud.shifts || {};
+  const order = ud.shiftOrder || Object.keys(allShifts);
+
+  select.innerHTML = '<option value="">Kies shift</option>';
+
+  order.forEach(name => {
+    const sh = allShifts[name];
+    if (!sh) return;
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  });
+}
 // 📅 Initialiseer Flatpickr voor meerdere dagen selectie
 function initMultiDayPicker() {
   const input = document.getElementById("multiShiftDays");
