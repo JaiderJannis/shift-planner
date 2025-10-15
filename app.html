@@ -2293,11 +2293,24 @@ function populateMultiShiftSelect() {
   const allShifts = ud.shifts || {};
   const order = ud.shiftOrder || Object.keys(allShifts);
 
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const monthStart = `${y}-${String(m + 1).padStart(2, "0")}-01`;
+  const monthEnd = `${y}-${String(m + 1).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
+
   select.innerHTML = '<option value="">Kies shift</option>';
 
   order.forEach(name => {
     const sh = allShifts[name];
     if (!sh) return;
+
+    // 🔒 Alleen shiften binnen periode tonen
+    if (!isDateWithin(monthStart, sh.startDate || null, sh.endDate || null) &&
+        !isDateWithin(monthEnd, sh.startDate || null, sh.endDate || null)) {
+      return;
+    }
+
     const opt = document.createElement("option");
     opt.value = name;
     opt.textContent = name;
@@ -2309,7 +2322,12 @@ function initMultiDayPicker() {
   const input = document.getElementById("multiShiftDays");
   if (!input) return;
 
-  // Haal reeds ingeplande dagen op
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+
+  const firstDay = new Date(y, m, 1);
+  const lastDay = new Date(y, m + 1, 0);
+
   const ud = getCurrentUserData();
   const plannedDates = [];
 
@@ -2322,24 +2340,19 @@ function initMultiDayPicker() {
     });
   });
 
-  // Initialiseer de Flatpickr kalender
   const picker = flatpickr(input, {
     mode: "multiple",
     dateFormat: "Y-m-d",
     locale: "nl",
     inline: true,
-    onReady: function(selectedDates, dateStr, instance) {
-      highlightPlannedDays(instance, plannedDates);
-    },
-    onMonthChange: function(selectedDates, dateStr, instance) {
-      highlightPlannedDays(instance, plannedDates);
-    },
-    onYearChange: function(selectedDates, dateStr, instance) {
-      highlightPlannedDays(instance, plannedDates);
-    }
+    minDate: firstDay,
+    maxDate: lastDay,
+    defaultDate: [],
+    onReady: (selectedDates, dateStr, instance) => highlightPlannedDays(instance, plannedDates),
+    onMonthChange: (selectedDates, dateStr, instance) => highlightPlannedDays(instance, plannedDates),
+    onYearChange: (selectedDates, dateStr, instance) => highlightPlannedDays(instance, plannedDates),
   });
 
-  // Sla referentie op voor later gebruik
   window.multiDayPicker = picker;
 }
 // 💾 Opslaan van meerdere dagen (meerdere shifts tegelijk)
