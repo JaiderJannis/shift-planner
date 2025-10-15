@@ -2266,23 +2266,38 @@ function toLocalISODate(date) {
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
+// ✅ Correcte datumfunctie — voorkomt "01-111-2025"-bug
+function fixedDateKey(y, m, d) {
+  // m is JS-index (0 = januari)
+  return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+window.dateKey = fixedDateKey; // Vervangt oude dateKey() overal
 
-// 🟡 Kleurt alle dagen met reeds ingeplande shifts
-function highlightPlannedDays(instance, plannedDates) {
+// ✅ Alleen highlighten als er effectief een shift is ingepland
+function highlightPlannedDays(fp, plannedDates) {
   setTimeout(() => {
-    if (!instance?.days) return;
-    const days = instance.days.childNodes;
-    days.forEach(dayElem => {
-      const dateObj = dayElem.dateObj;
-      if (!dateObj) return;
-      const dateStr = toLocalISODate(dateObj);
-      if (plannedDates.includes(dateStr)) {
-        dayElem.classList.add("planned-day");
+    const dayElems = fp.days.childNodes;
+    dayElems.forEach(el => {
+      const iso = el.dateObj?.toISOString().split('T')[0];
+      if (!iso) return;
+
+      if (plannedDates.includes(iso)) {
+        const ud = getCurrentUserData();
+        const [y, m, d] = iso.split('-').map(Number);
+        const md = ud?.monthData?.[y]?.[m - 1];
+        const row = md?.rows?.[iso];
+
+        // 🔒 Enkel highlight als er echt een shift is (geen "Niet ingepland" of leeg)
+        if (row?.shift && row.shift.trim() !== "" && row.shift.trim() !== "Niet ingepland") {
+          el.classList.add("planned-day");
+        } else {
+          el.classList.remove("planned-day");
+        }
       } else {
-        dayElem.classList.remove("planned-day");
+        el.classList.remove("planned-day");
       }
     });
-  }, 50);
+  }, 10);
 }
 // 🧩 Functie om de shift-dropdown te vullen in het "Meerdere dagen invoeren" venster
 function populateMultiShiftSelect() {
@@ -2331,11 +2346,15 @@ function initMultiDayPicker() {
   const ud = getCurrentUserData();
   const plannedDates = [];
 
+  // Verzamel alle geplande dagen met echte shift
   Object.keys(ud.monthData || {}).forEach(year => {
     Object.keys(ud.monthData[year] || {}).forEach(month => {
       const rows = ud.monthData[year][month]?.rows || {};
       Object.keys(rows).forEach(dateStr => {
-        if (rows[dateStr]?.shift) plannedDates.push(dateStr);
+        const r = rows[dateStr];
+        if (r?.shift && r.shift.trim() !== "" && r.shift.trim() !== "Niet ingepland") {
+          plannedDates.push(dateStr);
+        }
       });
     });
   });
@@ -2348,12 +2367,29 @@ function initMultiDayPicker() {
     minDate: firstDay,
     maxDate: lastDay,
     defaultDate: [],
-    onReady: (selectedDates, dateStr, instance) => highlightPlannedDays(instance, plannedDates),
-    onMonthChange: (selectedDates, dateStr, instance) => highlightPlannedDays(instance, plannedDates),
-    onYearChange: (selectedDates, dateStr, instance) => highlightPlannedDays(instance, plannedDates),
+    onReady: (sel, str, instance) => {
+      highlightPlannedDays(instance, plannedDates);
+      disableMonthNavigation(instance);
+    },
+    onMonthChange: (sel, str, instance) => {
+      highlightPlannedDays(instance, plannedDates);
+      disableMonthNavigation(instance);
+    },
+    onYearChange: (sel, str, instance) => {
+      highlightPlannedDays(instance, plannedDates);
+      disableMonthNavigation(instance);
+    },
   });
 
   window.multiDayPicker = picker;
+}
+
+// ❌ Maandnavigatieknoppen verbergen in flatpickr
+function disableMonthNavigation(fp) {
+  const prev = fp.calendarContainer.querySelector(".flatpickr-prev-month");
+  const next = fp.calendarContainer.querySelector(".flatpickr-next-month");
+  if (prev) prev.style.display = "none";
+  if (next) next.style.display = "none";
 }
 // 💾 Opslaan van meerdere dagen (meerdere shifts tegelijk)
 document.getElementById("saveMultiShift")?.addEventListener("click", async () => {
