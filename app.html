@@ -1867,13 +1867,16 @@ removeUserBtn?.addEventListener('click', async () => {
     convMinutes.addEventListener('input', updateDecimal);
     decimalInput.addEventListener('input', updateHM);
 
-    // ======= Layout toggles =======
+    
     document.getElementById('sidebarToggle').addEventListener('click', ()=>{
       sidebar.classList.toggle('collapsed'); main.classList.toggle('collapsed');
     });
     document.getElementById('sidebarMobile').addEventListener('click', ()=>{
       sidebar.classList.toggle('show');
     });
+    // ======= Admin tab =======
+    document.querySelector('a[href="#tab-admin"]')
+  ?.addEventListener('shown.bs.tab', renderAdminMonthlyMulti);
     // close sidebar on nav click (mobile)
     document.querySelectorAll('#navTabs .nav-link').forEach(a=>{
       a.addEventListener('click', ()=> sidebar.classList.remove('show'));
@@ -1887,6 +1890,7 @@ removeUserBtn?.addEventListener('click', async () => {
       renderProjectFilterForMonth();
       generateMonth();
       renderAdminUserSelect();
+      renderAdminMonthlyMulti();
       updateRemainingHours();
     }
      // ✅ Plaats DIT hier:
@@ -2273,7 +2277,14 @@ for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) 
   });
 }
 
-
+async function revealAdminIfNeeded(){
+  const meSnap = await getDoc(doc(db,'users', currentUserId));
+  const role = meSnap.data().role;
+  if(role === 'admin'){ 
+    adminTabBtn.classList.remove('d-none');
+    renderAdminMonthlyMulti(); // ✅ meteen klaarzetten
+  }
+}
 // ⚙️ Helper
 async function createUniqueNotification(uid, text) {
   const colRef = collection(db, 'users', uid, 'notifications');
@@ -2742,7 +2753,10 @@ document.getElementById('submitMonthBtn')?.addEventListener('click', async () =>
   await setMonthStatus(y, m, 'submitted');
   toast('Maand ingediend ter goedkeuring', 'success');
 });
-
+// Admin jaarveld default
+document.getElementById('adminMultiYear')?.addEventListener('focus', e => {
+  if (!e.target.value) e.target.value = new Date().getFullYear();
+});
 // Admin jaarveld default
 document.getElementById('adminApproveYear')?.addEventListener('focus', e => {
   if (!e.target.value) e.target.value = new Date().getFullYear();
