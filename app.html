@@ -2260,33 +2260,18 @@ function monthOverlapsPeriod(year, month0, startISO, endISO) {
   return !(e < monthStart || s > monthEnd);
 }
 // 🟡 Kleurt de dagen die al een shift hebben
-function highlightPlannedDays(instance, plannedDates) {
-  const tryHighlight = () => {
-    if (!instance?.days) return;
-    const days = Array.from(instance.days.childNodes);
-    if (!days.length) {
-      // als Flatpickr nog niet klaar is, opnieuw proberen
-      return setTimeout(tryHighlight, 30);
+function highlightPlannedDays(inst, plannedDates = []) {
+  if (!inst || !inst.daysContainer) return;
+
+  inst.daysContainer.querySelectorAll('.flatpickr-day').forEach(d => {
+    if (!d.dateObj) return; // ⛔ voorkom 'toISOString' errors op lege cellen
+    const dateStr = d.dateObj.toISOString().split('T')[0];
+    if (plannedDates.includes(dateStr)) {
+      d.classList.add('planned-day');
+    } else {
+      d.classList.remove('planned-day');
     }
-
-    const curMonth = instance.currentMonth;
-    const curYear = instance.currentYear;
-
-    days.forEach(el => {
-      const d = el.dateObj;
-      if (!d) return;
-
-      const iso = d.toISOString().split("T")[0];
-      const isCurrentMonth =
-        d.getMonth() === curMonth && d.getFullYear() === curYear;
-      el.classList.toggle(
-        "planned-day",
-        isCurrentMonth && plannedDates.includes(iso)
-      );
-    });
-  };
-
-  tryHighlight();
+  });
 }
 
 // 📋 Vult de shift-selectielijst in de modal
@@ -2346,35 +2331,46 @@ function initMultiDayPicker() {
 
   console.log("✅ Planned dates:", plannedDates);
 
-  window.multiDayPicker = flatpickr("#multiShiftDays", {
-    mode: "multiple",
-    dateFormat: "d-m-Y",
-    altInput: true,
-    altFormat: "d F Y",
-    locale: flatpickr.l10ns.nl,
-    weekNumbers: true,
-    minDate: start,
-    maxDate: end,
-    disableMobile: false,
-    defaultDate: [], // geen dag vooraf geselecteerd
-    onReady(_, __, inst) {
-      highlightPlannedDays(inst, plannedDates);
-    },
-    onMonthChange(_, __, inst) {
-      highlightPlannedDays(inst, plannedDates);
-    },
-  });
+window.multiDayPicker = flatpickr("#multiShiftDays", {
+  mode: "multiple",
+  dateFormat: "d-m-Y",
+  altInput: true,
+  altFormat: "d F Y",
+  locale: flatpickr.l10ns.nl,
+  weekNumbers: true,
+  minDate: start,
+  maxDate: end,
+  disableMobile: false,
+  defaultDate: [],
+  onReady(_, __, inst) {
+    highlightPlannedDays(inst, plannedDates);
+  },
+  onMonthChange(_, __, inst) {
+    highlightPlannedDays(inst, plannedDates);
+  },
+  // 🟢 nieuw toegevoegd:
+  onChange(selectedDates) {
+    const isoDates = selectedDates.map(d => d.toISOString().split('T')[0]);
+    populateMultiDayShifts(isoDates);
+  },
+});
 setTimeout(markPlannedDays, 100);
 
 function markPlannedDays() {
   const ud = getCurrentUserData();
-  const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
   const md = ud.monthData?.[y]?.[m] || {};
   const planned = Object.keys(md.rows || {}).filter(k => md.rows[k].shift);
 
-  document.querySelectorAll('.flatpickr-day').forEach(dayEl => {
-    const date = dayEl.dateObj.toISOString().split('T')[0];
-    if (planned.includes(date)) dayEl.classList.add('planned-day');
+  document.querySelectorAll('.calendar-day').forEach(dayEl => {
+    const date = dayEl.dataset?.date;
+    if (!date) return;
+    if (planned.includes(date)) {
+      dayEl.classList.add('planned-day');
+    } else {
+      dayEl.classList.remove('planned-day');
+    }
   });
 }
   // 🟡 extra aanroep om te garanderen dat dag 1 direct mee kleurt
@@ -2387,7 +2383,7 @@ function markPlannedDays() {
 document.getElementById("multiDayShiftBtn")?.addEventListener("click", () => {
   const modal = new bootstrap.Modal(document.getElementById("multiDayModal"));
   modal.show();
-  populateMultiShiftSelect();
+  populateMultiDayShifts();
   setTimeout(initMultiDayPicker, 150);
 });
 
@@ -2467,6 +2463,7 @@ document.getElementById('saveMultiShift').addEventListener('click', async () => 
   const currentYear = Number(yearSelectMain.value);
   const currentMonth = Number(monthSelectMain.value);
   await renderMonth(currentYear, currentMonth);
+  markPlannedDays();
   updateInputTotals();
   renderHistory();
 
