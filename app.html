@@ -53,27 +53,9 @@
     .sp-topbar { position: fixed; top: 0; left: 0; right: 0; height: 64px; background: #fff; border-bottom: 1px solid #e9edf5; z-index: 1032; }
 
     /* Main content */
-   .sp-main{
-  margin-left: var(--sp-sidebar-w);
-  width: calc(100vw - var(--sp-sidebar-w));
-  max-width: none;
-}
-.sp-main.collapsed{
-  margin-left: var(--sp-sidebar-w-collapsed);
-  width: calc(100vw - var(--sp-sidebar-w-collapsed));
-}
-/* Mobiel: sidebar overlaid, main is 100% breed */
-@media (max-width: 768px){
-  .sp-main,
-  .sp-main.collapsed{
-    margin-left: 0;
-    width: 100vw;
-  }
-}
-/* Voor de zekerheid: tabelwrapper mag volledig uitrekken */
-.sp-main .table-responsive{
-  width: 100%;
-}
+    .sp-main { padding: 86px 20px 24px; margin-left: var(--sp-sidebar-w); transition: margin-left .25s ease; }
+    .sp-main.collapsed { margin-left: var(--sp-sidebar-w-collapsed); }
+
     /* Mobile: sidebar overlay */
     @media (max-width: 768px) {
       .sp-sidebar { left: -100%; }
