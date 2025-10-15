@@ -248,6 +248,12 @@ body.dark-mode .alert-info {
   background-color: #ff9800 !important; /* oranje */
   color: white !important;
 }
+/* ── Maandstatus badges ─────────────────────────────── */
+.badge-status { font-weight: 600; }
+.badge-draft { background:#e9ecef; color:#495057; }
+.badge-submitted { background:#e7f1ff; color:#0d6efd; }
+.badge-approved { background:#e6f4ea; color:#1e7e34; }
+.badge-rejected { background:#fdecea; color:#842029; }
   </style>
 </head>
 <body>
@@ -403,6 +409,11 @@ body.dark-mode .alert-info {
       <i class="bi bi-file-earmark-pdf me-1"></i> Invoer meerdere dagen
     </button>
   </div>
+</div>
+<!-- ✅ Status + Indienen -->
+<div class="col-12 col-md-auto mt-2 mt-md-0 d-flex align-items-center gap-2">
+  <span id="monthStatusBadge" class="badge badge-status badge-draft">Concept</span>
+  <button id="submitMonthBtn" class="btn btn-outline-success btn-sm">Indienen</button>
 </div>
 <!-- 🎯 Sticky resterende uren-balk -->
 <div id="remainingHoursAlert" class="alert small d-none mb-3"></div>
