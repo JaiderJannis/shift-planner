@@ -1760,10 +1760,11 @@ document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
 });
 
 // 🖱️ Open modal en stel kalender in op huidige maand
-document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
-  const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
+document.getElementById("multiDayShiftBtn").addEventListener("click", () => {
+  const modal = new bootstrap.Modal(document.getElementById("multiDayModal"));
   modal.show();
-  setTimeout(initMultiDayPicker, 150); // even wachten tot modal zichtbaar is
+  populateMultiShiftSelect();
+  setTimeout(initMultiDayPicker, 150); // 👈 deze regel moet erbij staan!
 });
 
 // ✅ Opslaan geselecteerde dagen
@@ -2283,7 +2284,44 @@ function highlightPlannedDays(instance, plannedDates) {
     });
   }, 50);
 }
+// 📅 Initialiseer Flatpickr voor meerdere dagen selectie
+function initMultiDayPicker() {
+  const input = document.getElementById("multiShiftDays");
+  if (!input) return;
 
+  // Haal reeds ingeplande dagen op
+  const ud = getCurrentUserData();
+  const plannedDates = [];
+
+  Object.keys(ud.monthData || {}).forEach(year => {
+    Object.keys(ud.monthData[year] || {}).forEach(month => {
+      const rows = ud.monthData[year][month]?.rows || {};
+      Object.keys(rows).forEach(dateStr => {
+        if (rows[dateStr]?.shift) plannedDates.push(dateStr);
+      });
+    });
+  });
+
+  // Initialiseer de Flatpickr kalender
+  const picker = flatpickr(input, {
+    mode: "multiple",
+    dateFormat: "Y-m-d",
+    locale: "nl",
+    inline: true,
+    onReady: function(selectedDates, dateStr, instance) {
+      highlightPlannedDays(instance, plannedDates);
+    },
+    onMonthChange: function(selectedDates, dateStr, instance) {
+      highlightPlannedDays(instance, plannedDates);
+    },
+    onYearChange: function(selectedDates, dateStr, instance) {
+      highlightPlannedDays(instance, plannedDates);
+    }
+  });
+
+  // Sla referentie op voor later gebruik
+  window.multiDayPicker = picker;
+}
 // 💾 Opslaan van meerdere dagen (meerdere shifts tegelijk)
 document.getElementById("saveMultiShift")?.addEventListener("click", async () => {
   const picker = window.multiDayPicker;
