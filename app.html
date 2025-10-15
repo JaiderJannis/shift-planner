@@ -858,6 +858,11 @@ function updateMonthStatusBadge(){
     submitBtn.classList.toggle('d-none', hide);
     submitBtn.disabled = hide;
   }
+
+  if (multiBtn){
+    multiBtn.classList.toggle('d-none', hide);  // ✅ “Invoer meerdere dagen” ook verbergen
+    multiBtn.disabled = hide;
+  }
 }
     // ======= Auth =======
     onAuthStateChanged(auth, async (user)=>{
@@ -2698,5 +2703,4 @@ document.getElementById('adminReopenBtn')?.addEventListener('click', async () =>
 </div>  
 </body>
 </html>
-
 
