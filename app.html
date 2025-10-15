@@ -248,6 +248,12 @@ body.dark-mode .alert-info {
   background-color: #ff9800 !important; /* oranje */
   color: white !important;
 }
+/* ✅ voorkom breedte-jump bij openen/sluiten modal */
+html { scrollbar-gutter: stable both-edges; }
+body { overflow-y: scroll; }
+
+/* (extra zekerheid) tabel wrapper altijd volledig uitrekken */
+.sp-main .table-responsive { width: 100%; }
   </style>
 </head>
 <body>
@@ -602,7 +608,9 @@ body.dark-mode .alert-info {
     </div>
   </div>
 <!-- Meerdere dagen invoeren Modal -->
-<div class="modal fade" id="multiDayModal" tabindex="-1" aria-labelledby="multiDayModalLabel" aria-hidden="true">
+<div class="modal fade" id="multiDayModal" tabindex="-1"
+     aria-labelledby="multiDayModalLabel" aria-hidden="true"
+     data-bs-scroll="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
