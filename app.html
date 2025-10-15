@@ -2264,7 +2264,11 @@ function highlightPlannedDays(inst, plannedDates = []) {
 
   inst.daysContainer.querySelectorAll('.flatpickr-day').forEach(d => {
     if (!d.dateObj) return;
-    const dateStr = d.dateObj.toISOString().split('T')[0];
+    const yyyy = d.dateObj.getFullYear();
+    const mm   = String(d.dateObj.getMonth() + 1).padStart(2, '0');
+    const dd   = String(d.dateObj.getDate()).padStart(2, '0');
+    const dateStr = `${yyyy}-${mm}-${dd}`; 
+
     if (plannedDates.includes(dateStr)) {
       d.classList.add('planned-day');
     } else {
@@ -2318,24 +2322,20 @@ async function refreshPlannedDays() {
 // --- Geeft alle ingeplande datums terug in ISO-formaat ---
 function getPlannedDates() {
   const ud = getCurrentUserData();
-  const all = [];
-  if (!ud.monthData) return all;
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
 
-  for (const [year, months] of Object.entries(ud.monthData)) {
-    for (const [monthIndex, data] of Object.entries(months)) {
-      const rows = data.rows || {};
-      for (const [dateKey, row] of Object.entries(rows)) {
-        // Controleer dat het echt een geldige shift is
-        if (row && row.shift && row.shift.trim() !== '') {
-          // Zorg dat de datum exact ISO is
-          const iso = new Date(dateKey).toISOString().split('T')[0];
-          all.push(iso);
-        }
-      }
+  const md = ud.monthData?.[y]?.[m];
+  if (!md || !md.rows) return [];
+
+  const out = [];
+  for (const [dateKey, r] of Object.entries(md.rows)) {
+    const shiftName = (r?.shift || '').trim();
+    if (shiftName && shiftName.toLowerCase() !== 'niet ingepland') {
+      out.push(dateKey);           // already YYYY-MM-DD
     }
   }
-
-  return all;
+  return out;
 }
 /* === Kalender voor invoer meerdere dagen === */
 function initMultiDayPicker() {
@@ -2365,22 +2365,21 @@ window.multiDayPicker = flatpickr("#multiShiftDays", {
   defaultDate: [],
 
   // ✅ Eerste dag correct kleuren bij laden
-  onReady(_, __, inst) {
-    setTimeout(() => {
-      highlightPlannedDays(inst, getPlannedDates());
-    }, 50);
-  },
-
-  // ✅ Herkleur bij maandwisseling
-  onMonthChange(_, __, inst) {
-    highlightPlannedDays(inst, getPlannedDates());
-  },
-
-  // ✅ Filter shiften bij datumselectie
-  onChange(selectedDates) {
-    const isoDates = selectedDates.map(d => d.toISOString().split('T')[0]);
-    populateMultiDayShifts(isoDates);
-  },
+onReady(_, __, inst) {
+  setTimeout(() => highlightPlannedDays(inst, getPlannedDates()), 50);
+},
+onMonthChange(_, __, inst) {
+  highlightPlannedDays(inst, getPlannedDates());
+},
+onChange(selectedDates) {
+  const isoDates = selectedDates.map(d => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;   // no toISOString()
+  });
+  populateMultiDayShifts(isoDates);
+},
 });
 setTimeout(markPlannedDays, 100);
 
