@@ -2862,9 +2862,9 @@ function renderAdminMonthlyMulti(){
 
     // herteken als het de zichtbare maand is
     if (getActiveUserId() === uid &&
-        Number(monthSelectMain.value) === Number(mSelect.value) &&
-        Number(yearSelectMain.value) === Number(yInput.value)) {
-      renderMonth(Number(mSelect.value), Number(yInput.value));
+        Number(yearSelectMain.value) === Number(yInput.value) &&
+        Number(monthSelectMain.value) === Number(mSelect.value)) {
+      renderMonth(Number(yInput.value), Number(mSelect.value));
     }
     toast(`Extra lijnen: ${allowBox.checked ? 'toegestaan' : 'uitgezet'} voor ${key}`, 'success');
   };
