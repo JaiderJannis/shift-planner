@@ -560,18 +560,19 @@ body.dark-mode .badge.bg-secondary-subtle { background-color: #2e2e2e !important
     </div>
   </div>
 <div class="card p-3 mb-3">
-  <h6 class="mb-3">Verlof instellingen</h6>
-  <div class="row g-2 align-items-end">
+  <h6 class="mb-3">Verlof & Schoolverlof – jaarlijkse toekenning</h6>
+  <div class="row g-3 align-items-end">
     <div class="col-md-4">
-      <label class="form-label">Jaarlijkse verlof-toelage (uren)</label>
-      <input id="adminLeaveAllowanceHours" type="number" min="0" class="form-control" placeholder="b.v. 160">
+      <label class="form-label">Verlof (uren per jaar)</label>
+      <input id="adminLeaveHours" type="number" min="0" step="1" class="form-control" placeholder="bv. 160">
     </div>
     <div class="col-md-4">
-      <label class="form-label">Jaarlijkse schoolverlof-toelage (uren)</label>
-      <input id="adminSchoolAllowanceHours" type="number" min="0" class="form-control" placeholder="b.v. 80">
+      <label class="form-label">Schoolverlof (uren per jaar)</label>
+      <input id="adminSchoolLeaveHours" type="number" min="0" step="1" class="form-control" placeholder="bv. 40">
     </div>
     <div class="col-md-4 d-flex gap-2">
-      <button id="saveLeaveSettingsBtn" class="btn btn-primary flex-fill">Opslaan</button>
+      <button id="adminSaveLeaveBtn" class="btn btn-primary flex-fill">Opslaan</button>
+      <button id="adminResetLeaveBtn" class="btn btn-outline-secondary flex-fill">Leegmaken</button>
     </div>
   </div>
   <small class="text-muted d-block mt-2">
