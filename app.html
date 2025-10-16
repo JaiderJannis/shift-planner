@@ -3131,69 +3131,6 @@ function renderProjectSummary() {
 }
 function minutesToHM(min){ return `${Math.floor(min/60)}u ${min%60}m`; }
 
-function updateLeaveBadges() {
-  const badgeV = document.getElementById('badgeVerlof');
-  const badgeS = document.getElementById('badgeSchoolverlof');
-  if(!badgeV || !badgeS) return;
-
-  const ud = getCurrentUserData();
-  const year = Number(yearSelectMain.value);
-  // totale verbruikte minuten in het JAAR (alle maanden sommeren)
-  let usedLeave = 0, usedSchool = 0;
-
-  const yearMap = ud.monthData?.[year] || {};
-  for(const m of Object.keys(yearMap)){
-    const rows = yearMap[m]?.rows || {};
-    for(const r of Object.values(rows)){
-      if (!r?.shift) continue;
-      if (r.shift === 'Verlof') usedLeave += (r.minutes||0);
-      if (r.shift === 'Schoolverlof') usedSchool += (r.minutes||0);
-    }
-  }
-
-  const allowLeave  = Number(ud.settings?.leaveAllowanceMinutes || 0);
-  const allowSchool = Number(ud.settings?.schoolLeaveAllowanceMinutes || 0);
-
-  const remainLeave  = Math.max(0, allowLeave - usedLeave);
-  const remainSchool = Math.max(0, allowSchool - usedSchool);
-
-  badgeV.textContent = `Verlof: ${minutesToHM(usedLeave)} / ${minutesToHM(allowLeave)} (rest: ${minutesToHM(remainLeave)})`;
-  badgeS.textContent = `Schoolverlof: ${minutesToHM(usedSchool)} / ${minutesToHM(allowSchool)} (rest: ${minutesToHM(remainSchool)})`;
-
-  // optische kleuring
-  badgeV.classList.toggle('text-bg-danger', allowLeave && remainLeave===0);
-  badgeS.classList.toggle('text-bg-danger', allowSchool && remainSchool===0);
-}
-const adminLeaveAllowanceHours   = document.getElementById('adminLeaveAllowanceHours');
-const adminSchoolAllowanceHours  = document.getElementById('adminSchoolAllowanceHours');
-const saveLeaveSettingsBtn       = document.getElementById('saveLeaveSettingsBtn');
-
-saveLeaveSettingsBtn?.addEventListener('click', async () => {
-  const uid = adminUserSelect?.value || getActiveUserId();
-  if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
-
-  const prev = dataStore.viewUserId;
-  dataStore.viewUserId = uid;
-  const ud = getCurrentUserData();
-  ud.settings ||= {};
-  ud.settings.leaveAllowanceMinutes  = Math.max(0, Number(adminLeaveAllowanceHours.value||0)) * 60;
-  ud.settings.schoolLeaveAllowanceMinutes = Math.max(0, Number(adminSchoolAllowanceHours.value||0)) * 60;
-
-  await saveUserData();
-  dataStore.viewUserId = prev;
-
-  toast('Verlof-instellingen opgeslagen', 'success');
-
-  // Als je dezelfde gebruiker aan het bekijken bent, update badges direct
-  if (getActiveUserId() === uid) updateLeaveBadges();
-});
-// Prefill admin velden met bestaande waardes
-const targetUD = dataStore.users[uid];
-const leaveMin  = Number(targetUD?.settings?.leaveAllowanceMinutes || 0);
-const schoolMin = Number(targetUD?.settings?.schoolLeaveAllowanceMinutes || 0);
-if (adminLeaveAllowanceHours)  adminLeaveAllowanceHours.value  = Math.round(leaveMin/60);
-if (adminSchoolAllowanceHours) adminSchoolAllowanceHours.value = Math.round(schoolMin/60);
-
   </script>
 <!-- 🔄 Loading overlay -->
 <div id="loadingOverlay" class="loading-overlay d-none">
