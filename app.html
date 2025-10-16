@@ -249,6 +249,8 @@ body.dark-mode .alert-danger {
 #thActions{ width:1%; white-space:nowrap; }
 td.actions-cell{ white-space:nowrap; }  
 .btn-success { font-weight: 600; }
+.badge.bg-secondary-subtle { background-color: #f1f3f5 !important; color: #495057 !important; }
+body.dark-mode .badge.bg-secondary-subtle { background-color: #2e2e2e !important; color: #ddd !important; }
   </style>
 </head>
 <body>
@@ -391,6 +393,8 @@ td.actions-cell{ white-space:nowrap; }
     <!-- ✅ Concept-badge: op mobiel BOVEN Export -->
     <div class="col-12 col-md-auto mt-2 mt-md-0 order-1 order-md-0">
       <span id="monthStatusBadge" class="badge badge-status badge-draft">Concept</span>
+      <span id="leaveBalanceBadge" class="badge bg-secondary-subtle text-dark ms-2">Verlof saldo: — (stel in)</span>
+      <span id="schoolLeaveBalanceBadge" class="badge bg-secondary-subtle text-dark ms-2">Schoolverlof saldo: — (stel in)</span>
     </div>
 
     <!-- Export PDF -->
@@ -439,7 +443,8 @@ td.actions-cell{ white-space:nowrap; }
             <tbody id="tbody"></tbody>
           </table>
         </div>
-
+<!-- Project-samenvatting kaarten (zichtbare maand) -->
+<div id="projectSummary" class="mt-3"></div>
         <div class="row g-3 mt-2">
         </div>
       </section>
@@ -554,6 +559,27 @@ td.actions-cell{ white-space:nowrap; }
       </table>
     </div>
   </div>
+  <div class="card p-3 mb-3">
+  <h6 class="mb-3">Verlof & Schoolverlof – jaarlijkse toekenning</h6>
+  <div class="row g-3 align-items-end">
+    <div class="col-md-4">
+      <label class="form-label">Verlof (uren per jaar)</label>
+      <input id="adminLeaveHours" type="number" min="0" step="1" class="form-control" placeholder="bv. 160">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Schoolverlof (uren per jaar)</label>
+      <input id="adminSchoolLeaveHours" type="number" min="0" step="1" class="form-control" placeholder="bv. 40">
+    </div>
+    <div class="col-md-4 d-flex gap-2">
+      <button id="adminSaveLeaveBtn" class="btn btn-primary flex-fill">Opslaan</button>
+      <button id="adminResetLeaveBtn" class="btn btn-outline-secondary flex-fill">Leegmaken</button>
+    </div>
+  </div>
+  <small class="text-muted d-block mt-2">
+    Opslag per gebruiker in <code>users/{id}.settings.leaveAllowanceMinutes</code> en
+    <code>users/{id}.settings.leaveSchoolAllowanceMinutes</code> (minuten).
+  </small>
+</div>
   <div class="card p-3 mb-3">
   <h6 class="mb-3">Goedkeuring maand</h6>
   <div class="row g-2 align-items-end">
@@ -937,6 +963,7 @@ function updateMonthStatusBadge(){
       updateMonthStatusBadge();
 // ✅ Automatische meldingen uitvoeren
 await autoCheckNotifications();
+  updateLeaveBadges();
 });
 
     logoutBtn?.addEventListener('click', async ()=>{
@@ -1497,11 +1524,15 @@ async function renderMonth(year, month){
   await saveUserData();
   updateRemainingHours();
 
-  // 🔒 velden vergrendelen bij submitted/approved
+// 🔒 velden vergrendelen bij submitted/approved
   const lockedNow = (getMonthStatus(year, month)==='approved' || getMonthStatus(year, month)==='submitted');
   tbody.querySelectorAll('select, input').forEach(el => { el.disabled = lockedNow; });
 
   updateMonthStatusBadge();
+
+  // ✅ Toegevoegd: kaarten + badges verversen
+  renderProjectSummaryForVisibleMonth();
+  updateLeaveBadges();
 }
 
 async function populateShiftSelectForRow(tr, rowKey){
@@ -1644,6 +1675,7 @@ function ensureDefaultProjects(){
       const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
       const diff = total - target;
       updateRemainingHours();
+      updateLeaveBadges(); // ✅ toegevoegd
     }
 
     // live target updates
@@ -1662,7 +1694,11 @@ function ensureDefaultProjects(){
 
     projectFilterSelect.addEventListener('change', ()=> { renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value)); updateInputTotals(); });
 
-    yearSelectMain.addEventListener('change', async ()=> { renderProjectFilterForMonth(); generateMonth(); });
+    yearSelectMain.addEventListener('change', async ()=> {
+  renderProjectFilterForMonth();
+  await generateMonth();
+  updateLeaveBadges();
+});
     monthSelectMain.addEventListener('change', async ()=> { renderProjectFilterForMonth(); generateMonth(); });
 
     // ======= Quick input =======
@@ -1769,7 +1805,175 @@ if (sp) {
       document.getElementById('totFeest').textContent = `${Math.floor(totFeest/60)}u ${totFeest%60}min`;
       document.getElementById('totBench').textContent = `${Math.floor(totBench/60)}u ${totBench%60}min`;
     }
+// === Verlof / Schoolverlof instellingen en badges ===
+const LEAVE_SHIFT_NAMES = ['Verlof'];              // telt mee als "verlof"
+const SCHOOL_LEAVE_SHIFT_NAMES = ['Schoolverlof']; // telt mee als "schoolverlof"
 
+function getLeaveAllowanceMinutes() {
+  const ud = getCurrentUserData();
+  return Number(ud?.settings?.leaveAllowanceMinutes) || 0;
+}
+function getSchoolLeaveAllowanceMinutes() {
+  const ud = getCurrentUserData();
+  return Number(ud?.settings?.leaveSchoolAllowanceMinutes) || 0;
+}
+function sumTakenMinutesFor(year, shiftNames) {
+  const ud = getCurrentUserData();
+  let total = 0;
+  const months = ud.monthData?.[year] || {};
+  Object.values(months).forEach(md => {
+    Object.values(md?.rows || {}).forEach(r => {
+      const s = (r?.shift || '').trim();
+      if (s && shiftNames.includes(s)) total += Number(r.minutes) || 0;
+    });
+  });
+  return total;
+}
+function fmtMins(mins) {
+  const a = Math.abs(mins);
+  return `${Math.floor(a/60)}u ${a%60}min`;
+}
+function updateLeaveBadges() {
+  const badgeLeave = document.getElementById('leaveBalanceBadge');
+  const badgeSchool = document.getElementById('schoolLeaveBalanceBadge');
+  const y = Number(yearSelectMain.value);
+
+  if (badgeLeave) {
+    const allowance = getLeaveAllowanceMinutes();
+    if (!allowance) {
+      badgeLeave.textContent = 'Verlof saldo: — (stel in)';
+      badgeLeave.className = 'badge bg-secondary-subtle text-dark ms-2';
+    } else {
+      const taken = sumTakenMinutesFor(y, LEAVE_SHIFT_NAMES);
+      const remaining = allowance - taken;
+      const over = remaining < 0;
+      badgeLeave.textContent = over
+        ? `Verlof saldo: -${fmtMins(remaining)} (overschreden)`
+        : `Verlof saldo: ${fmtMins(remaining)} over`;
+      badgeLeave.className = `badge ms-2 ${over ? 'bg-danger' : (remaining === 0 ? 'bg-warning text-dark' : 'bg-success')}`;
+    }
+  }
+
+  if (badgeSchool) {
+    const allowance = getSchoolLeaveAllowanceMinutes();
+    if (!allowance) {
+      badgeSchool.textContent = 'Schoolverlof saldo: — (stel in)';
+      badgeSchool.className = 'badge bg-secondary-subtle text-dark ms-2';
+    } else {
+      const taken = sumTakenMinutesFor(y, SCHOOL_LEAVE_SHIFT_NAMES);
+      const remaining = allowance - taken;
+      const over = remaining < 0;
+      badgeSchool.textContent = over
+        ? `Schoolverlof saldo: -${fmtMins(remaining)} (overschreden)`
+        : `Schoolverlof saldo: ${fmtMins(remaining)} over`;
+      badgeSchool.className = `badge ms-2 ${over ? 'bg-danger' : (remaining === 0 ? 'bg-warning text-dark' : 'bg-success')}`;
+    }
+  }
+}
+
+// === Admin: velden tonen/opslaan ===
+function hydrateAdminLeaveInputsFor(uid) {
+  const prev = dataStore.viewUserId;
+  dataStore.viewUserId = uid;
+
+  const ud = getCurrentUserData();
+  const i1 = document.getElementById('adminLeaveHours');
+  const i2 = document.getElementById('adminSchoolLeaveHours');
+  if (i1) i1.value = Math.floor((ud?.settings?.leaveAllowanceMinutes || 0) / 60) || '';
+  if (i2) i2.value = Math.floor((ud?.settings?.leaveSchoolAllowanceMinutes || 0) / 60) || '';
+
+  dataStore.viewUserId = prev;
+}
+
+// Init bij openen Admin-tab + wisselen user
+document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab', () => {
+  const uid = adminUserSelect?.value || getActiveUserId();
+  if (uid) hydrateAdminLeaveInputsFor(uid);
+});
+adminUserSelect?.addEventListener('change', () => {
+  const uid = adminUserSelect?.value || getActiveUserId();
+  if (uid) hydrateAdminLeaveInputsFor(uid);
+});
+
+document.getElementById('adminSaveLeaveBtn')?.addEventListener('click', async () => {
+  const uid = adminUserSelect?.value || getActiveUserId();
+  if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
+  const prev = dataStore.viewUserId;
+  dataStore.viewUserId = uid;
+
+  const ud = getCurrentUserData();
+  ud.settings ||= {};
+  const hours = Math.max(0, Number(document.getElementById('adminLeaveHours')?.value || 0));
+  const schoolHours = Math.max(0, Number(document.getElementById('adminSchoolLeaveHours')?.value || 0));
+  ud.settings.leaveAllowanceMinutes = hours * 60;
+  ud.settings.leaveSchoolAllowanceMinutes = schoolHours * 60;
+
+  await saveUserData();
+  dataStore.viewUserId = prev;
+
+  updateLeaveBadges();
+  toast('Toekenningen opgeslagen', 'success');
+});
+
+document.getElementById('adminResetLeaveBtn')?.addEventListener('click', async () => {
+  const uid = adminUserSelect?.value || getActiveUserId();
+  if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
+
+  const prev = dataStore.viewUserId;
+  dataStore.viewUserId = uid;
+  const ud = getCurrentUserData();
+  ud.settings ||= {};
+  delete ud.settings.leaveAllowanceMinutes;
+  delete ud.settings.leaveSchoolAllowanceMinutes;
+  await saveUserData();
+  dataStore.viewUserId = prev;
+
+  hydrateAdminLeaveInputsFor(uid);
+  updateLeaveBadges();
+  toast('Toekenningen leeggemaakt', 'info');
+});
+
+// === Project-samenvatting (zichtbare maand) ===
+function renderProjectSummaryForVisibleMonth() {
+  const wrap = document.getElementById('projectSummary');
+  if (!wrap) return;
+  const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
+  const ud = getCurrentUserData();
+  const md = ud.monthData?.[y]?.[m] || { rows:{} };
+
+  const map = new Map(); // project -> minuten
+  Object.values(md.rows || {}).forEach(r => {
+    const mins = Number(r?.minutes) || 0;
+    if (mins <= 0) return;
+    const key = (r?.project || '').trim() || '— Geen project';
+    map.set(key, (map.get(key) || 0) + mins);
+  });
+
+  if (map.size === 0) {
+    wrap.innerHTML = `<div class="alert alert-light border small mb-0">Nog geen minuten in deze maand.</div>`;
+    return;
+  }
+
+  const items = [...map.entries()].sort((a,b)=> b[1]-a[1]);
+  const card = (name, mins) => `
+    <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+      <div class="card shadow-sm border-0">
+        <div class="card-body py-2">
+          <div class="small text-muted">Project</div>
+          <div class="fw-semibold">${name}</div>
+          <div class="text-mono">${Math.floor(mins/60)}u ${mins%60}min</div>
+        </div>
+      </div>
+    </div>`;
+
+  wrap.innerHTML = `
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <h6 class="mb-0">Project-samenvatting</h6>
+      <span class="text-muted small">totaal minuten per project (zichtbare maand)</span>
+    </div>
+    <div class="row g-2">${items.map(([n,v])=>card(n,v)).join('')}</div>
+  `;
+}
 // ======= Admin =======
 // Gebruikerslijst renderen
 async function renderAdminUserSelect() {
@@ -1912,6 +2116,7 @@ removeUserBtn?.addEventListener('click', async () => {
       renderAdminUserSelect();
       renderAdminMonthlyMulti();
       updateRemainingHours();
+      updateLeaveBadges();
     }
      // ✅ Plaats DIT hier:
 document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
