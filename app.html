@@ -258,28 +258,33 @@ body.dark-mode .badge.bg-secondary-subtle { background-color: #2e2e2e !important
   <!-- Sidebar -->
   <aside id="sidebar" class="sp-sidebar">
     <div class="px-3 mb-3">
-      <div class="d-flex align-items-center gap-2 ps-2">
-        <span class="material-icons-outlined">event_note</span>
-        <strong class="label">Shift Planner</strong>
-      </div>
-    </div>
-    <nav class="nav flex-column" id="navTabs">
-      <a class="nav-link active" data-bs-toggle="tab" href="#tab-shifts">
-        <span class="material-icons-outlined">schedule</span> <span class="label">Shifts</span>
-      </a>
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-invoer">
-        <span class="material-icons-outlined">list_alt</span> <span class="label">Invoer</span>
-      </a>
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-historiek">
-        <span class="material-icons-outlined">query_stats</span> <span class="label">Historiek</span>
-      </a>
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-converter">
-        <span class="material-icons-outlined">calculate</span> <span class="label">Converter</span>
-      </a>
-      <a class="nav-link d-none" id="adminTabBtn" data-bs-toggle="tab" href="#tab-admin">
-        <span class="material-icons-outlined">admin_panel_settings</span> <span class="label">Admin</span>
-      </a>
-    </nav>
+  <div class="d-flex align-items-center gap-2 ps-2">
+    <span class="material-icons-outlined">event_note</span>
+    <a class="label text-white text-decoration-none" data-bs-toggle="tab" href="#tab-home">
+      Shift Planner
+    </a>
+  </div>
+</div>
+<nav class="nav flex-column" id="navTabs">
+  <a class="nav-link active" data-bs-toggle="tab" href="#tab-home">
+    <span class="material-icons-outlined">home</span> <span class="label">Home</span>
+  </a>
+  <a class="nav-link" data-bs-toggle="tab" href="#tab-shifts">
+    <span class="material-icons-outlined">schedule</span> <span class="label">Shifts</span>
+  </a>
+  <a class="nav-link" data-bs-toggle="tab" href="#tab-invoer">
+    <span class="material-icons-outlined">list_alt</span> <span class="label">Invoer</span>
+  </a>
+  <a class="nav-link" data-bs-toggle="tab" href="#tab-historiek">
+    <span class="material-icons-outlined">query_stats</span> <span class="label">Historiek</span>
+  </a>
+  <a class="nav-link" data-bs-toggle="tab" href="#tab-converter">
+    <span class="material-icons-outlined">calculate</span> <span class="label">Converter</span>
+  </a>
+  <a class="nav-link d-none" id="adminTabBtn" data-bs-toggle="tab" href="#tab-admin">
+    <span class="material-icons-outlined">admin_panel_settings</span> <span class="label">Admin</span>
+  </a>
+</nav>
   </aside>
 
   <!-- Topbar -->
@@ -341,9 +346,81 @@ body.dark-mode .badge.bg-secondary-subtle { background-color: #2e2e2e !important
   <!-- Main -->
   <main id="main" class="sp-main">
     <div class="tab-content">
+<!-- HOME -->
+<section id="tab-home" class="tab-pane fade show active">
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Welkom, <span id="homeUserName">-</span></h5>
+    <div class="d-flex flex-wrap gap-2">
+      <button id="homeBtnQuickInput" class="btn btn-outline-warning btn-sm">
+        <span class="material-icons-outlined">event</span> Snelle invoer
+      </button>
+      <button id="homeBtnGoInvoer" class="btn btn-outline-primary btn-sm">
+        <span class="material-icons-outlined">table_view</span> Naar Invoer
+      </button>
+      <button id="homeBtnNewShift" class="btn btn-primary btn-sm">
+        <span class="material-icons-outlined">add</span> Nieuwe shift
+      </button>
+    </div>
+  </div>
 
+  <!-- Voortgang huidige maand -->
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div>
+          <div class="small text-muted">Voortgang — <span id="homeMonthName">-</span></div>
+          <div class="fw-semibold">
+            Gepland: <span id="homeMonthPlanned">0u 0min</span>
+            &nbsp;|&nbsp; Doel: <span id="homeMonthTarget">0u 0min</span>
+            &nbsp;|&nbsp; Verschil: <span id="homeMonthDiff">0u 0min</span>
+          </div>
+        </div>
+        <span class="badge bg-secondary-subtle text-dark" id="homeMonthStatus">Concept</span>
+      </div>
+      <div class="progress" style="height: 10px;">
+        <div id="homeMonthProgress" class="progress-bar" role="progressbar"
+             style="width:0%;" aria-valuemin="0" aria-valuemax="100">
+          <span class="visually-hidden" id="homeMonthProgressLabel">0%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Verlof badges -->
+  <div class="mb-3">
+    <span class="badge bg-secondary-subtle text-dark me-2" id="homeLeave">Verlof: —</span>
+    <span class="badge bg-secondary-subtle text-dark" id="homeSchoolLeave">Schoolverlof: —</span>
+  </div>
+
+  <div class="row g-3">
+    <!-- Actieve projecten -->
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">Actieve projecten (vandaag)</h6>
+          </div>
+          <div class="row g-2" id="homeProjects"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Laatste meldingen -->
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">Laatste meldingen</h6>
+            <span class="text-muted small">(max. 5)</span>
+          </div>
+          <ul class="mb-0" id="homeNotifList"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
       <!-- SHIFTS -->
-      <section id="tab-shifts" class="tab-pane fade show active">
+      <section id="tab-shifts" class="tab-pane fade">
         <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
           <h5 class="mb-0">Shifts</h5>
           <div class="d-flex flex-wrap gap-2">
@@ -899,6 +976,140 @@ function nextLineIndex(md, baseKey) {
   while (keys.includes(`${baseKey}#${n}`)) n++;
   return n;
 }
+// ===== HOME DASHBOARD =====
+function fmt(mins){ return `${Math.floor(mins/60)}u ${mins%60}min`; }
+
+async function loadHomeNotifications() {
+  try {
+    if (!currentUserId) return;
+    const listEl = document.getElementById('homeNotifList');
+    if (!listEl) return;
+    const colRef = collection(db, 'users', currentUserId, 'notifications');
+    const qy = query(colRef, orderBy('timestamp','desc'), limit(5));
+    const snap = await getDocs(qy);
+
+    listEl.innerHTML = '';
+    if (snap.empty) {
+      listEl.innerHTML = '<li class="text-muted small">Geen meldingen.</li>';
+      return;
+    }
+    snap.forEach(d => {
+      const n = d.data();
+      const when = n.timestamp ? new Date(n.timestamp).toLocaleString('nl-BE') : '';
+      listEl.insertAdjacentHTML('beforeend',
+        `<li class="small mb-1">${n.text}<br><span class="text-muted">${when}</span></li>`);
+    });
+  } catch(e){ console.error(e); }
+}
+
+function renderHome() {
+  const ud = getCurrentUserData();
+  const name = ud.name || ud.email || '-';
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const md = ud.monthData?.[y]?.[m] || { rows:{}, targetHours:0, targetMinutes:0 };
+
+  // header
+  const userEl = document.getElementById('homeUserName');
+  if (userEl) userEl.textContent = name;
+  const monthNameEl = document.getElementById('homeMonthName');
+  if (monthNameEl) monthNameEl.textContent = `${monthsFull[m]} ${y}`;
+
+  // totals
+  const planned = Object.values(md.rows||{}).reduce((s,r)=> s + (Number(r.minutes)||0), 0);
+  const target  = (Number(md.targetHours)||0)*60 + (Number(md.targetMinutes)||0);
+  const diff    = planned - target;
+  const pct     = target > 0 ? Math.min(100, Math.round(planned/target*100)) : 0;
+
+  const elP = document.getElementById('homeMonthPlanned');
+  const elT = document.getElementById('homeMonthTarget');
+  const elD = document.getElementById('homeMonthDiff');
+  if (elP) elP.textContent = fmt(planned);
+  if (elT) elT.textContent = fmt(target);
+  if (elD) elD.textContent = `${diff>=0?'+':''}${fmt(Math.abs(diff))}`;
+
+  const bar = document.getElementById('homeMonthProgress');
+  const barLbl = document.getElementById('homeMonthProgressLabel');
+  if (bar) {
+    bar.style.width = `${pct}%`;
+    bar.setAttribute('aria-valuenow', String(pct));
+    bar.classList.remove('bg-success','bg-warning');
+    bar.classList.add(planned >= target && target>0 ? 'bg-success' : 'bg-warning');
+    if (barLbl) barLbl.textContent = `${pct}%`;
+  }
+
+  // status badge
+  const st = document.getElementById('homeMonthStatus');
+  if (st) {
+    const status = getMonthStatus(y, m);
+    st.textContent =
+      status==='draft'     ? 'Concept' :
+      status==='submitted' ? 'Ingediend' :
+      status==='approved'  ? 'Goedgekeurd' : 'Afgekeurd';
+    st.className = 'badge';
+    st.classList.add(
+      status==='approved'  ? 'bg-success' :
+      status==='submitted' ? 'bg-primary' :
+      status==='rejected'  ? 'bg-danger' : 'bg-secondary-subtle','text-dark'
+    );
+  }
+
+  // verlof chips
+  const leaveAllow = getLeaveAllowanceMinutes();
+  const leaveTaken = sumTakenMinutesFor(y, LEAVE_SHIFT_NAMES);
+  const leaveRemain = leaveAllow - leaveTaken;
+  const leaveEl = document.getElementById('homeLeave');
+  if (leaveEl) {
+    leaveEl.textContent = !leaveAllow
+      ? 'Verlof: niet ingesteld'
+      : (leaveRemain >= 0 ? `Verlof: ${fmt(leaveRemain)} over` : `Verlof: -${fmt(leaveRemain)} overschreden`);
+    leaveEl.className = `badge ${leaveRemain<0 ? 'bg-danger' : (leaveAllow? 'bg-success':'bg-secondary-subtle text-dark')}`;
+  }
+
+  const schAllow = getSchoolLeaveAllowanceMinutes();
+  const schTaken = sumTakenMinutesFor(y, SCHOOL_LEAVE_SHIFT_NAMES);
+  const schRemain = schAllow - schTaken;
+  const schEl = document.getElementById('homeSchoolLeave');
+  if (schEl) {
+    schEl.textContent = !schAllow
+      ? 'Schoolverlof: niet ingesteld'
+      : (schRemain >= 0 ? `Schoolverlof: ${fmt(schRemain)} over` : `Schoolverlof: -${fmt(schRemain)} overschreden`);
+    schEl.className = `badge ${schRemain<0 ? 'bg-danger' : (schAllow? 'bg-success':'bg-secondary-subtle text-dark')}`;
+  }
+
+  // actieve projecten (vandaag)
+  const todayISO = new Date().toISOString().slice(0,10);
+  const projWrap = document.getElementById('homeProjects');
+  if (projWrap) {
+    const list = (ud.projects||[]).filter(p => isDateWithin(todayISO, p.start||null, p.end||null));
+    if (!list.length) {
+      projWrap.innerHTML = '<div class="text-muted small">Geen actieve projecten vandaag.</div>';
+    } else {
+      projWrap.innerHTML = list.map(p => `
+        <div class="col-12 col-sm-6 col-md-4">
+          <div class="border rounded p-2 h-100">
+            <div class="fw-semibold">${p.name}</div>
+            <div class="text-muted small">${toDisplayDate(p.start)} – ${toDisplayDate(p.end)}</div>
+          </div>
+        </div>`).join('');
+    }
+  }
+
+  // laatste meldingen
+  loadHomeNotifications();
+}
+
+// Snelkoppelingen op Home
+document.getElementById('homeBtnQuickInput')?.addEventListener('click', () => {
+  new bootstrap.Modal(document.getElementById('quickModal')).show();
+});
+document.getElementById('homeBtnNewShift')?.addEventListener('click', () => {
+  new bootstrap.Modal(document.getElementById('shiftModal')).show();
+});
+document.getElementById('homeBtnGoInvoer')?.addEventListener('click', () => {
+  const a = document.querySelector('a[href="#tab-invoer"]');
+  if (a) new bootstrap.Tab(a).show();
+});
 // ======= Maandstatus helpers (global) =======
 // status: 'draft' | 'submitted' | 'approved' | 'rejected'
 function getMonthStatus(y, m){
@@ -963,6 +1174,7 @@ function updateMonthStatusBadge(){
 // ✅ Automatische meldingen uitvoeren
 await autoCheckNotifications();
   updateLeaveBadges();
+  renderHome();
 });
 
     logoutBtn?.addEventListener('click', async ()=>{
@@ -1359,7 +1571,7 @@ function renderProjectFilterForMonth(){
       ud.monthData[y] = ud.monthData[y] || {};
       if(!ud.monthData[y][m]) ud.monthData[y][m] = { targetHours:0, targetMinutes:0, rows:{} };
       await saveUserData();
-      await renderMonth(y,m); updateInputTotals(); renderHistory();
+      await renderMonth(y,m); updateInputTotals(); renderHome(); renderHistory();
     }
 // ✅ Automatische koppeling van project aan shift bij herladen
 function autoAssignProjectIfNeeded(r) {
@@ -1524,6 +1736,7 @@ async function renderMonth(year, month){
   updateRemainingHours();
   renderProjectSummary(); 
   updateLeaveBadges(); 
+  renderHome();
 
 // 🔒 velden vergrendelen bij submitted/approved
   const lockedNow = (getMonthStatus(year, month)==='approved' || getMonthStatus(year, month)==='submitted');
@@ -1836,11 +2049,43 @@ function fmtMins(mins) {
   const a = Math.abs(mins);
   return `${Math.floor(a/60)}u ${a%60}min`;
 }
-function updateLeaveBadges() {
-  const badgeLeave = document.getElementById('leaveBalanceBadge');
-  const badgeSchool = document.getElementById('schoolLeaveBalanceBadge');
-  const y = Number(yearSelectMain.value);
+// === Schooljaar helpers ===
+// Geeft grenzen van het schooljaar terug voor de huidig geselecteerde maand/jaar
+function getAcademicYearBounds(y, m /* 0..11 */) {
+  const startYear = (m >= 8) ? y : y - 1;   // 8 = september
+  const endYear   = startYear + 1;
+  const startISO  = `${startYear}-09-01`;
+  const endISO    = `${endYear}-08-31`;
+  return { startISO, endISO, label: `${startYear}-${endYear}` };
+}
 
+// Sommeer minuten voor opgegeven shifts binnen [startISO, endISO]
+function sumTakenMinutesForRange(startISO, endISO, shiftNames) {
+  const ud = getCurrentUserData();
+  let total = 0;
+  for (const months of Object.values(ud.monthData || {})) {
+    for (const md of Object.values(months || {})) {
+      for (const [key, r] of Object.entries(md?.rows || {})) {
+        const sName = (r?.shift || '').trim();
+        if (!sName || !shiftNames.includes(sName)) continue;
+        if (isDateWithin(key, startISO, endISO)) {
+          total += Number(r.minutes) || 0;
+        }
+      }
+    }
+  }
+  return total;
+}
+
+// === Verlof / Schoolverlof badges (met schooljaar-logica) ===
+function updateLeaveBadges() {
+  const badgeLeave  = document.getElementById('leaveBalanceBadge');
+  const badgeSchool = document.getElementById('schoolLeaveBalanceBadge');
+
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+
+  // ---- Gewoon verlof (kalenderjaar, ongewijzigd) ----
   if (badgeLeave) {
     const allowance = getLeaveAllowanceMinutes();
     if (!allowance) {
@@ -1857,18 +2102,20 @@ function updateLeaveBadges() {
     }
   }
 
+  // ---- Schoolverlof (schooljaar 1/9–31/8) ----
   if (badgeSchool) {
     const allowance = getSchoolLeaveAllowanceMinutes();
     if (!allowance) {
       badgeSchool.textContent = 'Schoolverlof saldo: — (stel in)';
       badgeSchool.className = 'badge bg-secondary-subtle text-dark ms-2';
     } else {
-      const taken = sumTakenMinutesFor(y, SCHOOL_LEAVE_SHIFT_NAMES);
+      const { startISO, endISO, label } = getAcademicYearBounds(y, m);
+      const taken = sumTakenMinutesForRange(startISO, endISO, SCHOOL_LEAVE_SHIFT_NAMES);
       const remaining = allowance - taken;
       const over = remaining < 0;
       badgeSchool.textContent = over
-        ? `Schoolverlof saldo: -${fmtMins(remaining)} (overschreden)`
-        : `Schoolverlof saldo: ${fmtMins(remaining)} over`;
+        ? `Schoolverlof saldo: -${fmtMins(remaining)} (overschreden) — ${label}`
+        : `Schoolverlof saldo: ${fmtMins(remaining)} over — ${label}`;
       badgeSchool.className = `badge ms-2 ${over ? 'bg-danger' : (remaining === 0 ? 'bg-warning text-dark' : 'bg-success')}`;
     }
   }
@@ -2120,6 +2367,8 @@ removeUserBtn?.addEventListener('click', async () => {
       renderAdminMonthlyMulti();
       updateRemainingHours();
       updateLeaveBadges();
+      renderHome();
+
     }
      // ✅ Plaats DIT hier:
 document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
