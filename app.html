@@ -1066,16 +1066,23 @@ function renderHome() {
     leaveEl.className = `badge ${leaveRemain<0 ? 'bg-danger' : (leaveAllow? 'bg-success':'bg-secondary-subtle text-dark')}`;
   }
 
-  const schAllow = getSchoolLeaveAllowanceMinutes();
-  const schTaken = sumTakenMinutesFor(y, SCHOOL_LEAVE_SHIFT_NAMES);
-  const schRemain = schAllow - schTaken;
-  const schEl = document.getElementById('homeSchoolLeave');
-  if (schEl) {
-    schEl.textContent = !schAllow
-      ? 'Schoolverlof: niet ingesteld'
-      : (schRemain >= 0 ? `Schoolverlof: ${fmt(schRemain)} over` : `Schoolverlof: -${fmt(schRemain)} overschreden`);
-    schEl.className = `badge ${schRemain<0 ? 'bg-danger' : (schAllow? 'bg-success':'bg-secondary-subtle text-dark')}`;
+const schAllow = getSchoolLeaveAllowanceMinutes();
+const { startISO, endISO, label } = getAcademicYearBounds(y, m);
+const schTaken = sumTakenMinutesForRange(startISO, endISO, SCHOOL_LEAVE_SHIFT_NAMES);
+const schRemain = schAllow - schTaken;
+
+const schEl = document.getElementById('homeSchoolLeave');
+if (schEl) {
+  if (!schAllow) {
+    schEl.textContent = 'Schoolverlof: niet ingesteld — ' + label;
+    schEl.className = 'badge bg-secondary-subtle text-dark';
+  } else {
+    schEl.textContent = schRemain >= 0
+      ? `Schoolverlof: ${fmt(schRemain)} over — ${label}`
+      : `Schoolverlof: -${fmt(Math.abs(schRemain))} overschreden — ${label}`;
+    schEl.className = `badge ${schRemain < 0 ? 'bg-danger' : (schRemain === 0 ? 'bg-warning text-dark' : 'bg-success')}`;
   }
+}
 
   // actieve projecten (vandaag)
   const todayISO = new Date().toISOString().slice(0,10);
@@ -1232,16 +1239,22 @@ async function saveUserData(){
 }
 
     // ======= UI init =======
-    function initSelectors(){
-      // years
-      const yNow = new Date().getFullYear();
-      yearSelectMain.innerHTML = '';
-      for(let y = yNow-2; y <= yNow+3; y++){
-        const opt = document.createElement('option');
-        opt.value = y; opt.textContent = y; if(y===yNow) opt.selected = true; yearSelectMain.appendChild(opt);
-      }
-    }
+function initSelectors(){
+  // years
+  const yNow = new Date().getFullYear();
+  yearSelectMain.innerHTML = '';
+  for (let y = yNow - 2; y <= yNow + 3; y++) {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = y;
+    if (y === yNow) opt.selected = true;
+    yearSelectMain.appendChild(opt);
+  }
 
+  // ⇩ huidige maand selecteren (0..11)
+  const mNow = new Date().getMonth();
+  monthSelectMain.value = String(mNow);
+}
     async function revealAdminIfNeeded(){
       const meSnap = await getDoc(doc(db,'users', currentUserId));
       const role = meSnap.data().role;
