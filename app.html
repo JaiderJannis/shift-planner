@@ -251,6 +251,40 @@ td.actions-cell{ white-space:nowrap; }
 .btn-success { font-weight: 600; }
 .badge.bg-secondary-subtle { background-color: #f1f3f5 !important; color: #495057 !important; }
 body.dark-mode .badge.bg-secondary-subtle { background-color: #2e2e2e !important; color: #ddd !important; }
+/* Compacte projectkaarten (Invoer) */
+#projectSummary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: .5rem;
+}
+
+.project-mini {
+  background: #fff;
+  border: 1px solid #e9edf5;
+  border-radius: .5rem;
+  padding: .5rem .75rem;          /* klein! */
+}
+
+.project-mini .meta { 
+  color: #6c757d; 
+  font-size: .75rem; 
+}
+.project-mini .title { 
+  font-weight: 600; 
+  font-size: .95rem; 
+}
+.project-mini .value { 
+  font-variant-numeric: tabular-nums; 
+  font-weight: 700; 
+}
+
+/* Donkere modus matchen */
+body.dark-mode #projectSummary .project-mini {
+  background: #2b2b2b;
+  border-color: #444;
+  color: #eaeaea;
+}
+body.dark-mode #projectSummary .meta { color: #aaa; }
   </style>
 </head>
 <body>
@@ -2175,6 +2209,7 @@ document.getElementById('adminSaveLeaveBtn')?.addEventListener('click', async ()
   dataStore.viewUserId = prev;
 
   updateLeaveBadges();
+  renderHome();
   toast('Toekenningen opgeslagen', 'success');
 });
 
@@ -2197,10 +2232,13 @@ document.getElementById('adminResetLeaveBtn')?.addEventListener('click', async (
 });
 
 // === Project-samenvatting (zichtbare maand) ===
-function renderProjectSummaryForVisibleMonth() {
+function renderProjectSummaryForVisibleMonth() 
+{
   const wrap = document.getElementById('projectSummary');
   if (!wrap) return;
-  const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
+
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
   const ud = getCurrentUserData();
   const md = ud.monthData?.[y]?.[m] || { rows:{} };
 
@@ -2213,30 +2251,31 @@ function renderProjectSummaryForVisibleMonth() {
   });
 
   if (map.size === 0) {
-    wrap.innerHTML = `<div class="alert alert-light border small mb-0">Nog geen minuten in deze maand.</div>`;
+    wrap.innerHTML = '<div class="alert alert-light border small mb-0">Nog geen minuten in deze maand.</div>';
     return;
   }
 
-  const items = [...map.entries()].sort((a,b)=> b[1]-a[1]);
-  const card = (name, mins) => `
-    <div class="col-12 col-sm-6 col-md-4 col-lg-3">
-      <div class="card shadow-sm border-0">
-        <div class="card-body py-2">
-          <div class="small text-muted">Project</div>
-          <div class="fw-semibold">${name}</div>
-          <div class="text-mono">${Math.floor(mins/60)}u ${mins%60}min</div>
-        </div>
-      </div>
-    </div>`;
+  const items = [...map.entries()]
+    .sort((a,b)=> b[1]-a[1])
+    .map(([name, mins]) => {
+      const h = Math.floor(mins/60), min = mins%60;
+      return `
+        <div class="project-mini">
+          <div class="meta">Project</div>
+          <div class="title">${name}</div>
+          <div class="value">${h}u ${min}min</div>
+        </div>`;
+    });
 
   wrap.innerHTML = `
     <div class="d-flex align-items-center gap-2 mb-2">
       <h6 class="mb-0">Project-samenvatting</h6>
       <span class="text-muted small">totaal minuten per project (zichtbare maand)</span>
     </div>
-    <div class="row g-2">${items.map(([n,v])=>card(n,v)).join('')}</div>
+    ${items.join('')}
   `;
 }
+
 // ======= Admin =======
 // Gebruikerslijst renderen
 async function renderAdminUserSelect() {
@@ -3343,23 +3382,21 @@ function renderAdminMonthlyMulti(){
 }
 // aanroepen bij wisselen admin user
 adminUserSelect?.addEventListener('change', renderAdminMonthlyMulti);
-function renderProjectSummary() {
-  const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
+function renderProjectSummary() 
+{
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
   const ud = getCurrentUserData();
   const md = ud.monthData?.[y]?.[m];
   const wrap = document.getElementById('projectSummary');
   if (!wrap) return;
-  wrap.innerHTML = '';
 
   if (!md || !md.rows || !Object.keys(md.rows).length) {
-    wrap.innerHTML = `<div class="col-12 text-muted small">Geen data in deze maand.</div>`;
+    wrap.innerHTML = '<div class="alert alert-light border small mb-0">Geen data in deze maand.</div>';
     return;
   }
 
-  // optioneel filter op geselecteerd project
   const filterProject = projectFilterSelect.value || '';
-
-  // minuten per project optellen
   const perProject = {};
   for (const r of Object.values(md.rows)) {
     if (!r) continue;
@@ -3368,29 +3405,21 @@ function renderProjectSummary() {
     perProject[p] = (perProject[p] || 0) + (r.minutes || 0);
   }
 
-  // kaartjes renderen (compact)
-  Object.entries(perProject)
+  const cards = Object.entries(perProject)
     .sort((a,b)=> b[1]-a[1])
-    .forEach(([name, minutes]) => {
+    .map(([name, minutes]) => {
       const h = Math.floor(minutes/60), min = minutes%60;
-      const col = document.createElement('div');
-      col.className = 'col-12 col-sm-6 col-lg-4';
-      col.innerHTML = `
-        <div class="card shadow-sm border-0">
-          <div class="card-body d-flex justify-content-between align-items-center">
-            <div>
-              <div class="fw-semibold">${name}</div>
-              <div class="text-muted small">Totaal in maand</div>
-            </div>
-            <div class="fs-5 text-mono">${h}u ${min}m</div>
-          </div>
+      return `
+        <div class="project-mini">
+          <div class="title">${name}</div>
+          <div class="meta">Totaal in maand</div>
+          <div class="value">${h}u ${min}m</div>
         </div>`;
-      wrap.appendChild(col);
     });
 
-  if (!wrap.children.length) {
-    wrap.innerHTML = `<div class="col-12 text-muted small">Geen projecten voor huidig filter.</div>`;
-  }
+  wrap.innerHTML = cards.length
+    ? cards.join('')
+    : '<div class="alert alert-light border small mb-0">Geen projecten voor huidig filter.</div>';
 }
 function minutesToHM(min){ return `${Math.floor(min/60)}u ${min%60}m`; }
 
