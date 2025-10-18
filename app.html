@@ -1000,6 +1000,7 @@ const mailCancelBtn   = document.getElementById('mailCancelBtn');
 let mailLastVisible = null;
 let mailboxUnsub = null;
 let mailboxCache = []; // lokaal cache voor weergave
+let composeThreadId = null; // onthoudt thread voor Reply (of null bij Nieuw)
 function formatWhen(ts){
   if (!ts) return '';
   // Firestore Timestamp?
@@ -1100,13 +1101,15 @@ function prepareComposeToCounterparty(m) {
   prepareComposeOptions();
   const me = dataStore.users[getActiveUserId()];
   if ((me?.role||'user') === 'admin') {
-    // reply naar die user
     mailToSelect.value = `user:${m.from?.uid || ''}`;
   } else {
     mailToSelect.value = 'admin-group';
   }
   mailSubjectInput.value = m.subject?.startsWith('Re: ') ? m.subject : `Re: ${m.subject||''}`;
   mailBodyInput.value = '';
+
+  // 👇 threadId vastleggen voor de Reply-flow
+  composeThreadId = m.threadId || `conv:${m.from?.uid || getActiveUserId()}`;
 }
 
 function listenMailbox(uid) {
@@ -1130,11 +1133,13 @@ mailComposeBtn?.addEventListener('click', () => {
     prepareComposeOptions();
     mailSubjectInput.value = '';
     mailBodyInput.value = '';
+    composeThreadId = null;             // 👈 nieuw
   }
 });
 
 mailCancelBtn?.addEventListener('click', () => {
   mailComposeCard.classList.add('d-none');
+  composeThreadId = null;               // 👈 optioneel
 });
 
 mailSendBtn?.addEventListener('click', async () => {
@@ -1150,13 +1155,18 @@ mailSendBtn?.addEventListener('click', async () => {
     if ((me?.role||'user') === 'admin') {
       const userUid = toVal.startsWith('user:') ? toVal.split(':')[1] : null;
       if (!userUid) return toast('Kies gebruiker', 'warning');
-      await sendAdminReplyToUser(meUid, userUid, subject, body);
+      await sendAdminReplyToUser(meUid, userUid, subject, body); // admin → user
       toast('Bericht verzonden aan gebruiker', 'success');
     } else {
-      await sendUserToAdmins(meUid, subject, body);
+      await sendUserMessageToAdmins(
+        subject,
+        body,
+        composeThreadId || `conv:${currentUserId}`
+      );
       toast('Bericht verzonden aan admins', 'success');
     }
     mailComposeCard.classList.add('d-none');
+    composeThreadId = null; // reset
   } catch(e){
     console.error(e);
     toast('Versturen mislukt', 'danger');
@@ -2424,7 +2434,6 @@ async function sendUserToAdmins(userUid, subject, body) {
     })
   ));
 }
-
 async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
   const admin = dataStore.users[adminUid];
   const user  = dataStore.users[userUid];
@@ -2446,7 +2455,32 @@ async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
     subject, body, read:false, timestamp: new Date().toISOString()
   });
 }
+async function sendUserMessageToAdmins(subject, body, threadId=`conv:${currentUserId}`) {
+  const me = getCurrentUserData();
+  const meName = me.name || me.email || currentUserId;
 
+  // 1) kopie voor jezelf (zoals "verzonden")
+  await addDoc(collection(db, 'users', getActiveUserId(), 'mailbox'), {
+    threadId, system:false, kind:'message',
+    from:{ uid: currentUserId, name: meName, role:'user' },
+    to:{ type:'admin-group' },
+    subject, body, read:true,
+    timestamp: new Date().toISOString()
+  });
+
+  // 2) fan-out naar alle admins (allowed door rules: target is admin + system:false)
+  const qAdmins = query(collection(db, 'users'), where('role','==','admin'));
+  const snap = await getDocs(qAdmins);
+  await Promise.all(snap.docs.map(a =>
+    addDoc(collection(db, 'users', a.id, 'mailbox'), {
+      threadId, system:false, kind:'message',
+      from:{ uid: currentUserId, name: meName, role:'user' },
+      to:{ type:'user', uid: a.id },
+      subject, body, read:false,
+      timestamp: new Date().toISOString()
+    })
+  ));
+}
 // === Schooljaar helpers ===
 // Geeft grenzen van het schooljaar terug voor de huidig geselecteerde maand/jaar
 function getAcademicYearBounds(y, m /* 0..11 */) {
@@ -3322,6 +3356,41 @@ mailListBody.addEventListener('click', async (e) => {
 
   mailUnreadBadge.textContent = unread ? `${unread} ongelezen` : '—';
 }
+// Mail naar alle admins wanneer IK (current user) een planner indien
+async function sendPlanningSubmittedMailToAdmins(y, m) {
+  const me = getCurrentUserData();
+  const meName = me.name || me.email || currentUserId;
+  const subject = `Planner ingediend — ${meName} (${monthsFull[m]} ${y})`;
+  const body =
+    `${meName} heeft zojuist de planner ingediend voor ${monthsFull[m]} ${y}.`
+    + `\n\nOpen dit in Admin ▸ Goedkeuring maand.`;
+
+  const qAdmins = query(collection(db, 'users'), where('role', '==', 'admin'));
+  const snap = await getDocs(qAdmins);
+
+  const writes = [];
+  snap.forEach(a => {
+    // MAIL naar admin (system:false i.v.m. rules)
+    writes.push(addDoc(collection(db, 'users', a.id, 'mailbox'), {
+      threadId: `plan:${currentUserId}:${y}-${m}`,
+      system: false,
+      kind: 'status',
+      from: { uid: currentUserId, name: meName, role: 'user' },
+      to:   { type: 'user', uid: a.id },
+      subject, body, read: false,
+      timestamp: new Date().toISOString()
+    }));
+
+    // (optioneel) 🔔 Notificatie voor admin
+    writes.push(addDoc(collection(db, 'users', a.id, 'notifications'), {
+      text: `Planner ingediend door ${meName} — ${monthsFull[m]} ${y}`,
+      timestamp: new Date().toISOString(),
+      read: false
+    }));
+  });
+
+  await Promise.all(writes);
+}
 // Markeer gelezen/ongelezen
 async function markMailRead(messageId, val = true) {
   const uid = getActiveUserId();
@@ -3795,12 +3864,26 @@ document.getElementById('multiDayModal').addEventListener('hidden.bs.modal', () 
 document.getElementById('submitMonthBtn')?.addEventListener('click', async () => {
   const y = Number(yearSelectMain.value);
   const m = Number(monthSelectMain.value);
-  const status = getMonthStatus(y,m);
+  const status = getMonthStatus(y, m);
   if (status === 'approved') return toast('Maand is al goedgekeurd', 'info');
   if (status === 'submitted') return toast('Maand is al ingediend', 'info');
 
   await setMonthStatus(y, m, 'submitted');
+
+  // ✅ Bevestiging naar jezelf (correcte signature, géén db)
+  await sendSystemMail(
+    getActiveUserId(),
+    `Planner ingediend — ${monthsFull[m]} ${y}`,
+    `Je planner voor ${monthsFull[m]} ${y} werd ingediend.`,
+    'status',
+    `plan:${currentUserId}:${y}-${m}`
+  );
+
+  // ✅ Mail + notificatie naar alle admins
+  await sendPlanningSubmittedMailToAdmins(y, m);
+
   toast('Maand ingediend ter goedkeuring', 'success');
+});
 
   // ✉️ Mail naar admins + bevestiging naar user
   const ud = getCurrentUserData();
@@ -3850,22 +3933,42 @@ document.getElementById('adminApproveBtn')?.addEventListener('click', async () =
 document.getElementById('adminRejectBtn')?.addEventListener('click', async () => {
   const uid = adminUserSelect?.value || getActiveUserId();
   if (!uid) return toast('Geen gebruiker gekozen', 'warning');
+
   const y = Number(document.getElementById('adminApproveYear').value || new Date().getFullYear());
   const m = Number(document.getElementById('adminApproveMonth').value || 0);
-
-  // ➕ Vraag om commentaar (optioneel)
-  const comment = prompt('Commentaar voor de gebruiker (optioneel):', '');
 
   const prev = dataStore.viewUserId;
   dataStore.viewUserId = uid;
   await setMonthStatus(y, m, 'rejected');
-  toast(`Afgekeurd: ${monthsFull[m]} ${y}`, 'warning');
   dataStore.viewUserId = prev;
 
+  const reason = prompt('Reden van afkeuring (optioneel):', '') || '';
+  const body =
+    `Je planner voor ${monthsFull[m]} ${y} is afgekeurd.` +
+    (reason ? `\n\nReden:\n${reason}` : '');
+
+  // ✅ Correcte signature, unified threadId
+  await sendSystemMail(
+    uid,
+    `Planner afgekeurd — ${monthsFull[m]} ${y}`,
+    body,
+    'status',
+    `plan:${uid}:${y}-${m}`
+  );
+
+  toast(`Afgekeurd: ${monthsFull[m]} ${y}`, 'warning');
+
+  if (getActiveUserId() === currentUserId &&
+      y === Number(yearSelectMain.value) &&
+      m === Number(monthSelectMain.value)) {
+    renderMonth(y, m);
+  }
+});
   // ✉️ Mail naar user met commentaar
-  const subject = `[Planner] Afgekeurd — ${monthsFull[m]} ${y}`;
-  const body = `Je planner voor ${monthsFull[m]} ${y} werd afgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
-  await sendSystemMail(uid, subject, body, 'status');
+  const reason = prompt('Reden van afkeuring (optioneel):', '') || '';
+const subj = `Planner afgekeurd — ${monthsFull[m]} ${y}`;
+const body = `Je planner voor ${monthsFull[m]} ${y} is afgekeurd.` + (reason ? `\n\nReden:\n${reason}` : '');
+await sendSystemMail(db, uid, subj, body, 'status', `plan:${uid}:${y}-${m}`);
 
   if (getActiveUserId() === currentUserId && y===Number(yearSelectMain.value) && m===Number(monthSelectMain.value)) {
     renderMonth(y, m);
