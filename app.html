@@ -315,6 +315,9 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
   <a class="nav-link" data-bs-toggle="tab" href="#tab-converter">
     <span class="material-icons-outlined">calculate</span> <span class="label">Converter</span>
   </a>
+  <a class="nav-link" data-bs-toggle="tab" href="#tab-mail">
+  <span class="material-icons-outlined">mail</span> <span class="label">Mailbox</span>
+</a>
   <a class="nav-link d-none" id="adminTabBtn" data-bs-toggle="tab" href="#tab-admin">
     <span class="material-icons-outlined">admin_panel_settings</span> <span class="label">Admin</span>
   </a>
@@ -610,7 +613,75 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
           </div>
         </div>
       </section>
+<section id="tab-mail" class="tab-pane fade">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Mailbox</h5>
+    <div class="d-flex gap-2">
+      <button id="mailRefreshBtn" class="btn btn-outline-secondary btn-sm">
+        <span class="material-icons-outlined">refresh</span>
+      </button>
+      <button id="mailComposeBtn" class="btn btn-primary btn-sm">
+        <span class="material-icons-outlined">edit</span> Nieuw bericht
+      </button>
+    </div>
+  </div>
 
+  <!-- Compose (user → admins, admin → user) -->
+  <div id="mailComposeCard" class="card p-3 mb-3 d-none">
+    <div class="row g-2">
+      <div class="col-md-3">
+        <label class="form-label">Aan</label>
+        <select id="mailToSelect" class="form-select">
+          <!-- wordt gevuld in JS: "Admins" (group) of (als admin) specifieke gebruiker -->
+        </select>
+      </div>
+      <div class="col-md-9">
+        <label class="form-label">Onderwerp</label>
+        <input id="mailSubjectInput" class="form-control" placeholder="Onderwerp">
+      </div>
+      <div class="col-12">
+        <label class="form-label">Bericht</label>
+        <textarea id="mailBodyInput" rows="5" class="form-control" placeholder="Typ je bericht..."></textarea>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button id="mailSendBtn" class="btn btn-success">Versturen</button>
+        <button id="mailCancelBtn" class="btn btn-outline-secondary">Annuleren</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-5">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">Inbox</h6>
+            <span class="text-muted small" id="mailUnreadBadge"></span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr><th>Van</th><th>Onderwerp</th><th class="text-end">Datum</th></tr>
+              </thead>
+              <tbody id="mailListBody"></tbody>
+            </table>
+          </div>
+          <div class="text-center mt-2">
+            <button id="mailLoadMoreBtn" class="btn btn-outline-secondary btn-sm d-none">Meer laden</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-7">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body" id="mailDetail">
+          <div class="text-muted small">Selecteer een bericht…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 <!-- ADMIN -->
 <section id="tab-admin" class="tab-pane fade">
   <div class="d-flex align-items-center justify-content-between mb-3">
