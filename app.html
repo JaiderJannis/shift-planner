@@ -995,10 +995,20 @@ const mailCancelBtn   = document.getElementById('mailCancelBtn');
 let mailLastVisible = null;
 let mailboxUnsub = null;
 let mailboxCache = []; // lokaal cache voor weergave
-function formatWhen(iso){
-  try { return new Date(iso).toLocaleString('nl-BE'); } catch { return ''; }
+function formatWhen(ts){
+  if (!ts) return '';
+  // Firestore Timestamp?
+  if (typeof ts?.toDate === 'function') {
+    try { return ts.toDate().toLocaleString('nl-BE'); } catch { return ''; }
+  }
+  // string of number
+  try {
+    const d = new Date(ts);
+    return isNaN(d.getTime()) ? '' : d.toLocaleString('nl-BE');
+  } catch {
+    return '';
+  }
 }
-
 async function openMail(m) {
   // markeer gelezen
   if (!m.read) {
