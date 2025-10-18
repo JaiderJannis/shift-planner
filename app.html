@@ -949,7 +949,8 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
   limit,
   onSnapshot,
   where,
-  startAfter
+  startAfter,
+  serverTimestamp 
 } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
 
     // ===== Firebase config (jouw bestaande waarden) =====
@@ -977,6 +978,174 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
     const logoutBtn = document.getElementById('logoutBtn');
     const currentUserName = document.getElementById('currentUserName');
     const adminTabBtn = document.getElementById('adminTabBtn');
+// Mailbox
+const mailListBody = document.getElementById('mailListBody');
+const mailDetail   = document.getElementById('mailDetail');
+const mailUnreadBadge = document.getElementById('mailUnreadBadge');
+const mailLoadMoreBtn = document.getElementById('mailLoadMoreBtn');
+const mailRefreshBtn  = document.getElementById('mailRefreshBtn');
+const mailComposeBtn  = document.getElementById('mailComposeBtn');
+const mailComposeCard = document.getElementById('mailComposeCard');
+const mailToSelect    = document.getElementById('mailToSelect');
+const mailSubjectInput= document.getElementById('mailSubjectInput');
+const mailBodyInput   = document.getElementById('mailBodyInput');
+const mailSendBtn     = document.getElementById('mailSendBtn');
+const mailCancelBtn   = document.getElementById('mailCancelBtn');
+
+let mailLastVisible = null;
+let mailboxUnsub = null;
+let mailboxCache = []; // lokaal cache voor weergave
+function formatWhen(iso){
+  try { return new Date(iso).toLocaleString('nl-BE'); } catch { return ''; }
+}
+
+function renderMailList() {
+  mailListBody.innerHTML = '';
+  let unread = 0;
+
+  mailboxCache
+    .slice()
+    .sort((a,b)=> (b.timestamp||'').localeCompare(a.timestamp||''))
+    .forEach(m => {
+      if (!m.read) unread++;
+      const tr = document.createElement('tr');
+      tr.className = m.read ? '' : 'mail-unread';
+      const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
+      tr.innerHTML = `
+        <td>${fromName}</td>
+        <td>${m.subject || '(geen onderwerp)'}</td>
+        <td class="text-end"><span class="mail-meta">${formatWhen(m.timestamp)}</span></td>
+      `;
+      tr.addEventListener('click', () => openMail(m));
+      mailListBody.appendChild(tr);
+    });
+
+  mailUnreadBadge.textContent = unread ? `${unread} ongelezen` : '—';
+}
+
+async function openMail(m) {
+  // markeer gelezen
+  if (!m.read) {
+    await updateDoc(doc(db,'users', getActiveUserId(), 'mailbox', m._id), { read: true });
+    m.read = true;
+    renderMailList();
+  }
+  // detail
+  const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
+  const header = `
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <div class="fw-semibold">${m.subject || '(geen onderwerp)'}</div>
+        <div class="mail-meta">Van: ${fromName} • ${formatWhen(m.timestamp)}</div>
+      </div>
+      ${m.system ? '' : '<button class="btn btn-outline-primary btn-sm" id="mailReplyBtn"><span class="material-icons-outlined">reply</span> Antwoorden</button>'}
+    </div>
+    <hr class="my-2">
+  `;
+  const body = `<div style="white-space:pre-wrap">${m.body || ''}</div>`;
+  mailDetail.innerHTML = header + body;
+
+  if (!m.system) {
+    document.getElementById('mailReplyBtn')?.addEventListener('click', () => {
+      // open compose, preset naar juiste tegenpartij
+      mailComposeCard.classList.remove('d-none');
+      prepareComposeToCounterparty(m);
+      window.scrollTo({ top: mailComposeCard.offsetTop - 80, behavior: 'smooth' });
+    });
+  }
+}
+
+function prepareComposeOptions() {
+  mailToSelect.innerHTML = '';
+  const me = dataStore.users[getActiveUserId()];
+  if ((me?.role||'user') === 'admin') {
+    // admin kan naar elke user
+    const opt0 = document.createElement('option'); opt0.value=''; opt0.textContent='Kies gebruiker…'; mailToSelect.appendChild(opt0);
+    Object.entries(dataStore.users).forEach(([uid,u])=>{
+      if (u.role === 'admin') return;
+      const opt = document.createElement('option');
+      opt.value = `user:${uid}`;
+      opt.textContent = u.name || u.email || uid;
+      mailToSelect.appendChild(opt);
+    });
+  } else {
+    // user → admin-groep
+    const opt = document.createElement('option'); opt.value='admin-group'; opt.textContent='Admins'; mailToSelect.appendChild(opt);
+  }
+}
+
+function prepareComposeToCounterparty(m) {
+  prepareComposeOptions();
+  const me = dataStore.users[getActiveUserId()];
+  if ((me?.role||'user') === 'admin') {
+    // reply naar die user
+    mailToSelect.value = `user:${m.from?.uid || ''}`;
+  } else {
+    mailToSelect.value = 'admin-group';
+  }
+  mailSubjectInput.value = m.subject?.startsWith('Re: ') ? m.subject : `Re: ${m.subject||''}`;
+  mailBodyInput.value = '';
+}
+
+function listenMailbox(uid) {
+  if (mailboxUnsub) mailboxUnsub(); // stop vorige
+  const colRef = collection(db,'users', uid, 'mailbox');
+  const qy = query(colRef, orderBy('timestamp','desc'), limit(50));
+  mailboxUnsub = onSnapshot(qy, (snap) => {
+    mailboxCache = snap.docs.map(d => ({ _id:d.id, ...d.data() }));
+    renderMailList();
+  });
+}
+
+mailRefreshBtn?.addEventListener('click', () => {
+  const uid = getActiveUserId();
+  if (uid) listenMailbox(uid);
+});
+
+mailComposeBtn?.addEventListener('click', () => {
+  mailComposeCard.classList.toggle('d-none');
+  if (!mailComposeCard.classList.contains('d-none')) {
+    prepareComposeOptions();
+    mailSubjectInput.value = '';
+    mailBodyInput.value = '';
+  }
+});
+
+mailCancelBtn?.addEventListener('click', () => {
+  mailComposeCard.classList.add('d-none');
+});
+
+mailSendBtn?.addEventListener('click', async () => {
+  const toVal = mailToSelect.value;
+  const subject = mailSubjectInput.value.trim();
+  const body = mailBodyInput.value.trim();
+  if (!toVal || !subject || !body) return toast('Vul aan: geadresseerde, onderwerp en bericht', 'warning');
+
+  const meUid = getActiveUserId();
+  const me = dataStore.users[meUid];
+
+  try {
+    if ((me?.role||'user') === 'admin') {
+      const userUid = toVal.startsWith('user:') ? toVal.split(':')[1] : null;
+      if (!userUid) return toast('Kies gebruiker', 'warning');
+      await sendAdminReplyToUser(meUid, userUid, subject, body);
+      toast('Bericht verzonden aan gebruiker', 'success');
+    } else {
+      await sendUserToAdmins(meUid, subject, body);
+      toast('Bericht verzonden aan admins', 'success');
+    }
+    mailComposeCard.classList.add('d-none');
+  } catch(e){
+    console.error(e);
+    toast('Versturen mislukt', 'danger');
+  }
+});
+
+// activeer bij login / gebruikerswissel
+document.querySelector('a[href="#tab-mail"]')?.addEventListener('shown.bs.tab', () => {
+  const uid = getActiveUserId();
+  if (uid) listenMailbox(uid);
+});
 
     // Tabs: Shifts
     const filterShiftYear = document.getElementById('filterShiftYear');
@@ -2186,6 +2355,76 @@ function fmtMins(mins) {
   const a = Math.abs(mins);
   return `${Math.floor(a/60)}u ${a%60}min`;
 }
+const NOREPLY = { uid: 'noreply', name: 'Shift Planner', role: 'system', email: 'no-reply@shiftplanner.app' };
+
+async function broadcastToAdmins(subject, body, kind='notification', threadId=null) {
+  const qs = await getDocs(collection(db,'users'));
+  const admins = [];
+  qs.forEach(d => { if ((d.data().role||'user')==='admin') admins.push({ id:d.id, ...d.data() }); });
+  await Promise.all(admins.map(a =>
+    addDoc(collection(db,'users', a.id, 'mailbox'), {
+      threadId: threadId || `sys:${Date.now()}`,
+      system: true,
+      kind,
+      from: NOREPLY,
+      to: { type: 'user', uid: a.id },
+      subject, body,
+      read: false,
+      timestamp: new Date().toISOString()
+    })
+  ));
+}
+function makeThreadForUser(uid){ return `conv:${uid}`; }
+
+async function sendUserToAdmins(userUid, subject, body) {
+  const me = dataStore.users[userUid];
+  const threadId = makeThreadForUser(userUid);
+
+  // 1) kopie in eigen mailbox (als 'verzonden')
+  await addDoc(collection(db,'users', userUid,'mailbox'), {
+    threadId, system:false, kind:'message',
+    from: { uid:userUid, name: me?.name || me?.email || 'User', role: 'user', email: me?.email || '' },
+    to: { type:'admin-group', uid:null },
+    subject, body, read:true, timestamp: new Date().toISOString()
+  });
+
+  // 2) naar alle admins
+  const qs = await getDocs(collection(db,'users'));
+  const admins = [];
+  qs.forEach(d => { if ((d.data().role||'user')==='admin') admins.push({ id:d.id, ...d.data() }); });
+
+  await Promise.all(admins.map(a =>
+    addDoc(collection(db,'users', a.id, 'mailbox'), {
+      threadId, system:false, kind:'message',
+      from: { uid:userUid, name: me?.name || me?.email || 'User', role: 'user', email: me?.email || '' },
+      to: { type:'user-id', uid:a.id },
+      subject, body, read:false, timestamp: new Date().toISOString()
+    })
+  ));
+}
+
+async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
+  const admin = dataStore.users[adminUid];
+  const user  = dataStore.users[userUid];
+  const threadId = makeThreadForUser(userUid);
+
+  // 1) kopie in admin mailbox
+  await addDoc(collection(db,'users', adminUid, 'mailbox'), {
+    threadId, system:false, kind:'message',
+    from: { uid:adminUid, name: admin?.name || admin?.email || 'Admin', role:'admin', email: admin?.email || '' },
+    to:   { type:'user-id', uid:userUid },
+    subject, body, read:true, timestamp: new Date().toISOString()
+  });
+
+  // 2) naar de user
+  await addDoc(collection(db,'users', userUid, 'mailbox'), {
+    threadId, system:false, kind:'message',
+    from: { uid:adminUid, name: admin?.name || admin?.email || 'Admin', role:'admin', email: admin?.email || '' },
+    to:   { type:'user', uid:userUid },
+    subject, body, read:false, timestamp: new Date().toISOString()
+  });
+}
+
 // === Schooljaar helpers ===
 // Geeft grenzen van het schooljaar terug voor de huidig geselecteerde maand/jaar
 function getAcademicYearBounds(y, m /* 0..11 */) {
@@ -2974,11 +3213,70 @@ async function createUniqueNotification(uid, text) {
     dateKey: todayKey,
     read: false
   });
-  console.log('🔔 Automatische melding aangemaakt:', text);
+
+  // ➕ Log ook als "noreply"-mail in de inbox
+  await sendSystemMail(
+    uid,
+    'Notificatie',
+    text,
+    'notification'
+  );
+
+  console.log('🔔 Automatische melding + mail aangemaakt:', text);
 }
+// ===== Mailbox helpers =====
+async function sendSystemMail(uid, subject, body, kind = "notification", threadId = `sys:${Date.now()}`) {
+  await addDoc(collection(db, "users", uid, "mailbox"), {
+    threadId,
+    system: true,
+    kind,
+    from: { uid: "noreply", name: "Shift Planner", role: "system", email: "no-reply@local" },
+    to:   { type: "user", uid },
+    subject,
+    body,
+    read: false,
+    timestamp: serverTimestamp()
+  });
+}
+function normTs(ts){
+  if (!ts) return '';
+  if (ts.toDate) return ts.toDate().toISOString(); // Firestore Timestamp
+  if (typeof ts === 'string') return ts;
+  return '';
+}
+function formatWhen(v){
+  const iso = normTs(v);
+  try { return iso ? new Date(iso).toLocaleString('nl-BE') : ''; } catch { return ''; }
+}
+
+function renderMailList() {
+  mailListBody.innerHTML = '';
+  let unread = 0;
+
+  mailboxCache
+    .map(m => ({ ...m, _tsIso: normTs(m.timestamp) }))
+    .sort((a,b)=> (b._tsIso||'').localeCompare(a._tsIso||''))
+    .forEach(m => {
+      if (!m.read) unread++;
+      const tr = document.createElement('tr');
+      tr.className = m.read ? '' : 'mail-unread';
+      const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
+      tr.innerHTML = `
+        <td>${fromName}</td>
+        <td>${m.subject || '(geen onderwerp)'}</td>
+        <td class="text-end"><span class="mail-meta">${formatWhen(m.timestamp)}</span></td>
+      `;
+      tr.addEventListener('click', () => openMail(m));
+      mailListBody.appendChild(tr);
+    });
+
+  mailUnreadBadge.textContent = unread ? `${unread} ongelezen` : '—';
+}
+
+
 // 🔔 Stuur melding naar gebruiker bij projectwijziging (door admin)
 async function notifyProjectChange(userId, type, projectName, newEndDate = null) {
-  const colRef = collection(db, 'users', userId, 'notifications'); // 👈 userId, niet uid
+  const colRef = collection(db, 'users', userId, 'notifications');
   const todayKey = new Date().toISOString().slice(0, 10);
   let text = '';
 
@@ -2990,17 +3288,15 @@ async function notifyProjectChange(userId, type, projectName, newEndDate = null)
 
   const q = query(colRef, where('text', '==', text), where('dateKey', '==', todayKey));
   const snap = await getDocs(q);
-  if (!snap.empty) return;
+  if (snap.empty) {
+    await addDoc(colRef, { text, timestamp: new Date().toISOString(), dateKey: todayKey, read: false });
+  }
 
-  await addDoc(colRef, {
-    text,
-    timestamp: new Date().toISOString(),
-    dateKey: todayKey,
-    read: false
-  });
-
-  console.log('🔔 Melding gestuurd naar gebruiker:', text);
+  // ✉️ Mail erbij
+  await sendSystemMail(userId, 'Projectupdate', text, 'notification');
+  console.log('🔔 Melding + mail gestuurd naar gebruiker:', text);
 }
+
 // 🌙 Donkere modus
 const darkModeBtn = document.getElementById('darkModeBtn');
 const prefersDark = localStorage.getItem('darkMode') === 'true';
@@ -3425,9 +3721,21 @@ document.getElementById('submitMonthBtn')?.addEventListener('click', async () =>
   const status = getMonthStatus(y,m);
   if (status === 'approved') return toast('Maand is al goedgekeurd', 'info');
   if (status === 'submitted') return toast('Maand is al ingediend', 'info');
+
   await setMonthStatus(y, m, 'submitted');
   toast('Maand ingediend ter goedkeuring', 'success');
+
+  // ✉️ Mail naar admins + bevestiging naar user
+  const ud = getCurrentUserData();
+  const who = ud.name || ud.email || currentUserId;
+  const subject = `[Planner] Ingediend — ${who} — ${monthsFull[m]} ${y}`;
+  const bodyAdmin = `${who} heeft zojuist ${monthsFull[m]} ${y} ingediend.\n\nOpen Admin > Goedkeuring maand om te beoordelen.`;
+  await broadcastToAdmins(subject, bodyAdmin, 'status');
+
+  const bodyUser = `Je hebt ${monthsFull[m]} ${y} ingediend ter goedkeuring.\nJe ontvangt een bericht zodra dit is beoordeeld.`;
+  await sendSystemMail(getActiveUserId(), `[Bevestiging] Planner ingediend — ${monthsFull[m]} ${y}`, bodyUser, 'status');
 });
+
 // Admin jaarveld default
 document.getElementById('adminMultiYear')?.addEventListener('focus', e => {
   if (!e.target.value) e.target.value = new Date().getFullYear();
@@ -3448,9 +3756,15 @@ document.getElementById('adminApproveBtn')?.addEventListener('click', async () =
   await setMonthStatus(y, m, 'approved');
   toast(`Goedgekeurd: ${monthsFull[m]} ${y}`, 'success');
   dataStore.viewUserId = prev;
-  if (getActiveUserId() === currentUserId &&
-      y === Number(yearSelectMain.value) &&
-      m === Number(monthSelectMain.value)) {
+
+  // ✉️ Mail naar user
+  const uSnap = await getDoc(doc(db,'users', uid));
+  const u = uSnap.data();
+  const subject = `[Planner] Goedgekeurd — ${monthsFull[m]} ${y}`;
+  const body = `Je planner voor ${monthsFull[m]} ${y} werd goedgekeurd.`;
+  await sendSystemMail(uid, subject, body, 'status');
+
+  if (getActiveUserId() === currentUserId && y===Number(yearSelectMain.value) && m===Number(monthSelectMain.value)) {
     renderMonth(y, m);
   }
 });
@@ -3461,14 +3775,22 @@ document.getElementById('adminRejectBtn')?.addEventListener('click', async () =>
   if (!uid) return toast('Geen gebruiker gekozen', 'warning');
   const y = Number(document.getElementById('adminApproveYear').value || new Date().getFullYear());
   const m = Number(document.getElementById('adminApproveMonth').value || 0);
+
+  // ➕ Vraag om commentaar (optioneel)
+  const comment = prompt('Commentaar voor de gebruiker (optioneel):', '');
+
   const prev = dataStore.viewUserId;
   dataStore.viewUserId = uid;
   await setMonthStatus(y, m, 'rejected');
   toast(`Afgekeurd: ${monthsFull[m]} ${y}`, 'warning');
   dataStore.viewUserId = prev;
-  if (getActiveUserId() === currentUserId &&
-      y === Number(yearSelectMain.value) &&
-      m === Number(monthSelectMain.value)) {
+
+  // ✉️ Mail naar user met commentaar
+  const subject = `[Planner] Afgekeurd — ${monthsFull[m]} ${y}`;
+  const body = `Je planner voor ${monthsFull[m]} ${y} werd afgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
+  await sendSystemMail(uid, subject, body, 'status');
+
+  if (getActiveUserId() === currentUserId && y===Number(yearSelectMain.value) && m===Number(monthSelectMain.value)) {
     renderMonth(y, m);
   }
 });
@@ -3587,4 +3909,3 @@ function minutesToHM(min){ return `${Math.floor(min/60)}u ${min%60}m`; }
 </div>  
 </body>
 </html>
-
