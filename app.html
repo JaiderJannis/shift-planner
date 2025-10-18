@@ -672,22 +672,37 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
   </div>
 <div class="card p-3 mb-3">
   <h6 class="mb-3">Verlof & Schoolverlof – jaarlijkse toekenning</h6>
-  <div class="row g-3 align-items-end">
-    <div class="col-md-4">
-      <label class="form-label">Verlof (uren per jaar)</label>
-      <input id="adminLeaveHours" type="number" min="0" step="1" class="form-control" placeholder="bv. 160">
-    </div>
-    <div class="col-md-4">
-      <label class="form-label">Schoolverlof (uren per jaar)</label>
-      <input id="adminSchoolLeaveHours" type="number" min="0" step="1" class="form-control" placeholder="bv. 40">
-    </div>
-    <div class="col-md-4 d-flex gap-2">
-      <button id="adminSaveLeaveBtn" class="btn btn-primary flex-fill">Opslaan</button>
-      <button id="adminResetLeaveBtn" class="btn btn-outline-secondary flex-fill">Leegmaken</button>
-    </div>
+<div class="row g-3 align-items-end">
+  <!-- Kalendervoorjaar (ongewijzigd) -->
+  <div class="col-md-4">
+    <label class="form-label">Verlof (uren per kalenderjaar)</label>
+    <input id="adminLeaveHours" type="number" min="0" step="1" class="form-control" placeholder="bv. 160">
   </div>
-  <small class="text-muted d-block mt-2">
-  Geldt voor de geselecteerde gebruiker (bovenaan in Gebruikersbeheer). Instellingen worden bewaard bij de gebruiker.
+
+  <!-- Schooljaar-select + uren -->
+  <div class="col-md-4">
+    <label class="form-label">Schooljaar</label>
+    <select id="adminSchoolYearSelect" class="form-select"></select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Schoolverlof (uren voor dit schooljaar)</label>
+    <input id="adminSchoolLeaveHours" type="number" min="0" step="1" class="form-control" placeholder="bv. 40">
+  </div>
+</div>
+
+<div class="row g-2 mt-3">
+  <div class="col-md-6 d-flex gap-2">
+    <button id="adminSaveLeaveBtn" class="btn btn-primary flex-fill">Opslaan kalenderjaar-verlof</button>
+    <button id="adminResetLeaveBtn" class="btn btn-outline-secondary flex-fill">Leegmaken</button>
+  </div>
+  <div class="col-md-6 d-flex gap-2">
+    <button id="adminSaveSchoolLeaveBtn" class="btn btn-success flex-fill">Opslaan schoolverlof (gekozen jaar)</button>
+    <button id="adminResetSchoolLeaveBtn" class="btn btn-outline-secondary flex-fill">Leegmaken schoolverlof (gekozen jaar)</button>
+  </div>
+</div>
+
+<small class="text-muted d-block mt-2">
+  Verlof = kalenderjaar. Schoolverlof = per schooljaar (1 september – 31 augustus).
 </small>
 </div>
   <div class="card p-3 mb-3">
@@ -1100,7 +1115,7 @@ function renderHome() {
     leaveEl.className = `badge ${leaveRemain<0 ? 'bg-danger' : (leaveAllow? 'bg-success':'bg-secondary-subtle text-dark')}`;
   }
 
-const schAllow = getSchoolLeaveAllowanceMinutes();
+const schAllow = getSchoolLeaveAllowanceMinutes(y, m);
 const { startISO, endISO, label } = getAcademicYearBounds(y, m);
 const schTaken = sumTakenMinutesForRange(startISO, endISO, SCHOOL_LEAVE_SHIFT_NAMES);
 const schRemain = schAllow - schTaken;
@@ -2076,9 +2091,11 @@ function getLeaveAllowanceMinutes() {
   const ud = getCurrentUserData();
   return Number(ud?.settings?.leaveAllowanceMinutes) || 0;
 }
-function getSchoolLeaveAllowanceMinutes() {
+function getSchoolLeaveAllowanceMinutes(y, m) {
   const ud = getCurrentUserData();
-  return Number(ud?.settings?.leaveSchoolAllowanceMinutes) || 0;
+  const label = getAcademicYearBounds(y, m).label; // bv "2024-2025"
+  const map = ud?.settings?.schoolLeaveByYear || {};
+  return Number(map[label]) || 0;
 }
 function sumTakenMinutesFor(year, shiftNames) {
   const ud = getCurrentUserData();
@@ -2123,7 +2140,22 @@ function sumTakenMinutesForRange(startISO, endISO, shiftNames) {
   }
   return total;
 }
-
+function buildSchoolYearOptions(selectEl) {
+  if (!selectEl) return;
+  const now = new Date();
+  const yNow = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1; // sept = 8
+  const years = [];
+  for (let y = yNow - 3; y <= yNow + 3; y++) {
+    years.push(`${y}-${y+1}`);
+  }
+  selectEl.innerHTML = '';
+  years.forEach(label => {
+    const opt = document.createElement('option');
+    opt.value = label;
+    opt.textContent = label;
+    selectEl.appendChild(opt);
+  });
+}
 // === Verlof / Schoolverlof badges (met schooljaar-logica) ===
 function updateLeaveBadges() {
   const badgeLeave  = document.getElementById('leaveBalanceBadge');
@@ -2151,7 +2183,7 @@ function updateLeaveBadges() {
 
   // ---- Schoolverlof (schooljaar 1/9–31/8) ----
   if (badgeSchool) {
-    const allowance = getSchoolLeaveAllowanceMinutes();
+    const allowance = getSchoolLeaveAllowanceMinutes(y, m);
     if (!allowance) {
       badgeSchool.textContent = 'Schoolverlof saldo: — (stel in)';
       badgeSchool.className = 'badge bg-secondary-subtle text-dark ms-2';
@@ -2174,61 +2206,77 @@ function hydrateAdminLeaveInputsFor(uid) {
   dataStore.viewUserId = uid;
 
   const ud = getCurrentUserData();
+
+  // kalenderjaar-verlof (zoals je al had)
   const i1 = document.getElementById('adminLeaveHours');
-  const i2 = document.getElementById('adminSchoolLeaveHours');
   if (i1) i1.value = Math.floor((ud?.settings?.leaveAllowanceMinutes || 0) / 60) || '';
-  if (i2) i2.value = Math.floor((ud?.settings?.leaveSchoolAllowanceMinutes || 0) / 60) || '';
+
+  // schooljaar-verlof
+  const yearSel = document.getElementById('adminSchoolYearSelect');
+  const schoolHoursInput = document.getElementById('adminSchoolLeaveHours');
+  if (yearSel && schoolHoursInput) {
+    if (!yearSel.options.length) buildSchoolYearOptions(yearSel);
+    const label = yearSel.value; // bv "2024-2025"
+    const map = ud?.settings?.schoolLeaveByYear || {};
+    const mins = Number(map[label] || 0);
+    schoolHoursInput.value = mins ? Math.floor(mins / 60) : '';
+  }
 
   dataStore.viewUserId = prev;
 }
 
-// Init bij openen Admin-tab + wisselen user
-document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab', () => {
-  const uid = adminUserSelect?.value || getActiveUserId();
-  if (uid) hydrateAdminLeaveInputsFor(uid);
-});
-adminUserSelect?.addEventListener('change', () => {
+document.getElementById('adminSchoolYearSelect')?.addEventListener('change', () => {
   const uid = adminUserSelect?.value || getActiveUserId();
   if (uid) hydrateAdminLeaveInputsFor(uid);
 });
 
-document.getElementById('adminSaveLeaveBtn')?.addEventListener('click', async () => {
+document.getElementById('adminSaveSchoolLeaveBtn')?.addEventListener('click', async () => {
   const uid = adminUserSelect?.value || getActiveUserId();
   if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
+
   const prev = dataStore.viewUserId;
   dataStore.viewUserId = uid;
 
   const ud = getCurrentUserData();
   ud.settings ||= {};
-  const hours = Math.max(0, Number(document.getElementById('adminLeaveHours')?.value || 0));
-  const schoolHours = Math.max(0, Number(document.getElementById('adminSchoolLeaveHours')?.value || 0));
-  ud.settings.leaveAllowanceMinutes = hours * 60;
-  ud.settings.leaveSchoolAllowanceMinutes = schoolHours * 60;
+  ud.settings.schoolLeaveByYear ||= {};
 
+  const label = document.getElementById('adminSchoolYearSelect')?.value;
+  const hours = Math.max(0, Number(document.getElementById('adminSchoolLeaveHours')?.value || 0));
+
+  if (!label) {
+    dataStore.viewUserId = prev;
+    return toast('Kies een schooljaar', 'warning');
+  }
+
+  ud.settings.schoolLeaveByYear[label] = hours * 60; // bewaar in minuten
   await saveUserData();
-  dataStore.viewUserId = prev;
 
+  dataStore.viewUserId = prev;
   updateLeaveBadges();
   renderHome();
-  toast('Toekenningen opgeslagen', 'success');
+  toast(`Schoolverlof opgeslagen voor ${label}`, 'success');
 });
 
-document.getElementById('adminResetLeaveBtn')?.addEventListener('click', async () => {
+document.getElementById('adminResetSchoolLeaveBtn')?.addEventListener('click', async () => {
   const uid = adminUserSelect?.value || getActiveUserId();
   if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
 
   const prev = dataStore.viewUserId;
   dataStore.viewUserId = uid;
-  const ud = getCurrentUserData();
-  ud.settings ||= {};
-  delete ud.settings.leaveAllowanceMinutes;
-  delete ud.settings.leaveSchoolAllowanceMinutes;
-  await saveUserData();
-  dataStore.viewUserId = prev;
 
+  const ud = getCurrentUserData();
+  const label = document.getElementById('adminSchoolYearSelect')?.value;
+  if (ud?.settings?.schoolLeaveByYear && label in ud.settings.schoolLeaveByYear) {
+    delete ud.settings.schoolLeaveByYear[label];
+    await saveUserData();
+  }
+
+  dataStore.viewUserId = prev;
   hydrateAdminLeaveInputsFor(uid);
   updateLeaveBadges();
-  toast('Toekenningen leeggemaakt', 'info');
+  renderHome();
+  toast(`Schoolverlof leeggemaakt voor ${label}`, 'info');
 });
 
 // === Project-samenvatting (zichtbare maand) ===
@@ -2292,7 +2340,11 @@ async function renderAdminUserSelect() {
   activeUserLabel.textContent =
     dataStore.users[currentUserId]?.name || currentUserName.textContent || '-';
 }
-
+document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab', () => {
+  buildSchoolYearOptions(document.getElementById('adminSchoolYearSelect'));
+  const uid = adminUserSelect?.value || getActiveUserId();
+  if (uid) hydrateAdminLeaveInputsFor(uid); // vult waarden in
+});
 // ✅ Gebruiker selecteren zonder adminstatus te verliezen
 adminUserSelect?.addEventListener('change', async () => {
   const uid = adminUserSelect.value;
