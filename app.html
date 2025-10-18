@@ -999,30 +999,6 @@ function formatWhen(iso){
   try { return new Date(iso).toLocaleString('nl-BE'); } catch { return ''; }
 }
 
-function renderMailList() {
-  mailListBody.innerHTML = '';
-  let unread = 0;
-
-  mailboxCache
-    .slice()
-    .sort((a,b)=> (b.timestamp||'').localeCompare(a.timestamp||''))
-    .forEach(m => {
-      if (!m.read) unread++;
-      const tr = document.createElement('tr');
-      tr.className = m.read ? '' : 'mail-unread';
-      const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
-      tr.innerHTML = `
-        <td>${fromName}</td>
-        <td>${m.subject || '(geen onderwerp)'}</td>
-        <td class="text-end"><span class="mail-meta">${formatWhen(m.timestamp)}</span></td>
-      `;
-      tr.addEventListener('click', () => openMail(m));
-      mailListBody.appendChild(tr);
-    });
-
-  mailUnreadBadge.textContent = unread ? `${unread} ongelezen` : '—';
-}
-
 async function openMail(m) {
   // markeer gelezen
   if (!m.read) {
@@ -3243,10 +3219,6 @@ function normTs(ts){
   if (ts.toDate) return ts.toDate().toISOString(); // Firestore Timestamp
   if (typeof ts === 'string') return ts;
   return '';
-}
-function formatWhen(v){
-  const iso = normTs(v);
-  try { return iso ? new Date(iso).toLocaleString('nl-BE') : ''; } catch { return ''; }
 }
 
 function renderMailList() {
