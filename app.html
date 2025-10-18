@@ -1110,8 +1110,10 @@ function renderHome() {
   const leaveEl = document.getElementById('homeLeave');
   if (leaveEl) {
     leaveEl.textContent = !leaveAllow
-      ? 'Verlof: niet ingesteld'
-      : (leaveRemain >= 0 ? `Verlof: ${fmt(leaveRemain)} over` : `Verlof: -${fmt(leaveRemain)} overschreden`);
+  ? 'Verlof: niet ingesteld'
+  : (leaveRemain >= 0
+      ? `Verlof: ${fmt(leaveRemain)} over`
+      : `Verlof: -${fmt(Math.abs(leaveRemain))} overschreden`);
     leaveEl.className = `badge ${leaveRemain<0 ? 'bg-danger' : (leaveAllow? 'bg-success':'bg-secondary-subtle text-dark')}`;
   }
 
