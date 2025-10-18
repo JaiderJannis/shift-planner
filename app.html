@@ -2210,7 +2210,37 @@ function hydrateAdminLeaveInputsFor(uid) {
   // kalenderjaar-verlof (zoals je al had)
   const i1 = document.getElementById('adminLeaveHours');
   if (i1) i1.value = Math.floor((ud?.settings?.leaveAllowanceMinutes || 0) / 60) || '';
+document.getElementById('adminSaveLeaveBtn')?.addEventListener('click', async () => {
+  const uid = adminUserSelect?.value || getActiveUserId();
+  if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
 
+  const prev = dataStore.viewUserId; dataStore.viewUserId = uid;
+  const ud = getCurrentUserData(); ud.settings ||= {};
+
+  const hours = Math.max(0, Number(document.getElementById('adminLeaveHours')?.value || 0));
+  ud.settings.leaveAllowanceMinutes = hours * 60;
+
+  await saveUserData();
+  dataStore.viewUserId = prev;
+  updateLeaveBadges(); renderHome();
+  toast('Verlof (kalenderjaar) opgeslagen', 'success');
+});
+
+document.getElementById('adminResetLeaveBtn')?.addEventListener('click', async () => {
+  const uid = adminUserSelect?.value || getActiveUserId();
+  if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
+
+  const prev = dataStore.viewUserId; dataStore.viewUserId = uid;
+  const ud = getCurrentUserData(); ud.settings ||= {};
+  delete ud.settings.leaveAllowanceMinutes;
+
+  await saveUserData();
+  dataStore.viewUserId = prev;
+
+  hydrateAdminLeaveInputsFor(uid);
+  updateLeaveBadges(); renderHome();
+  toast('Kalenderjaar-verlof leeggemaakt', 'info');
+});
   // schooljaar-verlof
   const yearSel = document.getElementById('adminSchoolYearSelect');
   const schoolHoursInput = document.getElementById('adminSchoolLeaveHours');
