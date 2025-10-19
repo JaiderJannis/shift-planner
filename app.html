@@ -285,9 +285,7 @@ body.dark-mode #projectSummary .project-mini {
   color: #eaeaea;
 }
 body.dark-mode #projectSummary .meta { color: #aaa; }
-/* zet knop-transitions uit in de mailtabel */
-#mailListBody .btn { transition: none !important; }
-    </style>
+  </style>
 </head>
 <body>
 
@@ -318,9 +316,7 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
     <span class="material-icons-outlined">calculate</span> <span class="label">Converter</span>
   </a>
   <a class="nav-link" data-bs-toggle="tab" href="#tab-mail">
-  <span class="material-icons-outlined">mail</span>
-  <span class="label">Mailbox</span>
-  <span id="mailSidebarBadge" class="badge bg-danger ms-1 d-none">0</span>
+  <span class="material-icons-outlined">mail</span> <span class="label">Mailbox</span>
 </a>
   <a class="nav-link d-none" id="adminTabBtn" data-bs-toggle="tab" href="#tab-admin">
     <span class="material-icons-outlined">admin_panel_settings</span> <span class="label">Admin</span>
@@ -659,12 +655,9 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
       <div class="card border-0 shadow-sm">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-2">
-  <div class="btn-group btn-group-sm" role="group" aria-label="Mail folders">
-    <button id="mailTabInbox" class="btn btn-outline-primary active">Inbox</button>
-    <button id="mailTabSent"  class="btn btn-outline-secondary">Verzonden</button>
-  </div>
-  <span id="mailUnreadBadge" class="badge bg-danger d-none">0</span>
-</div>
+            <h6 class="mb-0">Inbox</h6>
+            <span class="text-muted small" id="mailUnreadBadge"></span>
+          </div>
           <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
               <thead class="table-light">
@@ -1004,9 +997,6 @@ const mailBodyInput   = document.getElementById('mailBodyInput');
 const mailSendBtn     = document.getElementById('mailSendBtn');
 const mailCancelBtn   = document.getElementById('mailCancelBtn');
 
-let mailFolder = 'inbox';                 // 'inbox' | 'sent'
-let mailListHandlerBound = false;         // guard zodat we niet dubbel binden
-
 let mailLastVisible = null;
 let mailboxUnsub = null;
 let mailboxCache = []; // lokaal cache voor weergave
@@ -1086,46 +1076,7 @@ document.getElementById('mailReplyBtn')?.addEventListener('click', () => {
     });
   }
 }
-function onMailListClick(e){
-  const a = e.target.closest('a.mail-open');
-  const btn = e.target.closest('button[data-act]');
 
-  if (a) {
-    e.preventDefault();
-    const msg = mailboxCache.find(x => x._id === a.dataset.id);
-    if (msg) openMail(msg);
-    return;
-  }
-  if (!btn) return;
-
-  const id  = btn.dataset.id;
-  const act = btn.dataset.act;
-
-  // voorkom dubbele triggers bij snel klikken
-  if (btn.dataset.processing === '1') return;
-  btn.dataset.processing = '1';
-
-  if (act === 'toggle-read') {
-    e.preventDefault(); e.stopPropagation();
-    const msg = mailboxCache.find(x => x._id === id);
-    markMailRead(id, !(msg?.read)).finally(() => { btn.dataset.processing = '0'; });
-    return;
-  }
-
-  if (act === 'delete') {
-    e.preventDefault(); e.stopPropagation();
-    const ok = confirm('Dit bericht verwijderen?');
-    if (!ok) { btn.dataset.processing = '0'; return; }
-    deleteMail(id).finally(() => { btn.dataset.processing = '0'; });
-    return;
-  }
-}
-
-// Bind één keer, bv. direct na de variabelen:
-if (!mailListHandlerBound && mailListBody) {
-  mailListBody.addEventListener('click', onMailListClick, { passive:false });
-  mailListHandlerBound = true;
-}
 function prepareComposeOptions() {
   mailToSelect.innerHTML = '';
   const me = dataStore.users[getActiveUserId()];
@@ -3343,6 +3294,31 @@ mailboxCache
     `;
     mailListBody.appendChild(tr);
   });
+mailListBody.addEventListener('click', async (e) => {
+  const a = e.target.closest('a.mail-open');
+  const btn = e.target.closest('button[data-act]');
+  if (a) {
+    e.preventDefault();
+    const msg = mailboxCache.find(x => x._id === a.dataset.id);
+    if (msg) openMail(msg);
+    return;
+  }
+  if (!btn) return;
+
+  const id = btn.dataset.id;
+  const act = btn.dataset.act;
+
+  if (act === 'toggle-read') {
+    const msg = mailboxCache.find(x => x._id === id);
+    await markMailRead(id, !(msg?.read)); // toggle
+  }
+  if (act === 'delete') {
+    if (confirm('Dit bericht verwijderen?')) {
+      await deleteMail(id);
+      toast('Bericht verwijderd', 'success');
+    }
+  }
+});
 
   mailUnreadBadge.textContent = unread ? `${unread} ongelezen` : '—';
 }
@@ -3990,79 +3966,7 @@ function renderProjectSummary()
     : '<div class="alert alert-light border small mb-0">Geen projecten voor huidig filter.</div>';
 }
 function minutesToHM(min){ return `${Math.floor(min/60)}u ${min%60}m`; }
-function updateUnreadBadges(unread) {
-  const n = Math.max(0, Number(unread) || 0);
 
-  // Pak de header-badge (boven de inbox) en de sidebar-badge
-  const headerBadge  = (typeof mailUnreadBadge !== 'undefined' && mailUnreadBadge)
-    ? mailUnreadBadge
-    : document.getElementById('mailUnreadBadge');
-  const sidebarBadge = document.getElementById('mailSidebarBadge');
-
-  [headerBadge, sidebarBadge].forEach(badge => {
-    if (!badge) return;
-    if (n > 0) {
-      badge.textContent = n;
-      badge.classList.remove('d-none');
-    } else {
-      badge.classList.add('d-none');
-    }
-  });
-}
-
-function renderMailList() {
-  mailListBody.innerHTML = '';
-  const uid = getActiveUserId();
-const items = mailboxCache
-  .map(m => ({ ...m, _tsIso: normTs(m.timestamp) }))
-  .sort((a,b)=> (b._tsIso||'').localeCompare(a._tsIso||''));
-
-// Als je met tabs werkt:
-const isSent = (mailFolder === 'sent'); // of jouw eigen flag
-const filtered = items.filter(m => isSent ? (m.from?.uid === uid && !m.system)
-                                          : (m.from?.uid !== uid || m.system));
-
-const unread = isSent ? 0 : filtered.filter(m => !m.read).length;
-updateUnreadBadges(unread);
-  // opbouw rows
-  items.forEach(m => {
-    const tr = document.createElement('tr');
-    tr.className = m.read ? '' : 'mail-unread';
-    tr.innerHTML = `
-      <td>${m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—')}</td>
-      <td><a href="#" class="mail-open" data-id="${m._id}">${m.subject || '(geen onderwerp)'}</a></td>
-      <td class="text-end"><span class="mail-meta">${formatWhen(m._tsIso)}</span></td>
-      <td class="text-end">
-        ${mailFolder === 'inbox'
-          ? `<button class="btn btn-sm ${m.read ? 'btn-outline-secondary' : 'btn-outline-primary'} me-1"
-               data-act="toggle-read" data-id="${m._id}">
-               ${m.read ? 'Ongelezen' : 'Gelezen'}
-             </button>`
-          : ''
-        }
-        <button class="btn btn-sm btn-outline-danger" data-act="delete" data-id="${m._id}">
-          <span class="material-icons-outlined" style="font-size:16px">delete</span>
-        </button>
-      </td>
-    `;
-    mailListBody.appendChild(tr);
-  });
-}
-const mailTabInbox = document.getElementById('mailTabInbox');
-const mailTabSent  = document.getElementById('mailTabSent');
-
-mailTabInbox?.addEventListener('click', () => {
-  mailFolder = 'inbox';
-  mailTabInbox.classList.add('active');  mailTabInbox.classList.replace('btn-outline-secondary','btn-outline-primary');
-  mailTabSent.classList.remove('active'); mailTabSent.classList.replace('btn-outline-primary','btn-outline-secondary');
-  renderMailList();
-});
-mailTabSent?.addEventListener('click', () => {
-  mailFolder = 'sent';
-  mailTabSent.classList.add('active');    mailTabSent.classList.replace('btn-outline-secondary','btn-outline-primary');
-  mailTabInbox.classList.remove('active');mailTabInbox.classList.replace('btn-outline-primary','btn-outline-secondary');
-  renderMailList();
-});
   </script>
 <!-- 🔄 Loading overlay -->
 <div id="loadingOverlay" class="loading-overlay d-none">
