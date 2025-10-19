@@ -661,13 +661,8 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
           <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
               <thead class="table-light">
-  <tr>
-    <th>Van</th>
-    <th>Onderwerp</th>
-    <th class="text-end">Datum</th>
-    <th class="text-end">Acties</th> <!-- ✅ nieuw -->
-  </tr>
-</thead>
+                <tr><th>Van</th><th>Onderwerp</th><th class="text-end">Datum</th></tr>
+              </thead>
               <tbody id="mailListBody"></tbody>
             </table>
           </div>
@@ -1000,7 +995,6 @@ const mailCancelBtn   = document.getElementById('mailCancelBtn');
 let mailLastVisible = null;
 let mailboxUnsub = null;
 let mailboxCache = []; // lokaal cache voor weergave
-let composeThreadId = null; // onthoudt thread voor Reply (of null bij Nieuw)
 function formatWhen(ts){
   if (!ts) return '';
   // Firestore Timestamp?
@@ -1016,52 +1010,27 @@ function formatWhen(ts){
   }
 }
 async function openMail(m) {
-  if (!m) return;
-
-  // 1) OPENEN = gelezen markeren (éénmalig)
+  // markeer gelezen
   if (!m.read) {
-    await updateDoc(doc(db, 'users', getActiveUserId(), 'mailbox', m._id), { read: true });
+    await updateDoc(doc(db,'users', getActiveUserId(), 'mailbox', m._id), { read: true });
     m.read = true;
-    renderMailList(); // lijst weergeven met updated read-status
+    renderMailList();
   }
   // detail
   const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
   const header = `
-  <div class="d-flex justify-content-between align-items-start">
-    <div>
-      <div class="fw-semibold">${m.subject || '(geen onderwerp)'}</div>
-      <div class="mail-meta">Van: ${fromName} • ${formatWhen(m._tsIso || m.timestamp)}</div>
-    </div>
-    <div class="d-flex gap-2">
-      <button class="btn btn-outline-secondary btn-sm" id="mailMarkUnreadBtn">Markeer ongelezen</button>
-      <button class="btn btn-outline-danger btn-sm" id="mailDeleteBtn">
-        <span class="material-icons-outlined" style="font-size:16px">delete</span>
-      </button>
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <div class="fw-semibold">${m.subject || '(geen onderwerp)'}</div>
+        <div class="mail-meta">Van: ${fromName} • ${formatWhen(m._tsIso || m.timestamp)}</div>
+      </div>
       ${m.system ? '' : '<button class="btn btn-outline-primary btn-sm" id="mailReplyBtn"><span class="material-icons-outlined">reply</span> Antwoorden</button>'}
     </div>
-  </div>
-  <hr class="my-2">
-`;
-
+    <hr class="my-2">
+  `;
   const body = `<div style="white-space:pre-wrap">${m.body || ''}</div>`;
   mailDetail.innerHTML = header + body;
-// koppel het geopende bericht aan het detailpaneel
-mailDetail.dataset.openId = m._id;
 
-// Detail-knoppen
-document.getElementById('mailMarkUnreadBtn')?.addEventListener('click', async () => {
-  await markMailRead(m._id, false);
-  toast('Gemarkeerd als ongelezen', 'success');
-});
-
-document.getElementById('mailDeleteBtn')?.addEventListener('click', async () => {
-  if (confirm('Dit bericht verwijderen?')) {
-    await deleteMail(m._id);
-    toast('Bericht verwijderd', 'success');
-  }
-});
-
-// (optioneel) Antwoorden – je had deze al
   if (!m.system) {
     document.getElementById('mailReplyBtn')?.addEventListener('click', () => {
       // open compose, preset naar juiste tegenpartij
@@ -1095,15 +1064,13 @@ function prepareComposeToCounterparty(m) {
   prepareComposeOptions();
   const me = dataStore.users[getActiveUserId()];
   if ((me?.role||'user') === 'admin') {
+    // reply naar die user
     mailToSelect.value = `user:${m.from?.uid || ''}`;
   } else {
     mailToSelect.value = 'admin-group';
   }
   mailSubjectInput.value = m.subject?.startsWith('Re: ') ? m.subject : `Re: ${m.subject||''}`;
   mailBodyInput.value = '';
-
-  // 👇 threadId vastleggen voor de Reply-flow
-  composeThreadId = m.threadId || `conv:${m.from?.uid || getActiveUserId()}`;
 }
 
 function listenMailbox(uid) {
@@ -1127,13 +1094,11 @@ mailComposeBtn?.addEventListener('click', () => {
     prepareComposeOptions();
     mailSubjectInput.value = '';
     mailBodyInput.value = '';
-    composeThreadId = null;             // 👈 nieuw
   }
 });
 
 mailCancelBtn?.addEventListener('click', () => {
   mailComposeCard.classList.add('d-none');
-  composeThreadId = null;               // 👈 optioneel
 });
 
 mailSendBtn?.addEventListener('click', async () => {
@@ -1149,18 +1114,13 @@ mailSendBtn?.addEventListener('click', async () => {
     if ((me?.role||'user') === 'admin') {
       const userUid = toVal.startsWith('user:') ? toVal.split(':')[1] : null;
       if (!userUid) return toast('Kies gebruiker', 'warning');
-      await sendAdminReplyToUser(meUid, userUid, subject, body); // admin → user
+      await sendAdminReplyToUser(meUid, userUid, subject, body);
       toast('Bericht verzonden aan gebruiker', 'success');
     } else {
-      await sendUserMessageToAdmins(
-        subject,
-        body,
-        composeThreadId || `conv:${currentUserId}`
-      );
+      await sendUserToAdmins(meUid, subject, body);
       toast('Bericht verzonden aan admins', 'success');
     }
     mailComposeCard.classList.add('d-none');
-    composeThreadId = null; // reset
   } catch(e){
     console.error(e);
     toast('Versturen mislukt', 'danger');
@@ -2428,6 +2388,7 @@ async function sendUserToAdmins(userUid, subject, body) {
     })
   ));
 }
+
 async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
   const admin = dataStore.users[adminUid];
   const user  = dataStore.users[userUid];
@@ -2449,32 +2410,7 @@ async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
     subject, body, read:false, timestamp: new Date().toISOString()
   });
 }
-async function sendUserMessageToAdmins(subject, body, threadId=`conv:${currentUserId}`) {
-  const me = getCurrentUserData();
-  const meName = me.name || me.email || currentUserId;
 
-  // 1) kopie voor jezelf (zoals "verzonden")
-  await addDoc(collection(db, 'users', getActiveUserId(), 'mailbox'), {
-    threadId, system:false, kind:'message',
-    from:{ uid: currentUserId, name: meName, role:'user' },
-    to:{ type:'admin-group' },
-    subject, body, read:true,
-    timestamp: new Date().toISOString()
-  });
-
-  // 2) fan-out naar alle admins (allowed door rules: target is admin + system:false)
-  const qAdmins = query(collection(db, 'users'), where('role','==','admin'));
-  const snap = await getDocs(qAdmins);
-  await Promise.all(snap.docs.map(a =>
-    addDoc(collection(db, 'users', a.id, 'mailbox'), {
-      threadId, system:false, kind:'message',
-      from:{ uid: currentUserId, name: meName, role:'user' },
-      to:{ type:'user', uid: a.id },
-      subject, body, read:false,
-      timestamp: new Date().toISOString()
-    })
-  ));
-}
 // === Schooljaar helpers ===
 // Geeft grenzen van het schooljaar terug voor de huidig geselecteerde maand/jaar
 function getAcademicYearBounds(y, m /* 0..11 */) {
@@ -2976,6 +2912,12 @@ const multiShiftEnd = document.getElementById('multiShiftEnd');
 const multiShiftDays = document.getElementById('multiShiftDays');
 const multiDayShiftBtn = document.getElementById('multiDayShiftBtn');
 
+// knop opent modal
+document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
+  const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
+  modal.show();
+});
+
 // 🖱️ Open modal en stel kalender in op huidige maand
 document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
   const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
@@ -3293,121 +3235,26 @@ function renderMailList() {
   mailListBody.innerHTML = '';
   let unread = 0;
 
-mailboxCache
-  .map(m => ({ ...m, _tsIso: normTs(m.timestamp) }))
-  .sort((a,b)=> (b._tsIso||'').localeCompare(a._tsIso||''))
-  .forEach(m => {
-    if (!m.read) unread++;
-    const tr = document.createElement('tr');
-    tr.className = m.read ? '' : 'mail-unread';
-    tr.innerHTML = `
-      <td>${m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—')}</td>
-      <td><a href="#" class="mail-open" data-id="${m._id}">${m.subject || '(geen onderwerp)'}</a></td>
-      <td class="text-end"><span class="mail-meta">${formatWhen(m._tsIso)}</span></td>
-      <td class="text-end">
-        <button class="btn btn-sm ${m.read ? 'btn-outline-secondary' : 'btn-outline-primary'} me-1"
-                data-act="toggle-read" data-id="${m._id}">
-          ${m.read ? 'Ongelezen' : 'Gelezen'}
-        </button>
-        <button class="btn btn-sm btn-outline-danger" data-act="delete" data-id="${m._id}">
-          <span class="material-icons-outlined" style="font-size:16px">delete</span>
-        </button>
-      </td>
-    `;
-    mailListBody.appendChild(tr);
-  });
-if (!mailListBody._bound) {
-  mailListBody.addEventListener('click', async (e) => {
-    const a = e.target.closest('a.mail-open');
-    const btn = e.target.closest('button[data-act]');
-  if (a) {
-    e.preventDefault();
-    const msg = mailboxCache.find(x => x._id === a.dataset.id);
-    if (msg) openMail(msg);
-    return;
-  }
-  if (!btn) return;
-
-  const id = btn.dataset.id;
-  const act = btn.dataset.act;
-
-  if (act === 'toggle-read') {
-    const msg = mailboxCache.find(x => x._id === id);
-    await markMailRead(id, !(msg?.read)); // toggle
-  }
-  if (act === 'delete') {
-    if (confirm('Dit bericht verwijderen?')) {
-      await deleteMail(id);
-      toast('Bericht verwijderd', 'success');
-    }
-  }
-});
+  mailboxCache
+    .map(m => ({ ...m, _tsIso: normTs(m.timestamp) }))
+    .sort((a,b)=> (b._tsIso||'').localeCompare(a._tsIso||''))
+    .forEach(m => {
+      if (!m.read) unread++;
+      const tr = document.createElement('tr');
+      tr.className = m.read ? '' : 'mail-unread';
+      const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
+      tr.innerHTML = `
+        <td>${fromName}</td>
+        <td>${m.subject || '(geen onderwerp)'}</td>
+        <td class="text-end"><span class="mail-meta">${formatWhen(m._tsIso)}</span></td>
+      `;
+      tr.addEventListener('click', () => openMail(m));
+      mailListBody.appendChild(tr);
+    });
 
   mailUnreadBadge.textContent = unread ? `${unread} ongelezen` : '—';
 }
-// Mail naar alle admins wanneer IK (current user) een planner indien
-async function sendPlanningSubmittedMailToAdmins(y, m) {
-  const me = getCurrentUserData();
-  const meName = me.name || me.email || currentUserId;
-  const subject = `Planner ingediend — ${meName} (${monthsFull[m]} ${y})`;
-  const body =
-    `${meName} heeft zojuist de planner ingediend voor ${monthsFull[m]} ${y}.`
-    + `\n\nOpen dit in Admin ▸ Goedkeuring maand.`;
 
-  const qAdmins = query(collection(db, 'users'), where('role', '==', 'admin'));
-  const snap = await getDocs(qAdmins);
-
-  const writes = [];
-  snap.forEach(a => {
-    // MAIL naar admin (system:false i.v.m. rules)
-    writes.push(addDoc(collection(db, 'users', a.id, 'mailbox'), {
-      threadId: `plan:${currentUserId}:${y}-${m}`,
-      system: false,
-      kind: 'status',
-      from: { uid: currentUserId, name: meName, role: 'user' },
-      to:   { type: 'user', uid: a.id },
-      subject, body, read: false,
-      timestamp: new Date().toISOString()
-    }));
-
-    // (optioneel) 🔔 Notificatie voor admin
-    writes.push(addDoc(collection(db, 'users', a.id, 'notifications'), {
-      text: `Planner ingediend door ${meName} — ${monthsFull[m]} ${y}`,
-      timestamp: new Date().toISOString(),
-      read: false
-    }));
-  });
-
-  await Promise.all(writes);
-}
-// Markeer gelezen/ongelezen
-async function markMailRead(messageId, val = true) {
-  const uid = getActiveUserId();
-  await updateDoc(doc(db, 'users', uid, 'mailbox', messageId), { read: !!val });
-
-  // lokaal updaten + UI verversen
-  const m = mailboxCache.find(x => x._id === messageId);
-  if (m) m.read = !!val;
-  renderMailList();
-  // eventueel detailpaneel updaten
-  if (mailDetail.dataset?.openId === messageId && val === false) {
-    const tag = mailDetail.querySelector('.mail-meta');
-    if (tag) tag.textContent = tag.textContent.replace(' • Gelezen', '');
-  }
-}
-
-// Verwijderen
-async function deleteMail(messageId) {
-  const uid = getActiveUserId();
-  await deleteDoc(doc(db, 'users', uid, 'mailbox', messageId));
-  mailboxCache = mailboxCache.filter(x => x._id !== messageId);
-  renderMailList();
-  // detail leegmaken als je net die mail bekeek
-  if (mailDetail.dataset?.openId === messageId) {
-    mailDetail.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
-    delete mailDetail.dataset.openId;
-  }
-}
 
 // 🔔 Stuur melding naar gebruiker bij projectwijziging (door admin)
 async function notifyProjectChange(userId, type, projectName, newEndDate = null) {
@@ -3853,25 +3700,22 @@ document.getElementById('multiDayModal').addEventListener('hidden.bs.modal', () 
 document.getElementById('submitMonthBtn')?.addEventListener('click', async () => {
   const y = Number(yearSelectMain.value);
   const m = Number(monthSelectMain.value);
-  const status = getMonthStatus(y, m);
+  const status = getMonthStatus(y,m);
   if (status === 'approved') return toast('Maand is al goedgekeurd', 'info');
   if (status === 'submitted') return toast('Maand is al ingediend', 'info');
 
   await setMonthStatus(y, m, 'submitted');
-
-  // ✅ Bevestiging naar jezelf (correcte signature, géén db)
-  await sendSystemMail(
-    getActiveUserId(),
-    `Planner ingediend — ${monthsFull[m]} ${y}`,
-    `Je planner voor ${monthsFull[m]} ${y} werd ingediend.`,
-    'status',
-    `plan:${currentUserId}:${y}-${m}`
-  );
-
-  // ✅ Mail + notificatie naar alle admins
-  await sendPlanningSubmittedMailToAdmins(y, m);
-
   toast('Maand ingediend ter goedkeuring', 'success');
+
+  // ✉️ Mail naar admins + bevestiging naar user
+  const ud = getCurrentUserData();
+  const who = ud.name || ud.email || currentUserId;
+  const subject = `[Planner] Ingediend — ${who} — ${monthsFull[m]} ${y}`;
+  const bodyAdmin = `${who} heeft zojuist ${monthsFull[m]} ${y} ingediend.\n\nOpen Admin > Goedkeuring maand om te beoordelen.`;
+  await broadcastToAdmins(subject, bodyAdmin, 'status');
+
+  const bodyUser = `Je hebt ${monthsFull[m]} ${y} ingediend ter goedkeuring.\nJe ontvangt een bericht zodra dit is beoordeeld.`;
+  await sendSystemMail(getActiveUserId(), `[Bevestiging] Planner ingediend — ${monthsFull[m]} ${y}`, bodyUser, 'status');
 });
 
 // Admin jaarveld default
@@ -3911,34 +3755,24 @@ document.getElementById('adminApproveBtn')?.addEventListener('click', async () =
 document.getElementById('adminRejectBtn')?.addEventListener('click', async () => {
   const uid = adminUserSelect?.value || getActiveUserId();
   if (!uid) return toast('Geen gebruiker gekozen', 'warning');
-
   const y = Number(document.getElementById('adminApproveYear').value || new Date().getFullYear());
   const m = Number(document.getElementById('adminApproveMonth').value || 0);
+
+  // ➕ Vraag om commentaar (optioneel)
+  const comment = prompt('Commentaar voor de gebruiker (optioneel):', '');
 
   const prev = dataStore.viewUserId;
   dataStore.viewUserId = uid;
   await setMonthStatus(y, m, 'rejected');
+  toast(`Afgekeurd: ${monthsFull[m]} ${y}`, 'warning');
   dataStore.viewUserId = prev;
 
-  const reason = prompt('Reden van afkeuring (optioneel):', '') || '';
-  const body =
-    `Je planner voor ${monthsFull[m]} ${y} is afgekeurd.` +
-    (reason ? `\n\nReden:\n${reason}` : '');
+  // ✉️ Mail naar user met commentaar
+  const subject = `[Planner] Afgekeurd — ${monthsFull[m]} ${y}`;
+  const body = `Je planner voor ${monthsFull[m]} ${y} werd afgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
+  await sendSystemMail(uid, subject, body, 'status');
 
-  // ✅ Correcte signature, unified threadId
-  await sendSystemMail(
-    uid,
-    `Planner afgekeurd — ${monthsFull[m]} ${y}`,
-    body,
-    'status',
-    `plan:${uid}:${y}-${m}`
-  );
-
-  toast(`Afgekeurd: ${monthsFull[m]} ${y}`, 'warning');
-
-  if (getActiveUserId() === currentUserId &&
-      y === Number(yearSelectMain.value) &&
-      m === Number(monthSelectMain.value)) {
+  if (getActiveUserId() === currentUserId && y===Number(yearSelectMain.value) && m===Number(monthSelectMain.value)) {
     renderMonth(y, m);
   }
 });
