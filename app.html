@@ -3862,16 +3862,6 @@ document.getElementById('adminRejectBtn')?.addEventListener('click', async () =>
   toast(`Afgekeurd: ${monthsFull[m]} ${y}`, 'warning');
   dataStore.viewUserId = prev;
 
-  // ✉️ Mail naar user met commentaar
-  const subject = `[Planner] Afgekeurd — ${monthsFull[m]} ${y}`;
-  const body = `Je planner voor ${monthsFull[m]} ${y} werd afgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
-  await sendSystemMail(uid, subject, body, 'status');
-
-  if (getActiveUserId() === currentUserId && y===Number(yearSelectMain.value) && m===Number(monthSelectMain.value)) {
-    renderMonth(y, m);
-  }
-});
-
 // Admin: Heropenen (ontgrendelen)
 document.getElementById('adminReopenBtn')?.addEventListener('click', async () => {
   const uid = adminUserSelect?.value || getActiveUserId();
