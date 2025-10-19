@@ -661,13 +661,8 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
           <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
               <thead class="table-light">
-  <tr>
-    <th>Van</th>
-    <th>Onderwerp</th>
-    <th class="text-end">Datum</th>
-    <th class="text-end">Acties</th> <!-- ✅ nieuw -->
-  </tr>
-</thead>
+                <tr><th>Van</th><th>Onderwerp</th><th class="text-end">Datum</th></tr>
+              </thead>
               <tbody id="mailListBody"></tbody>
             </table>
           </div>
@@ -1015,57 +1010,26 @@ function formatWhen(ts){
   }
 }
 async function openMail(m) {
-  if (!m) return;
-
-  // 1) OPENEN = gelezen markeren (éénmalig)
+  // markeer gelezen
   if (!m.read) {
-    await updateDoc(doc(db, 'users', getActiveUserId(), 'mailbox', m._id), { read: true });
+    await updateDoc(doc(db,'users', getActiveUserId(), 'mailbox', m._id), { read: true });
     m.read = true;
-    renderMailList(); // lijst weergeven met updated read-status
+    renderMailList();
   }
   // detail
   const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
   const header = `
-  <div class="d-flex justify-content-between align-items-start">
-    <div>
-      <div class="fw-semibold">${m.subject || '(geen onderwerp)'}</div>
-      <div class="mail-meta">Van: ${fromName} • ${formatWhen(m._tsIso || m.timestamp)}</div>
-    </div>
-    <div class="d-flex gap-2">
-      <button class="btn btn-outline-secondary btn-sm" id="mailMarkUnreadBtn">Markeer ongelezen</button>
-      <button class="btn btn-outline-danger btn-sm" id="mailDeleteBtn">
-        <span class="material-icons-outlined" style="font-size:16px">delete</span>
-      </button>
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <div class="fw-semibold">${m.subject || '(geen onderwerp)'}</div>
+        <div class="mail-meta">Van: ${fromName} • ${formatWhen(m._tsIso || m.timestamp)}</div>
+      </div>
       ${m.system ? '' : '<button class="btn btn-outline-primary btn-sm" id="mailReplyBtn"><span class="material-icons-outlined">reply</span> Antwoorden</button>'}
     </div>
-  </div>
-  <hr class="my-2">
-`;
-
+    <hr class="my-2">
+  `;
   const body = `<div style="white-space:pre-wrap">${m.body || ''}</div>`;
   mailDetail.innerHTML = header + body;
-// koppel het geopende bericht aan het detailpaneel
-mailDetail.dataset.openId = m._id;
-
-// Detail-knoppen
-document.getElementById('mailMarkUnreadBtn')?.addEventListener('click', async () => {
-  await markMailRead(m._id, false);
-  toast('Gemarkeerd als ongelezen', 'success');
-});
-
-document.getElementById('mailDeleteBtn')?.addEventListener('click', async () => {
-  if (confirm('Dit bericht verwijderen?')) {
-    await deleteMail(m._id);
-    toast('Bericht verwijderd', 'success');
-  }
-});
-
-// (optioneel) Antwoorden – je had deze al
-document.getElementById('mailReplyBtn')?.addEventListener('click', () => {
-  mailComposeCard.classList.remove('d-none');
-  prepareComposeToCounterparty(m);
-  window.scrollTo({ top: mailComposeCard.offsetTop - 80, behavior: 'smooth' });
-});
 
   if (!m.system) {
     document.getElementById('mailReplyBtn')?.addEventListener('click', () => {
@@ -3271,85 +3235,26 @@ function renderMailList() {
   mailListBody.innerHTML = '';
   let unread = 0;
 
-mailboxCache
-  .map(m => ({ ...m, _tsIso: normTs(m.timestamp) }))
-  .sort((a,b)=> (b._tsIso||'').localeCompare(a._tsIso||''))
-  .forEach(m => {
-    if (!m.read) unread++;
-    const tr = document.createElement('tr');
-    tr.className = m.read ? '' : 'mail-unread';
-    tr.innerHTML = `
-      <td>${m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—')}</td>
-      <td><a href="#" class="mail-open" data-id="${m._id}">${m.subject || '(geen onderwerp)'}</a></td>
-      <td class="text-end"><span class="mail-meta">${formatWhen(m._tsIso)}</span></td>
-      <td class="text-end">
-        <button class="btn btn-sm ${m.read ? 'btn-outline-secondary' : 'btn-outline-primary'} me-1"
-                data-act="toggle-read" data-id="${m._id}">
-          ${m.read ? 'Ongelezen' : 'Gelezen'}
-        </button>
-        <button class="btn btn-sm btn-outline-danger" data-act="delete" data-id="${m._id}">
-          <span class="material-icons-outlined" style="font-size:16px">delete</span>
-        </button>
-      </td>
-    `;
-    mailListBody.appendChild(tr);
-  });
-mailListBody.addEventListener('click', async (e) => {
-  const a = e.target.closest('a.mail-open');
-  const btn = e.target.closest('button[data-act]');
-  if (a) {
-    e.preventDefault();
-    const msg = mailboxCache.find(x => x._id === a.dataset.id);
-    if (msg) openMail(msg);
-    return;
-  }
-  if (!btn) return;
-
-  const id = btn.dataset.id;
-  const act = btn.dataset.act;
-
-  if (act === 'toggle-read') {
-    const msg = mailboxCache.find(x => x._id === id);
-    await markMailRead(id, !(msg?.read)); // toggle
-  }
-  if (act === 'delete') {
-    if (confirm('Dit bericht verwijderen?')) {
-      await deleteMail(id);
-      toast('Bericht verwijderd', 'success');
-    }
-  }
-});
+  mailboxCache
+    .map(m => ({ ...m, _tsIso: normTs(m.timestamp) }))
+    .sort((a,b)=> (b._tsIso||'').localeCompare(a._tsIso||''))
+    .forEach(m => {
+      if (!m.read) unread++;
+      const tr = document.createElement('tr');
+      tr.className = m.read ? '' : 'mail-unread';
+      const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
+      tr.innerHTML = `
+        <td>${fromName}</td>
+        <td>${m.subject || '(geen onderwerp)'}</td>
+        <td class="text-end"><span class="mail-meta">${formatWhen(m._tsIso)}</span></td>
+      `;
+      tr.addEventListener('click', () => openMail(m));
+      mailListBody.appendChild(tr);
+    });
 
   mailUnreadBadge.textContent = unread ? `${unread} ongelezen` : '—';
 }
-// Markeer gelezen/ongelezen
-async function markMailRead(messageId, val = true) {
-  const uid = getActiveUserId();
-  await updateDoc(doc(db, 'users', uid, 'mailbox', messageId), { read: !!val });
 
-  // lokaal updaten + UI verversen
-  const m = mailboxCache.find(x => x._id === messageId);
-  if (m) m.read = !!val;
-  renderMailList();
-  // eventueel detailpaneel updaten
-  if (mailDetail.dataset?.openId === messageId && val === false) {
-    const tag = mailDetail.querySelector('.mail-meta');
-    if (tag) tag.textContent = tag.textContent.replace(' • Gelezen', '');
-  }
-}
-
-// Verwijderen
-async function deleteMail(messageId) {
-  const uid = getActiveUserId();
-  await deleteDoc(doc(db, 'users', uid, 'mailbox', messageId));
-  mailboxCache = mailboxCache.filter(x => x._id !== messageId);
-  renderMailList();
-  // detail leegmaken als je net die mail bekeek
-  if (mailDetail.dataset?.openId === messageId) {
-    mailDetail.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
-    delete mailDetail.dataset.openId;
-  }
-}
 
 // 🔔 Stuur melding naar gebruiker bij projectwijziging (door admin)
 async function notifyProjectChange(userId, type, projectName, newEndDate = null) {
@@ -3861,6 +3766,16 @@ document.getElementById('adminRejectBtn')?.addEventListener('click', async () =>
   await setMonthStatus(y, m, 'rejected');
   toast(`Afgekeurd: ${monthsFull[m]} ${y}`, 'warning');
   dataStore.viewUserId = prev;
+
+  // ✉️ Mail naar user met commentaar
+  const subject = `[Planner] Afgekeurd — ${monthsFull[m]} ${y}`;
+  const body = `Je planner voor ${monthsFull[m]} ${y} werd afgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
+  await sendSystemMail(uid, subject, body, 'status');
+
+  if (getActiveUserId() === currentUserId && y===Number(yearSelectMain.value) && m===Number(monthSelectMain.value)) {
+    renderMonth(y, m);
+  }
+});
 
 // Admin: Heropenen (ontgrendelen)
 document.getElementById('adminReopenBtn')?.addEventListener('click', async () => {
