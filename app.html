@@ -3028,32 +3028,6 @@ function normTs(ts){
   if (typeof ts === 'string') return ts;
   return '';
 }
-
-function renderMailList() {
-  mailListBody.innerHTML = '';
-  let unread = 0;
-
-  mailboxCache
-    .map(m => ({ ...m, _tsIso: normTs(m.timestamp) }))
-    .sort((a,b)=> (b._tsIso||'').localeCompare(a._tsIso||''))
-    .forEach(m => {
-      if (!m.read) unread++;
-      const tr = document.createElement('tr');
-      tr.className = m.read ? '' : 'mail-unread';
-      const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
-      tr.innerHTML = `
-        <td>${fromName}</td>
-        <td>${m.subject || '(geen onderwerp)'}</td>
-        <td class="text-end"><span class="mail-meta">${formatWhen(m._tsIso)}</span></td>
-      `;
-      tr.addEventListener('click', () => openMail(m));
-      mailListBody.appendChild(tr);
-    });
-
-  mailUnreadBadge.textContent = unread ? `${unread} ongelezen` : '—';
-}
-
-
 // 🔔 Stuur melding naar gebruiker bij projectwijziging (door admin)
 async function notifyProjectChange(userId, type, projectName, newEndDate = null) {
   const colRef = collection(db, 'users', userId, 'notifications');
