@@ -2385,17 +2385,6 @@ async function ensureProjectExists(name){
       ud.monthData[year][month] = ud.monthData[year][month] || { targetHours:0, targetMinutes:0, rows:{} };
       ud.monthData[year][month].rows[key] = { ...r, minutes: r.minutes || minutesBetween(r.start, r.end, r.break) };
     }
-function ensureDefaultProjects(){
-  const ud = getCurrentUserData();
-  ud.projects = ud.projects || [];
-  const defaults = [
-    { name: 'Eght Care', start: '2000-01-01', end: '2099-12-31' },
-    { name: 'PXL Verpleegkunde Hasselt', start: '2000-01-01', end: '2099-12-31' }
-  ];
-  defaults.forEach(def => {
-    if(!ud.projects.find(p => p.name === def.name)){
-      ud.projects.push(def);
-    }
   });
   saveUserData();
 }
