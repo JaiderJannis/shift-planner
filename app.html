@@ -1021,6 +1021,387 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
     const newShiftEndDate = document.getElementById('newShiftEndDate');
     const addShiftBtn = document.getElementById('addShiftBtn');
 
+///// HULPFUNCTIES /////
+function safeRemoveAllListeners(el) {
+  // vervang node met clone om alle vroegere event listeners te verwijderen
+  if (!el) return el;
+  const clone = el.cloneNode(true);
+  el.parentNode.replaceChild(clone, el);
+  return clone;
+}
+
+function formatWhen(ts){
+  if (!ts) return '';
+  if (typeof ts?.toDate === 'function') return ts.toDate().toLocaleString('nl-BE');
+  try {
+    const d = new Date(ts);
+    return isNaN(d.getTime()) ? '' : d.toLocaleString('nl-BE');
+  } catch { return ''; }
+}
+
+function updateUnreadBadges(unread) {
+  // visuele badge in mailboxpaneel
+  if (mailUnreadBadge) {
+    if (unread > 0) {
+      mailUnreadBadge.textContent = `${unread} ongelezen`;
+      mailUnreadBadge.classList.remove('d-none');
+    } else {
+      mailUnreadBadge.classList.add('d-none');
+    }
+  }
+  // optionele sidebar badge (indien aanwezig)
+  const sb = document.getElementById('mailSidebarBadge');
+  if (sb) {
+    if (unread > 0) { sb.textContent = unread; sb.classList.remove('d-none'); }
+    else { sb.classList.add('d-none'); }
+  }
+}
+
+///// MAILBOX STATE /////
+let mailboxUnsub = null;
+let mailboxCache = []; // lokaal cache voor weergave
+let mailboxFolder = 'inbox'; // 'inbox'|'sent'|'all'|'system'
+
+const mailListBodyEl = document.getElementById('mailListBody');
+const mailDetailEl = document.getElementById('mailDetail');
+const mailUnreadBadge = document.getElementById('mailUnreadBadge');
+const mailLoadMoreBtn = document.getElementById('mailLoadMoreBtn');
+const mailRefreshBtn = document.getElementById('mailRefreshBtn');
+const mailComposeBtn = document.getElementById('mailComposeBtn');
+const mailComposeCard = document.getElementById('mailComposeCard');
+const mailToSelect = document.getElementById('mailToSelect');
+const mailSubjectInput = document.getElementById('mailSubjectInput');
+const mailBodyInput = document.getElementById('mailBodyInput');
+const mailSendBtn = document.getElementById('mailSendBtn');
+const mailCancelBtn = document.getElementById('mailCancelBtn');
+
+///// LISTEN MAILBOX (real-time) /////
+function listenMailbox(uid) {
+  if (!uid) return;
+  if (mailboxUnsub) mailboxUnsub();
+
+  const colRef = collection(db, 'users', uid, 'mailbox');
+  // we luisteren op ORDERED items (laatste eerst)
+  const q = query(colRef, orderBy('timestamp', 'desc'), limit(200));
+  mailboxUnsub = onSnapshot(q, (snap) => {
+    mailboxCache = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+    // update UI
+    renderMailList(); // rendert op basis van mailboxFolder
+  });
+}
+
+// render lijst (met folder filtering) - veilig: verwijdert oude listeners op click bindings
+function renderMailList() {
+  // clear detail if not in same folder
+  mailListBodyEl.innerHTML = '';
+
+  // filter
+  const filtered = mailboxCache.filter(m => {
+    if (mailboxFolder === 'all') return true;
+    if (mailboxFolder === 'inbox') return (m.folder || 'inbox') === 'inbox';
+    if (mailboxFolder === 'sent') return (m.folder || '') === 'sent';
+    if (mailboxFolder === 'system') return m.system === true || (m.folder === 'system');
+    return true;
+  });
+
+  // unread count
+  const unread = filtered.reduce((c, x) => c + ((x.read ? 0 : 1) || 0), 0);
+  updateUnreadBadges(unread);
+
+  // build rows
+  filtered.sort((a,b) => {
+    const ta = (a.timestamp && (a.timestamp.toDate ? a.timestamp.toDate().toISOString() : a.timestamp)) || '';
+    const tb = (b.timestamp && (b.timestamp.toDate ? b.timestamp.toDate().toISOString() : b.timestamp)) || '';
+    return tb.localeCompare(ta);
+  }).forEach(m => {
+    const tr = document.createElement('tr');
+    tr.dataset.id = m._id;
+    tr.className = m.read ? '' : 'fw-bold';
+    tr.innerHTML = `
+      <td>${m.system ? 'Shift Planner' : (m.from?.name || m.from?.email || '—')}</td>
+      <td><a href="#" class="mail-open" data-id="${m._id}">${m.subject || '(geen onderwerp)'}</a></td>
+      <td class="text-end"><span class="mail-meta">${formatWhen(m.timestamp)}</span></td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-secondary me-1" data-act="toggle-read" data-id="${m._id}">${m.read ? 'Markeer ongelezen' : 'Markeer gelezen'}</button>
+        <button class="btn btn-sm btn-outline-danger" data-act="delete" data-id="${m._id}"><span class="material-icons-outlined" style="font-size:16px">delete</span></button>
+      </td>
+    `;
+    mailListBodyEl.appendChild(tr);
+  });
+
+  // plaats event delegation (zorg dat we niet dubbel attachen)
+  safeRemoveAllListeners(mailListBodyEl).addEventListener('click', async (ev) => {
+    const a = ev.target.closest('a.mail-open');
+    const btn = ev.target.closest('button[data-act]');
+    if (a) {
+      ev.preventDefault();
+      const id = a.dataset.id;
+      const msg = mailboxCache.find(x => x._id === id);
+      if (msg) await openMail(msg);
+      return;
+    }
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const act = btn.dataset.act;
+    if (act === 'toggle-read') {
+      const msg = mailboxCache.find(x => x._id === id);
+      if (msg) await markMailRead(id, !!msg.read ? false : true); // toggle
+    } else if (act === 'delete') {
+      // confirm ONCE
+      if (!confirm('Dit bericht verwijderen?')) return;
+      await deleteMail(id);
+    }
+  });
+
+  // update unread badge text also in header
+  mailUnreadBadge.textContent = unread ? `${unread} ongelezen` : '—';
+  mailUnreadBadge.classList.toggle('d-none', unread === 0);
+}
+
+///// OPEN MAIL (detail) /////
+async function openMail(m) {
+  if (!m) return;
+  // mark read (only update if unread)
+  if (!m.read) {
+    try { await updateDoc(doc(db, 'users', getActiveUserId(), 'mailbox', m._id), { read: true }); } catch(e){ console.warn(e); }
+    m.read = true;
+    renderMailList();
+  }
+
+  const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
+  mailDetailEl.innerHTML = `
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <div class="fw-semibold">${m.subject || '(geen onderwerp)'}</div>
+        <div class="mail-meta small text-muted">Van: ${fromName} • ${formatWhen(m.timestamp)}</div>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" id="mailMarkUnreadBtn">Markeer ongelezen</button>
+        <button class="btn btn-outline-danger btn-sm" id="mailDeleteBtn"><span class="material-icons-outlined" style="font-size:16px">delete</span></button>
+        ${m.system ? '' : '<button class="btn btn-outline-primary btn-sm" id="mailReplyBtn"><span class="material-icons-outlined">reply</span> Antwoorden</button>'}
+      </div>
+    </div>
+    <hr class="my-2">
+    <div style="white-space:pre-wrap">${m.body || ''}</div>
+  `;
+  mailDetailEl.dataset.openId = m._id;
+
+  // buttons (remove old handlers by cloning)
+  const markBtn = safeRemoveAllListeners(document.getElementById('mailMarkUnreadBtn'));
+  markBtn.addEventListener('click', async () => { await markMailRead(m._id, false); toast('Gemarkeerd als ongelezen', 'success'); });
+
+  const delBtn = safeRemoveAllListeners(document.getElementById('mailDeleteBtn'));
+  delBtn.addEventListener('click', async () => {
+    if (!confirm('Dit bericht verwijderen?')) return;
+    await deleteMail(m._id);
+    toast('Bericht verwijderd', 'success');
+  });
+
+  const replyBtn = document.getElementById('mailReplyBtn');
+  if (replyBtn) {
+    safeRemoveAllListeners(replyBtn).addEventListener('click', () => {
+      mailComposeCard.classList.remove('d-none');
+      prepareComposeToCounterparty(m);
+      window.scrollTo({ top: mailComposeCard.offsetTop - 80, behavior: 'smooth' });
+    });
+  }
+}
+
+///// MARK READ/UNREAD /////
+async function markMailRead(messageId, val = true) {
+  const uid = getActiveUserId();
+  try {
+    await updateDoc(doc(db, 'users', uid, 'mailbox', messageId), { read: !!val });
+    const m = mailboxCache.find(x => x._id === messageId);
+    if (m) m.read = !!val;
+    renderMailList();
+    // update detail if open
+    if (mailDetailEl.dataset?.openId === messageId && !val) {
+      // if marking unread, refresh to show state
+      openMail(mailboxCache.find(x => x._id === messageId) || {});
+    }
+  } catch (err) { console.error('markMailRead error', err); toast('Kon status niet aanpassen', 'danger'); }
+}
+
+///// DELETE MAIL /////
+async function deleteMail(messageId) {
+  const uid = getActiveUserId();
+  try {
+    await deleteDoc(doc(db, 'users', uid, 'mailbox', messageId));
+    mailboxCache = mailboxCache.filter(x => x._id !== messageId);
+    renderMailList();
+    if (mailDetailEl.dataset?.openId === messageId) {
+      mailDetailEl.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
+      delete mailDetailEl.dataset.openId;
+    }
+  } catch (err) {
+    console.error('deleteMail error', err);
+    toast('Kon bericht niet verwijderen', 'danger');
+  }
+}
+
+///// COMPOSE / SEND /////
+function prepareComposeOptions() {
+  mailToSelect.innerHTML = '';
+  const me = dataStore.users[getActiveUserId()];
+  if ((me?.role||'user') === 'admin') {
+    const opt0 = document.createElement('option'); opt0.value=''; opt0.textContent='Kies gebruiker…'; mailToSelect.appendChild(opt0);
+    Object.entries(dataStore.users).forEach(([uid,u])=>{
+      if (u.role === 'admin') return;
+      const opt = document.createElement('option');
+      opt.value = `user:${uid}`;
+      opt.textContent = u.name || u.email || uid;
+      mailToSelect.appendChild(opt);
+    });
+  } else {
+    const opt = document.createElement('option'); opt.value='admin-group'; opt.textContent='Admins'; mailToSelect.appendChild(opt);
+  }
+}
+
+function prepareComposeToCounterparty(m) {
+  prepareComposeOptions();
+  const me = dataStore.users[getActiveUserId()];
+  if ((me?.role||'user') === 'admin') {
+    mailToSelect.value = `user:${m.from?.uid || ''}`;
+  } else {
+    mailToSelect.value = 'admin-group';
+  }
+  mailSubjectInput.value = m.subject?.startsWith('Re: ') ? m.subject : `Re: ${m.subject||''}`;
+  mailBodyInput.value = '';
+  // store thread if needed
+  composeThreadId = m.threadId || `conv:${m.from?.uid || getActiveUserId()}`;
+}
+
+// Send user message to admins BUT save a copy in sender 'sent'
+async function sendUserMessageToAdmins(subject, body, threadId=`conv:${currentUserId}`) {
+  const me = getCurrentUserData();
+  const meName = me.name || me.email || currentUserId;
+
+  // 1) kopie voor jezelf (folder = sent)
+  await addDoc(collection(db, 'users', getActiveUserId(), 'mailbox'), {
+    threadId,
+    system:false,
+    kind:'message',
+    from:{ uid: getActiveUserId(), name: meName, role:'user' },
+    to:{ type:'admin-group' },
+    subject, body,
+    read:true,
+    folder: 'sent',
+    timestamp: new Date().toISOString()
+  });
+
+  // 2) fan-out naar alle admins
+  const qAdmins = query(collection(db, 'users'), where('role','==','admin'));
+  const snap = await getDocs(qAdmins);
+  await Promise.all(snap.docs.map(a =>
+    addDoc(collection(db, 'users', a.id, 'mailbox'), {
+      threadId, system:false, kind:'message',
+      from:{ uid: getActiveUserId(), name: meName, role:'user' },
+      to:{ type:'user', uid: a.id },
+      subject, body, read:false,
+      folder: 'inbox',
+      timestamp: new Date().toISOString()
+    })
+  ));
+}
+
+// Admin → user (also save copy in admin 'sent')
+async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
+  const admin = dataStore.users[adminUid];
+  const adminName = admin?.name || admin?.email || 'Admin';
+  const threadId = `conv:${userUid}`;
+
+  // copy for admin (sent)
+  await addDoc(collection(db, 'users', adminUid, 'mailbox'), {
+    threadId, system:false, kind:'message',
+    from: { uid: adminUid, name: adminName, role: 'admin' },
+    to: { type:'user-id', uid:userUid },
+    subject, body, read:true, folder: 'sent',
+    timestamp: new Date().toISOString()
+  });
+
+  // deliver to user (inbox)
+  await addDoc(collection(db, 'users', userUid, 'mailbox'), {
+    threadId, system:false, kind:'message',
+    from: { uid: adminUid, name: adminName, role: 'admin' },
+    to: { type:'user', uid:userUid },
+    subject, body, read:false, folder: 'inbox',
+    timestamp: new Date().toISOString()
+  });
+}
+
+///// UI Hooks for compose & controls /////
+mailRefreshBtn?.addEventListener('click', () => {
+  const uid = getActiveUserId();
+  if (uid) listenMailbox(uid);
+});
+
+mailComposeBtn?.addEventListener('click', () => {
+  mailComposeCard.classList.toggle('d-none');
+  if (!mailComposeCard.classList.contains('d-none')) {
+    prepareComposeOptions();
+    mailSubjectInput.value = '';
+    mailBodyInput.value = '';
+    composeThreadId = null;
+  }
+});
+
+mailCancelBtn?.addEventListener('click', () => {
+  mailComposeCard.classList.add('d-none');
+  composeThreadId = null;
+});
+
+mailSendBtn?.addEventListener('click', async () => {
+  const toVal = mailToSelect.value;
+  const subject = mailSubjectInput.value.trim();
+  const body = mailBodyInput.value.trim();
+  if (!toVal || !subject || !body) return toast('Vul aan: geadresseerde, onderwerp en bericht', 'warning');
+
+  const meUid = getActiveUserId();
+  const me = dataStore.users[meUid] || {};
+
+  try {
+    if ((me?.role||'user') === 'admin') {
+      const userUid = toVal.startsWith('user:') ? toVal.split(':')[1] : null;
+      if (!userUid) return toast('Kies gebruiker', 'warning');
+      await sendAdminReplyToUser(meUid, userUid, subject, body);
+      toast('Bericht verzonden aan gebruiker', 'success');
+    } else {
+      await sendUserMessageToAdmins(subject, body, composeThreadId || `conv:${meUid}`);
+      toast('Bericht verzonden aan admins', 'success');
+    }
+    mailComposeCard.classList.add('d-none');
+    composeThreadId = null;
+  } catch(e) {
+    console.error(e);
+    toast('Versturen mislukt', 'danger');
+  }
+});
+
+// folder switching: (je kan knopjes in je UI toevoegen die roepen: setMailboxFolder('inbox') etc.)
+function setMailboxFolder(folder) {
+  mailboxFolder = folder || 'inbox';
+  renderMailList();
+}
+
+// auto-start listener when mailbox tab opened
+document.querySelector('a[href="#tab-mail"]')?.addEventListener('shown.bs.tab', () => {
+  const uid = getActiveUserId();
+  if (uid) listenMailbox(uid);
+});
+
+// ensure we listen immediately on login
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    listenMailbox(user.uid);
+    // keep existing autoCheckNotifications running
+  } else {
+    if (mailboxUnsub) mailboxUnsub();
+    mailboxCache = [];
+    renderMailList();
+  }
+});
+
     // Quick input
     const quickDate = document.getElementById('quickDate');
     const quickShift = document.getElementById('quickShift');
