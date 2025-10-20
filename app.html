@@ -2236,28 +2236,6 @@ async function sendUserToAdmins(userUid, subject, body) {
   ));
 }
 
-async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
-  const admin = dataStore.users[adminUid];
-  const user  = dataStore.users[userUid];
-  const threadId = makeThreadForUser(userUid);
-
-  // 1) kopie in admin mailbox
-  await addDoc(collection(db,'users', adminUid, 'mailbox'), {
-    threadId, system:false, kind:'message',
-    from: { uid:adminUid, name: admin?.name || admin?.email || 'Admin', role:'admin', email: admin?.email || '' },
-    to:   { type:'user-id', uid:userUid },
-    subject, body, read:true, timestamp: new Date().toISOString()
-  });
-
-  // 2) naar de user
-  await addDoc(collection(db,'users', userUid, 'mailbox'), {
-    threadId, system:false, kind:'message',
-    from: { uid:adminUid, name: admin?.name || admin?.email || 'Admin', role:'admin', email: admin?.email || '' },
-    to:   { type:'user', uid:userUid },
-    subject, body, read:false, timestamp: new Date().toISOString()
-  });
-}
-
 // === Schooljaar helpers ===
 // Geeft grenzen van het schooljaar terug voor de huidig geselecteerde maand/jaar
 function getAcademicYearBounds(y, m /* 0..11 */) {
