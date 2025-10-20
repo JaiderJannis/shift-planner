@@ -708,16 +708,6 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
       <div class="col-md-3 d-flex gap-2">
         <button id="updateRoleBtn" class="btn btn-warning flex-fill">Rol opslaan</button>
         <button id="removeUserBtn" class="btn btn-danger flex-fill">Verwijder</button>
-      <div class="card p-3 mb-3">
-  <h6 class="mb-3">Schoolverlof zichtbaarheid</h6>
-  <div class="form-check form-switch">
-    <input id="adminSchoolLeaveEnabled" class="form-check-input" type="checkbox">
-    <label class="form-check-label" for="adminSchoolLeaveEnabled">
-      Schoolverlof tonen voor geselecteerde gebruiker
-    </label>
-  </div>
-  <small class="text-muted">Als uitgeschakeld: schoolverlof badge, invoeroptie en historiek worden verborgen.</small>
-</div>
       </div>
     </div>
   </div>
@@ -930,73 +920,7 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
 </div>
 
   <!-- Bootstrap -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js">
-// =============================
-// ✅ NIEUWE MAILBOX FUNCTIES
-// =============================
-import { addDoc, collection, serverTimestamp, deleteDoc, doc, updateDoc, getDocs, query, orderBy } from "firebase/firestore";
-
-async function listenMailbox() {
-  const uid = getActiveUserId();
-  const q = query(collection(db, "users", uid, "mailbox"), orderBy("timestamp", "desc"));
-  const snap = await getDocs(q);
-  const mails = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
-  renderMailList(mails);
-}
-
-function renderMailList(mails = []) {
-  const list = document.getElementById("mailList");
-  const badge = document.getElementById("mailSidebarBadge");
-  const unread = mails.filter(m => !m.read).length;
-  if (badge) {
-    if (unread > 0) { badge.textContent = unread; badge.classList.remove("d-none"); }
-    else { badge.classList.add("d-none"); }
-  }
-  list.innerHTML = mails.map(m => `
-    <div class="mail-item ${m.read ? '' : 'fw-bold'}" data-id="${m._id}">
-      <div>${m.subject || '(geen onderwerp)'}</div>
-      <small class="text-muted">${m.from?.name || 'Shift Planner'}</small>
-    </div>
-  `).join("");
-  list.querySelectorAll(".mail-item").forEach(el => {
-    el.addEventListener("click", () => {
-      const mail = mails.find(x => x._id === el.dataset.id);
-      openMail(mail);
-    });
-  });
-}
-
-async function openMail(m) {
-  if (!m) return;
-  const mailDetail = document.getElementById("mailDetail");
-  if (!m.read) {
-    await updateDoc(doc(db, "users", getActiveUserId(), "mailbox", m._id), { read: true });
-    m.read = true;
-    listenMailbox();
-  }
-  mailDetail.innerHTML = `
-    <h6>${m.subject}</h6>
-    <p class="text-muted">Van: ${m.from?.name || 'Shift Planner'} — ${new Date(m.timestamp?.seconds * 1000).toLocaleString()}</p>
-    <p>${m.body}</p>
-    <div class="mt-3">
-      <button class="btn btn-sm btn-outline-secondary" id="mailMarkUnreadBtn">Markeer ongelezen</button>
-      <button class="btn btn-sm btn-outline-danger" id="mailDeleteBtn">Verwijder</button>
-    </div>
-  `;
-  document.getElementById("mailMarkUnreadBtn").onclick = async () => {
-    await updateDoc(doc(db, "users", getActiveUserId(), "mailbox", m._id), { read: false });
-    listenMailbox();
-  };
-  document.getElementById("mailDeleteBtn").onclick = async () => {
-    if (confirm("Bericht verwijderen?")) {
-      await deleteDoc(doc(db, "users", getActiveUserId(), "mailbox", m._id));
-      mailDetail.innerHTML = "";
-      listenMailbox();
-    }
-  };
-}
-
-</script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <!-- JSPDF -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -1054,9 +978,11 @@ async function openMail(m) {
     const logoutBtn = document.getElementById('logoutBtn');
     const currentUserName = document.getElementById('currentUserName');
     const adminTabBtn = document.getElementById('adminTabBtn');
-/***** ========== MAILBOX — COMPLETE ========== *****/
-const mailListBody    = document.getElementById('mailListBody');
-const mailDetail      = document.getElementById('mailDetail');
+// Mailbox
+const mailListBody = document.getElementById('mailListBody');
+const mailDetail   = document.getElementById('mailDetail');
+const mailUnreadBadge = document.getElementById('mailUnreadBadge');
+const mailLoadMoreBtn = document.getElementById('mailLoadMoreBtn');
 const mailRefreshBtn  = document.getElementById('mailRefreshBtn');
 const mailComposeBtn  = document.getElementById('mailComposeBtn');
 const mailComposeCard = document.getElementById('mailComposeCard');
@@ -1065,273 +991,141 @@ const mailSubjectInput= document.getElementById('mailSubjectInput');
 const mailBodyInput   = document.getElementById('mailBodyInput');
 const mailSendBtn     = document.getElementById('mailSendBtn');
 const mailCancelBtn   = document.getElementById('mailCancelBtn');
-const mailUnreadBadge = document.getElementById('mailUnreadBadge');
-const mailSidebarBadge= document.getElementById('mailSidebarBadge');
-const mailFolderNav   = document.getElementById('mailFolderNav');
 
+let mailLastVisible = null;
 let mailboxUnsub = null;
-let mailboxCache = [];      // alle berichten (snapshot)
-let mailFolder   = 'inbox'; // 'inbox' | 'sent'
-let composeThreadId = null; // reply flow
-let mailUIBound = false;
-
-/* ---------- helpers ---------- */
-function normTs(ts){
-  if (!ts) return '';
-  if (typeof ts?.toDate === 'function') return ts.toDate().toISOString();
-  if (typeof ts === 'string') return ts;
-  return '';
-}
+let mailboxCache = []; // lokaal cache voor weergave
 function formatWhen(ts){
   if (!ts) return '';
-  try { return new Date(ts).toLocaleString('nl-BE'); } catch { return ''; }
-}
-function updateUnreadBadges(unread) {
-  const n = Math.max(0, Number(unread) || 0);
-  [mailUnreadBadge, mailSidebarBadge].forEach(badge => {
-    if (!badge) return;
-    if (n > 0) { badge.textContent = n; badge.classList.remove('d-none'); }
-    else       { badge.classList.add('d-none'); }
-  });
-}
-
-/* ---------- mailbox listen ---------- */
-/* ---------- compose ---------- */
-function isAdmin() {
-  const me = dataStore.users[getActiveUserId()];
-  return (me?.role || 'user') === 'admin';
-}
-function prepareComposeOptions() {
-  mailToSelect.innerHTML = '';
-  if (isAdmin()) {
-    // admin → kies user (excl admins)
-    const opt0 = document.createElement('option');
-    opt0.value = ''; opt0.textContent = 'Kies gebruiker…';
-    mailToSelect.appendChild(opt0);
-    Object.entries(dataStore.users).forEach(([uid,u]) => {
-      if ((u.role || 'user') === 'admin') return;
-      const o = document.createElement('option');
-      o.value = `user:${uid}`; o.textContent = u.name || u.email || uid;
-      mailToSelect.appendChild(o);
-    });
-  } else {
-    // user → admins
-    const o = document.createElement('option');
-    o.value = 'admin-group'; o.textContent = 'Admins';
-    mailToSelect.appendChild(o);
+  // Firestore Timestamp?
+  if (typeof ts?.toDate === 'function') {
+    try { return ts.toDate().toLocaleString('nl-BE'); } catch { return ''; }
+  }
+  // string of number
+  try {
+    const d = new Date(ts);
+    return isNaN(d.getTime()) ? '' : d.toLocaleString('nl-BE');
+  } catch {
+    return '';
   }
 }
+async function openMail(m) {
+  // markeer gelezen
+  if (!m.read) {
+    await updateDoc(doc(db,'users', getActiveUserId(), 'mailbox', m._id), { read: true });
+    m.read = true;
+    renderMailList();
+  }
+  // detail
+  const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
+  const header = `
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <div class="fw-semibold">${m.subject || '(geen onderwerp)'}</div>
+        <div class="mail-meta">Van: ${fromName} • ${formatWhen(m._tsIso || m.timestamp)}</div>
+      </div>
+      ${m.system ? '' : '<button class="btn btn-outline-primary btn-sm" id="mailReplyBtn"><span class="material-icons-outlined">reply</span> Antwoorden</button>'}
+    </div>
+    <hr class="my-2">
+  `;
+  const body = `<div style="white-space:pre-wrap">${m.body || ''}</div>`;
+  mailDetail.innerHTML = header + body;
+
+  if (!m.system) {
+    document.getElementById('mailReplyBtn')?.addEventListener('click', () => {
+      // open compose, preset naar juiste tegenpartij
+      mailComposeCard.classList.remove('d-none');
+      prepareComposeToCounterparty(m);
+      window.scrollTo({ top: mailComposeCard.offsetTop - 80, behavior: 'smooth' });
+    });
+  }
+}
+
+function prepareComposeOptions() {
+  mailToSelect.innerHTML = '';
+  const me = dataStore.users[getActiveUserId()];
+  if ((me?.role||'user') === 'admin') {
+    // admin kan naar elke user
+    const opt0 = document.createElement('option'); opt0.value=''; opt0.textContent='Kies gebruiker…'; mailToSelect.appendChild(opt0);
+    Object.entries(dataStore.users).forEach(([uid,u])=>{
+      if (u.role === 'admin') return;
+      const opt = document.createElement('option');
+      opt.value = `user:${uid}`;
+      opt.textContent = u.name || u.email || uid;
+      mailToSelect.appendChild(opt);
+    });
+  } else {
+    // user → admin-groep
+    const opt = document.createElement('option'); opt.value='admin-group'; opt.textContent='Admins'; mailToSelect.appendChild(opt);
+  }
+}
+
 function prepareComposeToCounterparty(m) {
   prepareComposeOptions();
-  if (isAdmin()) {
+  const me = dataStore.users[getActiveUserId()];
+  if ((me?.role||'user') === 'admin') {
+    // reply naar die user
     mailToSelect.value = `user:${m.from?.uid || ''}`;
   } else {
     mailToSelect.value = 'admin-group';
   }
-  mailSubjectInput.value = m.subject?.startsWith('Re: ') ? m.subject : `Re: ${m.subject || ''}`;
+  mailSubjectInput.value = m.subject?.startsWith('Re: ') ? m.subject : `Re: ${m.subject||''}`;
   mailBodyInput.value = '';
-  composeThreadId = m.threadId || `conv:${m.from?.uid || getActiveUserId()}`;
 }
 
-/* ---------- send helpers ---------- */
-async function sendSystemMail(uid, subject, body, kind = "notification", threadId = `sys:${Date.now()}`) {
-  await addDoc(collection(db, "users", uid, "mailbox"), {
-    threadId,
-    system: true,
-    kind,
-    from: { uid: "noreply", name: "Shift Planner", role: "system", email: "no-reply@local" },
-    to:   { type: "user", uid },
-    subject,
-    body,
-    read: false,
-    timestamp: serverTimestamp()
-  });
-}
-
-async async /* ---------- actions ---------- */
-async async }
-
-/* ---------- render ---------- */
-function filteredMessages() {
-  const uid = getActiveUserId();
-  const items = mailboxCache
-    .slice()
-    .sort((a,b)=> (b._tsIso||'').localeCompare(a._tsIso||''));
-
-  if (mailFolder === 'sent') {
-    // verzonden = door mij (niet system)
-    return items.filter(m => (m.from?.uid === uid) && !m.system);
-  }
-  // inbox = alles dat NIET door mij is gestuurd óf system
-  return items.filter(m => (m.from?.uid !== uid) || m.system);
-}
-
-        </button>
-        <button class="btn btn-sm btn-outline-danger js-del" data-id="${m._id}">
-          <span class="material-icons-outlined" style="font-size:16px">delete</span>
-        </button>
-      </td>
-    `;
-    mailListBody.appendChild(tr);
-  });
-}
-
-  const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
-  const actions = `
-    <div class="d-flex gap-2">
-      <button class="btn btn-outline-secondary btn-sm js-mark-unread" data-id="${m._id}">Markeer ongelezen</button>
-      <button class="btn btn-outline-danger btn-sm js-del" data-id="${m._id}">
-        <span class="material-icons-outlined" style="font-size:16px">delete</span>
-      </button>
-      ${m.system ? '' : '<button class="btn btn-outline-primary btn-sm js-reply" data-id="'+m._id+'"><span class="material-icons-outlined">reply</span> Antwoorden</button>'}
-    </div>`;
-
-  mailDetail.innerHTML = `
-    <div class="d-flex justify-content-between align-items-start">
-      <div>
-        <div class="fw-semibold">${m.subject || '(geen onderwerp)'}</div>
-        <div class="mail-meta">Van: ${fromName} • ${formatWhen(m._tsIso)}</div>
-      </div>
-      ${actions}
-    </div>
-    <hr class="my-2">
-    <div style="white-space:pre-wrap">${m.body || ''}</div>
-  `;
-  mailDetail.dataset.openId = m._id;
-}
-
-/* ---------- once-only UI binding ---------- */
-function bindMailboxUIOnce() {
-  if (mailUIBound) return;
-  mailUIBound = true;
-
-  // Folder switch
-  mailFolderNav?.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-folder]');
-    if (!btn) return;
-    mailFolder = btn.dataset.folder;
-    mailFolderNav.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+function listenMailbox(uid) {
+  if (mailboxUnsub) mailboxUnsub(); // stop vorige
+  const colRef = collection(db,'users', uid, 'mailbox');
+  const qy = query(colRef, orderBy('timestamp','desc'), limit(50));
+  mailboxUnsub = onSnapshot(qy, (snap) => {
+    mailboxCache = snap.docs.map(d => ({ _id:d.id, ...d.data() }));
     renderMailList();
-    mailDetail.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
-  });
-
-  // Compose
-  mailComposeBtn?.addEventListener('click', () => {
-    mailComposeCard.classList.toggle('d-none');
-    if (!mailComposeCard.classList.contains('d-none')) {
-      prepareComposeOptions();
-      mailSubjectInput.value = '';
-      mailBodyInput.value    = '';
-      composeThreadId = null;
-    }
-  });
-  mailCancelBtn?.addEventListener('click', () => {
-    mailComposeCard.classList.add('d-none');
-    composeThreadId = null;
-  });
-  mailSendBtn?.addEventListener('click', async () => {
-    const toVal   = mailToSelect.value;
-    const subject = (mailSubjectInput.value || '').trim();
-    const body    = (mailBodyInput.value || '').trim();
-    if (!toVal || !subject || !body) return toast('Vul aan: geadresseerde, onderwerp en bericht', 'warning');
-
-    const meUid = getActiveUserId();
-    try {
-      if (isAdmin()) {
-        const userUid = toVal.startsWith('user:') ? toVal.split(':')[1] : null;
-        if (!userUid) return toast('Kies gebruiker', 'warning');
-        await sendAdminReplyToUser(meUid, userUid, subject, body);
-        toast('Bericht verzonden aan gebruiker', 'success');
-      } else {
-        await sendUserMessageToAdmins(subject, body, composeThreadId || `conv:${meUid}`);
-        toast('Bericht verzonden aan admins', 'success');
-      }
-      mailComposeCard.classList.add('d-none');
-      composeThreadId = null;
-    } catch (e) {
-      console.error(e);
-      toast('Versturen mislukt', 'danger');
-    }
-  });
-
-  // Refresh
-  mailRefreshBtn?.addEventListener('click', () => {
-    const uid = getActiveUserId();
-    if (uid) listenMailbox(uid);
-  });
-
-  // Lijst actions (delegation, één listener)
-  mailListBody?.addEventListener('click', async (e) => {
-    const aOpen = e.target.closest('a.js-open');
-    const bTog  = e.target.closest('button.js-toggle');
-    const bDel  = e.target.closest('button.js-del');
-    if (aOpen) {
-      e.preventDefault();
-      const msg = filteredMessages().find(x => x._id === aOpen.dataset.id)
-               || mailboxCache.find(x => x._id === aOpen.dataset.id);
-      if (msg) openMail(msg);
-      return;
-    }
-    if (bTog) {
-      const id = bTog.dataset.id;
-      const msg = mailboxCache.find(x => x._id === id);
-      await markMailRead(id, !(msg?.read));
-      return;
-    }
-    if (bDel) {
-      const id = bDel.dataset.id;
-      if (!confirm('Dit bericht verwijderen?')) return;
-      await deleteMail(id);
-      toast('Bericht verwijderd', 'success');
-      return;
-    }
-  });
-
-  // Detail actions (delegation)
-  mailDetail?.addEventListener('click', (e) => {
-    const markUn = e.target.closest('.js-mark-unread');
-    const delBtn = e.target.closest('.js-del');
-    const reply  = e.target.closest('.js-reply');
-
-    if (markUn) {
-      const id = markUn.dataset.id;
-      markMailRead(id, false);
-      toast('Gemarkeerd als ongelezen', 'success');
-      return;
-    }
-    if (delBtn) {
-      const id = delBtn.dataset.id;
-      if (!confirm('Dit bericht verwijderen?')) return;
-      deleteMail(id).then(()=> toast('Bericht verwijderd', 'success'));
-      return;
-    }
-    if (reply) {
-      const id = reply.dataset.id;
-      const msg = mailboxCache.find(x => x._id === id);
-      if (!msg) return;
-      mailComposeCard.classList.remove('d-none');
-      prepareComposeToCounterparty(msg);
-      window.scrollTo({ top: mailComposeCard.offsetTop - 80, behavior: 'smooth' });
-      return;
-    }
   });
 }
 
-/* ---------- init on tab show ---------- */
-document.querySelector('a[href="#tab-mail"]')?.addEventListener('shown.bs.tab', () => {
-  bindMailboxUIOnce();
+mailRefreshBtn?.addEventListener('click', () => {
   const uid = getActiveUserId();
   if (uid) listenMailbox(uid);
 });
 
-// ook starten na login
-onAuthStateChanged(auth, (user) => {
-  if (!user) return;
-  bindMailboxUIOnce();
-  listenMailbox(user.uid);
+mailComposeBtn?.addEventListener('click', () => {
+  mailComposeCard.classList.toggle('d-none');
+  if (!mailComposeCard.classList.contains('d-none')) {
+    prepareComposeOptions();
+    mailSubjectInput.value = '';
+    mailBodyInput.value = '';
+  }
 });
-/***** ========== /MAILBOX ========== *****/
+
+mailCancelBtn?.addEventListener('click', () => {
+  mailComposeCard.classList.add('d-none');
+});
+
+mailSendBtn?.addEventListener('click', async () => {
+  const toVal = mailToSelect.value;
+  const subject = mailSubjectInput.value.trim();
+  const body = mailBodyInput.value.trim();
+  if (!toVal || !subject || !body) return toast('Vul aan: geadresseerde, onderwerp en bericht', 'warning');
+
+  const meUid = getActiveUserId();
+  const me = dataStore.users[meUid];
+
+  try {
+    if ((me?.role||'user') === 'admin') {
+      const userUid = toVal.startsWith('user:') ? toVal.split(':')[1] : null;
+      if (!userUid) return toast('Kies gebruiker', 'warning');
+      await sendAdminReplyToUser(meUid, userUid, subject, body);
+      toast('Bericht verzonden aan gebruiker', 'success');
+    } else {
+      await sendUserToAdmins(meUid, subject, body);
+      toast('Bericht verzonden aan admins', 'success');
+    }
+    mailComposeCard.classList.add('d-none');
+  } catch(e){
+    console.error(e);
+    toast('Versturen mislukt', 'danger');
+  }
+});
 
 // activeer bij login / gebruikerswissel
 document.querySelector('a[href="#tab-mail"]')?.addEventListener('shown.bs.tab', () => {
@@ -1429,67 +1223,6 @@ function autoProjectForShift(shiftName){
       const e = end? end.replaceAll('-',''): null;
       if(s && d < s) return false; if(e && d > e) return false; return true;
     };
-// Helpers
-function isSchoolLeaveEnabledFor(uid) {
-  const prev = dataStore.viewUserId; dataStore.viewUserId = uid;
-  const ud = getCurrentUserData();
-  dataStore.viewUserId = prev;
-  return ud?.settings?.schoolLeaveEnabled !== false; // default true
-}
-function applySchoolLeaveVisibility() {
-  const uid = adminUserSelect?.value || getActiveUserId();
-  const on  = isSchoolLeaveEnabledFor(uid);
-
-  // Home badge
-  const homeSch = document.getElementById('homeSchoolLeave');
-  if (homeSch) homeSch.closest('span').style.display = on ? '' : 'none';
-
-  // Invoer badge
-  const invBadge = document.getElementById('schoolLeaveBalanceBadge');
-  if (invBadge) invBadge.style.display = on ? '' : 'none';
-
-  // Historiek: kolom "Schoolverlof" (7e kolom in jouw tabel)
-  const ths = document.querySelectorAll('#tab-historiek thead th');
-  const idx = 6; // 0-based: Maand(0), Doel(1), Gepland(2), Verschil(3), Verlof(4), Ziekte(5), Schoolverlof(6)...
-  if (ths[idx]) ths[idx].classList.toggle('d-none', !on);
-  document.querySelectorAll('#tab-historiek tbody tr').forEach(tr => {
-    const td = tr.children[idx]; if (td) td.classList.toggle('d-none', !on);
-  });
-  const tf = document.querySelectorAll('#tab-historiek tfoot th')[idx];
-  if (tf) tf.classList.toggle('d-none', !on);
-}
-
-// Admin: bij user-select en bij laden
-document.getElementById('adminUserSelect')?.addEventListener('change', hydrateSchoolLeaveToggle);
-document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab', hydrateSchoolLeaveToggle);
-
-function hydrateSchoolLeaveToggle() {
-  const uid = adminUserSelect?.value || getActiveUserId();
-  const chk = document.getElementById('adminSchoolLeaveEnabled');
-  if (!chk || !uid) return;
-
-  chk.checked = isSchoolLeaveEnabledFor(uid);
-  applySchoolLeaveVisibility();
-
-  chk.onchange = async () => {
-    const prev = dataStore.viewUserId; dataStore.viewUserId = uid;
-    const ud = getCurrentUserData(); ud.settings ||= {};
-    ud.settings.schoolLeaveEnabled = !!chk.checked;
-    await saveUserData();
-    dataStore.viewUserId = prev;
-
-    applySchoolLeaveVisibility();
-    // ook invoer/hertekenen (filters) en badges
-    renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-    updateLeaveBadges();
-    renderHistory();
-    toast(`Schoolverlof ${chk.checked ? 'ingeschakeld' : 'verborgen'}`, 'success');
-  };
-}
-function schoolLeaveVisibleForActive() {
-  const ud = getCurrentUserData();
-  return ud?.settings?.schoolLeaveEnabled !== false; // default: true
-}
 // ===== per gebruiker per maand =====
 function ensureUserMonthlyMap(ud){
   ud.settings ||= {};
@@ -2263,15 +1996,7 @@ async function renderMonth(year, month){
       tr.querySelector('.omschrijvingInput').addEventListener('change', e=>{
         r.omschrijving = e.target.value; saveCell(year, month, rowKey, r, tr); saveUserData(); renderHistory();
       });
-// tijdens het opbouwen van shift <option>:
-for (const [name, sh] of entries) {
-  if (!isDateWithin(base, sh.startDate || null, sh.endDate || null)) continue;
-  if (!schoolLeaveVisibleForActive() && name === 'Schoolverlof') continue; // verberg
-  const o = document.createElement('option');
-  o.value = name; o.textContent = name;
-  if (r.shift === name) o.selected = true;
-  sel.appendChild(o);
-}
+
       // + / − handlers
       const addBtn = tr.querySelector('.addLineBtn');
       if (addBtn) {
@@ -2432,6 +2157,20 @@ async function ensureProjectExists(name){
       ud.monthData[year][month] = ud.monthData[year][month] || { targetHours:0, targetMinutes:0, rows:{} };
       ud.monthData[year][month].rows[key] = { ...r, minutes: r.minutes || minutesBetween(r.start, r.end, r.break) };
     }
+function ensureDefaultProjects(){
+  const ud = getCurrentUserData();
+  ud.projects = ud.projects || [];
+  const defaults = [
+    { name: 'Eght Care', start: '2000-01-01', end: '2099-12-31' },
+    { name: 'PXL Verpleegkunde Hasselt', start: '2000-01-01', end: '2099-12-31' }
+  ];
+  defaults.forEach(def => {
+    if(!ud.projects.find(p => p.name === def.name)){
+      ud.projects.push(def);
+    }
+  });
+  saveUserData();
+}
     function updateInputTotals(){
       const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
       const ud = getCurrentUserData();
@@ -2481,10 +2220,6 @@ async function ensureProjectExists(name){
       [...withPeriod, ...without].forEach(([n,sh])=>{
         if(!isDateWithin(dateStr, sh.startDate||null, sh.endDate||null)) return;
         const o = document.createElement('option'); o.value=n; o.textContent=n; quickShift.appendChild(o);
-        // quick
-if (!schoolLeaveVisibleForActive() && n === 'Schoolverlof') return;
-// multi
-if (!schoolLeaveVisibleForActive() && name === 'Schoolverlof') return;
       });
     }
 
@@ -2547,7 +2282,6 @@ if (sp) {
           if(r.shift==='Schoolverlof') sf += r.minutes||0;
           if(r.shift==='Feestdag') f += r.minutes||0;
           if(r.shift==='Bench') b += r.minutes||0;
-          if (onSch && r.shift === 'Schoolverlof') sf += r.minutes||0;
         });
         const diff = gepland - target;
 
@@ -2655,7 +2389,29 @@ async function sendUserToAdmins(userUid, subject, body) {
   ));
 }
 
-async // === Schooljaar helpers ===
+async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
+  const admin = dataStore.users[adminUid];
+  const user  = dataStore.users[userUid];
+  const threadId = makeThreadForUser(userUid);
+
+  // 1) kopie in admin mailbox
+  await addDoc(collection(db,'users', adminUid, 'mailbox'), {
+    threadId, system:false, kind:'message',
+    from: { uid:adminUid, name: admin?.name || admin?.email || 'Admin', role:'admin', email: admin?.email || '' },
+    to:   { type:'user-id', uid:userUid },
+    subject, body, read:true, timestamp: new Date().toISOString()
+  });
+
+  // 2) naar de user
+  await addDoc(collection(db,'users', userUid, 'mailbox'), {
+    threadId, system:false, kind:'message',
+    from: { uid:adminUid, name: admin?.name || admin?.email || 'Admin', role:'admin', email: admin?.email || '' },
+    to:   { type:'user', uid:userUid },
+    subject, body, read:false, timestamp: new Date().toISOString()
+  });
+}
+
+// === Schooljaar helpers ===
 // Geeft grenzen van het schooljaar terug voor de huidig geselecteerde maand/jaar
 function getAcademicYearBounds(y, m /* 0..11 */) {
   const startYear = (m >= 8) ? y : y - 1;   // 8 = september
@@ -3475,6 +3231,31 @@ function normTs(ts){
   return '';
 }
 
+function renderMailList() {
+  mailListBody.innerHTML = '';
+  let unread = 0;
+
+  mailboxCache
+    .map(m => ({ ...m, _tsIso: normTs(m.timestamp) }))
+    .sort((a,b)=> (b._tsIso||'').localeCompare(a._tsIso||''))
+    .forEach(m => {
+      if (!m.read) unread++;
+      const tr = document.createElement('tr');
+      tr.className = m.read ? '' : 'mail-unread';
+      const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
+      tr.innerHTML = `
+        <td>${fromName}</td>
+        <td>${m.subject || '(geen onderwerp)'}</td>
+        <td class="text-end"><span class="mail-meta">${formatWhen(m._tsIso)}</span></td>
+      `;
+      tr.addEventListener('click', () => openMail(m));
+      mailListBody.appendChild(tr);
+    });
+
+  mailUnreadBadge.textContent = unread ? `${unread} ongelezen` : '—';
+}
+
+
 // 🔔 Stuur melding naar gebruiker bij projectwijziging (door admin)
 async function notifyProjectChange(userId, type, projectName, newEndDate = null) {
   const colRef = collection(db, 'users', userId, 'notifications');
@@ -3684,10 +3465,6 @@ function populateMultiDayShifts(selectedDates = []) {
       o.value = name;
       o.textContent = name;
       sel.appendChild(o);
-    // quick
-if (!schoolLeaveVisibleForActive() && n === 'Schoolverlof') return;
-// multi
-if (!schoolLeaveVisibleForActive() && name === 'Schoolverlof') return;
     }
   });
 }
