@@ -2385,8 +2385,6 @@ async function ensureProjectExists(name){
       ud.monthData[year][month] = ud.monthData[year][month] || { targetHours:0, targetMinutes:0, rows:{} };
       ud.monthData[year][month].rows[key] = { ...r, minutes: r.minutes || minutesBetween(r.start, r.end, r.break) };
     }
-  });
-  saveUserData();
 }
     function updateInputTotals(){
       const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
