@@ -2209,33 +2209,6 @@ async function broadcastToAdmins(subject, body, kind='notification', threadId=nu
 }
 function makeThreadForUser(uid){ return `conv:${uid}`; }
 
-async function sendUserToAdmins(userUid, subject, body) {
-  const me = dataStore.users[userUid];
-  const threadId = makeThreadForUser(userUid);
-
-  // 1) kopie in eigen mailbox (als 'verzonden')
-  await addDoc(collection(db,'users', userUid,'mailbox'), {
-    threadId, system:false, kind:'message',
-    from: { uid:userUid, name: me?.name || me?.email || 'User', role: 'user', email: me?.email || '' },
-    to: { type:'admin-group', uid:null },
-    subject, body, read:true, timestamp: new Date().toISOString()
-  });
-
-  // 2) naar alle admins
-  const qs = await getDocs(collection(db,'users'));
-  const admins = [];
-  qs.forEach(d => { if ((d.data().role||'user')==='admin') admins.push({ id:d.id, ...d.data() }); });
-
-  await Promise.all(admins.map(a =>
-    addDoc(collection(db,'users', a.id, 'mailbox'), {
-      threadId, system:false, kind:'message',
-      from: { uid:userUid, name: me?.name || me?.email || 'User', role: 'user', email: me?.email || '' },
-      to: { type:'user-id', uid:a.id },
-      subject, body, read:false, timestamp: new Date().toISOString()
-    })
-  ));
-}
-
 // === Schooljaar helpers ===
 // Geeft grenzen van het schooljaar terug voor de huidig geselecteerde maand/jaar
 function getAcademicYearBounds(y, m /* 0..11 */) {
