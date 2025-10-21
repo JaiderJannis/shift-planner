@@ -138,7 +138,17 @@
     onAuthStateChanged(auth, user => {
       if (user) window.location.href = "app.html";
     });
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
 
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+    window.location.href = '/app.html'; // pas aan naar jouw dashboard
+  } catch (error) {
+    alert('Fout bij inloggen: ' + error.message);
+  }
     document.getElementById("googleLoginBtn").addEventListener("click", async () => {
       try {
         await signInWithPopup(auth, provider);
