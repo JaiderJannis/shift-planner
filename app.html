@@ -1870,6 +1870,8 @@ function renderProjectFilterForMonth(){
       await saveUserData();
       await renderMonth(y,m); updateInputTotals(); renderHome(); renderHistory();
     }
+    // in the filter per row:
+const allKeys = Object.keys(md.rows || {});
 // ✅ Automatische koppeling van project aan shift bij herladen
 function autoAssignProjectIfNeeded(r) {
   const sp = autoProjectForShift(r.shift);
@@ -2644,17 +2646,7 @@ const udForView = getCurrentUserData();
 const schoolVerlofEnabled = udForView?.settings?.schoolVerlofEnabled !== false;
 
 // in the filter per row:
-const visibleKeys = allKeys.filter(k => {
-  const r = md.rows[k];
-  if (!r) return false;
-  // hide schoolleave rows when disabled
-  if (!schoolVerlofEnabled) {
-    const s = (r.shift || '').trim();
-    if (s === 'Schoolverlof' || s === 'School') return false;
-  }
-  if (!selectedProject) return true;
-  return (r.project || '') === selectedProject;
-});
+const allKeys = Object.keys(md.rows || {});
 
   const items = [...map.entries()]
     .sort((a,b)=> b[1]-a[1])
