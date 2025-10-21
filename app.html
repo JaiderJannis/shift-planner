@@ -1889,15 +1889,15 @@ async function renderMonth(year, month){
 
   monthTargetHours.value = md.targetHours || 0;
   monthTargetMinutes.value = md.targetMinutes || 0;
-// controle schoolverlof instelling voor de gebruiker die we renderen (viewUserId)
+// controle schoolverlof instelling
 const udForView = getCurrentUserData();
 const schoolVerlofEnabled = udForView?.settings?.schoolVerlofEnabled !== false;
 
-// in the filter per row:
+// Bepaal welke keys zichtbaar zijn
+const allKeys = Object.keys(md.rows || {});
 const visibleKeys = allKeys.filter(k => {
   const r = md.rows[k];
   if (!r) return false;
-  // hide schoolleave rows when disabled
   if (!schoolVerlofEnabled) {
     const s = (r.shift || '').trim();
     if (s === 'Schoolverlof' || s === 'School') return false;
@@ -3919,10 +3919,10 @@ const udForView = getCurrentUserData();
 const schoolVerlofEnabled = udForView?.settings?.schoolVerlofEnabled !== false;
 
 // in the filter per row:
+const allKeys = Object.keys(md.rows || {});
 const visibleKeys = allKeys.filter(k => {
   const r = md.rows[k];
   if (!r) return false;
-  // hide schoolleave rows when disabled
   if (!schoolVerlofEnabled) {
     const s = (r.shift || '').trim();
     if (s === 'Schoolverlof' || s === 'School') return false;
