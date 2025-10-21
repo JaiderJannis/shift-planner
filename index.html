@@ -74,11 +74,23 @@
       color: #ccc;
       margin-top: 1rem;
     }
+    hr { 
+  margin: 20px 0; 
+  border: none; 
+  border-top: 1px solid #ccc;
+  }
   </style>
 </head>
 <body>
   <div class="login-card text-center">
     <h3><span class="material-icons-outlined">event_note</span> Shift Planner</h3>
+    <form id="loginForm">
+    <input type="email" id="email" placeholder="E-mail" required>
+    <input type="password" id="password" placeholder="Wachtwoord" required>
+    <button type="submit" class="btn">Login</button>
+  </form>
+
+  <hr>
     <p>Log in met je Google-account om verder te gaan</p>
     <button id="googleLoginBtn" class="btn-google">
       <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google logo">
