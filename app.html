@@ -3883,41 +3883,17 @@ function renderProjectSummary()
 }
 function minutesToHM(min){ return `${Math.floor(min/60)}u ${min%60}m`; }
 document.addEventListener('DOMContentLoaded', () => {
-const schoolLeaveBtn = document.getElementById('toggleSchoolLeaveBtn');
+ const schoolLeaveBtn = document.getElementById('toggleSchoolLeaveBtn');
 const adminUserSelect = document.getElementById('adminUserSelect');
 
-// Functie om status van schoolverlof te laden uit Firebase en knop te initialiseren
-async function initSchoolLeaveButton() {
-  const uid = adminUserSelect?.value || getActiveUserId();
-  const doc = await firebase.firestore().collection('users').doc(uid).get();
-  const disabled = doc.exists ? doc.data().schoolLeaveDisabled : false;
-
-  schoolLeaveBtn.dataset.allowSchoolleave = (!disabled).toString();
-  if (disabled) {
-    schoolLeaveBtn.classList.remove('btn-success');
-    schoolLeaveBtn.classList.add('btn-outline-secondary');
-    schoolLeaveBtn.textContent = 'Schoolverlof uit';
-  } else {
-    schoolLeaveBtn.classList.remove('btn-outline-secondary');
-    schoolLeaveBtn.classList.add('btn-success');
-    schoolLeaveBtn.textContent = 'Schoolverlof aan';
-  }
-}
-
-// Initialiseer bij laden
-document.addEventListener('DOMContentLoaded', initSchoolLeaveButton);
-
-// Update knop als adminUserSelect verandert
-adminUserSelect?.addEventListener('change', initSchoolLeaveButton);
-
-// Toggle functionaliteit
-schoolLeaveBtn.addEventListener('click', async () => {
-  const uid = adminUserSelect?.value || getActiveUserId();
+schoolLeaveBtn.addEventListener('click', () => {
   const allowed = schoolLeaveBtn.dataset.allowSchoolleave === 'true';
-  const newAllowed = !allowed;
+  const uid = adminUserSelect?.value || getActiveUserId();
 
-  // Toggle visual
+  // Toggle waarde
+  const newAllowed = !allowed;
   schoolLeaveBtn.dataset.allowSchoolleave = newAllowed.toString();
+
   if (newAllowed) { // schoolverlof aan
     schoolLeaveBtn.classList.remove('btn-outline-secondary');
     schoolLeaveBtn.classList.add('btn-success');
@@ -3928,22 +3904,14 @@ schoolLeaveBtn.addEventListener('click', async () => {
     schoolLeaveBtn.textContent = 'Schoolverlof uit';
   }
 
-  // Firebase update
-  try {
-    await firebase.firestore().collection('users').doc(uid).update({
-      schoolLeaveDisabled: !newAllowed
-    });
-    console.log(`Schoolverlof status van ${uid} bijgewerkt in Firebase`);
-
-    // Update badges en historiek
-    schoolLeaveBalanceBadge(uid);
-    renderHistory(uid);
-
-  } catch (err) {
-    console.error('Fout bij updaten schoolverlof:', err);
-  }
+  console.log(`Schoolverlof voor ${uid} ${newAllowed ? 'ingeschakeld' : 'uitgeschakeld'}`);
 });
-
+// voorbeeld localStorage
+localStorage.setItem(`schoolLeaveDisabled_${uid}`, (!allowed).toString());
+const schoolLeaveDisabled = localStorage.getItem(`schoolLeaveDisabled_${uid}`) === 'true';
+if (!schoolLeaveDisabled) {
+  // toon schoolverlof uren/badges
+}
 });
 
   </script>
