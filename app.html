@@ -705,9 +705,10 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
           <option value="admin">Admin</option>
         </select>
       </div>
-      <div class="col-md-3 d-flex gap-2">
+      <div class="col-md-6 d-flex gap-2">
         <button id="updateRoleBtn" class="btn btn-warning flex-fill">Rol opslaan</button>
         <button id="removeUserBtn" class="btn btn-danger flex-fill">Verwijder</button>
+        <button id="toggleSchoolLeaveBtn" class="btn btn-outline-secondary flex-fill">Schoolverlof uitschakelen</button>
       </div>
     </div>
   </div>
@@ -3881,7 +3882,29 @@ function renderProjectSummary()
     : '<div class="alert alert-light border small mb-0">Geen projecten voor huidig filter.</div>';
 }
 function minutesToHM(min){ return `${Math.floor(min/60)}u ${min%60}m`; }
+const schoolLeaveBtn = document.getElementById('toggleSchoolLeaveBtn');
 
+schoolLeaveBtn.addEventListener('click', () => {
+  const allowed = schoolLeaveBtn.dataset.allowSchoolleave === 'true';
+
+  // Toggle waarde
+  schoolLeaveBtn.dataset.allowSchoolleave = (!allowed).toString();
+
+  // Pas styling en tekst aan
+  if (allowed) {
+    schoolLeaveBtn.classList.remove('btn-success');
+    schoolLeaveBtn.classList.add('btn-outline-secondary');
+    schoolLeaveBtn.textContent = 'Schoolverlof: uit';
+  } else {
+    schoolLeaveBtn.classList.remove('btn-outline-secondary');
+    schoolLeaveBtn.classList.add('btn-success');
+    schoolLeaveBtn.textContent = 'Schoolverlof: aan';
+  }
+
+  // Optioneel: sla instelling op per gebruiker
+  const user = document.getElementById('userSelect').value;
+  console.log(`Schoolverlof voor ${user} ${!allowed ? 'uitgeschakeld' : 'ingeschakeld'}`);
+});
   </script>
 <!-- 🔄 Loading overlay -->
 <div id="loadingOverlay" class="loading-overlay d-none">
