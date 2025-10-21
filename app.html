@@ -1894,6 +1894,7 @@ const udForView = getCurrentUserData();
 const schoolVerlofEnabled = udForView?.settings?.schoolVerlofEnabled !== false;
 
 // in the filter per row:
+const allKeys = Object.keys(md.rows || {});
 const visibleKeys = allKeys.filter(k => {
   const r = md.rows[k];
   if (!r) return false;
@@ -1905,7 +1906,7 @@ const visibleKeys = allKeys.filter(k => {
   if (!selectedProject) return true;
   return (r.project || '') === selectedProject;
 });
-
+console.log("md.rows:", md.rows);
   // lock & tonen acties-kolom
   const statusNow = getMonthStatus(year, month);
   const locked = (statusNow==='approved' || statusNow==='submitted');
