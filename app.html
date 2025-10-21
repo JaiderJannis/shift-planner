@@ -1889,15 +1889,15 @@ async function renderMonth(year, month){
 
   monthTargetHours.value = md.targetHours || 0;
   monthTargetMinutes.value = md.targetMinutes || 0;
-// controle schoolverlof instelling
+// controle schoolverlof instelling voor de gebruiker die we renderen (viewUserId)
 const udForView = getCurrentUserData();
 const schoolVerlofEnabled = udForView?.settings?.schoolVerlofEnabled !== false;
 
-// Bepaal welke keys zichtbaar zijn
-const allKeys = Object.keys(md.rows || {});
+// in the filter per row:
 const visibleKeys = allKeys.filter(k => {
   const r = md.rows[k];
   if (!r) return false;
+  // hide schoolleave rows when disabled
   if (!schoolVerlofEnabled) {
     const s = (r.shift || '').trim();
     if (s === 'Schoolverlof' || s === 'School') return false;
@@ -3902,11 +3902,7 @@ function renderAdminMonthlyMulti(){
 // aanroepen bij wisselen admin user
 adminUserSelect?.addEventListener('change', renderAdminMonthlyMulti);
 function renderProjectSummary() 
-
 {
-  const selectedProjectId = document.getElementById("project-select").value;
-  const selectedProject = projects.find(p => p.id === selectedProjectId);
-  const filteredData = projectData.filter(entry => entry.project === selectedProject.id);
   const y = Number(yearSelectMain.value);
   const m = Number(monthSelectMain.value);
   const ud = getCurrentUserData();
@@ -3918,16 +3914,15 @@ function renderProjectSummary()
     wrap.innerHTML = '<div class="alert alert-light border small mb-0">Geen data in deze maand.</div>';
     return;
   }
-  console.log("selectedProject:", selectedProject);
 // controle schoolverlof instelling voor de gebruiker die we renderen (viewUserId)
 const udForView = getCurrentUserData();
 const schoolVerlofEnabled = udForView?.settings?.schoolVerlofEnabled !== false;
 
 // in the filter per row:
-const allKeys = Object.keys(md.rows || {});
 const visibleKeys = allKeys.filter(k => {
   const r = md.rows[k];
   if (!r) return false;
+  // hide schoolleave rows when disabled
   if (!schoolVerlofEnabled) {
     const s = (r.shift || '').trim();
     if (s === 'Schoolverlof' || s === 'School') return false;
