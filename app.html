@@ -3883,13 +3883,13 @@ function renderProjectSummary()
 }
 function minutesToHM(min){ return `${Math.floor(min/60)}u ${min%60}m`; }
 const schoolLeaveBtn = document.getElementById('toggleSchoolLeaveBtn');
-  const uid = adminUserSelect?.value || getActiveUserId();
+  const userSelect = document.getElementById('userSelect');
   if (!userSelect) {
     console.error('userSelect niet gevonden!');
     return;
   }
 
-  const user = adminUserSelect.value;
+  const user = userSelect.value;
   const btn = document.getElementById('toggleSchoolLeaveBtn');
   const allowed = btn.dataset.allowSchoolleave === 'true';
 schoolLeaveBtn.addEventListener('click', () => {
@@ -3910,7 +3910,7 @@ schoolLeaveBtn.addEventListener('click', () => {
   }
 
   // Optioneel: sla instelling op per gebruiker
-  const uid = adminUserSelect?.value || getActiveUserId();
+  const user = document.getElementById('userSelect').value;
   console.log(`Schoolverlof voor ${user} ${!allowed ? 'uitgeschakeld' : 'ingeschakeld'}`);
 });
   </script>
