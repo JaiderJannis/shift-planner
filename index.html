@@ -117,6 +117,13 @@
       } catch (err) {
         alert("Inloggen mislukt: " + err.message);
       }
+    document.getElementById("msLoginBtn").addEventListener("click", async () => {
+      try {
+        await signInWithPopup(auth, provider);
+        window.location.href = "app.html";
+      } catch (err) {
+        alert("Inloggen mislukt: " + err.message);
+      }
     });
   </script>
 </body>
