@@ -4108,17 +4108,6 @@ onAuthStateChanged(auth, (user) => {
   bindMailboxUIOnce();
   listenMailbox(user.uid);
 });
-// SYSTEEMMAIL – alleen admin of backend
-async function sendSystemMail(db, uid, subject, body, kind="notification", threadId=`sys:${Date.now()}`) {
-  await addDoc(collection(db, "users", uid, "mailbox"), {
-    threadId, system: true, kind,
-    from: { uid:"noreply", name:"Shift Planner", role:"system", email:"no-reply@local" },
-    to:   { type:"user", uid },
-    subject, body,
-    read: false,
-    timestamp: serverTimestamp()
-  });
-}
 
 // USERMAIL – gewone user kan dit veilig
 async function sendUserMail(db, adminUid, subject, body) {
