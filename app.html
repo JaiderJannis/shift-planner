@@ -678,8 +678,17 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
         <button id="updateRoleBtn" class="btn btn-warning flex-fill">Rol opslaan</button>
         <button id="removeUserBtn" class="btn btn-danger flex-fill">Verwijder</button>
       </div>
-    </div>
-  </div>
+
+    <!-- Schoolverlof uitschakelen per gebruiker -->
+    <fieldset>
+      <legend>Schoolverlof uitschakelen per gebruiker</legend>
+      <label>
+        <input type="checkbox" id="disableSchoolLeave">
+        Schakel schoolverlof uit voor deze gebruiker
+      </label>
+      <button id="saveSettingsBtn">Opslaan</button>
+    </fieldset>
+  </section>
 
   <div class="card p-3 mb-3">
     <h6 class="mb-3">Projectbeheer</h6>
@@ -3850,7 +3859,76 @@ function renderProjectSummary()
     : '<div class="alert alert-light border small mb-0">Geen projecten voor huidig filter.</div>';
 }
 function minutesToHM(min){ return `${Math.floor(min/60)}u ${min%60}m`; }
+ // Tab functionaliteit
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        document.getElementById(tab.dataset.tab).classList.add('active');
+      });
+    });
 
+    // Nieuw bericht tonen/annuleren
+    document.getElementById('newMessageBtn').addEventListener('click', () => {
+      document.getElementById('newMessageForm').style.display = 'block';
+    });
+    document.getElementById('cancelMessageBtn').addEventListener('click', () => {
+      document.getElementById('newMessageForm').style.display = 'none';
+    });
+
+    // Versturen van berichten
+    const adminEmail = 'admin@example.com'; // pas aan naar echte admin
+    document.getElementById('sendMessageBtn').addEventListener('click', () => {
+      const to = document.getElementById('to').value;
+      const subject = document.getElementById('subject').value;
+      const message = document.getElementById('message').value;
+
+      // Gewone users kunnen alleen naar admin mailen
+      if (to !== adminEmail) {
+        alert('Je kunt alleen berichten naar de admin sturen.');
+        return;
+      }
+
+      // Voeg bericht toe aan inbox (simulatie) en verzonden map
+      const now = new Date().toLocaleString();
+
+      const inboxTable = document.getElementById('inboxTable').querySelector('tbody');
+      const sentTable = document.getElementById('sentTable').querySelector('tbody');
+
+      // Inbox simulatie: alleen als admin ontvangt
+      if (to === adminEmail) {
+        const row = inboxTable.insertRow();
+        row.insertCell(0).innerText = 'Gebruiker'; // van wie het is
+        row.insertCell(1).innerText = subject;
+        row.insertCell(2).innerText = now;
+      }
+
+      // Verzonden map
+      const sentRow = sentTable.insertRow();
+      sentRow.insertCell(0).innerText = to;
+      sentRow.insertCell(1).innerText = subject;
+      sentRow.insertCell(2).innerText = now;
+
+      alert('Bericht verzonden naar ' + to);
+      document.getElementById('newMessageForm').style.display = 'none';
+      document.getElementById('to').value = '';
+      document.getElementById('subject').value = '';
+      document.getElementById('message').value = '';
+    });
+
+    // Schoolverlof uitschakelen
+    document.getElementById('saveSettingsBtn').addEventListener('click', () => {
+      const disable = document.getElementById('disableSchoolLeave').checked;
+      const user = document.getElementById('userSelect').value;
+      // Hier logica toevoegen om dit per gebruiker op te slaan in database of localStorage
+      alert(`Schoolverlof voor ${user} ${disable ? 'uitgeschakeld' : 'ingeschakeld'}`);
+    });
+
+    // Extra: selecteer gebruiker en update checkbox
+    document.getElementById('userSelect').addEventListener('change', () => {
+      // Haal instelling op voor geselecteerde gebruiker (dummy)
+      const disable = false; // haal op uit database/localStorage
+      document.getElementById('disableSchoolLeave').checked = disable;
+    });
   </script>
 <!-- 🔄 Loading overlay -->
 <div id="loadingOverlay" class="loading-overlay d-none">
