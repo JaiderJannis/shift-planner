@@ -615,42 +615,73 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
       </section>
 <section id="tab-mail" class="tab-pane fade">
   <div class="d-flex justify-content-between align-items-center mb-3">
-  <section id="mailbox">
-    <h2>Mailbox</h2>
-    <nav>
-      <button class="tab" data-tab="inbox">Inbox</button>
-      <button class="tab" data-tab="sent">Verzonden</button>
-    </nav>
+    <h5 class="mb-0">Mailbox</h5>
+    <div class="d-flex gap-2">
+      <button id="mailRefreshBtn" class="btn btn-outline-secondary btn-sm">
+        <span class="material-icons-outlined">refresh</span>
+      </button>
+      <button id="mailComposeBtn" class="btn btn-primary btn-sm">
+        <span class="material-icons-outlined">edit</span> Nieuw bericht
+      </button>
+    </div>
+  </div>
 
-    <div class="tab-content active" id="inbox">
-      <h3>Inbox</h3>
-      <table id="inboxTable">
-        <thead>
-          <tr><th>Van</th><th>Onderwerp</th><th>Datum</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+  <!-- Compose (user → admins, admin → user) -->
+  <div id="mailComposeCard" class="card p-3 mb-3 d-none">
+    <div class="row g-2">
+      <div class="col-md-3">
+        <label class="form-label">Aan</label>
+        <select id="mailToSelect" class="form-select">
+          <!-- wordt gevuld in JS: "Admins" (group) of (als admin) specifieke gebruiker -->
+        </select>
+      </div>
+      <div class="col-md-9">
+        <label class="form-label">Onderwerp</label>
+        <input id="mailSubjectInput" class="form-control" placeholder="Onderwerp">
+      </div>
+      <div class="col-12">
+        <label class="form-label">Bericht</label>
+        <textarea id="mailBodyInput" rows="5" class="form-control" placeholder="Typ je bericht..."></textarea>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button id="mailSendBtn" class="btn btn-success">Versturen</button>
+        <button id="mailCancelBtn" class="btn btn-outline-secondary">Annuleren</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-5">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">Inbox</h6>
+            <span class="text-muted small" id="mailUnreadBadge"></span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr><th>Van</th><th>Onderwerp</th><th class="text-end">Datum</th></tr>
+              </thead>
+              <tbody id="mailListBody"></tbody>
+            </table>
+          </div>
+          <div class="text-center mt-2">
+            <button id="mailLoadMoreBtn" class="btn btn-outline-secondary btn-sm d-none">Meer laden</button>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="tab-content" id="sent">
-      <h3>Verzonden berichten</h3>
-      <table id="sentTable">
-        <thead>
-          <tr><th>Aan</th><th>Onderwerp</th><th>Datum</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+    <div class="col-12 col-lg-7">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body" id="mailDetail">
+          <div class="text-muted small">Selecteer een bericht…</div>
+        </div>
+      </div>
     </div>
-
-    <button id="newMessageBtn">Nieuw bericht</button>
-    <div id="newMessageForm" style="display: none;">
-      <input type="email" id="to" placeholder="Aan" required>
-      <input type="text" id="subject" placeholder="Onderwerp" required>
-      <textarea id="message" placeholder="Bericht" required></textarea>
-      <button id="sendMessageBtn">Versturen</button>
-      <button id="cancelMessageBtn">Annuleren</button>
-    </div>
-  </section>
+  </div>
+</section>
 <!-- ADMIN -->
 <section id="tab-admin" class="tab-pane fade">
   <div class="d-flex align-items-center justify-content-between mb-3">
@@ -680,14 +711,7 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
       </div>
     </div>
   </div>
-   <fieldset>
-      <legend>Schoolverlof uitschakelen per gebruiker</legend>
-      <label>
-        <input type="checkbox" id="disableSchoolLeave">
-        Schakel schoolverlof uit voor deze gebruiker
-      </label>
-      <button id="saveSettingsBtn">Opslaan</button>
-    </fieldset>
+
   <div class="card p-3 mb-3">
     <h6 class="mb-3">Projectbeheer</h6>
     <div class="row g-2 align-items-end">
@@ -3752,76 +3776,7 @@ document.getElementById('adminRejectBtn')?.addEventListener('click', async () =>
     renderMonth(y, m);
   }
 });
-// Tab functionaliteit
-    document.querySelectorAll('.tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-        document.getElementById(tab.dataset.tab).classList.add('active');
-      });
-    });
 
-    // Nieuw bericht tonen/annuleren
-    document.getElementById('newMessageBtn').addEventListener('click', () => {
-      document.getElementById('newMessageForm').style.display = 'block';
-    });
-    document.getElementById('cancelMessageBtn').addEventListener('click', () => {
-      document.getElementById('newMessageForm').style.display = 'none';
-    });
-
-    // Versturen van berichten
-    const adminEmail = 'admin@example.com'; // pas aan naar echte admin
-    document.getElementById('sendMessageBtn').addEventListener('click', () => {
-      const to = document.getElementById('to').value;
-      const subject = document.getElementById('subject').value;
-      const message = document.getElementById('message').value;
-
-      // Gewone users kunnen alleen naar admin mailen
-      if (to !== adminEmail) {
-        alert('Je kunt alleen berichten naar de admin sturen.');
-        return;
-      }
-
-      // Voeg bericht toe aan inbox (simulatie) en verzonden map
-      const now = new Date().toLocaleString();
-
-      const inboxTable = document.getElementById('inboxTable').querySelector('tbody');
-      const sentTable = document.getElementById('sentTable').querySelector('tbody');
-
-      // Inbox simulatie: alleen als admin ontvangt
-      if (to === adminEmail) {
-        const row = inboxTable.insertRow();
-        row.insertCell(0).innerText = 'Gebruiker'; // van wie het is
-        row.insertCell(1).innerText = subject;
-        row.insertCell(2).innerText = now;
-      }
-
-      // Verzonden map
-      const sentRow = sentTable.insertRow();
-      sentRow.insertCell(0).innerText = to;
-      sentRow.insertCell(1).innerText = subject;
-      sentRow.insertCell(2).innerText = now;
-
-      alert('Bericht verzonden naar ' + to);
-      document.getElementById('newMessageForm').style.display = 'none';
-      document.getElementById('to').value = '';
-      document.getElementById('subject').value = '';
-      document.getElementById('message').value = '';
-    });
-
-    // Schoolverlof uitschakelen
-    document.getElementById('saveSettingsBtn').addEventListener('click', () => {
-      const disable = document.getElementById('disableSchoolLeave').checked;
-      const user = document.getElementById('userSelect').value;
-      // Hier logica toevoegen om dit per gebruiker op te slaan in database of localStorage
-      alert(`Schoolverlof voor ${user} ${disable ? 'uitgeschakeld' : 'ingeschakeld'}`);
-    });
-
-    // Extra: selecteer gebruiker en update checkbox
-    document.getElementById('userSelect').addEventListener('change', () => {
-      // Haal instelling op voor geselecteerde gebruiker (dummy)
-      const disable = false; // haal op uit database/localStorage
-      document.getElementById('disableSchoolLeave').checked = disable;
-    });
 // Admin: Heropenen (ontgrendelen)
 document.getElementById('adminReopenBtn')?.addEventListener('click', async () => {
   const uid = adminUserSelect?.value || getActiveUserId();
