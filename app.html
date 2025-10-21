@@ -3882,35 +3882,24 @@ function renderProjectSummary()
     : '<div class="alert alert-light border small mb-0">Geen projecten voor huidig filter.</div>';
 }
 function minutesToHM(min){ return `${Math.floor(min/60)}u ${min%60}m`; }
-document.addEventListener('DOMContentLoaded', () => {
-  const schoolLeaveBtn = document.getElementById('toggleSchoolLeaveBtn');
-  const userSelect = document.getElementById('userSelect');
-
-  if (!userSelect) {
-    console.error('userSelect niet gevonden!');
-    return;
-  }
-
-  schoolLeaveBtn.addEventListener('click', () => {
+schoolLeaveBtn.addEventListener('click', () => {
     const allowed = schoolLeaveBtn.dataset.allowSchoolleave === 'true';
     const uid = adminUserSelect?.value || getActiveUserId();
-
+    
     // Toggle waarde
     schoolLeaveBtn.dataset.allowSchoolleave = (!allowed).toString();
     if (allowed) {
-      schoolLeaveBtn.classList.remove('btn-success');
-      schoolLeaveBtn.classList.add('btn-outline-secondary');
-      schoolLeaveBtn.textContent = 'Schoolverlof uit';
+        schoolLeaveBtn.classList.remove('btn-success');
+        schoolLeaveBtn.classList.add('btn-outline-secondary');
+        schoolLeaveBtn.textContent = 'Schoolverlof uit';
     } else {
-      schoolLeaveBtn.classList.remove('btn-outline-secondary');
-      schoolLeaveBtn.classList.add('btn-success');
-      schoolLeaveBtn.textContent = 'Schoolverlof aan';
+        schoolLeaveBtn.classList.remove('btn-outline-secondary');
+        schoolLeaveBtn.classList.add('btn-success');
+        schoolLeaveBtn.textContent = 'Schoolverlof aan';
     }
 
-    console.log(`Schoolverlof voor ${user} ${!allowed ? 'uitgeschakeld' : 'ingeschakeld'}`);
-  });
+    console.log(`Schoolverlof voor ${uid} ${!allowed ? 'uitgeschakeld' : 'ingeschakeld'}`);
 });
-
 
   </script>
 <!-- 🔄 Loading overlay -->
