@@ -10,15 +10,15 @@
 <link rel="icon" type="image/png" sizes="512x512" href="favicon-512x512.png">
 <link rel="shortcut icon" href="favicon.ico">
 
-<!-- Apple devices -->
-<link rel="apple-touch-icon" href="favicon-192x192.png">
-<link rel="apple-touch-icon-precomposed" href="favicon-192x192.png">
+<!-- Apple (iPhone/iPad) -->
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
+<link rel="apple-touch-icon-precomposed" href="apple-touch-icon-180x180.png">
 
-<!-- Android + PWA manifest -->
+<!-- Android/Chrome Web App -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0d6efd">
 
-<!-- Windows Tiles -->
+<!-- Windows -->
 <meta name="msapplication-TileImage" content="favicon-192x192.png">
 <meta name="msapplication-TileColor" content="#0d6efd">
   <!-- Bootstrap 5.3 -->
@@ -64,55 +64,22 @@
       width: 22px;
       height: 22px;
     }
-    .ms-btn { 
-  background-color: #2F2F2F; 
-  color: #fff; 
-  }
     .footer-text {
       text-align: center;
       font-size: 0.85rem;
       color: #ccc;
       margin-top: 1rem;
     }
-    hr { 
-  margin: 20px 0; 
-  border: none; 
-  border-top: 1px solid #ccc;
-  }
-.btn { 
-  display: flex; 
-  align-items: center; 
-  justify-content: center; 
-  gap: 10px; 
-  padding: 10px; 
-  width: 100%; 
-  cursor: pointer; 
-  border: none; 
-  border-radius: 5px; 
-  font-size: 16px;
-  margin-bottom: 10px;
-  }
   </style>
 </head>
 <body>
   <div class="login-card text-center">
     <h3><span class="material-icons-outlined">event_note</span> Shift Planner</h3>
-    <form id="loginForm">
-    <input type="email" id="email" placeholder="E-mail" required>
-    <input type="password" id="password" placeholder="Wachtwoord" required>
-    <button type="submit" class="btn">Login</button>
-  </form>
-
-  <hr>
-    <p>Log in met één van de accounts om verder te gaan</p>
+    <p>Log in met je Google-account om verder te gaan</p>
     <button id="googleLoginBtn" class="btn-google">
       <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google logo">
       Inloggen met Google
     </button>
-    <button id="msLoginBtn" class="btn-google">
-    <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg" alt="Microsoft logo" style="height:20px;">
-    Inloggen met Microsoft
-  </button>
     <div class="footer-text mt-3">© 2025 Shift Planner</div>
   </div>
 
@@ -138,27 +105,8 @@
     onAuthStateChanged(auth, user => {
       if (user) window.location.href = "app.html";
     });
-document.getElementById('loginForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
 
-  try {
-    await auth.signInWithEmailAndPassword(email, password);
-    window.location.href = '/app.html'; // pas aan naar jouw dashboard
-  } catch (error) {
-    alert('Fout bij inloggen: ' + error.message);
-  }
-  });
     document.getElementById("googleLoginBtn").addEventListener("click", async () => {
-      try {
-        await signInWithPopup(auth, provider);
-        window.location.href = "app.html";
-      } catch (err) {
-        alert("Inloggen mislukt: " + err.message);
-      }
-    });
-    document.getElementById("msLoginBtn").addEventListener("click", async () => {
       try {
         await signInWithPopup(auth, provider);
         window.location.href = "app.html";
