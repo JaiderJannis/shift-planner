@@ -315,8 +315,10 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
   <a class="nav-link" data-bs-toggle="tab" href="#tab-converter">
     <span class="material-icons-outlined">calculate</span> <span class="label">Converter</span>
   </a>
-  <a class="nav-link" data-bs-toggle="tab" href="#tab-mail">
-  <span class="material-icons-outlined">mail</span> <span class="label">Mailbox</span>
+ <a class="nav-link" data-bs-toggle="tab" href="#tab-mail">
+  <span class="material-icons-outlined">mail</span>
+  <span class="label">Mailbox</span>
+  <span id="mailSidebarBadge" class="badge bg-danger ms-auto d-none" style="font-size:0.7rem; margin-left:8px;"></span>
 </a>
   <a class="nav-link d-none" id="adminTabBtn" data-bs-toggle="tab" href="#tab-admin">
     <span class="material-icons-outlined">admin_panel_settings</span> <span class="label">Admin</span>
@@ -760,7 +762,13 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
     <input id="adminSchoolLeaveHours" type="number" min="0" step="1" class="form-control" placeholder="bv. 40">
   </div>
 </div>
-
+<div class="col-md-4">
+  <label class="form-label">Schoolverlof actief</label>
+  <div>
+    <input id="adminToggleSchoolVerlof" type="checkbox" class="form-check-input me-2" />
+    <label for="adminToggleSchoolVerlof" class="form-check-label small">Toon schoolverlof voor deze gebruiker</label>
+  </div>
+</div>
 <div class="row g-2 mt-3">
   <div class="col-md-6 d-flex gap-2">
     <button id="adminSaveLeaveBtn" class="btn btn-primary flex-fill">Opslaan kalenderjaar-verlof</button>
@@ -1882,6 +1890,22 @@ async function renderMonth(year, month){
 
   monthTargetHours.value = md.targetHours || 0;
   monthTargetMinutes.value = md.targetMinutes || 0;
+// controle schoolverlof instelling voor de gebruiker die we renderen (viewUserId)
+const udForView = getCurrentUserData();
+const schoolVerlofEnabled = udForView?.settings?.schoolVerlofEnabled !== false;
+
+// in the filter per row:
+const visibleKeys = allKeys.filter(k => {
+  const r = md.rows[k];
+  if (!r) return false;
+  // hide schoolleave rows when disabled
+  if (!schoolVerlofEnabled) {
+    const s = (r.shift || '').trim();
+    if (s === 'Schoolverlof' || s === 'School') return false;
+  }
+  if (!selectedProject) return true;
+  return (r.project || '') === selectedProject;
+});
 
   // lock & tonen acties-kolom
   const statusNow = getMonthStatus(year, month);
@@ -1907,8 +1931,7 @@ async function renderMonth(year, month){
       const r = md.rows[k];
       if (!selectedProject) return true;
       return (r.project || '') === selectedProject;
-    });
-
+    });  
     const renderKeys = visibleKeys.length ? visibleKeys : (selectedProject ? [] : allKeys);
 
     for (let idx = 0; idx < renderKeys.length; idx++) {
@@ -2157,20 +2180,6 @@ async function ensureProjectExists(name){
       ud.monthData[year][month] = ud.monthData[year][month] || { targetHours:0, targetMinutes:0, rows:{} };
       ud.monthData[year][month].rows[key] = { ...r, minutes: r.minutes || minutesBetween(r.start, r.end, r.break) };
     }
-function ensureDefaultProjects(){
-  const ud = getCurrentUserData();
-  ud.projects = ud.projects || [];
-  const defaults = [
-    { name: 'Eght Care', start: '2000-01-01', end: '2099-12-31' },
-    { name: 'PXL Verpleegkunde Hasselt', start: '2000-01-01', end: '2099-12-31' }
-  ];
-  defaults.forEach(def => {
-    if(!ud.projects.find(p => p.name === def.name)){
-      ud.projects.push(def);
-    }
-  });
-  saveUserData();
-}
     function updateInputTotals(){
       const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
       const ud = getCurrentUserData();
@@ -2630,6 +2639,22 @@ function renderProjectSummaryForVisibleMonth()
     wrap.innerHTML = '<div class="alert alert-light border small mb-0">Nog geen minuten in deze maand.</div>';
     return;
   }
+// controle schoolverlof instelling voor de gebruiker die we renderen (viewUserId)
+const udForView = getCurrentUserData();
+const schoolVerlofEnabled = udForView?.settings?.schoolVerlofEnabled !== false;
+
+// in the filter per row:
+const visibleKeys = allKeys.filter(k => {
+  const r = md.rows[k];
+  if (!r) return false;
+  // hide schoolleave rows when disabled
+  if (!schoolVerlofEnabled) {
+    const s = (r.shift || '').trim();
+    if (s === 'Schoolverlof' || s === 'School') return false;
+  }
+  if (!selectedProject) return true;
+  return (r.project || '') === selectedProject;
+});
 
   const items = [...map.entries()]
     .sort((a,b)=> b[1]-a[1])
@@ -2672,6 +2697,42 @@ document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab',
   buildSchoolYearOptions(document.getElementById('adminSchoolYearSelect'));
   const uid = adminUserSelect?.value || getActiveUserId();
   if (uid) hydrateAdminLeaveInputsFor(uid); // vult waarden in
+});
+// Admin: hydrate & toggle schoolverlof per gebruiker
+const adminToggleSchoolVerlof = document.getElementById('adminToggleSchoolVerlof');
+
+async function hydrateAdminSchoolVerlofFor(uid) {
+  if (!uid) return;
+  const prev = dataStore.viewUserId;
+  dataStore.viewUserId = uid;
+  const ud = getCurrentUserData();
+  ud.settings ||= {};
+  const enabled = ud.settings.schoolVerlofEnabled !== false; // default true
+  if (adminToggleSchoolVerlof) adminToggleSchoolVerlof.checked = !!enabled;
+  dataStore.viewUserId = prev;
+}
+
+adminToggleSchoolVerlof?.addEventListener('change', async () => {
+  const uid = adminUserSelect?.value || getActiveUserId();
+  if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
+  const prev = dataStore.viewUserId; dataStore.viewUserId = uid;
+  const ud = getCurrentUserData(); ud.settings ||= {};
+  ud.settings.schoolVerlofEnabled = !!adminToggleSchoolVerlof.checked;
+  await saveUserData();
+  dataStore.viewUserId = prev;
+  toast(`Schoolverlof ${adminToggleSchoolVerlof.checked ? 'zichtbaar' : 'verborgen'} voor gebruiker`, 'success');
+
+  // als we nu die gebruiker bekijken in de invoer, herlaad de maand weergave
+  if (getActiveUserId() === uid || dataStore.viewUserId === uid) {
+    renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+    renderProjectSummary();
+  }
+});
+
+// Zorg dat bij admin user select we hydrateen
+adminUserSelect?.addEventListener('change', () => {
+  const uid = adminUserSelect.value;
+  if (uid) hydrateAdminSchoolVerlofFor(uid);
 });
 // ✅ Gebruiker selecteren zonder adminstatus te verliezen
 adminUserSelect?.addEventListener('change', async () => {
@@ -3854,6 +3915,22 @@ function renderProjectSummary()
     wrap.innerHTML = '<div class="alert alert-light border small mb-0">Geen data in deze maand.</div>';
     return;
   }
+// controle schoolverlof instelling voor de gebruiker die we renderen (viewUserId)
+const udForView = getCurrentUserData();
+const schoolVerlofEnabled = udForView?.settings?.schoolVerlofEnabled !== false;
+
+// in the filter per row:
+const visibleKeys = allKeys.filter(k => {
+  const r = md.rows[k];
+  if (!r) return false;
+  // hide schoolleave rows when disabled
+  if (!schoolVerlofEnabled) {
+    const s = (r.shift || '').trim();
+    if (s === 'Schoolverlof' || s === 'School') return false;
+  }
+  if (!selectedProject) return true;
+  return (r.project || '') === selectedProject;
+});
 
   const filterProject = projectFilterSelect.value || '';
   const perProject = {};
