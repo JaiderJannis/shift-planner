@@ -3893,7 +3893,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   schoolLeaveBtn.addEventListener('click', () => {
     const allowed = schoolLeaveBtn.dataset.allowSchoolleave === 'true';
-    const user = userSelect.value;
+    const uid = adminUserSelect?.value || getActiveUserId();
 
     // Toggle waarde
     schoolLeaveBtn.dataset.allowSchoolleave = (!allowed).toString();
@@ -3911,7 +3911,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-  
+
   </script>
 <!-- 🔄 Loading overlay -->
 <div id="loadingOverlay" class="loading-overlay d-none">
