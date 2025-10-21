@@ -3461,7 +3461,13 @@ document.getElementById('submitMonthBtn')?.addEventListener('click', async () =>
   await broadcastToAdmins(subject, bodyAdmin, 'status');
 
   const bodyUser = `Je hebt ${monthsFull[m]} ${y} ingediend ter goedkeuring.\nJe ontvangt een bericht zodra dit is beoordeeld.`;
-  await sendSystemMail(getActiveUserId(), `[Bevestiging] Planner ingediend — ${monthsFull[m]} ${y}`, bodyUser, 'status');
+  await sendSystemMail(
+  getActiveUserId(),
+  `Planner ingediend — ${monthsFull[m]} ${y}`,
+  `Je planner voor ${monthsFull[m]} ${y} werd ingediend.`,
+  'status',
+  `plan:${currentUserId}:${y}-${m}`
+);
 });
 
 // Admin jaarveld default
@@ -3486,12 +3492,31 @@ document.getElementById('adminApproveBtn')?.addEventListener('click', async () =
   dataStore.viewUserId = prev;
 
   // ✉️ Mail naar user
-  const uSnap = await getDoc(doc(db,'users', uid));
-  const u = uSnap.data();
-  const subject = `[Planner] Goedgekeurd — ${monthsFull[m]} ${y}`;
-  const body = `Je planner voor ${monthsFull[m]} ${y} werd goedgekeurd.`;
-  await sendSystemMail(uid, subject, body, 'status');
+// Check of huidige gebruiker admin is
+const adminDoc = await getDoc(doc(db, "users", getActiveUserId()));
+const isAdmin = adminDoc.exists() && adminDoc.data().role === "admin";
 
+const subject = `[Planner] Goedgekeurd — ${monthsFull[m]} ${y}`;
+const body = `Je planner voor ${monthsFull[m]} ${y} werd goedgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
+
+await addDoc(collection(db, "users", uid, "mailbox"), {
+  threadId: `plan:${uid}:${y}-${m}`,
+  system: isAdmin, // ← alleen true bij admin
+  kind: "status",
+  from: {
+    uid: getActiveUserId(),
+    name: auth.currentUser?.displayName || "Onbekende afzender",
+    role: isAdmin ? "admin" : "user"
+  },
+  to: {
+    uid,
+    type: "user"
+  },
+  subject,
+  body,
+  read: false,
+  timestamp: serverTimestamp()
+});
   if (getActiveUserId() === currentUserId && y===Number(yearSelectMain.value) && m===Number(monthSelectMain.value)) {
     renderMonth(y, m);
   }
@@ -3514,9 +3539,31 @@ document.getElementById('adminRejectBtn')?.addEventListener('click', async () =>
   dataStore.viewUserId = prev;
 
   // ✉️ Mail naar user met commentaar
-  const subject = `[Planner] Afgekeurd — ${monthsFull[m]} ${y}`;
-  const body = `Je planner voor ${monthsFull[m]} ${y} werd afgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
-  await sendSystemMail(uid, subject, body, 'status');
+// Check of huidige gebruiker admin is
+const adminDoc = await getDoc(doc(db, "users", getActiveUserId()));
+const isAdmin = adminDoc.exists() && adminDoc.data().role === "admin";
+
+const subject = `[Planner] Afgekeurd — ${monthsFull[m]} ${y}`;
+const body = `Je planner voor ${monthsFull[m]} ${y} werd afgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
+
+await addDoc(collection(db, "users", uid, "mailbox"), {
+  threadId: `plan:${uid}:${y}-${m}`,
+  system: isAdmin, // ← alleen true bij admin
+  kind: "status",
+  from: {
+    uid: getActiveUserId(),
+    name: auth.currentUser?.displayName || "Onbekende afzender",
+    role: isAdmin ? "admin" : "user"
+  },
+  to: {
+    uid,
+    type: "user"
+  },
+  subject,
+  body,
+  read: false,
+  timestamp: serverTimestamp()
+});
 
   if (getActiveUserId() === currentUserId && y===Number(yearSelectMain.value) && m===Number(monthSelectMain.value)) {
     renderMonth(y, m);
@@ -4061,6 +4108,30 @@ onAuthStateChanged(auth, (user) => {
   bindMailboxUIOnce();
   listenMailbox(user.uid);
 });
+// SYSTEEMMAIL – alleen admin of backend
+async function sendSystemMail(db, uid, subject, body, kind="notification", threadId=`sys:${Date.now()}`) {
+  await addDoc(collection(db, "users", uid, "mailbox"), {
+    threadId, system: true, kind,
+    from: { uid:"noreply", name:"Shift Planner", role:"system", email:"no-reply@local" },
+    to:   { type:"user", uid },
+    subject, body,
+    read: false,
+    timestamp: serverTimestamp()
+  });
+}
+
+// USERMAIL – gewone user kan dit veilig
+async function sendUserMail(db, adminUid, subject, body) {
+  await addDoc(collection(db, "users", adminUid, "mailbox"), {
+    threadId: `user:${Date.now()}`,
+    system: false, kind: "message",
+    from: { uid: getActiveUserId(), name: currentUserName, role: "user" },
+    to:   { type: "admin", uid: adminUid },
+    subject, body,
+    read: false,
+    timestamp: serverTimestamp()
+  });
+}
 /***** ========== /MAILBOX ========== *****/
 
   </script>
