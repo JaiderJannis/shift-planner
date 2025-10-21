@@ -3882,25 +3882,37 @@ function renderProjectSummary()
     : '<div class="alert alert-light border small mb-0">Geen projecten voor huidig filter.</div>';
 }
 function minutesToHM(min){ return `${Math.floor(min/60)}u ${min%60}m`; }
+const schoolLeaveBtn = document.getElementById('toggleSchoolLeaveBtn');
+  const uid = adminUserSelect?.value || getActiveUserId();
+  if (!userSelect) {
+    console.error('userSelect niet gevonden!');
+    return;
+  }
+
+  const user = adminUserSelect.value;
+  const btn = document.getElementById('toggleSchoolLeaveBtn');
+  const allowed = btn.dataset.allowSchoolleave === 'true';
 schoolLeaveBtn.addEventListener('click', () => {
-    const allowed = schoolLeaveBtn.dataset.allowSchoolleave === 'true';
-    const uid = adminUserSelect?.value || getActiveUserId();
-    
-    // Toggle waarde
-    schoolLeaveBtn.dataset.allowSchoolleave = (!allowed).toString();
-    if (allowed) {
-        schoolLeaveBtn.classList.remove('btn-success');
-        schoolLeaveBtn.classList.add('btn-outline-secondary');
-        schoolLeaveBtn.textContent = 'Schoolverlof uit';
-    } else {
-        schoolLeaveBtn.classList.remove('btn-outline-secondary');
-        schoolLeaveBtn.classList.add('btn-success');
-        schoolLeaveBtn.textContent = 'Schoolverlof aan';
-    }
+  const allowed = schoolLeaveBtn.dataset.allowSchoolleave === 'true';
 
-    console.log(`Schoolverlof voor ${uid} ${!allowed ? 'uitgeschakeld' : 'ingeschakeld'}`);
+  // Toggle waarde
+  schoolLeaveBtn.dataset.allowSchoolleave = (!allowed).toString();
+
+  // Pas styling en tekst aan
+  if (allowed) {
+    schoolLeaveBtn.classList.remove('btn-success');
+    schoolLeaveBtn.classList.add('btn-outline-secondary');
+    schoolLeaveBtn.textContent = 'Schoolverlof: uit';
+  } else {
+    schoolLeaveBtn.classList.remove('btn-outline-secondary');
+    schoolLeaveBtn.classList.add('btn-success');
+    schoolLeaveBtn.textContent = 'Schoolverlof: aan';
+  }
+
+  // Optioneel: sla instelling op per gebruiker
+  const uid = adminUserSelect?.value || getActiveUserId();
+  console.log(`Schoolverlof voor ${user} ${!allowed ? 'uitgeschakeld' : 'ingeschakeld'}`);
 });
-
   </script>
 <!-- 🔄 Loading overlay -->
 <div id="loadingOverlay" class="loading-overlay d-none">
