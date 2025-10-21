@@ -1458,7 +1458,6 @@ function updateMonthStatusBadge(){
 
       await ensureUserDoc(user);
       await loadAllUsers();
-      ensureDefaultProjects();
       initSelectors();
       renderAll();
       await revealAdminIfNeeded();
