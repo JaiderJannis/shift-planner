@@ -708,11 +708,20 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
       <div class="col-md-6 d-flex gap-2">
         <button id="updateRoleBtn" class="btn btn-warning flex-fill">Rol opslaan</button>
         <button id="removeUserBtn" class="btn btn-danger flex-fill">Verwijder</button>
-        <button id="toggleSchoolLeaveBtn" class="btn btn-outline-secondary flex-fill">Schoolverlof uitschakelen</button>
+        <button id="saveSettingsBtn"class="btn btn-outline-secondary flex-fill">Schoolverlof uitschakelen</button>
       </div>
     </div>
   </div>
-
+  <div class="card p-3 mb-3">
+  <h6 class="mb-3">Schoolverlof zichtbaarheid</h6>
+  <div class="form-check form-switch">
+    <input id="adminSchoolLeaveEnabled" class="form-check-input" type="checkbox">
+    <label class="form-check-label" for="adminSchoolLeaveEnabled">
+      Schoolverlof tonen voor geselecteerde gebruiker
+    </label>
+  </div>
+  <small class="text-muted">Als uitgeschakeld: schoolverlof badge, invoeroptie en historiek worden verborgen.</small>
+</div>
   <div class="card p-3 mb-3">
     <h6 class="mb-3">Projectbeheer</h6>
     <div class="row g-2 align-items-end">
@@ -3882,37 +3891,63 @@ function renderProjectSummary()
     : '<div class="alert alert-light border small mb-0">Geen projecten voor huidig filter.</div>';
 }
 function minutesToHM(min){ return `${Math.floor(min/60)}u ${min%60}m`; }
-document.addEventListener('DOMContentLoaded', () => {
- const schoolLeaveBtn = document.getElementById('toggleSchoolLeaveBtn');
-const adminUserSelect = document.getElementById('adminUserSelect');
-
-schoolLeaveBtn.addEventListener('click', () => {
-  const allowed = schoolLeaveBtn.dataset.allowSchoolleave === 'true';
-  const uid = adminUserSelect?.value || getActiveUserId();
-
-  // Toggle waarde
-  const newAllowed = !allowed;
-  schoolLeaveBtn.dataset.allowSchoolleave = newAllowed.toString();
-
-  if (newAllowed) { // schoolverlof aan
-    schoolLeaveBtn.classList.remove('btn-outline-secondary');
-    schoolLeaveBtn.classList.add('btn-success');
-    schoolLeaveBtn.textContent = 'Schoolverlof aan';
-  } else { // schoolverlof uit
-    schoolLeaveBtn.classList.remove('btn-success');
-    schoolLeaveBtn.classList.add('btn-outline-secondary');
-    schoolLeaveBtn.textContent = 'Schoolverlof uit';
-  }
-
-  console.log(`Schoolverlof voor ${uid} ${newAllowed ? 'ingeschakeld' : 'uitgeschakeld'}`);
-});
-// voorbeeld localStorage
-localStorage.setItem(`schoolLeaveDisabled_${uid}`, (!allowed).toString());
-const schoolLeaveDisabled = localStorage.getItem(`schoolLeaveDisabled_${uid}`) === 'true';
-if (!schoolLeaveDisabled) {
-  // toon schoolverlof uren/badges
+// Helpers
+function isSchoolLeaveEnabledFor(uid) {
+  const prev = dataStore.viewUserId; dataStore.viewUserId = uid;
+  const ud = getCurrentUserData();
+  dataStore.viewUserId = prev;
+  return ud?.settings?.schoolLeaveEnabled !== false; // default true
 }
-});
+function applySchoolLeaveVisibility() {
+  const uid = adminUserSelect?.value || getActiveUserId();
+  const on  = isSchoolLeaveEnabledFor(uid);
+
+  // Home badge
+  const homeSch = document.getElementById('homeSchoolLeave');
+  if (homeSch) homeSch.closest('span').style.display = on ? '' : 'none';
+
+  // Invoer badge
+  const invBadge = document.getElementById('schoolLeaveBalanceBadge');
+  if (invBadge) invBadge.style.display = on ? '' : 'none';
+
+  // Historiek: kolom "Schoolverlof" (7e kolom in jouw tabel)
+  const ths = document.querySelectorAll('#tab-historiek thead th');
+  const idx = 6; // 0-based: Maand(0), Doel(1), Gepland(2), Verschil(3), Verlof(4), Ziekte(5), Schoolverlof(6)...
+  if (ths[idx]) ths[idx].classList.toggle('d-none', !on);
+  document.querySelectorAll('#tab-historiek tbody tr').forEach(tr => {
+    const td = tr.children[idx]; if (td) td.classList.toggle('d-none', !on);
+  });
+  const tf = document.querySelectorAll('#tab-historiek tfoot th')[idx];
+  if (tf) tf.classList.toggle('d-none', !on);
+}
+
+// Admin: bij user-select en bij laden
+document.getElementById('adminUserSelect')?.addEventListener('change', hydrateSchoolLeaveToggle);
+document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab', hydrateSchoolLeaveToggle);
+
+function hydrateSchoolLeaveToggle() {
+  const uid = adminUserSelect?.value || getActiveUserId();
+  const chk = document.getElementById('adminSchoolLeaveEnabled');
+  if (!chk || !uid) return;
+
+  chk.checked = isSchoolLeaveEnabledFor(uid);
+  applySchoolLeaveVisibility();
+
+  chk.onchange = async () => {
+    const prev = dataStore.viewUserId; dataStore.viewUserId = uid;
+    const ud = getCurrentUserData(); ud.settings ||= {};
+    ud.settings.schoolLeaveEnabled = !!chk.checked;
+    await saveUserData();
+    dataStore.viewUserId = prev;
+
+    applySchoolLeaveVisibility();
+    // ook invoer/hertekenen (filters) en badges
+    renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+    updateLeaveBadges();
+    renderHistory();
+    toast(`Schoolverlof ${chk.checked ? 'ingeschakeld' : 'verborgen'}`, 'success');
+  };
+}
 
   </script>
 <!-- 🔄 Loading overlay -->
