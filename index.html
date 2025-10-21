@@ -75,27 +75,11 @@
 <body>
   <div class="login-card text-center">
     <h3><span class="material-icons-outlined">event_note</span> Shift Planner</h3>
-  <!-- 🔹 Gewone inloggegevens -->
-  <form id="loginForm">
-    <input type="email" id="email" placeholder="E-mail" required>
-    <input type="password" id="password" placeholder="Wachtwoord" required>
-    <button type="submit" class="btn">Login</button>
-  </form>
-
-  <hr>
-
-  <!-- 🔹 Google login knop -->
-  <button id="googleLoginBtn" class="btn google-btn">
-    <img src="google-icon.png" alt="Google logo" />
-    Login met Google
-  </button>
-
-  <!-- 🔹 Microsoft login knop -->
-  <button id="msLoginBtn" class="btn ms-btn">
-    <img src="microsoft-icon.png" alt="Microsoft logo" />
-    Login met Microsoft
-  </button>
-</div>
+    <p>Log in met je Google-account om verder te gaan</p>
+    <button id="googleLoginBtn" class="btn-google">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google logo">
+      Inloggen met Google
+    </button>
     <div class="footer-text mt-3">© 2025 Shift Planner</div>
   </div>
 
@@ -122,36 +106,14 @@
       if (user) window.location.href = "app.html";
     });
 
-   // 🔹 E-mail / wachtwoord login
-document.getElementById('loginForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
-  try {
-    await auth.signInWithEmailAndPassword(email, password);
-    alert('Succesvol ingelogd!');
-    window.location.href = '/app.html';
-  } catch (error) {
-    alert('Fout bij inloggen: ' + error.message);
-  }
-});
-
-// 🔹 Google login
-document.getElementById('googleLoginBtn').addEventListener('click', () => {
-  const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider)
-      .then(result => { window.location.href = '/app.html'; })
-      .catch(error => alert(error.message));
-});
-
-// 🔹 Microsoft login
-document.getElementById('msLoginBtn').addEventListener('click', () => {
-  const provider = new firebase.auth.OAuthProvider('microsoft.com');
-  auth.signInWithPopup(provider)
-      .then(result => { window.location.href = '/app.html'; })
-      .catch(error => alert(error.message));
-});
+    document.getElementById("googleLoginBtn").addEventListener("click", async () => {
+      try {
+        await signInWithPopup(auth, provider);
+        window.location.href = "app.html";
+      } catch (err) {
+        alert("Inloggen mislukt: " + err.message);
+      }
+    });
   </script>
 </body>
 </html>
-
