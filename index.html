@@ -149,6 +149,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   } catch (error) {
     alert('Fout bij inloggen: ' + error.message);
   }
+  });
     document.getElementById("googleLoginBtn").addEventListener("click", async () => {
       try {
         await signInWithPopup(auth, provider);
@@ -156,6 +157,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
       } catch (err) {
         alert("Inloggen mislukt: " + err.message);
       }
+    });
     document.getElementById("msLoginBtn").addEventListener("click", async () => {
       try {
         await signInWithPopup(auth, provider);
