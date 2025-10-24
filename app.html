@@ -285,7 +285,26 @@ body.dark-mode #projectSummary .project-mini {
   color: #eaeaea;
 }
 body.dark-mode #projectSummary .meta { color: #aaa; }
-/* verberg kolommen volledig, zonder lege ruimte */
+/* 🔸 Fade animaties */
+.fade-in {
+  animation: fadeIn 0.3s ease-in forwards;
+}
+
+.fade-out {
+  animation: fadeOut 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* 🔸 Volledig verbergen */
 .hidden-col {
   display: none !important;
 }
