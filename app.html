@@ -727,16 +727,6 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
     </div>
   </div>
   <div class="card p-3 mb-3">
-  <h6 class="mb-3">Schoolverlof zichtbaarheid</h6>
-  <div class="form-check form-switch">
-    <input id="adminSchoolLeaveEnabled" class="form-check-input" type="checkbox">
-    <label class="form-check-label" for="adminSchoolLeaveEnabled">
-      Schoolverlof tonen voor geselecteerde gebruiker
-    </label>
-  </div>
-  <small class="text-muted">Als uitgeschakeld: schoolverlof badge, invoeroptie en historiek worden verborgen.</small>
-</div>
-  <div class="card p-3 mb-3">
     <h6 class="mb-3">Projectbeheer</h6>
     <div class="row g-2 align-items-end">
       <div class="col-md-4">
@@ -3708,29 +3698,43 @@ function applySchoolLeaveVisibility() {
 document.getElementById('adminUserSelect')?.addEventListener('change', hydrateSchoolLeaveToggle);
 document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab', hydrateSchoolLeaveToggle);
 
-function hydrateSchoolLeaveToggle() {
+async function hydrateSchoolLeaveToggle() {
   const uid = adminUserSelect?.value || getActiveUserId();
-  const chk = document.getElementById('adminSchoolLeaveEnabled');
-  if (!chk || !uid) return;
+  const btn = document.getElementById('saveSettingsBtn'); // jouw bestaande knop
+  if (!btn || !uid) return;
 
-  chk.checked = isSchoolLeaveEnabledFor(uid);
-  applySchoolLeaveVisibility();
+  // Lees huidige waarde uit opgeslagen data
+  const isEnabled = isSchoolLeaveEnabledFor(uid);
+  updateButtonText(isEnabled);
 
-  chk.onchange = async () => {
-    const prev = dataStore.viewUserId; dataStore.viewUserId = uid;
-    const ud = getCurrentUserData(); ud.settings ||= {};
-    ud.settings.schoolLeaveEnabled = !!chk.checked;
+  // Klikgedrag
+  btn.onclick = async () => {
+    const prev = dataStore.viewUserId;
+    dataStore.viewUserId = uid;
+    const ud = getCurrentUserData();
+    ud.settings ||= {};
+    ud.settings.schoolLeaveEnabled = !ud.settings.schoolLeaveEnabled;
     await saveUserData();
     dataStore.viewUserId = prev;
 
+    // visuele update
     applySchoolLeaveVisibility();
-    // ook invoer/hertekenen (filters) en badges
     renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
     updateLeaveBadges();
     renderHistory();
-    toast(`Schoolverlof ${chk.checked ? 'ingeschakeld' : 'verborgen'}`, 'success');
+
+    const newState = ud.settings.schoolLeaveEnabled;
+    updateButtonText(newState);
+    toast(`Schoolverlof ${newState ? 'ingeschakeld' : 'uitgeschakeld'}`, 'success');
   };
+
+  function updateButtonText(state) {
+    btn.textContent = state ? 'Schoolverlof uitschakelen' : 'Schoolverlof inschakelen';
+    btn.classList.toggle('btn-success', !state);
+    btn.classList.toggle('btn-outline-secondary', state);
+  }
 }
+
 /***** ========== MAILBOX — COMPLETE ========== *****/
 const mailListBody    = document.getElementById('mailListBody');
 const mailDetail      = document.getElementById('mailDetail');
