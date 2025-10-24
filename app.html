@@ -3706,12 +3706,20 @@ function applySchoolLeaveVisibility() {
   const ud = getCurrentUserData();
   const enabled = ud?.settings?.schoolLeaveEnabled ?? true;
 
-  // 🔹 1) Verberg/Toon secties die te maken hebben met schoolverlof
+  // 🔹 Schoolverlof-secties (andere UI-elementen)
   document.querySelectorAll('.school-leave-section').forEach(el => {
-    el.style.display = enabled ? '' : 'none';
+    if (enabled) {
+      el.classList.remove('fade-out');
+      el.classList.add('fade-in');
+      el.style.display = '';
+    } else {
+      el.classList.remove('fade-in');
+      el.classList.add('fade-out');
+      setTimeout(() => (el.style.display = 'none'), 300);
+    }
   });
 
-  // 🔹 2) Historiektabel kolom "Schoolverlof" tonen/verbergen
+  // 🔹 Historiek tabel — kolom "Schoolverlof"
   const table = document.getElementById('historyTable');
   if (table) {
     const headers = Array.from(table.querySelectorAll('th'));
@@ -3722,18 +3730,20 @@ function applySchoolLeaveVisibility() {
     if (index >= 0) {
       table.querySelectorAll('tr').forEach(tr => {
         const cell = tr.children[index];
-        if (cell) {
-          if (enabled) {
-            cell.classList.remove('hidden-col');
-          } else {
-            cell.classList.add('hidden-col');
-          }
+        if (!cell) return;
+        if (enabled) {
+          cell.classList.remove('fade-out');
+          cell.classList.add('fade-in');
+          setTimeout(() => cell.classList.remove('hidden-col'), 200);
+        } else {
+          cell.classList.add('fade-out');
+          setTimeout(() => cell.classList.add('hidden-col'), 300);
         }
       });
     }
   }
 
-  // 🔹 3) Herteken alles voor consistentie
+  // 🔹 Herteken componenten
   renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
   updateLeaveBadges();
   renderHistory();
