@@ -722,7 +722,12 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
       <div class="col-md-6 d-flex gap-2">
         <button id="updateRoleBtn" class="btn btn-warning flex-fill">Rol opslaan</button>
         <button id="removeUserBtn" class="btn btn-danger flex-fill">Verwijder</button>
-        <button id="saveSettingsBtn"class="btn btn-outline-secondary flex-fill">Schoolverlof uitschakelen</button>
+        <div class="d-flex align-items-center gap-2">
+  <button id="saveSettingsBtn" class="btn btn-outline-secondary flex-fill">
+    Schoolverlof uitschakelen
+  </button>
+  <span id="schoolLeaveStatusBadge" class="badge bg-secondary">Onbekend</span>
+</div>
       </div>
     </div>
   </div>
@@ -3698,48 +3703,67 @@ function applySchoolLeaveVisibility() {
 document.getElementById('adminUserSelect')?.addEventListener('change', hydrateSchoolLeaveToggle);
 document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab', hydrateSchoolLeaveToggle);
 
-async function hydrateSchoolLeaveToggle() {
-  const uid = adminUserSelect?.value || getActiveUserId();
-  const btn = document.getElementById('saveSettingsBtn'); // jouw knop
-  if (!btn || !uid) return;
+function hydrateSchoolLeaveToggle() {
+  const btn = document.getElementById('saveSettingsBtn');
+  const badge = document.getElementById('schoolLeaveStatusBadge');
+  if (!btn || !badge) return;
 
-  // Lees huidige status
-  const isEnabled = isSchoolLeaveEnabledFor(uid);
-  updateButtonText(isEnabled);
+  // ⬇️ Helper om UI aan te passen
+  function updateButtonUI(uid) {
+    const state = isSchoolLeaveEnabledFor(uid);
+    if (state) {
+      btn.textContent = 'Schoolverlof uitschakelen';
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-outline-secondary');
 
-  // Klikgedrag
+      badge.textContent = 'Actief';
+      badge.classList.remove('bg-danger');
+      badge.classList.add('bg-success');
+    } else {
+      btn.textContent = 'Schoolverlof inschakelen';
+      btn.classList.remove('btn-outline-secondary');
+      btn.classList.add('btn-success');
+
+      badge.textContent = 'Uitgeschakeld';
+      badge.classList.remove('bg-success');
+      badge.classList.add('bg-danger');
+    }
+  }
+
+  // 🔁 Bij selectie van gebruiker (in adminpaneel)
+  adminUserSelect?.addEventListener('change', () => {
+    const uid = adminUserSelect.value || getActiveUserId();
+    if (uid) updateButtonUI(uid);
+  });
+
+  // 🖱 Klikgedrag voor inschakelen / uitschakelen
   btn.onclick = async () => {
+    const uid = adminUserSelect?.value || getActiveUserId();
+    if (!uid) return;
+
     const prev = dataStore.viewUserId;
     dataStore.viewUserId = uid;
+
     const ud = getCurrentUserData();
     ud.settings ||= {};
     const newState = !ud.settings.schoolLeaveEnabled;
     ud.settings.schoolLeaveEnabled = newState;
+
     await saveUserData();
     dataStore.viewUserId = prev;
 
-    // visuele updates
     applySchoolLeaveVisibility();
     renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
     updateLeaveBadges();
     renderHistory();
 
-    updateButtonText(newState);
+    updateButtonUI(uid);
     toast(`Schoolverlof ${newState ? 'ingeschakeld' : 'uitgeschakeld'}`, 'success');
   };
 
-  // ✅ toont actie, niet toestand
-  function updateButtonText(state) {
-    if (state) {
-      btn.textContent = 'Schoolverlof uitschakelen';
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-outline-secondary');
-    } else {
-      btn.textContent = 'Schoolverlof inschakelen';
-      btn.classList.remove('btn-outline-secondary');
-      btn.classList.add('btn-success');
-    }
-  }
+  // 🚀 Initialiseren bij laden
+  const startUid = adminUserSelect?.value || getActiveUserId();
+  if (startUid) updateButtonUI(startUid);
 }
 /***** ========== MAILBOX — COMPLETE ========== *****/
 const mailListBody    = document.getElementById('mailListBody');
