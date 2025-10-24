@@ -2191,7 +2191,27 @@ if (sp) {
       document.getElementById('totSchool').textContent = `${Math.floor(totSchool/60)}u ${totSchool%60}min`;
       document.getElementById('totFeest').textContent = `${Math.floor(totFeest/60)}u ${totFeest%60}min`;
       document.getElementById('totBench').textContent = `${Math.floor(totBench/60)}u ${totBench%60}min`;
-    }
+// 👇 Plaats dit helemaal op het einde van renderHistory(), vóór de sluitende '}'
+setTimeout(() => {
+  const ud = getCurrentUserData();
+  const enabled = ud?.settings?.schoolLeaveEnabled ?? true;
+  const table = document.getElementById('historyTable');
+  if (!table) return;
+
+  const headers = Array.from(table.querySelectorAll('th'));
+  const index = headers.findIndex(th =>
+    th.textContent.trim().toLowerCase().includes('schoolverlof')
+  );
+
+  if (index >= 0) {
+    table.querySelectorAll('tr').forEach(tr => {
+      const cell = tr.children[index];
+      if (!cell) return;
+      cell.style.display = enabled ? '' : 'none';
+    });
+  }
+}, 100);
+        }
 // === Verlof / Schoolverlof instellingen en badges ===
 const LEAVE_SHIFT_NAMES = ['Verlof'];              // telt mee als "verlof"
 const SCHOOL_LEAVE_SHIFT_NAMES = ['Schoolverlof']; // telt mee als "schoolverlof"
