@@ -285,7 +285,11 @@ body.dark-mode #projectSummary .project-mini {
   color: #eaeaea;
 }
 body.dark-mode #projectSummary .meta { color: #aaa; }
-  </style>
+/* verberg kolommen volledig, zonder lege ruimte */
+.hidden-col {
+  display: none !important;
+}
+    </style>
 </head>
 <body>
 
@@ -722,11 +726,13 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
       <div class="col-md-6 d-flex gap-2">
         <button id="updateRoleBtn" class="btn btn-warning flex-fill">Rol opslaan</button>
         <button id="removeUserBtn" class="btn btn-danger flex-fill">Verwijder</button>
-        <div class="d-flex align-items-center gap-2">
-  <button id="saveSettingsBtn" class="btn btn-outline-secondary flex-fill">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+  <button id="saveSettingsBtn" class="btn btn-outline-secondary flex-grow-1">
     Schoolverlof uitschakelen
   </button>
-  <span id="schoolLeaveStatusBadge" class="badge bg-secondary">Onbekend</span>
+  <span id="schoolLeaveStatusBadge" class="badge bg-secondary px-3 py-2" style="font-size:0.9rem; min-width:95px; text-align:center;">
+    Onbekend
+  </span>
 </div>
       </div>
     </div>
@@ -3677,28 +3683,42 @@ function isSchoolLeaveEnabledFor(uid) {
   return ud?.settings?.schoolLeaveEnabled !== false; // default true
 }
 function applySchoolLeaveVisibility() {
-  const uid = adminUserSelect?.value || getActiveUserId();
-  const on  = isSchoolLeaveEnabledFor(uid);
+  const uid = getActiveUserId();
+  const ud = getCurrentUserData();
+  const enabled = ud?.settings?.schoolLeaveEnabled ?? true;
 
-  // Home badge
-  const homeSch = document.getElementById('homeSchoolLeave');
-  if (homeSch) homeSch.closest('span').style.display = on ? '' : 'none';
-
-  // Invoer badge
-  const invBadge = document.getElementById('schoolLeaveBalanceBadge');
-  if (invBadge) invBadge.style.display = on ? '' : 'none';
-
-  // Historiek: kolom "Schoolverlof" (7e kolom in jouw tabel)
-  const ths = document.querySelectorAll('#tab-historiek thead th');
-  const idx = 6; // 0-based: Maand(0), Doel(1), Gepland(2), Verschil(3), Verlof(4), Ziekte(5), Schoolverlof(6)...
-  if (ths[idx]) ths[idx].classList.toggle('d-none', !on);
-  document.querySelectorAll('#tab-historiek tbody tr').forEach(tr => {
-    const td = tr.children[idx]; if (td) td.classList.toggle('d-none', !on);
+  // 🔹 1) Verberg/Toon secties die te maken hebben met schoolverlof
+  document.querySelectorAll('.school-leave-section').forEach(el => {
+    el.style.display = enabled ? '' : 'none';
   });
-  const tf = document.querySelectorAll('#tab-historiek tfoot th')[idx];
-  if (tf) tf.classList.toggle('d-none', !on);
-}
 
+  // 🔹 2) Historiektabel kolom "Schoolverlof" tonen/verbergen
+  const table = document.getElementById('historyTable');
+  if (table) {
+    const headers = Array.from(table.querySelectorAll('th'));
+    const index = headers.findIndex(th =>
+      th.textContent.trim().toLowerCase().includes('schoolverlof')
+    );
+
+    if (index >= 0) {
+      table.querySelectorAll('tr').forEach(tr => {
+        const cell = tr.children[index];
+        if (cell) {
+          if (enabled) {
+            cell.classList.remove('hidden-col');
+          } else {
+            cell.classList.add('hidden-col');
+          }
+        }
+      });
+    }
+  }
+
+  // 🔹 3) Herteken alles voor consistentie
+  renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+  updateLeaveBadges();
+  renderHistory();
+}
 // Admin: bij user-select en bij laden
 document.getElementById('adminUserSelect')?.addEventListener('change', hydrateSchoolLeaveToggle);
 document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab', hydrateSchoolLeaveToggle);
