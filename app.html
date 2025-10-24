@@ -3700,10 +3700,10 @@ document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab',
 
 async function hydrateSchoolLeaveToggle() {
   const uid = adminUserSelect?.value || getActiveUserId();
-  const btn = document.getElementById('saveSettingsBtn'); // jouw bestaande knop
+  const btn = document.getElementById('saveSettingsBtn'); // jouw knop
   if (!btn || !uid) return;
 
-  // Lees huidige waarde uit opgeslagen data
+  // Lees huidige status
   const isEnabled = isSchoolLeaveEnabledFor(uid);
   updateButtonText(isEnabled);
 
@@ -3713,28 +3713,34 @@ async function hydrateSchoolLeaveToggle() {
     dataStore.viewUserId = uid;
     const ud = getCurrentUserData();
     ud.settings ||= {};
-    ud.settings.schoolLeaveEnabled = !ud.settings.schoolLeaveEnabled;
+    const newState = !ud.settings.schoolLeaveEnabled;
+    ud.settings.schoolLeaveEnabled = newState;
     await saveUserData();
     dataStore.viewUserId = prev;
 
-    // visuele update
+    // visuele updates
     applySchoolLeaveVisibility();
     renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
     updateLeaveBadges();
     renderHistory();
 
-    const newState = ud.settings.schoolLeaveEnabled;
     updateButtonText(newState);
     toast(`Schoolverlof ${newState ? 'ingeschakeld' : 'uitgeschakeld'}`, 'success');
   };
 
+  // ✅ toont actie, niet toestand
   function updateButtonText(state) {
-    btn.textContent = state ? 'Schoolverlof uitschakelen' : 'Schoolverlof inschakelen';
-    btn.classList.toggle('btn-success', !state);
-    btn.classList.toggle('btn-outline-secondary', state);
+    if (state) {
+      btn.textContent = 'Schoolverlof uitschakelen';
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-outline-secondary');
+    } else {
+      btn.textContent = 'Schoolverlof inschakelen';
+      btn.classList.remove('btn-outline-secondary');
+      btn.classList.add('btn-success');
+    }
   }
 }
-
 /***** ========== MAILBOX — COMPLETE ========== *****/
 const mailListBody    = document.getElementById('mailListBody');
 const mailDetail      = document.getElementById('mailDetail');
