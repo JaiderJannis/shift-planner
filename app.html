@@ -2146,9 +2146,6 @@ function renderHistory() {
   // Bepaal welke gebruiker we tonen (admin kan een andere user kiezen)
   const viewUid = dataStore.viewUserId || dataStore.currentUser;
   if (!viewUid) return;
-  || new Date().getFullYear();
-      historiekJaar.textContent = year;
-      currentUserHistoriek.textContent = ud.name || ud.email || '—';
   const ud = dataStore.users[viewUid] || { name: '-', monthData: {} };
   const year = Number(yearSelectMain.value) || new Date().getFullYear();
 
