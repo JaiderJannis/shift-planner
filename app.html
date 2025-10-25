@@ -2142,76 +2142,124 @@ if (sp) {
 });
 
     // ======= Historiek =======
-    function renderHistory(){
-      const ud = getCurrentUserData();
-      const year = Number(yearSelectMain.value) || new Date().getFullYear();
-      historiekJaar.textContent = year;
-      currentUserHistoriek.textContent = ud.name || ud.email || '—';
+function renderHistory() {
+  // Bepaal welke gebruiker we tonen (admin kan een andere user kiezen)
+  const viewUid = dataStore.viewUserId || dataStore.currentUser;
+  if (!viewUid) return;
 
-      let totDoel=0, totGepland=0, totVerschil=0, totVerlof=0, totZiekte=0, totSchool=0, totFeest=0, totBench=0;
-      historyBody.innerHTML = '';
-      for(let m=0; m<12; m++){
-        const md = ud.monthData?.[year]?.[m] || { targetHours:0, targetMinutes:0, rows:{} };
-        const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
-        const rows = md.rows || {};
-        const gepland = Object.values(rows).reduce((s,r)=> s + (r.minutes||0), 0);
-        let v=0,z=0,sf=0,f=0,b=0;
-        Object.values(rows).forEach(r=>{
-          if(!r.shift) return;
-          if(r.shift==='Verlof') v += r.minutes||0;
-          if(r.shift==='Ziekte') z += r.minutes||0;
-          if(r.shift==='Schoolverlof') sf += r.minutes||0;
-          if(r.shift==='Feestdag') f += r.minutes||0;
-          if(r.shift==='Bench') b += r.minutes||0;
-        });
-        const diff = gepland - target;
+  const ud = dataStore.users[viewUid] || { name: '-', monthData: {} };
+  const year = Number(yearSelectMain.value) || new Date().getFullYear();
 
-        totDoel += target; totGepland += gepland; totVerschil += diff;
-        totVerlof += v; totZiekte += z; totSchool += sf; totFeest += f; totBench += b;
+  // Kies kolomvolgorde — let: schoolverlof komt NA bench
+  const cols = [
+    { key: 'monthLabel', title: 'Maand' },
+    { key: 'target', title: 'Doel uren' },
+    { key: 'planned', title: 'Gepland' },
+    { key: 'diff', title: 'Verschil' },
+    { key: 'leave', title: 'Verlof' },        // Verlof
+    { key: 'sick', title: 'Ziekte' },        // Ziekte
+    { key: 'bench', title: 'Bench' },        // Bench
+    { key: 'school', title: 'Schoolverlof' },// Schoolverlof (na bench)
+    { key: 'holiday', title: 'Feestdag' }    // Feestdag
+  ];
 
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${monthsFull[m]}</td>
-          <td>${Math.floor(target/60)}u ${target%60}min</td>
-          <td>${Math.floor(gepland/60)}u ${gepland%60}min</td>
-          <td class="${diff>=0? 'text-success':'text-danger'}">${diff>=0?'+':''}${Math.floor(Math.abs(diff)/60)}u ${Math.abs(diff)%60}min</td>
-          <td>${Math.floor(v/60)}u ${v%60}min</td>
-          <td>${Math.floor(z/60)}u ${z%60}min</td>
-          <td>${Math.floor(sf/60)}u ${sf%60}min</td>
-          <td>${Math.floor(f/60)}u ${f%60}min</td>
-          <td>${Math.floor(b/60)}u ${b%60}min</td>`;
-        historyBody.appendChild(tr);
-      }
+  // Check of schoolverlof voor deze user actief is; standaard true
+  const schoolEnabled = !!(ud?.settings?.schoolLeaveEnabled ?? true);
 
-      document.getElementById('totDoel').textContent = `${Math.floor(totDoel/60)}u ${totDoel%60}min`;
-      document.getElementById('totGepland').textContent = `${Math.floor(totGepland/60)}u ${totGepland%60}min`;
-      document.getElementById('totVerschil').textContent = `${totVerschil>=0?'+':''}${Math.floor(Math.abs(totVerschil)/60)}u ${Math.abs(totVerschil)%60}min`;
-      document.getElementById('totVerlof').textContent = `${Math.floor(totVerlof/60)}u ${totVerlof%60}min`;
-      document.getElementById('totZiekte').textContent = `${Math.floor(totZiekte/60)}u ${totZiekte%60}min`;
-      document.getElementById('totSchool').textContent = `${Math.floor(totSchool/60)}u ${totSchool%60}min`;
-      document.getElementById('totFeest').textContent = `${Math.floor(totFeest/60)}u ${totFeest%60}min`;
-      document.getElementById('totBench').textContent = `${Math.floor(totBench/60)}u ${totBench%60}min`;
-// 👇 Plaats dit helemaal op het einde van renderHistory(), vóór de sluitende '}'
-setTimeout(() => {
-  const ud = getCurrentUserData();
-  const enabled = ud?.settings?.schoolLeaveEnabled ?? true;
+  // Als schoolverlof uit, filter die kolom weg
+  const visibleCols = cols.filter(c => c.key !== 'school' || schoolEnabled);
+
+  // Bouw tabel HTML
   const table = document.getElementById('historyTable');
-  if (!table) return;
-
-  const headers = Array.from(table.querySelectorAll('th'));
-  const index = headers.findIndex(th =>
-    th.textContent.trim().toLowerCase().includes('schoolverlof')
-  );
-
-  if (index >= 0) {
-    table.querySelectorAll('tr').forEach(tr => {
-      const cell = tr.children[index];
-      if (!cell) return;
-      cell.style.display = enabled ? '' : 'none';
-    });
+  if (!table) {
+    console.warn('historyTable niet gevonden (id="historyTable" ontbreekt in HTML)');
+    return;
   }
-}, 100);
-        }
+
+  // header
+  const theadHtml = `<thead class="table-light"><tr>${visibleCols.map(c => `<th>${c.title}</th>`).join('')}</tr></thead>`;
+
+  // body
+  let bodyHtml = '<tbody>';
+  let totals = { target:0, planned:0, diff:0, leave:0, sick:0, school:0, holiday:0, bench:0 };
+
+  for (let m = 0; m < 12; m++) {
+    const md = ud.monthData?.[year]?.[m] || { targetHours:0, targetMinutes:0, rows:{} };
+    const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
+    const rows = md.rows || {};
+    const planned = Object.values(rows).reduce((s, r) => s + (r.minutes||0), 0);
+
+    // specifieke categorie-sommen
+    let leave = 0, sick = 0, school = 0, holiday = 0, bench = 0;
+    Object.values(rows).forEach(r => {
+      const s = (r.shift || '').trim();
+      if (!s) return;
+      if (s === 'Verlof') leave += Number(r.minutes)||0;
+      if (s === 'Ziekte') sick += Number(r.minutes)||0;
+      if (s === 'Schoolverlof' || s === 'School') school += Number(r.minutes)||0;
+      if (s === 'Feestdag') holiday += Number(r.minutes)||0;
+      if (s === 'Bench') bench += Number(r.minutes)||0;
+    });
+
+    const diff = planned - target;
+
+    // push totals
+    totals.target += target;
+    totals.planned += planned;
+    totals.diff += diff;
+    totals.leave += leave;
+    totals.sick += sick;
+    totals.school += school;
+    totals.holiday += holiday;
+    totals.bench += bench;
+
+    const rowMap = {
+      monthLabel: monthsFull[m],
+      target: `${Math.floor(target/60)}u ${target%60}min`,
+      planned: `${Math.floor(planned/60)}u ${planned%60}min`,
+      diff: `${diff>=0?'+':''}${Math.floor(Math.abs(diff)/60)}u ${Math.abs(diff)%60}min`,
+      leave: `${Math.floor(leave/60)}u ${leave%60}min`,
+      sick: `${Math.floor(sick/60)}u ${sick%60}min`,
+      bench: `${Math.floor(bench/60)}u ${bench%60}min`,
+      school: `${Math.floor(school/60)}u ${school%60}min`,
+      holiday: `${Math.floor(holiday/60)}u ${holiday%60}min`
+    };
+
+    // Maak rij alleen met zichtbare kolommen
+    bodyHtml += `<tr>${visibleCols.map(c => `<td>${rowMap[c.key] || ''}</td>`).join('')}</tr>`;
+  }
+
+  bodyHtml += '</tbody>';
+
+  // footer (totaal)
+  const footerMap = {
+    target: `${Math.floor(totals.target/60)}u ${totals.target%60}min`,
+    planned: `${Math.floor(totals.planned/60)}u ${totals.planned%60}min`,
+    diff: `${totals.diff>=0?'+':''}${Math.floor(Math.abs(totals.diff)/60)}u ${Math.abs(totals.diff)%60}min`,
+    leave: `${Math.floor(totals.leave/60)}u ${totals.leave%60}min`,
+    sick: `${Math.floor(totals.sick/60)}u ${totals.sick%60}min`,
+    bench: `${Math.floor(totals.bench/60)}u ${totals.bench%60}min`,
+    school: `${Math.floor(totals.school/60)}u ${totals.school%60}min`,
+    holiday: `${Math.floor(totals.holiday/60)}u ${totals.holiday%60}min`
+  };
+
+  const tfootCells = visibleCols.map(c => {
+    if (c.key === 'monthLabel') return `<th>Totaal</th>`;
+    return `<th>${footerMap[c.key] || ''}</th>`;
+  }).join('');
+
+  const tfootHtml = `<tfoot class="table-light"><tr>${tfootCells}</tr></tfoot>`;
+
+  // zet alles in de table
+  table.innerHTML = `${theadHtml}${bodyHtml}${tfootHtml}`;
+
+  // toegankelijkheids/klasses: behoud dezelfde tbody id voor bestaande code die dat verwacht
+  const newTbody = table.querySelector('tbody');
+  if (newTbody) newTbody.id = 'historyBody';
+
+  // kleine responsieve fix: als schoolverlof uitstaat schuift niets mis omdat we nooit de kolom renderen
+  // => geen extra CSS nodig
+}
 // === Verlof / Schoolverlof instellingen en badges ===
 const LEAVE_SHIFT_NAMES = ['Verlof'];              // telt mee als "verlof"
 const SCHOOL_LEAVE_SHIFT_NAMES = ['Schoolverlof']; // telt mee als "schoolverlof"
