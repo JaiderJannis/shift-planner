@@ -3093,6 +3093,33 @@ async function createUniqueNotification(uid, text) {
 
   console.log('🔔 Automatische melding + mail aangemaakt:', text);
 }
+// 🔔 Planner goedgekeurd
+async function notifyPlannerApproved(uid, y, m) {
+  const subject = `Planner goedgekeurd — ${monthsFull[m]} ${y}`;
+  const body = `Je planner voor ${monthsFull[m]} ${y} werd goedgekeurd.`;
+  await sendSystemMail(
+    uid,                // ontvanger is de gebruiker
+    subject,
+    body,
+    'status',
+    `plan:${uid}:${y}-${m}`
+  );
+}
+
+// ❌ Planner afgekeurd
+async function notifyPlannerRejected(uid, y, m, comment = '') {
+  const subject = `Planner afgekeurd — ${monthsFull[m]} ${y}`;
+  const body = `Je planner voor ${monthsFull[m]} ${y} werd afgekeurd.${
+    comment ? `\n\nReden:\n${comment}` : ''
+  }`;
+  await sendSystemMail(
+    uid,                // ontvanger is de gebruiker
+    subject,
+    body,
+    'status',
+    `plan:${uid}:${y}-${m}`
+  );
+}
 // 🔔 Stuur melding naar gebruiker bij projectwijziging (door admin)
 async function notifyProjectChange(userId, type, projectName, newEndDate = null) {
   const colRef = collection(db, 'users', userId, 'notifications');
