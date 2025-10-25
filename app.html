@@ -2146,8 +2146,16 @@ function renderHistory() {
   // Bepaal welke gebruiker we tonen (admin kan een andere user kiezen)
   const viewUid = dataStore.viewUserId || dataStore.currentUser;
   if (!viewUid) return;
+
   const ud = dataStore.users[viewUid] || { name: '-', monthData: {} };
   const year = Number(yearSelectMain.value) || new Date().getFullYear();
+
+  // ✅ Titel updaten boven de tabel
+  const historiekJaar = document.getElementById('historiekJaar');
+  const currentUserHistoriek = document.getElementById('currentUserHistoriek');
+  if (historiekJaar) historiekJaar.textContent = year;
+  if (currentUserHistoriek)
+    currentUserHistoriek.textContent = ud.name || ud.email || '—';
 
   // Kies kolomvolgorde — let: schoolverlof komt NA bench
   const cols = [
@@ -2155,11 +2163,11 @@ function renderHistory() {
     { key: 'target', title: 'Doel uren' },
     { key: 'planned', title: 'Gepland' },
     { key: 'diff', title: 'Verschil' },
-    { key: 'leave', title: 'Verlof' },        // Verlof
-    { key: 'sick', title: 'Ziekte' },        // Ziekte
-    { key: 'bench', title: 'Bench' },        // Bench
-    { key: 'school', title: 'Schoolverlof' },// Schoolverlof (na bench)
-    { key: 'holiday', title: 'Feestdag' }    // Feestdag
+    { key: 'leave', title: 'Verlof' },
+    { key: 'sick', title: 'Ziekte' },
+    { key: 'bench', title: 'Bench' },
+    { key: 'school', title: 'Schoolverlof' },
+    { key: 'holiday', title: 'Feestdag' }
   ];
 
   // Check of schoolverlof voor deze user actief is; standaard true
@@ -2224,7 +2232,6 @@ function renderHistory() {
       holiday: `${Math.floor(holiday/60)}u ${holiday%60}min`
     };
 
-    // Maak rij alleen met zichtbare kolommen
     bodyHtml += `<tr>${visibleCols.map(c => `<td>${rowMap[c.key] || ''}</td>`).join('')}</tr>`;
   }
 
@@ -2252,12 +2259,9 @@ function renderHistory() {
   // zet alles in de table
   table.innerHTML = `${theadHtml}${bodyHtml}${tfootHtml}`;
 
-  // toegankelijkheids/klasses: behoud dezelfde tbody id voor bestaande code die dat verwacht
+  // behoud dezelfde tbody id voor compatibiliteit
   const newTbody = table.querySelector('tbody');
   if (newTbody) newTbody.id = 'historyBody';
-
-  // kleine responsieve fix: als schoolverlof uitstaat schuift niets mis omdat we nooit de kolom renderen
-  // => geen extra CSS nodig
 }
 // === Verlof / Schoolverlof instellingen en badges ===
 const LEAVE_SHIFT_NAMES = ['Verlof'];              // telt mee als "verlof"
