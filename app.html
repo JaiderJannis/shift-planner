@@ -3610,35 +3610,25 @@ document.getElementById('adminApproveBtn')?.addEventListener('click', async () =
   dataStore.viewUserId = prev;
 
   // ✉️ Mail naar user
-// Check of huidige gebruiker admin is
-const adminDoc = await getDoc(doc(db, "users", getActiveUserId()));
-const isAdmin = adminDoc.exists() && adminDoc.data().role === "admin";
+async function approvePlanner(uid, y, m) {
+  try {
+    // bestaande goedkeur-logica (niet verwijderen)
+    await setDoc(doc(db, 'users', uid, 'notifications', `plan-${y}-${m}`), {
+      type: 'planner-approved',
+      month: m,
+      year: y,
+      timestamp: serverTimestamp()
+    });
 
-const subject = `[Planner] Goedgekeurd — ${monthsFull[m]} ${y}`;
-const body = `Je planner voor ${monthsFull[m]} ${y} werd goedgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
+    // stuur systeemmail naar de gebruiker
+    await notifyPlannerApproved(uid, y, m);
 
-await addDoc(collection(db, "users", uid, "mailbox"), {
-  threadId: `plan:${uid}:${y}-${m}`,
-  system: isAdmin, // ← alleen true bij admin
-  kind: "status",
-  from: {
-    uid: getActiveUserId(),
-    name: auth.currentUser?.displayName || "Onbekende afzender",
-    role: isAdmin ? "admin" : "user"
-  },
-  to: {
-    uid,
-    type: "user"
-  },
-  subject,
-  body,
-  read: false,
-  timestamp: serverTimestamp()
-});
-  if (getActiveUserId() === currentUserId && y===Number(yearSelectMain.value) && m===Number(monthSelectMain.value)) {
-    renderMonth(y, m);
+    toast('Planner goedgekeurd', 'success');
+  } catch (err) {
+    console.error('Fout bij goedkeuring:', err);
+    toast('Fout bij goedkeuren', 'error');
   }
-});
+}
 
 // Admin: Keur af
 document.getElementById('adminRejectBtn')?.addEventListener('click', async () => {
@@ -3657,35 +3647,26 @@ document.getElementById('adminRejectBtn')?.addEventListener('click', async () =>
   dataStore.viewUserId = prev;
 
   // ✉️ Mail naar user met commentaar
-// Check of huidige gebruiker admin is
-const adminDoc = await getDoc(doc(db, "users", getActiveUserId()));
-const isAdmin = adminDoc.exists() && adminDoc.data().role === "admin";
+async function rejectPlanner(uid, y, m, comment) {
+  try {
+    // bestaande afkeur-logica
+    await setDoc(doc(db, 'users', uid, 'notifications', `plan-${y}-${m}`), {
+      type: 'planner-rejected',
+      month: m,
+      year: y,
+      comment: comment || '',
+      timestamp: serverTimestamp()
+    });
 
-const subject = `[Planner] Afgekeurd — ${monthsFull[m]} ${y}`;
-const body = `Je planner voor ${monthsFull[m]} ${y} werd afgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
+    // stuur systeemmail naar de gebruiker
+    await notifyPlannerRejected(uid, y, m, comment);
 
-await addDoc(collection(db, "users", uid, "mailbox"), {
-  threadId: `plan:${uid}:${y}-${m}`,
-  system: isAdmin, // ← alleen true bij admin
-  kind: "status",
-  from: {
-    uid: getActiveUserId(),
-    name: auth.currentUser?.displayName || "Onbekende afzender",
-    role: isAdmin ? "admin" : "user"
-  },
-  to: {
-    uid,
-    type: "user"
-  },
-  subject,
-  body,
-  read: false,
-  timestamp: serverTimestamp()
-});
-
-  if (getActiveUserId() === currentUserId && y===Number(yearSelectMain.value) && m===Number(monthSelectMain.value)) {
-    renderMonth(y, m);
+    toast('Planner afgekeurd', 'error');
+  } catch (err) {
+    console.error('Fout bij afkeuren:', err);
+    toast('Fout bij afkeuren', 'error');
   }
+}
 });
 
 // Admin: Heropenen (ontgrendelen)
