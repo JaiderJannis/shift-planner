@@ -3886,9 +3886,17 @@ function hydrateSchoolLeaveToggle() {
   const startUid = adminUserSelect?.value || getActiveUserId();
   if (startUid) updateButtonUI(startUid);
 }
-/***** ========== MAILBOX — COMPLETE ========== *****/
-const mailListBody    = document.getElementById('mailListBody');
-const mailDetail      = document.getElementById('mailDetail');
+// ===== Mailbox module (replace/insert into your module) =====
+let mailboxUnsub = null;
+let mailboxCache = []; // huidige view (Inbox of Sent)
+let mailViewMode = 'inbox'; // 'inbox' | 'sent'
+let mailLastVisible = null;
+
+// elements
+const mailListBody = document.getElementById('mailListBody');
+const mailDetail   = document.getElementById('mailDetail');
+const mailUnreadChip = document.getElementById('mailUnreadChip');
+const mailLoadMoreBtn = document.getElementById('mailLoadMoreBtn');
 const mailRefreshBtn  = document.getElementById('mailRefreshBtn');
 const mailComposeBtn  = document.getElementById('mailComposeBtn');
 const mailComposeCard = document.getElementById('mailComposeCard');
@@ -3897,386 +3905,431 @@ const mailSubjectInput= document.getElementById('mailSubjectInput');
 const mailBodyInput   = document.getElementById('mailBodyInput');
 const mailSendBtn     = document.getElementById('mailSendBtn');
 const mailCancelBtn   = document.getElementById('mailCancelBtn');
-const mailUnreadBadge = document.getElementById('mailUnreadBadge');
-const mailSidebarBadge= document.getElementById('mailSidebarBadge');
-const mailFolderNav   = document.getElementById('mailFolderNav');
+const mailTabInbox    = document.getElementById('mailTabInbox');
+const mailTabSent     = document.getElementById('mailTabSent');
+const mailListTitle   = document.getElementById('mailListTitle');
+const mailMarkAllReadBtn = document.getElementById('mailMarkAllReadBtn');
 
-let mailboxUnsub = null;
-let mailboxCache = [];      // alle berichten (snapshot)
-let mailFolder   = 'inbox'; // 'inbox' | 'sent'
-let composeThreadId = null; // reply flow
-let mailUIBound = false;
-
-/* ---------- helpers ---------- */
-function normTs(ts){
-  if (!ts) return '';
-  if (typeof ts?.toDate === 'function') return ts.toDate().toISOString();
+function normTsToIso(ts){
+  if(!ts) return '';
+  if (ts.toDate) return ts.toDate().toISOString();
   if (typeof ts === 'string') return ts;
   return '';
 }
 function formatWhen(ts){
-  if (!ts) return '';
-  try { return new Date(ts).toLocaleString('nl-BE'); } catch { return ''; }
-}
-function updateUnreadBadges(unread) {
-  const n = Math.max(0, Number(unread) || 0);
-  [mailUnreadBadge, mailSidebarBadge].forEach(badge => {
-    if (!badge) return;
-    if (n > 0) { badge.textContent = n; badge.classList.remove('d-none'); }
-    else       { badge.classList.add('d-none'); }
-  });
+  try {
+    if(!ts) return '';
+    const d = new Date(normTsToIso(ts));
+    if (isNaN(d)) return '';
+    return d.toLocaleString('nl-BE');
+  } catch { return ''; }
 }
 
-/* ---------- mailbox listen ---------- */
-function listenMailbox(uid) {
-  if (mailboxUnsub) mailboxUnsub();
-  const colRef = collection(db,'users', uid, 'mailbox');
-  const qy = query(colRef, orderBy('timestamp','desc'), limit(200));
-  mailboxUnsub = onSnapshot(qy, (snap) => {
-    mailboxCache = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp) }));
-    renderMailList();
-  });
-}
+function getActiveUserId() { return dataStore.viewUserId || dataStore.currentUser; }
 
-/* ---------- compose ---------- */
-function isAdmin() {
-  const me = dataStore.users[getActiveUserId()];
-  return (me?.role || 'user') === 'admin';
-}
-function prepareComposeOptions() {
+// --- Prepare compose recipients ---
+async function prepareComposeOptionsForSender(){
   mailToSelect.innerHTML = '';
-  if (isAdmin()) {
-    // admin → kies user (excl admins)
-    const opt0 = document.createElement('option');
-    opt0.value = ''; opt0.textContent = 'Kies gebruiker…';
-    mailToSelect.appendChild(opt0);
-    Object.entries(dataStore.users).forEach(([uid,u]) => {
-      if ((u.role || 'user') === 'admin') return;
+  const meUid = getActiveUserId();
+  const me = dataStore.users[meUid] || {};
+
+  // if admin -> show users to choose
+  const meDoc = await getDoc(doc(db,'users', meUid));
+  const isAdminUser = meDoc.exists() && meDoc.data().role === 'admin';
+
+  if (isAdminUser) {
+    const opt = document.createElement('option'); opt.value=''; opt.textContent='Kies gebruiker…'; mailToSelect.appendChild(opt);
+    const qs = await getDocs(collection(db, 'users'));
+    qs.forEach(d => {
+      if (d.id === meUid) return;
+      const u = d.data();
       const o = document.createElement('option');
-      o.value = `user:${uid}`; o.textContent = u.name || u.email || uid;
+      o.value = `user:${d.id}`;
+      o.textContent = u.name || u.email || d.id;
       mailToSelect.appendChild(o);
     });
   } else {
-    // user → admins
-    const o = document.createElement('option');
-    o.value = 'admin-group'; o.textContent = 'Admins';
-    mailToSelect.appendChild(o);
-  }
-}
-function prepareComposeToCounterparty(m) {
-  prepareComposeOptions();
-  if (isAdmin()) {
-    mailToSelect.value = `user:${m.from?.uid || ''}`;
-  } else {
-    mailToSelect.value = 'admin-group';
-  }
-  mailSubjectInput.value = m.subject?.startsWith('Re: ') ? m.subject : `Re: ${m.subject || ''}`;
-  mailBodyInput.value = '';
-  composeThreadId = m.threadId || `conv:${m.from?.uid || getActiveUserId()}`;
-}
-
-/* ---------- send helpers ---------- */
-async function sendSystemMail(uid, subject, body, kind = "notification", threadId = `sys:${Date.now()}`) {
-  await addDoc(collection(db, "users", uid, "mailbox"), {
-    threadId,
-    system: true,
-    kind,
-    from: { uid: "noreply", name: "Shift Planner", role: "system", email: "no-reply@local" },
-    to:   { type: "user", uid },
-    subject,
-    body,
-    read: false,
-    timestamp: serverTimestamp()
-  });
-}
-
-async function sendUserMessageToAdmins(subject, body, threadId=`conv:${getActiveUserId()}`) {
-  const meUid = getActiveUserId();
-  const me = dataStore.users[meUid];
-  const meName = me?.name || me?.email || meUid;
-
-  // kopie in eigen mailbox (als 'verzonden')
-  await addDoc(collection(db, 'users', meUid, 'mailbox'), {
-    threadId, system:false, kind:'message',
-    from:{ uid: meUid, name: meName, role:'user' },
-    to:{ type:'admin-group' },
-    subject, body, read:true,
-    timestamp: serverTimestamp()
-  });
-
-  // fan-out naar admins
-  const qAdmins = query(collection(db, 'users'), where('role','==','admin'));
-  const snap = await getDocs(qAdmins);
-  await Promise.all(snap.docs.map(a =>
-    addDoc(collection(db, 'users', a.id, 'mailbox'), {
-      threadId, system:false, kind:'message',
-      from:{ uid: meUid, name: meName, role:'user' },
-      to:{ type:'user', uid: a.id },
-      subject, body, read:false,
-      timestamp: serverTimestamp()
-    })
-  ));
-}
-
-async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
-  const admin = dataStore.users[adminUid];
-  const user  = dataStore.users[userUid];
-  const threadId = `conv:${userUid}`;
-
-  // kopie in admin mailbox
-  await addDoc(collection(db,'users', adminUid, 'mailbox'), {
-    threadId, system:false, kind:'message',
-    from: { uid:adminUid, name: admin?.name || admin?.email || 'Admin', role:'admin' },
-    to:   { type:'user-id', uid:userUid },
-    subject, body, read:true, timestamp: serverTimestamp()
-  });
-
-  // naar de user
-  await addDoc(collection(db,'users', userUid, 'mailbox'), {
-    threadId, system:false, kind:'message',
-    from: { uid:adminUid, name: admin?.name || admin?.email || 'Admin', role:'admin' },
-    to:   { type:'user', uid:userUid },
-    subject, body, read:false, timestamp: serverTimestamp()
-  });
-}
-
-/* ---------- actions ---------- */
-async function markMailRead(messageId, val = true) {
-  const uid = getActiveUserId();
-  await updateDoc(doc(db, 'users', uid, 'mailbox', messageId), { read: !!val });
-  const m = mailboxCache.find(x => x._id === messageId);
-  if (m) m.read = !!val;
-  renderMailList();
-}
-async function deleteMail(messageId) {
-  const uid = getActiveUserId();
-  await deleteDoc(doc(db, 'users', uid, 'mailbox', messageId));
-  mailboxCache = mailboxCache.filter(x => x._id !== messageId);
-  renderMailList();
-  if (mailDetail.dataset?.openId === messageId) {
-    mailDetail.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
-    delete mailDetail.dataset.openId;
+    // user -> send to admin group
+    const o = document.createElement('option'); o.value='admin-group'; o.textContent = 'Admins'; mailToSelect.appendChild(o);
   }
 }
 
-/* ---------- render ---------- */
-function filteredMessages() {
-  const uid = getActiveUserId();
-  const items = mailboxCache
-    .slice()
-    .sort((a,b)=> (b._tsIso||'').localeCompare(a._tsIso||''));
+// --- Listen mailbox for current active view user (owner) ---
+function listenMailbox(uid) {
+  if (mailboxUnsub) mailboxUnsub();
+  mailboxCache = [];
+  mailLastVisible = null;
 
-  if (mailFolder === 'sent') {
-    // verzonden = door mij (niet system)
-    return items.filter(m => (m.from?.uid === uid) && !m.system);
-  }
-  // inbox = alles dat NIET door mij is gestuurd óf system
-  return items.filter(m => (m.from?.uid !== uid) || m.system);
+  const colRef = collection(db, 'users', uid, 'mailbox');
+  // default order: newest first
+  const q = query(colRef, orderBy('timestamp', 'desc'), limit(50));
+  mailboxUnsub = onSnapshot(q, (snap) => {
+    mailboxCache = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+    // keep lastVisible for load-more UX
+    if (snap.docs.length) mailLastVisible = snap.docs[snap.docs.length - 1];
+    renderMailList();
+  }, (err) => {
+    console.error('Mailbox snapshot error', err);
+    // show friendly toast if permission error
+    if (err?.code === 'permission-denied') toast('Geen permissie om mailbox te lezen', 'danger');
+  });
 }
 
+// --- Render list based on mailViewMode ---
 function renderMailList() {
-  const msgs = filteredMessages();
+  if (!mailListBody) return;
   mailListBody.innerHTML = '';
 
+  // filter by inbox or sent
+  const uid = getActiveUserId();
+  const isInbox = mailViewMode === 'inbox';
+  const rows = mailboxCache
+    .map(m => ({ ...m, _tsIso: normTsToIso(m.timestamp) }))
+    .sort((a,b) => (b._tsIso||'').localeCompare(a._tsIso||''));
+
   let unread = 0;
-  msgs.forEach(m => { if (!m.read && mailFolder === 'inbox') unread++; });
+  rows.forEach(m => {
+    // Inbox = messages where (to includes uid) OR system messages addressed to this user
+    const isToMe = (() => {
+      try {
+        if (m.to?.type === 'user' && m.to?.uid === uid) return true;
+        if (Array.isArray(m.to) && m.to.some(t => t.uid === uid)) return true;
+      } catch { /* */ }
+      return false;
+    })();
 
-  updateUnreadBadges(unread);
+    const show = isInbox ? isToMe : (m.from?.uid === uid || (m.to?.type === 'user' && m.to?.uid === uid && m.read === true));
+    // For simplicity: inbox shows items where to == user or system true; sent shows items where from.uid == user
+    const inInbox = (m.to?.type === 'user' && m.to?.uid === uid) || (m.system === true && m.to?.uid === uid) || (m.to?.type === 'admin-group' && !isAdminLocal());
+    const inSent = m.from?.uid === uid;
 
-  msgs.forEach(m => {
-    const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
+    const shouldRender = isInbox ? inInbox : inSent;
+    if (!shouldRender) return;
+
+    if (!m.read && isInbox) unread++;
+
     const tr = document.createElement('tr');
-    tr.className = m.read ? '' : 'fw-semibold';
+    tr.dataset.id = m._id;
+    tr.className = (!m.read && isInbox) ? 'table-primary' : '';
+    const whoCell = isInbox
+      ? (m.from?.name || m.from?.email || (m.system ? 'Shift Planner' : '—'))
+      : (m.to?.type === 'user' ? (m.to?.uid === uid ? 'Me' : (m.to?.uid || m.to?.type)) : (m.to?.type || '—'));
+
     tr.innerHTML = `
-      <td>${fromName}</td>
-      <td><a href="#" class="js-open" data-id="${m._id}">${m.subject || '(geen onderwerp)'}</a></td>
+      <td>${whoCell}</td>
+      <td><a href="#" class="mail-open" data-id="${m._id}">${m.subject || '(geen onderwerp)'}</a></td>
       <td class="text-end"><span class="mail-meta">${formatWhen(m._tsIso)}</span></td>
       <td class="text-end">
-        <button class="btn btn-sm ${m.read ? 'btn-outline-secondary' : 'btn-outline-primary'} me-1 js-toggle" data-id="${m._id}">
-          ${m.read ? 'Ongelezen' : 'Gelezen'}
+        <button class="btn btn-sm btn-outline-secondary me-1" data-act="toggle-read" data-id="${m._id}">
+          ${m.read ? 'Markeer ongelezen' : 'Markeer gelezen'}
         </button>
-        <button class="btn btn-sm btn-outline-danger js-del" data-id="${m._id}">
-          <span class="material-icons-outlined" style="font-size:16px">delete</span>
-        </button>
+        <button class="btn btn-sm btn-outline-danger" data-act="delete" data-id="${m._id}">Verwijder</button>
       </td>
     `;
     mailListBody.appendChild(tr);
   });
+
+  // update unread chip
+  if (unread > 0) {
+    mailUnreadChip.textContent = `${unread} ongelezen`;
+    mailUnreadChip.classList.remove('d-none');
+  } else {
+    mailUnreadChip.classList.add('d-none');
+  }
+
+  // show/hide load more (we use lastVisible as simple heuristic)
+  mailLoadMoreBtn.classList.toggle('d-none', !mailLastVisible);
+
+  // Ensure single event delegation listener exists (we attach once)
+  attachMailListDelegation();
 }
 
-function openMail(m) {
+// --- Attach single delegation listener (idempotent) ---
+let _mailDelegationAttached = false;
+function attachMailListDelegation() {
+  if (_mailDelegationAttached) return;
+  _mailDelegationAttached = true;
+
+  // Clicks inside the table
+  mailListBody.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const openLink = e.target.closest('a.mail-open');
+    if (openLink) {
+      const id = openLink.dataset.id;
+      const msg = mailboxCache.find(x => x._id === id);
+      if (msg) await openMail(msg);
+      return;
+    }
+
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    const id = btn.dataset.id;
+    if (act === 'toggle-read') {
+      const msg = mailboxCache.find(x => x._id === id);
+      if (!msg) return;
+      await markMailRead(id, !(msg.read));
+    } else if (act === 'delete') {
+      // confirm once
+      if (!confirm('Dit bericht verwijderen?')) return;
+      await deleteMail(id);
+    }
+  });
+}
+
+// --- Open mail detail (and mark read) ---
+async function openMail(m) {
   if (!m) return;
-  if (!m.read) { markMailRead(m._id, true); m.read = true; }
+  const uid = getActiveUserId();
 
+  // mark read if not
+  if (!m.read) {
+    try {
+      await updateDoc(doc(db, 'users', uid, 'mailbox', m._id), { read: true });
+    } catch (err) {
+      console.error('update read failed', err);
+    }
+  }
+
+  // render detail pane
   const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
-  const actions = `
-    <div class="d-flex gap-2">
-      <button class="btn btn-outline-secondary btn-sm js-mark-unread" data-id="${m._id}">Markeer ongelezen</button>
-      <button class="btn btn-outline-danger btn-sm js-del" data-id="${m._id}">
-        <span class="material-icons-outlined" style="font-size:16px">delete</span>
-      </button>
-      ${m.system ? '' : '<button class="btn btn-outline-primary btn-sm js-reply" data-id="'+m._id+'"><span class="material-icons-outlined">reply</span> Antwoorden</button>'}
-    </div>`;
-
-  mailDetail.innerHTML = `
+  const header = `
     <div class="d-flex justify-content-between align-items-start">
       <div>
         <div class="fw-semibold">${m.subject || '(geen onderwerp)'}</div>
-        <div class="mail-meta">Van: ${fromName} • ${formatWhen(m._tsIso)}</div>
+        <div class="mail-meta small text-muted">Van: ${fromName} • ${formatWhen(m.timestamp)}</div>
       </div>
-      ${actions}
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" id="mailDetailMarkUnread">Markeer ongelezen</button>
+        <button class="btn btn-outline-danger btn-sm" id="mailDetailDelete">Verwijder</button>
+        ${m.system ? '' : '<button class="btn btn-outline-primary btn-sm" id="mailDetailReply">Antwoorden</button>'}
+      </div>
     </div>
-    <hr class="my-2">
-    <div style="white-space:pre-wrap">${m.body || ''}</div>
-  `;
+    <hr class="my-2">`;
+
+  const body = `<div style="white-space:pre-wrap">${m.body || ''}</div>`;
+  mailDetail.innerHTML = header + body;
   mailDetail.dataset.openId = m._id;
-}
 
-/* ---------- once-only UI binding ---------- */
-function bindMailboxUIOnce() {
-  if (mailUIBound) return;
-  mailUIBound = true;
-
-  // Folder switch
-  mailFolderNav?.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-folder]');
-    if (!btn) return;
-    mailFolder = btn.dataset.folder;
-    mailFolderNav.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    renderMailList();
+  // Wire detail buttons (remove previous listeners by replacing elements)
+  document.getElementById('mailDetailMarkUnread')?.addEventListener('click', async () => {
+    await markMailRead(m._id, false);
+    toast('Gemarkeerd als ongelezen', 'success');
+  });
+  document.getElementById('mailDetailDelete')?.addEventListener('click', async () => {
+    if (!confirm('Dit bericht verwijderen?')) return;
+    await deleteMail(m._id);
     mailDetail.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
   });
-
-  // Compose
-  mailComposeBtn?.addEventListener('click', () => {
-    mailComposeCard.classList.toggle('d-none');
-    if (!mailComposeCard.classList.contains('d-none')) {
-      prepareComposeOptions();
-      mailSubjectInput.value = '';
-      mailBodyInput.value    = '';
-      composeThreadId = null;
-    }
-  });
-  mailCancelBtn?.addEventListener('click', () => {
-    mailComposeCard.classList.add('d-none');
-    composeThreadId = null;
-  });
-  mailSendBtn?.addEventListener('click', async () => {
-    const toVal   = mailToSelect.value;
-    const subject = (mailSubjectInput.value || '').trim();
-    const body    = (mailBodyInput.value || '').trim();
-    if (!toVal || !subject || !body) return toast('Vul aan: geadresseerde, onderwerp en bericht', 'warning');
-
-    const meUid = getActiveUserId();
-    try {
-      if (isAdmin()) {
-        const userUid = toVal.startsWith('user:') ? toVal.split(':')[1] : null;
-        if (!userUid) return toast('Kies gebruiker', 'warning');
-        await sendAdminReplyToUser(meUid, userUid, subject, body);
-        toast('Bericht verzonden aan gebruiker', 'success');
-      } else {
-        await sendUserMessageToAdmins(subject, body, composeThreadId || `conv:${meUid}`);
-        toast('Bericht verzonden aan admins', 'success');
-      }
-      mailComposeCard.classList.add('d-none');
-      composeThreadId = null;
-    } catch (e) {
-      console.error(e);
-      toast('Versturen mislukt', 'danger');
-    }
+  document.getElementById('mailDetailReply')?.addEventListener('click', async () => {
+    mailComposeCard.classList.remove('d-none');
+    await prepareComposeOptionsForSender();
+    // preset recipient (if from.uid exists)
+    if (m.from?.uid) mailToSelect.value = `user:${m.from.uid}`;
+    mailSubjectInput.value = m.subject?.startsWith('Re: ') ? m.subject : `Re: ${m.subject || ''}`;
+    mailBodyInput.value = `\n\n----\n${m.from?.name || m.from?.email || ''} schreef:\n${m.body || ''}`;
   });
 
-  // Refresh
-  mailRefreshBtn?.addEventListener('click', () => {
-    const uid = getActiveUserId();
-    if (uid) listenMailbox(uid);
-  });
-
-  // Lijst actions (delegation, één listener)
-  mailListBody?.addEventListener('click', async (e) => {
-    const aOpen = e.target.closest('a.js-open');
-    const bTog  = e.target.closest('button.js-toggle');
-    const bDel  = e.target.closest('button.js-del');
-    if (aOpen) {
-      e.preventDefault();
-      const msg = filteredMessages().find(x => x._id === aOpen.dataset.id)
-               || mailboxCache.find(x => x._id === aOpen.dataset.id);
-      if (msg) openMail(msg);
-      return;
-    }
-    if (bTog) {
-      const id = bTog.dataset.id;
-      const msg = mailboxCache.find(x => x._id === id);
-      await markMailRead(id, !(msg?.read));
-      return;
-    }
-    if (bDel) {
-      const id = bDel.dataset.id;
-      if (!confirm('Dit bericht verwijderen?')) return;
-      await deleteMail(id);
-      toast('Bericht verwijderd', 'success');
-      return;
-    }
-  });
-
-  // Detail actions (delegation)
-  mailDetail?.addEventListener('click', (e) => {
-    const markUn = e.target.closest('.js-mark-unread');
-    const delBtn = e.target.closest('.js-del');
-    const reply  = e.target.closest('.js-reply');
-
-    if (markUn) {
-      const id = markUn.dataset.id;
-      markMailRead(id, false);
-      toast('Gemarkeerd als ongelezen', 'success');
-      return;
-    }
-    if (delBtn) {
-      const id = delBtn.dataset.id;
-      if (!confirm('Dit bericht verwijderen?')) return;
-      deleteMail(id).then(()=> toast('Bericht verwijderd', 'success'));
-      return;
-    }
-    if (reply) {
-      const id = reply.dataset.id;
-      const msg = mailboxCache.find(x => x._id === id);
-      if (!msg) return;
-      mailComposeCard.classList.remove('d-none');
-      prepareComposeToCounterparty(msg);
-      window.scrollTo({ top: mailComposeCard.offsetTop - 80, behavior: 'smooth' });
-      return;
-    }
-  });
+  // re-render list to update read state visual
+  // (onSnapshot will also refresh shortly; but do immediate UI feedback)
+  const localMsg = mailboxCache.find(x=> x._id === m._id);
+  if (localMsg) localMsg.read = true;
+  renderMailList();
 }
 
-/* ---------- init on tab show ---------- */
-document.querySelector('a[href="#tab-mail"]')?.addEventListener('shown.bs.tab', () => {
-  bindMailboxUIOnce();
+// --- mark single message read/unread ---
+async function markMailRead(messageId, val = true) {
+  const uid = getActiveUserId();
+  try {
+    await updateDoc(doc(db, 'users', uid, 'mailbox', messageId), { read: !!val });
+    // update local cache and UI
+    const m = mailboxCache.find(x => x._id === messageId);
+    if (m) m.read = !!val;
+    renderMailList();
+  } catch (err) {
+    console.error('mark read error', err);
+    toast('Fout bij markeren', 'danger');
+  }
+}
+
+// --- delete ---
+async function deleteMail(messageId) {
+  const uid = getActiveUserId();
+  try {
+    await deleteDoc(doc(db, 'users', uid, 'mailbox', messageId));
+    mailboxCache = mailboxCache.filter(x=> x._id !== messageId);
+    renderMailList();
+    toast('Bericht verwijderd', 'success');
+  } catch (err) {
+    console.error('delete mail error', err);
+    toast('Fout bij verwijderen', 'danger');
+  }
+}
+
+// --- load more (simple, non-paged for now) ---
+mailLoadMoreBtn?.addEventListener('click', async () => {
+  const uid = getActiveUserId();
+  if (!mailLastVisible) return;
+  const colRef = collection(db, 'users', uid, 'mailbox');
+  const qMore = query(colRef, orderBy('timestamp','desc'), startAfter(mailLastVisible), limit(50));
+  try {
+    const snap = await getDocs(qMore);
+    if (!snap.empty) {
+      snap.forEach(d => mailboxCache.push({ _id: d.id, ...d.data() }));
+      mailLastVisible = snap.docs[snap.docs.length - 1];
+      renderMailList();
+    } else {
+      mailLoadMoreBtn.classList.add('d-none');
+    }
+  } catch (err) {
+    console.error('loadMore error', err);
+  }
+});
+
+// --- refresh button ---
+mailRefreshBtn?.addEventListener('click', () => {
   const uid = getActiveUserId();
   if (uid) listenMailbox(uid);
+  toast('Mailbox ververst', 'success');
 });
 
-// ook starten na login
-onAuthStateChanged(auth, (user) => {
-  if (!user) return;
-  bindMailboxUIOnce();
-  listenMailbox(user.uid);
+// --- Tab switching ---
+mailTabInbox?.addEventListener('click', () => {
+  mailViewMode = 'inbox';
+  mailTabInbox.classList.add('active'); mailTabSent.classList.remove('active');
+  mailListTitle.textContent = 'Inbox';
+  renderMailList();
+});
+mailTabSent?.addEventListener('click', () => {
+  mailViewMode = 'sent';
+  mailTabSent.classList.add('active'); mailTabInbox.classList.remove('active');
+  mailListTitle.textContent = 'Verzonden';
+  renderMailList();
 });
 
-// USERMAIL – gewone user kan dit veilig
-async function sendUserMail(db, adminUid, subject, body) {
-  await addDoc(collection(db, "users", adminUid, "mailbox"), {
-    threadId: `user:${Date.now()}`,
-    system: false, kind: "message",
-    from: { uid: getActiveUserId(), name: currentUserName, role: "user" },
-    to:   { type: "admin", uid: adminUid },
-    subject, body,
-    read: false,
-    timestamp: serverTimestamp()
-  });
+// --- Compose controls ---
+mailComposeBtn?.addEventListener('click', async () => {
+  mailComposeCard.classList.toggle('d-none');
+  if (!mailComposeCard.classList.contains('d-none')) {
+    await prepareComposeOptionsForSender();
+    mailSubjectInput.value = '';
+    mailBodyInput.value = '';
+  }
+});
+mailCancelBtn?.addEventListener('click', () => {
+  mailComposeCard.classList.add('d-none');
+});
+
+// --- send message (user -> admins OR admin -> user) ---
+// uses existing functions: sendUserMessageToAdmins, sendAdminReplyToUser
+mailSendBtn?.addEventListener('click', async () => {
+  const toVal = mailToSelect.value;
+  const subject = mailSubjectInput.value.trim();
+  const body = mailBodyInput.value.trim();
+  if (!toVal || !subject || !body) return toast('Vul aan: geadresseerde, onderwerp en bericht', 'warning');
+
+  const uid = getActiveUserId();
+  const meDoc = await getDoc(doc(db,'users', uid));
+  const isAdminUser = meDoc.exists() && meDoc.data().role === 'admin';
+
+  try {
+    if (isAdminUser) {
+      // admin -> single user
+      if (!toVal.startsWith('user:')) return toast('Kies een gebruiker', 'warning');
+      const targetUid = toVal.split(':')[1];
+      // save copy in admin's mailbox (sent)
+      await addDoc(collection(db,'users', uid, 'mailbox'), {
+        threadId: `conv:${targetUid}`,
+        system: false,
+        kind: 'message',
+        from: { uid, name: meDoc.data().name || meDoc.data().email || 'Admin', role: 'admin' },
+        to: { type: 'user', uid: targetUid },
+        subject, body, read: true, timestamp: new Date().toISOString()
+      });
+      // deliver to user
+      await addDoc(collection(db,'users', targetUid, 'mailbox'), {
+        threadId: `conv:${targetUid}`,
+        system: false,
+        kind: 'message',
+        from: { uid, name: meDoc.data().name || meDoc.data().email || 'Admin', role: 'admin' },
+        to: { type: 'user', uid: targetUid },
+        subject, body, read: false, timestamp: new Date().toISOString()
+      });
+      toast('Bericht verzonden naar gebruiker', 'success');
+    } else {
+      // user -> admins
+      // save copy in user's mailbox (sent)
+      await addDoc(collection(db,'users', uid, 'mailbox'), {
+        threadId: `conv:${uid}`,
+        system: false,
+        kind: 'message',
+        from: { uid, name: meDoc.data().name || meDoc.data().email || 'User', role: 'user' },
+        to: { type: 'admin-group' },
+        subject, body, read: true, timestamp: new Date().toISOString()
+      });
+      // fan-out to admins
+      const qAdmins = query(collection(db, 'users'), where('role','==','admin'));
+      const snap = await getDocs(qAdmins);
+      await Promise.all(snap.docs.map(a => addDoc(collection(db,'users', a.id, 'mailbox'), {
+        threadId: `conv:${uid}`,
+        system: false,
+        kind: 'message',
+        from: { uid, name: meDoc.data().name || meDoc.data().email || 'User', role: 'user' },
+        to: { type: 'user', uid: a.id },
+        subject, body, read: false, timestamp: new Date().toISOString()
+      })));
+      toast('Bericht verzonden aan admins', 'success');
+    }
+    mailComposeCard.classList.add('d-none');
+    // refresh
+    listenMailbox(uid);
+  } catch (err) {
+    console.error('mail send error', err);
+    toast('Versturen mislukt', 'danger');
+  }
+});
+
+// --- Mark all read ---
+mailMarkAllReadBtn?.addEventListener('click', async () => {
+  const uid = getActiveUserId();
+  if (!uid) return;
+  try {
+    const colRef = collection(db, 'users', uid, 'mailbox');
+    const snap = await getDocs(query(colRef, where('read','==', false)));
+    await Promise.all(snap.docs.map(d => updateDoc(d.ref, { read: true })));
+    toast('Alle berichten gemarkeerd als gelezen', 'success');
+    listenMailbox(uid);
+  } catch (err) {
+    console.error('mark all read error', err);
+    toast('Markeren mislukt', 'danger');
+  }
+});
+
+// --- helper to check admin quickly from dataStore (fast) ---
+function isAdminLocal() {
+  const uid = getActiveUserId();
+  const u = dataStore.users[uid];
+  return (u && u.role === 'admin');
 }
-/***** ========== /MAILBOX ========== *****/
+
+// --- Start listening when mailbox tab is shown or on login ---
+// call this after auth ready / after dataStore populated
+function activateMailboxForCurrentUser() {
+  const uid = getActiveUserId();
+  if (!uid) return;
+  listenMailbox(uid);
+  prepareComposeOptionsForSender();
+}
+
+// Hook into your existing onAuthStateChanged or renderAll flow
+// e.g. call activateMailboxForCurrentUser() after ensureUserDoc/loadAllUsers
+// In your app you already call listenMailbox on shown tab; we call here for safety:
+onAuthStateChanged(auth, user => {
+  if (user) activateMailboxForCurrentUser();
+});
+
+// Also when admin selects a different user to view (admin viewUserId change) call:
+ // after you set dataStore.viewUserId = uid; call activateMailboxForCurrentUser();
 
   </script>
 <!-- 🔄 Loading overlay -->
