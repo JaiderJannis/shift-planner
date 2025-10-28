@@ -308,6 +308,18 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
 .hidden-col {
   display: none !important;
 }
+/* === Mailbox Mobile Fixes === */
+@media (max-width: 576px) {
+  /* Verberg datum-tekst in de lijst (is zichtbaar in detail) */
+  .mail-meta {
+    display: none;
+  }
+  /* Zorg dat actieknoppen niet te breed worden */
+  #mailListTable .btn {
+    padding: .15rem .3rem;
+    font-size: .8rem;
+  }
+}
     </style>
 </head>
 <body>
@@ -638,87 +650,87 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
           </div>
         </div>
       </section>
-<section id="tab-mail" class="tab-pane fade">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h5 class="mb-0">Mailbox</h5>
-    <div class="d-flex gap-2 align-items-center">
-      <div class="btn-group btn-group-sm" role="group" aria-label="mail tabs">
-        <button id="mailTabInbox" type="button" class="btn btn-outline-primary active">Inbox</button>
-        <button id="mailTabSent" type="button" class="btn btn-outline-secondary">Verzonden</button>
-      </div>
-      <button id="mailRefreshBtn" class="btn btn-outline-secondary btn-sm" type="button" title="Vernieuwen">
-        <span class="material-icons-outlined">refresh</span>
-      </button>
-      <button id="mailComposeBtn" class="btn btn-primary btn-sm" type="button">
-        <span class="material-icons-outlined">edit</span> Nieuw bericht
-      </button>
-    </div>
-  </div>
-
-  <!-- Compose card -->
-  <div id="mailComposeCard" class="card p-3 mb-3 d-none">
-    <div class="row g-2">
-      <div class="col-md-3">
-        <label class="form-label">Aan</label>
-        <select id="mailToSelect" class="form-select">
-          <!-- gevuld in JS -->
-        </select>
-      </div>
-      <div class="col-md-9">
-        <label class="form-label">Onderwerp</label>
-        <input id="mailSubjectInput" class="form-control" placeholder="Onderwerp">
-      </div>
-      <div class="col-12">
-        <label class="form-label">Bericht</label>
-        <textarea id="mailBodyInput" rows="5" class="form-control" placeholder="Typ je bericht..."></textarea>
-      </div>
-      <div class="col-12 d-flex gap-2">
-        <button id="mailSendBtn" class="btn btn-success">Versturen</button>
-        <button id="mailCancelBtn" class="btn btn-outline-secondary">Annuleren</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="row g-3">
-    <div class="col-12 col-lg-5">
-      <div class="card border-0 shadow-sm">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h6 class="mb-0" id="mailListTitle">Inbox</h6>
-            <div class="d-flex gap-2 align-items-center">
-              <button id="mailMarkAllReadBtn" class="btn btn-outline-secondary btn-sm">Alles gelezen</button>
-              <span id="mailUnreadChip" class="badge bg-danger d-none">0</span>
+      <section id="tab-mail" class="tab-pane fade">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+          <h5 class="mb-0">Mailbox</h5>
+          
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <div id="mailFolderNav" class="btn-group btn-group-sm" role="group" aria-label="mail tabs">
+              <button id="mailTabInbox" type="button" class="btn btn-outline-primary active" data-folder="inbox">Inbox</button>
+              <button id="mailTabSent" type="button" class="btn btn-outline-secondary" data-folder="sent">Verzonden</button>
+            </div>
+            <button id="mailRefreshBtn" class="btn btn-outline-secondary btn-sm" type="button" title="Vernieuwen">
+              <span class="material-icons-outlined">refresh</span>
+            </button>
+            <button id="mailComposeBtn" class="btn btn-primary btn-sm d-flex align-items-center gap-1" type="button">
+              <span class="material-icons-outlined">edit</span>
+              <span class="d-none d-sm-inline">Nieuw bericht</span>
+            </button>
+          </div>
+        </div>
+      
+        <div id="mailComposeCard" class="card p-3 mb-3 d-none">
+          <div class="row g-2">
+            <div class="col-md-3">
+              <label class="form-label">Aan</label>
+              <select id="mailToSelect" class="form-select">
+                </select>
+            </div>
+            <div class="col-md-9">
+              <label class="form-label">Onderwerp</label>
+              <input id="mailSubjectInput" class="form-control" placeholder="Onderwerp">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Bericht</label>
+              <textarea id="mailBodyInput" rows="5" class="form-control" placeholder="Typ je bericht..."></textarea>
+            </div>
+            <div class="col-12 d-flex gap-2">
+              <button id="mailSendBtn" class="btn btn-success">Versturen</button>
+              <button id="mailCancelBtn" class="btn btn-outline-secondary">Annuleren</button>
             </div>
           </div>
-          <div class="table-responsive" style="max-height:420px; overflow:auto;">
-            <table class="table table-hover align-middle mb-0" id="mailListTable">
-              <thead class="table-light">
-                <tr>
-                  <th>Van / Naar</th>
-                  <th>Onderwerp</th>
-                  <th class="text-end">Datum</th>
-                  <th class="text-end">Acties</th>
-                </tr>
-              </thead>
-              <tbody id="mailListBody"></tbody>
-            </table>
+        </div>
+      
+        <div class="row g-3">
+          <div class="col-12 col-lg-5">
+            <div class="card border-0 shadow-sm">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h6 class="mb-0" id="mailListTitle">Inbox</h6>
+                  <div class="d-flex gap-2 align-items-center">
+                    <button id="mailMarkAllReadBtn" class="btn btn-outline-secondary btn-sm">Alles gelezen</button>
+                    <span id="mailUnreadChip" class="badge bg-danger d-none">0</span>
+                  </div>
+                </div>
+                <div class="table-responsive" style="max-height:420px; overflow:auto;">
+                  <table class="table table-hover align-middle mb-0" id="mailListTable">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Van / Naar</th>
+                        <th>Onderwerp</th>
+                        <th class="text-end">Datum</th>
+                        <th class="text-end">Acties</th>
+                      </tr>
+                    </thead>
+                    <tbody id="mailListBody"></tbody>
+                  </table>
+                </div>
+                <div class="text-center mt-2">
+                  <button id="mailLoadMoreBtn" class="btn btn-outline-secondary btn-sm d-none">Meer laden</button>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="text-center mt-2">
-            <button id="mailLoadMoreBtn" class="btn btn-outline-secondary btn-sm d-none">Meer laden</button>
+      
+          <div class="col-12 col-lg-7">
+            <div class="card border-0 shadow-sm">
+              <div class="card-body" id="mailDetail">
+                <div class="text-muted small">Selecteer een bericht…</div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-
-    <div class="col-12 col-lg-7">
-      <div class="card border-0 shadow-sm">
-        <div class="card-body" id="mailDetail">
-          <div class="text-muted small">Selecteer een bericht…</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
+      </section>
 <!-- ADMIN -->
 <section id="tab-admin" class="tab-pane fade">
   <div class="d-flex align-items-center justify-content-between mb-3">
