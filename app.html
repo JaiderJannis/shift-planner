@@ -699,6 +699,7 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
                   <h6 class="mb-0" id="mailListTitle">Inbox</h6>
                   <div class="d-flex gap-2 align-items-center">
                     <button id="mailMarkAllReadBtn" class="btn btn-outline-secondary btn-sm">Alles gelezen</button>
+                    <button id="mailDeleteAllBtn" class="btn btn-outline-danger btn-sm">Alles verwijderen</button>
                     <span id="mailUnreadChip" class="badge bg-danger d-none">0</span>
                   </div>
                 </div>
@@ -3912,6 +3913,8 @@ const mailCancelBtn   = document.getElementById('mailCancelBtn');
 const mailUnreadBadge = document.getElementById('mailUnreadBadge');
 const mailSidebarBadge= document.getElementById('mailSidebarBadge');
 const mailFolderNav   = document.getElementById('mailFolderNav');
+const mailMarkAllReadBtn = document.getElementById('mailMarkAllReadBtn');
+const mailDeleteAllBtn = document.getElementById('mailDeleteAllBtn');
 
 let mailboxUnsub = null;
 let mailboxCache = [];      // alle berichten (snapshot)
@@ -4204,7 +4207,82 @@ function bindMailboxUIOnce() {
     const uid = getActiveUserId();
     if (uid) listenMailbox(uid);
   });
+// 🆕 Alles verwijderen (in de huidige map)
+mailDeleteAllBtn?.addEventListener('click', async () => {
+    const uid = getActiveUserId();
+    if (!uid) return;
 
+    // 1. Bepaal welke map actief is
+    const folderName = (mailFolder === 'sent') ? 'verzonden items' : 'inbox';
+
+    // 2. Haal de berichten op die *zichtbaar* zijn in die map
+    //    Deze helper bestaat al en respecteert de 'mailFolder' state
+    const messagesToDelete = filteredMessages(); 
+
+    if (messagesToDelete.length === 0) {
+      return toast(`Er zijn geen berichten in je ${folderName}.`, 'info');
+    }
+
+    // 3. Vraag bevestiging (BELANGRIJK!)
+    if (!confirm(`Weet je zeker dat je alle ${messagesToDelete.length} berichten in je ${folderName} permanent wilt verwijderen?`)) {
+      return;
+    }
+
+    // 4. Bouw de lijst van te verwijderen documenten
+    try {
+      // We gebruiken 'deleteDoc' uit de Firebase import bovenaan je script
+      const deletions = messagesToDelete.map(m => {
+        const docRef = doc(db, 'users', uid, 'mailbox', m._id);
+        return deleteDoc(docRef);
+      });
+
+      await Promise.all(deletions);
+      toast(`Alle ${messagesToDelete.length} berichten zijn verwijderd.`, 'success');
+      
+      // Maak het detailpaneel leeg voor het geval een verwijderd bericht open stond
+      mailDetail.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
+      delete mailDetail.dataset.openId;
+
+      // De 'onSnapshot' listener pikt dit automatisch op en laadt de lijst opnieuw.
+
+    } catch (err) {
+      console.error("Fout bij alles verwijderen:", err);
+      toast('Er ging iets mis bij het verwijderen.', 'danger');
+    }
+  });
+// 🆕 Markeer alles als gelezen
+  mailMarkAllReadBtn?.addEventListener('click', async () => {
+    const uid = getActiveUserId();
+    if (!uid) return;
+    if (!confirm('Alle berichten in de inbox als gelezen markeren?')) return;
+
+    // We updaten alleen de items die we lokaal zien (uit de cache)
+    const unreadInbox = mailboxCache.filter(m =>
+      (m.from?.uid !== uid || m.system) && // Definitie van 'inbox'
+      m.read === false
+    );
+
+    if (unreadInbox.length === 0) {
+      return toast('Geen ongelezen berichten', 'info');
+    }
+
+    try {
+      // We updaten alle documenten één voor één
+      // (Batch write is efficiënter, maar vereist een extra import)
+      const updates = unreadInbox.map(m => {
+        const docRef = doc(db, 'users', uid, 'mailbox', m._id);
+        return updateDoc(docRef, { read: true });
+      });
+
+      await Promise.all(updates);
+      toast(`Alle ${unreadInbox.length} berichten als gelezen gemarkeerd`, 'success');
+// De 'onSnapshot'-listener pikt dit automatisch op en her-rendert de lijst.
+
+    } catch (err) {
+      console.error("Fout bij alles gelezen:", err);
+      toast('Er ging iets mis.', 'danger');
+    }
+  });
   // Lijst actions (delegation, één listener)
   mailListBody?.addEventListener('click', async (e) => {
     const aOpen = e.target.closest('a.js-open');
