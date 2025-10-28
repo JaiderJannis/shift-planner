@@ -308,6 +308,20 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
 .hidden-col {
   display: none !important;
 }
+/* === 📱 Mailbox smartphone fix === */
+@media (max-width: 991.98px) {
+  /* Verberg detail-view standaard op mobiel */
+  #mailDetailView {
+    display: none;
+  }
+  /* Als 'view-open' op de tab staat, toon detail en verberg lijst */
+  #tab-mail.view-open #mailListView {
+    display: none;
+  }
+  #tab-mail.view-open #mailDetailView {
+    display: block;
+  }
+}
     </style>
 </head>
 <body>
@@ -680,7 +694,7 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
   </div>
 
   <div class="row g-3">
-    <div class="col-12 col-lg-5">
+    <div class="col-12 col-lg-5" id="mailListView">
       <div class="card border-0 shadow-sm">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-2">
@@ -710,7 +724,7 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
       </div>
     </div>
 
-    <div class="col-12 col-lg-7">
+    <div class="col-12 col-lg-7" id="mailDetailView">
       <div class="card border-0 shadow-sm">
         <div class="card-body" id="mailDetail">
           <div class="text-muted small">Selecteer een bericht…</div>
@@ -4109,8 +4123,15 @@ function openMail(m) {
   if (!m.read) { markMailRead(m._id, true); m.read = true; }
 
   const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
+  
+  // 📱 NIEUW: "Terug" knop voor mobiel
+  const backButton = `
+    <button class="btn btn-outline-secondary btn-sm d-lg-none mb-2 js-mail-back">
+      <span class="material-icons-outlined" style="font-size:16px">arrow_back</span> Terug naar Inbox
+    </button>`;
+
   const actions = `
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
       <button class="btn btn-outline-secondary btn-sm js-mark-unread" data-id="${m._id}">Markeer ongelezen</button>
       <button class="btn btn-outline-danger btn-sm js-del" data-id="${m._id}">
         <span class="material-icons-outlined" style="font-size:16px">delete</span>
@@ -4118,19 +4139,41 @@ function openMail(m) {
       ${m.system ? '' : '<button class="btn btn-outline-primary btn-sm js-reply" data-id="'+m._id+'"><span class="material-icons-outlined">reply</span> Antwoorden</button>'}
     </div>`;
 
-  mailDetail.innerHTML = `
-    <div class="d-flex justify-content-between align-items-start">
-      <div>
-        <div class="fw-semibold">${m.subject || '(geen onderwerp)'}</div>
-        <div class="mail-meta">Van: ${fromName} • ${formatWhen(m._tsIso)}</div>
-      </div>
-      ${actions}
-    </div>
-    <hr class="my-2">
-    <div style="white-space:pre-wrap">${m.body || ''}</div>
-  `;
-  mailDetail.dataset.openId = m._id;
-}
+// Detail actions (delegation)
+mailDetail?.addEventListener('click', (e) => {
+    const markUn = e.target.closest('.js-mark-unread');
+    const delBtn = e.target.closest('.js-del');
+    const reply  = e.target.closest('.js-reply');
+    const backBtn = e.target.closest('.js-mail-back'); // 📱 NIEUW
+
+    // 📱 NIEUW: Handler for "Back" button
+    if (backBtn) {
+      document.getElementById('tab-mail').classList.remove('view-open');
+      return;
+    }
+
+    if (markUn) {
+      const id = markUn.dataset.id;
+      markMailRead(id, false);
+      toast('Gemarkeerd als ongelezen', 'success');
+      return;
+    }
+    if (delBtn) {
+      const id = delBtn.dataset.id;
+      if (!confirm('Dit bericht verwijderen?')) return;
+      deleteMail(id).then(()=> toast('Bericht verwijderd', 'success'));
+      return;
+    }
+    if (reply) {
+      const id = reply.dataset.id;
+      const msg = mailboxCache.find(x => x._id === id);
+      if (!msg) return;
+      mailComposeCard.classList.remove('d-none');
+      prepareComposeToCounterparty(msg);
+      window.scrollTo({ top: mailComposeCard.offsetTop - 80, behavior: 'smooth' });
+      return;
+    }
+  });
 
 /* ---------- once-only UI binding ---------- */
 function bindMailboxUIOnce() {
@@ -4146,6 +4189,7 @@ function bindMailboxUIOnce() {
     btn.classList.add('active');
     renderMailList();
     mailDetail.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
+    document.getElementById('tab-mail').classList.remove('view-open'); // 📱 NIEUW
   });
 
   // Compose
