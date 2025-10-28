@@ -4138,6 +4138,43 @@ function openMail(m) {
       </button>
       ${m.system ? '' : '<button class="btn btn-outline-primary btn-sm js-reply" data-id="'+m._id+'"><span class="material-icons-outlined">reply</span> Antwoorden</button>'}
     </div>`;
+
+// Detail actions (delegation)
+mailDetail?.addEventListener('click', (e) => {
+    const markUn = e.target.closest('.js-mark-unread');
+    const delBtn = e.target.closest('.js-del');
+    const reply  = e.target.closest('.js-reply');
+    const backBtn = e.target.closest('.js-mail-back'); // 📱 NIEUW
+
+    // 📱 NIEUW: Handler for "Back" button
+    if (backBtn) {
+      document.getElementById('tab-mail').classList.remove('view-open');
+      return;
+    }
+
+    if (markUn) {
+      const id = markUn.dataset.id;
+      markMailRead(id, false);
+      toast('Gemarkeerd als ongelezen', 'success');
+      return;
+    }
+    if (delBtn) {
+      const id = delBtn.dataset.id;
+      if (!confirm('Dit bericht verwijderen?')) return;
+      deleteMail(id).then(()=> toast('Bericht verwijderd', 'success'));
+      return;
+    }
+    if (reply) {
+      const id = reply.dataset.id;
+      const msg = mailboxCache.find(x => x._id === id);
+      if (!msg) return;
+      mailComposeCard.classList.remove('d-none');
+      prepareComposeToCounterparty(msg);
+      window.scrollTo({ top: mailComposeCard.offsetTop - 80, behavior: 'smooth' });
+      return;
+    }
+  });
+
 /* ---------- once-only UI binding ---------- */
 function bindMailboxUIOnce() {
   if (mailUIBound) return;
@@ -4228,17 +4265,10 @@ function bindMailboxUIOnce() {
   });
 
   // Detail actions (delegation)
-mailDetail?.addEventListener('click', (e) => {
+  mailDetail?.addEventListener('click', (e) => {
     const markUn = e.target.closest('.js-mark-unread');
     const delBtn = e.target.closest('.js-del');
     const reply  = e.target.closest('.js-reply');
-    const backBtn = e.target.closest('.js-mail-back'); // 📱 NIEUW
-
-    // 📱 NIEUW: Handler for "Back" button
-    if (backBtn) {
-      document.getElementById('tab-mail').classList.remove('view-open');
-      return;
-    }
 
     if (markUn) {
       const id = markUn.dataset.id;
@@ -4289,6 +4319,7 @@ async function sendUserMail(db, adminUid, subject, body) {
     read: false,
     timestamp: serverTimestamp()
   });
+}
 /***** ========== /MAILBOX ========== *****/
 
   </script>
