@@ -1038,8 +1038,9 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
 
 // activeer bij login / gebruikerswissel
 document.querySelector('a[href="#tab-mail"]')?.addEventListener('shown.bs.tab', () => {
-  const uid = getActiveUserId();
-  if (uid) listenMailbox(uid);
+  bindMailboxUIOnce();
+  // 👈 FIX: Gebruik altijd de ID van de ingelogde user, niet de bekeken user
+  if (currentUserId) listenMailbox(currentUserId); 
 });
 
     // Tabs: Shifts
@@ -4150,14 +4151,14 @@ async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
 
 /* ---------- actions ---------- */
 async function markMailRead(messageId, val = true) {
-  const uid = getActiveUserId();
+  const uid = currentUserId; // 👈 FIX: Altijd de ingelogde user gebruiken
   await updateDoc(doc(db, 'users', uid, 'mailbox', messageId), { read: !!val });
   const m = mailboxCache.find(x => x._id === messageId);
   if (m) m.read = !!val;
   renderMailList();
 }
 async function deleteMail(messageId) {
-  const uid = getActiveUserId();
+  const uid = currentUserId; // 👈 FIX: Altijd de ingelogde user gebruiken
   await deleteDoc(doc(db, 'users', uid, 'mailbox', messageId));
   mailboxCache = mailboxCache.filter(x => x._id !== messageId);
   renderMailList();
@@ -4169,7 +4170,7 @@ async function deleteMail(messageId) {
 
 /* ---------- render ---------- */
 function filteredMessages() {
-  const uid = getActiveUserId();
+  const uid = currentUserId; // 👈 FIX: Altijd de ingelogde user gebruiken
   const items = mailboxCache
     .slice()
     .sort((a,b)=> (b._tsIso||'').localeCompare(a._tsIso||''));
@@ -4343,7 +4344,7 @@ mailFolderNav?.addEventListener('click', (e) => {
   });
 // 🆕 Alles verwijderen (in de huidige map)
 mailDeleteAllBtn?.addEventListener('click', async () => {
-    const uid = getActiveUserId();
+    const uid = currentUserId; // 👈 FIX: Altijd de ingelogde user gebruiken
     if (!uid) return;
 
     // 1. Bepaal welke map actief is
@@ -4386,7 +4387,7 @@ mailDeleteAllBtn?.addEventListener('click', async () => {
   });
 // 🆕 Markeer alles als gelezen
   mailMarkAllReadBtn?.addEventListener('click', async () => {
-    const uid = getActiveUserId();
+    const uid = currentUserId; // 👈 FIX: Altijd de ingelogde user gebruiken
     if (!uid) return;
     if (!confirm('Alle berichten in de inbox als gelezen markeren?')) return;
 
