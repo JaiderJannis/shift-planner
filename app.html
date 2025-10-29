@@ -1937,9 +1937,17 @@ async function renderMonth(year, month){
   renderHome();
 
 // 🔒 velden vergrendelen bij submitted/approved
-  const lockedNow = (getMonthStatus(year, month)==='approved' || getMonthStatus(year, month)==='submitted');
+const lockedNow = (getMonthStatus(year, month)==='approved' || getMonthStatus(year, month)==='submitted');
+  
+  // 1. Vergrendel de tabel-rijen (dit had je al)
   tbody.querySelectorAll('select, input').forEach(el => { el.disabled = lockedNow; });
 
+  // 2. NIEUW: Vergrendel ook de "Doel" velden en de project filter
+  if (monthTargetHours) monthTargetHours.disabled = lockedNow;
+  if (monthTargetMinutes) monthTargetMinutes.disabled = lockedNow;
+  if (projectFilterSelect) projectFilterSelect.disabled = lockedNow;
+
+  // 3. De knoppen (Indienen, etc.) worden al correct beheerd door deze functie
   updateMonthStatusBadge();
 
   // ✅ Toegevoegd: kaarten + badges verversen
