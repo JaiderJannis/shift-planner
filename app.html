@@ -1334,7 +1334,7 @@ function updateMonthStatusBadge(){
   if (status==='approved'){ badge.classList.add('badge-approved'); badge.textContent='Goedgekeurd'; }
   if (status==='rejected'){ badge.classList.add('badge-rejected'); badge.textContent='Afgekeurd'; }
 
-  const hide = (status==='submitted' || status==='approved');
+  const hide = (status==='submitted' || status==='approved') && !isAdmin();
   if (submitBtn){
     submitBtn.classList.toggle('d-none', hide);
     submitBtn.disabled = hide;
@@ -1937,22 +1937,19 @@ async function renderMonth(year, month){
   renderHome();
 
 // 🔒 velden vergrendelen bij submitted/approved
-const lockedNow = (getMonthStatus(year, month)==='approved' || getMonthStatus(year, month)==='submitted');
+const statusLocked = (getMonthStatus(year, month)==='approved' || getMonthStatus(year, month)==='submitted');
+  const lockedNow = statusLocked && !isAdmin(); // 👈 HIER AANGEPAST
   
-  // 1. Vergrendel de tabel-rijen (dit had je al)
+  // 1. Vergrendel de tabel-rijen
   tbody.querySelectorAll('select, input').forEach(el => { el.disabled = lockedNow; });
 
-  // 2. NIEUW: Vergrendel ook de "Doel" velden en de project filter
+  // 2. Vergrendel ook de "Doel" velden en de project filter
   if (monthTargetHours) monthTargetHours.disabled = lockedNow;
   if (monthTargetMinutes) monthTargetMinutes.disabled = lockedNow;
   if (projectFilterSelect) projectFilterSelect.disabled = lockedNow;
 
-  // 3. De knoppen (Indienen, etc.) worden al correct beheerd door deze functie
+  // 3. De knoppen (Indienen, etc.) worden beheerd door deze functie
   updateMonthStatusBadge();
-
-  // ✅ Toegevoegd: kaarten + badges verversen
-  renderProjectSummaryForVisibleMonth();
-  updateLeaveBadges();
 }
 
 async function populateShiftSelectForRow(tr, rowKey){
