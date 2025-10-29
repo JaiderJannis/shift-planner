@@ -1027,6 +1027,7 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
 
     // ======= State =======
     let currentUserId = null;
+    let notificationInterval = null;
     const dataStore = { users: {}, currentUser: null };
 
     // ======= Elements =======
@@ -1347,7 +1348,10 @@ function updateMonthStatusBadge(){
   }
 }
     // ======= Auth =======
-    onAuthStateChanged(auth, async (user)=>{
+onAuthStateChanged(auth, async (user)=>{
+      //Stop alle intervals als we uitloggen
+      if (notificationInterval) clearInterval(notificationInterval);
+
       if(!user){
         // Voor demo: toon eenvoudige melding
         currentUserName.textContent = 'Niet ingelogd';
@@ -1355,7 +1359,7 @@ function updateMonthStatusBadge(){
         // Je kan hier een loginpagina openen of FirebaseUI integreren.
         return;
       }
-      currentUserId = user.uid;
+      currentUserId = user.uid; // 👈 WORDT NU EERST INGESTELD
       currentUserName.textContent = user.displayName || user.email;
 
       await ensureUserDoc(user);
@@ -1364,10 +1368,25 @@ function updateMonthStatusBadge(){
       renderAll();
       await revealAdminIfNeeded();
       updateMonthStatusBadge();
-// ✅ Automatische meldingen uitvoeren
-await autoCheckNotifications();
-  updateLeaveBadges();
-  renderHome();
+      updateLeaveBadges();
+      renderHome();
+      
+      // --- NIEUWE NOTIFICATIE LOGICA ---
+      listenToNotifications(user.uid); // Start de listener
+      
+      // 🕒 Start automatische meldingensysteem
+      await autoCheckNotifications(); // 1. Direct uitvoeren na login
+
+      // 🔁 Herhaal automatisch elke 6 uur (21600000 ms)
+      notificationInterval = setInterval(async () => {
+        await autoCheckNotifications();
+      }, 21600000);
+      // --- EINDE NIEUWE LOGICA ---
+
+      // --- NIEUWE MAILBOX LOGICA ---
+      bindMailboxUIOnce();
+      listenMailbox(user.uid);
+      // --- EINDE NIEUWE LOGICA ---
 });
 
     logoutBtn?.addEventListener('click', async ()=>{
@@ -2946,20 +2965,6 @@ async function loadMoreNotifications(uid) {
 document.getElementById('loadMoreNotifBtn')?.addEventListener('click', async () => {
   await loadMoreNotifications(currentUserId);
 });
-// ✅ Start luisteren na login
-onAuthStateChanged(auth, async (user) => {
-  if (user) {
-    listenToNotifications(user.uid);
-
-    // 🕒 Start automatische meldingensysteem
-    await autoCheckNotifications(); // direct uitvoeren bij login
-
-    // 🔁 Herhaal automatisch elke 6 uur (21600000 ms)
-    setInterval(async () => {
-      await autoCheckNotifications();
-    }, 21600000);
-  }
-});
 // helpers bovenin
 function getISOWeekParts(date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -3082,7 +3087,7 @@ for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) 
   // ⬇️ HIER IS DE FIX ⬇️
   try {
     const notifCol = collection(db, 'users', uid, 'notifications');
-    const notifSnap = await getDocs(notifCol); // 
+    const notifSnap = await getDocs(notifCol); // 👈 DEZE FAALT (nu in try/catch)
     const nowClean = new Date();
 
     notifSnap.forEach(async (docSnap) => {
@@ -4565,14 +4570,6 @@ document.querySelector('a[href="#tab-mail"]')?.addEventListener('shown.bs.tab', 
   const uid = getActiveUserId();
   if (uid) listenMailbox(uid);
 });
-
-// ook starten na login
-onAuthStateChanged(auth, (user) => {
-  if (!user) return;
-  bindMailboxUIOnce();
-  listenMailbox(user.uid);
-});
-
 // USERMAIL – gewone user kan dit veilig
 async function sendUserMail(db, adminUid, subject, body) {
   await addDoc(collection(db, "users", adminUid, "mailbox"), {
