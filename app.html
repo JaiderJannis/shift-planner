@@ -4058,18 +4058,17 @@ async function broadcastToAdmins(subject, body, kind = 'status') {
   const meName = me?.name || me?.email || meUid;
   const meEmail = me?.email || 'onbekend';
   
-  // Maak een unieke ID voor deze maand-status
   const y = Number(yearSelectMain.value);
   const m = Number(monthSelectMain.value);
   const threadId = `plan:${meUid}:${y}-${m}`;
 
-  // 1. Kopie in eigen 'verzonden' items (gemarkeerd als 'system')
+  // 1. Kopie in eigen 'verzonden' items
   await addDoc(collection(db, 'users', meUid, 'mailbox'), {
     threadId, 
-    system: true, // Markeer als system-generated
+    system: false, // 👈 HIER IS DE FIX: DIT STAAT NU GOED
     kind: kind,
     from:{ uid: meUid, name: meName, role:'user' },
-    to:{ type:'admin-group' },
+    to:{ type:'admin-group' }, // We sturen dit naar de 'admin-group'
     subject, body, read:true,
     timestamp: serverTimestamp()
   });
@@ -4081,7 +4080,7 @@ async function broadcastToAdmins(subject, body, kind = 'status') {
       fromEmail: meEmail,
       subject: subject,
       body: body,
-      kind: kind, // 'status'
+      kind: kind, 
       timestamp: serverTimestamp(),
       read: false, 
       threadId: threadId
@@ -4153,11 +4152,28 @@ function renderMailList() {
   updateUnreadBadges(unread);
 
   msgs.forEach(m => {
-    const fromName = m.system ? 'Shift Planner (noreply)' : (m.fromName || m.from?.name || m.fromEmail || m.from?.email || '—');
+    // 👇 HIER IS DE FIX: Kijkt nu naar de 'Verzonden' map
+    let displayName = '—';
+    if (mailFolder === 'sent') {
+      // In Verzonden map, toon de 'To' (Naar)
+      if (m.to?.type === 'admin-group') {
+        displayName = 'Admins';
+      } else if (m.to?.uid && dataStore.users[m.to.uid]) {
+        displayName = dataStore.users[m.to.uid].name || dataStore.users[m.to.uid].email; // Admin naar user
+      } else if (m.to?.name) {
+        displayName = m.to.name;
+      } else {
+        displayName = 'Onbekend';
+      }
+    } else {
+      // In Inbox, toon de 'From' (Van)
+      displayName = m.system ? 'Shift Planner (noreply)' : (m.fromName || m.from?.name || m.fromEmail || m.from?.email || '—');
+    }
+
     const tr = document.createElement('tr');
     tr.className = m.read ? '' : 'fw-semibold';
     tr.innerHTML = `
-      <td>${fromName}</td>
+      <td>${displayName}</td>
       <td><a href="#" class="js-open" data-id="${m._id}">${m.subject || '(geen onderwerp)'}</a></td>
       <td class="text-end"><span class="mail-meta">${formatWhen(m._tsIso)}</span></td>
       <td class="text-end">
@@ -4206,13 +4222,41 @@ function bindMailboxUIOnce() {
   if (mailUIBound) return;
   mailUIBound = true;
 
-  // Folder switch
-  mailFolderNav?.addEventListener('click', (e) => {
+// Folder switch
+mailFolderNav?.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-folder]');
     if (!btn) return;
-    mailFolder = btn.dataset.folder;
-    mailFolderNav.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+    mailFolder = btn.dataset.folder; // 'inbox' or 'sent'
+  
+    const inboxBtn = document.getElementById('mailTabInbox');
+    const sentBtn = document.getElementById('mailTabSent');
+  
+    // 1. 👈 FIX: Update de knop-stijlen correct
+    if (mailFolder === 'sent') {
+      // Maak Inbox inactief
+      inboxBtn.classList.remove('active');
+      inboxBtn.classList.replace('btn-outline-primary', 'btn-outline-secondary'); // Wordt grijs
+      
+      // Maak Verzonden actief
+      sentBtn.classList.add('active');
+      sentBtn.classList.replace('btn-outline-secondary', 'btn-outline-primary'); // Wordt blauw
+    } else { // 'inbox'
+      // Maak Inbox actief
+      inboxBtn.classList.add('active');
+      inboxBtn.classList.replace('btn-outline-secondary', 'btn-outline-primary'); // Wordt blauw
+      
+      // Maak Verzonden inactief
+      sentBtn.classList.remove('active');
+      sentBtn.classList.replace('btn-outline-primary', 'btn-outline-secondary'); // Wordt grijs
+    }
+  
+    // 2. 👈 FIX: Update de titel
+    const titleEl = document.getElementById('mailListTitle');
+    if (titleEl) {
+      titleEl.textContent = (mailFolder === 'sent') ? 'Verzonden' : 'Inbox';
+    }
+  
+    // 3. Herlaad de lijst en maak details leeg
     renderMailList();
     mailDetail.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
   });
