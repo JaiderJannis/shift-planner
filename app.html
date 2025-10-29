@@ -4010,16 +4010,18 @@ function listenMailbox(uid) {
     const inboxColRef = collection(db, 'admin_mail');
     const qyInbox = query(inboxColRef, orderBy('timestamp','desc'), limit(200));
     mailboxUnsubInbox = onSnapshot(qyInbox, (snap) => {
-      mailboxCacheInbox = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp) }));
-      mergeAndRenderMail(); // Gebruik de nieuwe merge-functie
+      // ⬇️ HIER IS DE FIX: _source tag toegevoegd
+      mailboxCacheInbox = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp), _source: 'admin_mail' }));
+      mergeAndRenderMail(); 
     });
 
     // Bron 2: Hun EIGEN mailbox (voor Verzonden items en replies)
     const sentColRef = collection(db, 'users', uid, 'mailbox');
     const qySent = query(sentColRef, orderBy('timestamp','desc'), limit(200));
     mailboxUnsubSent = onSnapshot(qySent, (snap) => {
-      mailboxCacheSent = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp) }));
-      mergeAndRenderMail(); // Gebruik de nieuwe merge-functie
+      // ⬇️ HIER IS DE FIX: _source tag toegevoegd
+      mailboxCacheSent = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp), _source: 'user_mailbox' }));
+      mergeAndRenderMail(); 
     });
 
   } else {
@@ -4027,9 +4029,10 @@ function listenMailbox(uid) {
     const userColRef = collection(db, 'users', uid, 'mailbox');
     const qyUser = query(userColRef, orderBy('timestamp','desc'), limit(200));
     mailboxUnsubInbox = onSnapshot(qyUser, (snap) => {
-      mailboxCacheInbox = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp) }));
-      mailboxCacheSent = []; // User heeft geen tweede bron
-      mergeAndRenderMail(); // Gebruik de nieuwe merge-functie
+      // ⬇️ HIER IS DE FIX: _source tag toegevoegd
+      mailboxCacheInbox = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp), _source: 'user_mailbox' }));
+      mailboxCacheSent = []; 
+      mergeAndRenderMail(); 
     });
   }
 }
@@ -4173,16 +4176,47 @@ async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
 
 /* ---------- actions ---------- */
 async function markMailRead(messageId, val = true) {
-  const uid = currentUserId; // 👈 FIX: Altijd de ingelogde user gebruiken
-  await updateDoc(doc(db, 'users', uid, 'mailbox', messageId), { read: !!val });
+  const uid = currentUserId; 
+  
+  // ⬇️ FIX: Vind het bericht in de cache om de bron te kennen
+  const msg = mailboxCache.find(m => m._id === messageId);
+  if (!msg) return; // Bericht al weg
+
+  let docRef;
+  if (msg._source === 'admin_mail') {
+    docRef = doc(db, 'admin_mail', messageId);
+  } else {
+    docRef = doc(db, 'users', uid, 'mailbox', messageId);
+  }
+
+  await updateDoc(docRef, { read: !!val }); // 👈 Gebruik het juiste pad
+  
+  // Cache update (lokaal)
   const m = mailboxCache.find(x => x._id === messageId);
   if (m) m.read = !!val;
   renderMailList();
 }
 async function deleteMail(messageId) {
-  const uid = currentUserId; // 👈 FIX: Altijd de ingelogde user gebruiken
-  await deleteDoc(doc(db, 'users', uid, 'mailbox', messageId));
+  const uid = currentUserId; 
+  
+  // ⬇️ FIX: Vind het bericht in de cache om de bron te kennen
+  const msg = mailboxCache.find(m => m._id === messageId);
+  if (!msg) return; // Bericht al weg
+
+  let docRef;
+  if (msg._source === 'admin_mail') {
+    docRef = doc(db, 'admin_mail', messageId);
+  } else {
+    docRef = doc(db, 'users', uid, 'mailbox', messageId);
+  }
+
+  await deleteDoc(docRef); // 👈 Gebruik het juiste pad
+  
+  // Cache updates (lokaal)
   mailboxCache = mailboxCache.filter(x => x._id !== messageId);
+  mailboxCacheInbox = mailboxCacheInbox.filter(x => x._id !== messageId);
+  mailboxCacheSent = mailboxCacheSent.filter(x => x._id !== messageId);
+  
   renderMailList();
   if (mailDetail.dataset?.openId === messageId) {
     mailDetail.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
@@ -4395,20 +4429,23 @@ mailDeleteAllBtn?.addEventListener('click', async () => {
 
     // 4. Bouw de lijst van te verwijderen documenten
     try {
-      // We gebruiken 'deleteDoc' uit de Firebase import bovenaan je script
+      // ⬇️ HIER IS DE FIX ⬇️
       const deletions = messagesToDelete.map(m => {
-        const docRef = doc(db, 'users', uid, 'mailbox', m._id);
+        let docRef; 
+        if (m._source === 'admin_mail') {
+          docRef = doc(db, 'admin_mail', m._id);
+        } else {
+          docRef = doc(db, 'users', uid, 'mailbox', m._id);
+        }
         return deleteDoc(docRef);
       });
 
       await Promise.all(deletions);
       toast(`Alle ${messagesToDelete.length} berichten zijn verwijderd.`, 'success');
       
-      // Maak het detailpaneel leeg voor het geval een verwijderd bericht open stond
+      // Maak het detailpaneel leeg
       mailDetail.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
       delete mailDetail.dataset.openId;
-
-      // De 'onSnapshot' listener pikt dit automatisch op en laadt de lijst opnieuw.
 
     } catch (err) {
       console.error("Fout bij alles verwijderen:", err);
@@ -4432,16 +4469,19 @@ mailDeleteAllBtn?.addEventListener('click', async () => {
     }
 
     try {
-      // We updaten alle documenten één voor één
-      // (Batch write is efficiënter, maar vereist een extra import)
+      // ⬇️ HIER IS DE FIX ⬇️
       const updates = unreadInbox.map(m => {
-        const docRef = doc(db, 'users', uid, 'mailbox', m._id);
+        let docRef; 
+        if (m._source === 'admin_mail') {
+         docRef = doc(db, 'admin_mail', m._id);
+        } else {
+          docRef = doc(db, 'users', uid, 'mailbox', m._id);
+        }
         return updateDoc(docRef, { read: true });
       });
 
       await Promise.all(updates);
       toast(`Alle ${unreadInbox.length} berichten als gelezen gemarkeerd`, 'success');
-// De 'onSnapshot'-listener pikt dit automatisch op en her-rendert de lijst.
 
     } catch (err) {
       console.error("Fout bij alles gelezen:", err);
