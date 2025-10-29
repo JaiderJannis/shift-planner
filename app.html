@@ -3082,7 +3082,7 @@ for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) 
   // ⬇️ HIER IS DE FIX ⬇️
   try {
     const notifCol = collection(db, 'users', uid, 'notifications');
-    const notifSnap = await getDocs(notifCol); // 👈 DEZE FAALT (nu in try/catch)
+    const notifSnap = await getDocs(notifCol); // 
     const nowClean = new Date();
 
     notifSnap.forEach(async (docSnap) => {
