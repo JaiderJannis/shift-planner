@@ -3963,11 +3963,11 @@ const mailFolderNav   = document.getElementById('mailFolderNav');
 const mailMarkAllReadBtn = document.getElementById('mailMarkAllReadBtn');
 const mailDeleteAllBtn = document.getElementById('mailDeleteAllBtn');
 
-let mailboxUnsub = null;
-let mailboxCache = [];      // alle berichten (snapshot)
-let mailFolder   = 'inbox'; // 'inbox' | 'sent'
-let composeThreadId = null; // reply flow
-let mailUIBound = false;
+let mailboxUnsubInbox = null;  // 👈 Aangepast
+let mailboxUnsubSent = null;   // 👈 Nieuw
+let mailboxCacheInbox = [];    // 👈 Nieuw
+let mailboxCacheSent = [];     // 👈 Nieuw
+let mailboxCache = [];         // alle berichten (snapshot)
 
 /* ---------- helpers ---------- */
 function normTs(ts){
@@ -3991,26 +3991,45 @@ function updateUnreadBadges(unread) {
 
 /* ---------- mailbox listen ---------- */
 function listenMailbox(uid) {
-  if (mailboxUnsub) mailboxUnsub();
+  // 1. Stop vorige listeners
+  if (mailboxUnsubInbox) mailboxUnsubInbox();
+  if (mailboxUnsubSent) mailboxUnsubSent();
+  mailboxCacheInbox = [];
+  mailboxCacheSent = [];
 
-  let colRef; // Variabele voor de collectie-referentie
+  const me = dataStore.users[uid]; // Gebruik de ingelogde user ID
+  const iAmAdmin = (me?.role || 'user') === 'admin';
 
-  if (isAdmin()) {
-    // 1. ADMIN: Luister naar de centrale 'admin_mail' collectie
-    colRef = collection(db, 'admin_mail');
+  if (iAmAdmin) {
+    // ADMIN: Luistert naar TWEE bronnen
+    
+    // Bron 1: De 'admin_mail' collectie (voor de Inbox)
+    const inboxColRef = collection(db, 'admin_mail');
+    const qyInbox = query(inboxColRef, orderBy('timestamp','desc'), limit(200));
+    mailboxUnsubInbox = onSnapshot(qyInbox, (snap) => {
+      mailboxCacheInbox = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp) }));
+      mergeAndRenderMail(); // Gebruik de nieuwe merge-functie
+    });
+
+    // Bron 2: Hun EIGEN mailbox (voor Verzonden items en replies)
+    const sentColRef = collection(db, 'users', uid, 'mailbox');
+    const qySent = query(sentColRef, orderBy('timestamp','desc'), limit(200));
+    mailboxUnsubSent = onSnapshot(qySent, (snap) => {
+      mailboxCacheSent = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp) }));
+      mergeAndRenderMail(); // Gebruik de nieuwe merge-functie
+    });
+
   } else {
-    // 2. GEWONE GEBRUIKER: Luister naar hun eigen 'mailbox' subcollectie
-    colRef = collection(db, 'users', uid, 'mailbox');
+    // GEWONE USER: Luistert naar ÉÉN bron (hun eigen mailbox)
+    const userColRef = collection(db, 'users', uid, 'mailbox');
+    const qyUser = query(userColRef, orderBy('timestamp','desc'), limit(200));
+    mailboxUnsubInbox = onSnapshot(qyUser, (snap) => {
+      mailboxCacheInbox = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp) }));
+      mailboxCacheSent = []; // User heeft geen tweede bron
+      mergeAndRenderMail(); // Gebruik de nieuwe merge-functie
+    });
   }
-
-  // De rest van de functie blijft hetzelfde
-  const qy = query(colRef, orderBy('timestamp','desc'), limit(200));
-  mailboxUnsub = onSnapshot(qy, (snap) => {
-    mailboxCache = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp) }));
-    renderMailList();
-  });
 }
-
 /* ---------- compose ---------- */
 function isAdmin() {
   const me = dataStore.users[getActiveUserId()];
@@ -4167,7 +4186,15 @@ async function deleteMail(messageId) {
     delete mailDetail.dataset.openId;
   }
 }
-
+function mergeAndRenderMail() {
+  // Voeg de twee caches (inbox en sent) samen
+  const combined = new Map();
+  [...mailboxCacheInbox, ...mailboxCacheSent].forEach(m => {
+    combined.set(m._id, m);
+  });
+  mailboxCache = Array.from(combined.values());
+  renderMailList();
+}
 /* ---------- render ---------- */
 function filteredMessages() {
   const uid = currentUserId; // 👈 FIX: Altijd de ingelogde user gebruiken
