@@ -1025,10 +1025,14 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // ======= State =======
+        // ======= State =======
     let currentUserId = null;
     let notificationInterval = null;
-    const dataStore = { users: {}, currentUser: null };
+    const dataStore = { 
+      users: {}, 
+      currentUser: null,
+      notifications: [] // 👈 VOEG DEZE REGEL TOE
+    };
 
     // ======= Elements =======
     const sidebar = document.getElementById('sidebar');
