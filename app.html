@@ -3086,26 +3086,27 @@ for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) 
   }
 }
 
-  // 🔹 5. Automatisch opruimen van meldingen ouder dan 30 dagen
-  // ⬇️ HIER IS DE FIX ⬇️
+    // 🔹 5. Automatisch opruimen van meldingen ouder dan 30 dagen
   try {
     const notifCol = collection(db, 'users', uid, 'notifications');
-    const notifSnap = await getDocs(notifCol); // 👈 DEZE FAALT (nu in try/catch)
     const nowClean = new Date();
+    
+    // Bepaal de datum van 30 dagen geleden
+    const thirtyDaysAgo = new Date(nowClean.getTime() - (30 * 24 * 60 * 60 * 1000)).toISOString();
 
-    notifSnap.forEach(async (docSnap) => {
-      const n = docSnap.data();
-      if (n.timestamp) {
-        const created = new Date(n.timestamp);
-        const ageDays = (nowClean - created) / (1000 * 60 * 60 * 24);
-        if (ageDays > 30) {
-          await deleteDoc(docSnap.ref);
-          console.log(`🧹 Oude melding verwijderd (${n.text})`);
-        }
-      }
+    // 1. Vraag Firestore om ALLEEN de oude documenten te sturen
+    const q = query(notifCol, where("timestamp", "<", thirtyDaysAgo));
+    const oldNotifSnap = await getDocs(q); // 👈 LEEST ALLEEN OUDE MELDINGEN
+
+    // 2. Verwijder de resultaten
+    oldNotifSnap.forEach(async (docSnap) => {
+      console.log(`🧹 Oude melding verwijderd (${docSnap.data().text})`);
+      await deleteDoc(docSnap.ref);
     });
+
   } catch (err) {
     // Vang de permissie-fout op en log deze, maar laat de app niet crashen
+    // ⚠️ DIT BLOK ONTBRAK
     console.error(`PERMISSION ERROR in autoCheckNotifications (UID: ${uid}):`, err.message);
   }
 }
