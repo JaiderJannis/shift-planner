@@ -3594,6 +3594,7 @@ document.getElementById('adminApproveBtn')?.addEventListener('click', async () =
   if (!uid) return toast('Geen gebruiker gekozen', 'warning');
   const y = Number(document.getElementById('adminApproveYear').value || new Date().getFullYear());
   const m = Number(document.getElementById('adminApproveMonth').value || 0);
+  const comment = prompt('Commentaar voor de gebruiker (optioneel):', '');
   const prev = dataStore.viewUserId;
   dataStore.viewUserId = uid;
   await setMonthStatus(y, m, 'approved');
@@ -4051,7 +4052,41 @@ async function sendUserMessageToAdmins(subject, body, threadId=`conv:${getActive
       threadId: threadId // Behoud threadId voor context
   });
 }
+async function broadcastToAdmins(subject, body, kind = 'status') {
+  const meUid = getActiveUserId();
+  const me = dataStore.users[meUid];
+  const meName = me?.name || me?.email || meUid;
+  const meEmail = me?.email || 'onbekend';
+  
+  // Maak een unieke ID voor deze maand-status
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const threadId = `plan:${meUid}:${y}-${m}`;
 
+  // 1. Kopie in eigen 'verzonden' items (gemarkeerd als 'system')
+  await addDoc(collection(db, 'users', meUid, 'mailbox'), {
+    threadId, 
+    system: true, // Markeer als system-generated
+    kind: kind,
+    from:{ uid: meUid, name: meName, role:'user' },
+    to:{ type:'admin-group' },
+    subject, body, read:true,
+    timestamp: serverTimestamp()
+  });
+
+  // 2. Schrijf naar de centrale 'admin_mail' collectie
+  await addDoc(collection(db, "admin_mail"), {
+      fromUserId: meUid,
+      fromName: meName,
+      fromEmail: meEmail,
+      subject: subject,
+      body: body,
+      kind: kind, // 'status'
+      timestamp: serverTimestamp(),
+      read: false, 
+      threadId: threadId
+  });
+}
 async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
   const admin = dataStore.users[adminUid];
   const user  = dataStore.users[userUid];
@@ -4118,7 +4153,7 @@ function renderMailList() {
   updateUnreadBadges(unread);
 
   msgs.forEach(m => {
-    const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
+    const fromName = m.system ? 'Shift Planner (noreply)' : (m.fromName || m.from?.name || m.fromEmail || m.from?.email || '—');
     const tr = document.createElement('tr');
     tr.className = m.read ? '' : 'fw-semibold';
     tr.innerHTML = `
