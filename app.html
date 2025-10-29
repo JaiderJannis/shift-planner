@@ -2901,6 +2901,7 @@ markAllReadBtn?.addEventListener('click', async () => {
 let lastVisible = null; // houdt bij tot waar we geladen hebben
 
 // 🔁 Laad de eerste reeks meldingen
+// 🔁 Laad de eerste reeks meldingen
 function listenToNotifications(uid) {
   const colRef = collection(db, 'users', uid, 'notifications');
   const q = query(colRef, orderBy('timestamp', 'desc'), limit(20));
@@ -2908,12 +2909,16 @@ function listenToNotifications(uid) {
   onSnapshot(q, (snapshot) => {
     notifList.innerHTML = '';
     let unread = 0;
+    
+    dataStore.notifications = []; // 👈 VOEG DEZE REGEL TOE (Cache legen)
 
     const docs = snapshot.docs;
     lastVisible = docs[docs.length - 1]; // laatste document bewaren
 
     snapshot.forEach((docSnap) => {
       const n = docSnap.data();
+      dataStore.notifications.push(n); // 👈 VOEG DEZE REGEL TOE (Cache vullen)
+      
       const time = n.timestamp ? new Date(n.timestamp).toLocaleString('nl-BE') : '';
       if (!n.read) unread++;
       const li = document.createElement('li');
@@ -2930,6 +2935,8 @@ function listenToNotifications(uid) {
 
     // Toon 'Toon meer' als er minstens 20 meldingen zijn
     document.getElementById('loadMoreNotifBtn').classList.toggle('d-none', docs.length < 20);
+    
+    loadHomeNotifications(); // 👈 VOEG DEZE REGEL TOE (Homepagina bijwerken)
   });
 }
 
