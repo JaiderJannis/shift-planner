@@ -3945,7 +3945,18 @@ function updateUnreadBadges(unread) {
 /* ---------- mailbox listen ---------- */
 function listenMailbox(uid) {
   if (mailboxUnsub) mailboxUnsub();
-  const colRef = collection(db,'users', uid, 'mailbox');
+
+  let colRef; // Variabele voor de collectie-referentie
+
+  if (isAdmin()) {
+    // 1. ADMIN: Luister naar de centrale 'admin_mail' collectie
+    colRef = collection(db, 'admin_mail');
+  } else {
+    // 2. GEWONE GEBRUIKER: Luister naar hun eigen 'mailbox' subcollectie
+    colRef = collection(db, 'users', uid, 'mailbox');
+  }
+
+  // De rest van de functie blijft hetzelfde
   const qy = query(colRef, orderBy('timestamp','desc'), limit(200));
   mailboxUnsub = onSnapshot(qy, (snap) => {
     mailboxCache = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp) }));
