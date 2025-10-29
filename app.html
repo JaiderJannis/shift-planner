@@ -4009,8 +4009,9 @@ async function sendUserMessageToAdmins(subject, body, threadId=`conv:${getActive
   const meUid = getActiveUserId();
   const me = dataStore.users[meUid];
   const meName = me?.name || me?.email || meUid;
+  const meEmail = me?.email || 'onbekend'; // We pakken het e-mailadres mee
 
-  // kopie in eigen mailbox (als 'verzonden')
+  // kopie in eigen mailbox (als 'verzonden') - DIT BLIJFT HETZELFDE
   await addDoc(collection(db, 'users', meUid, 'mailbox'), {
     threadId, system:false, kind:'message',
     from:{ uid: meUid, name: meName, role:'user' },
@@ -4019,18 +4020,20 @@ async function sendUserMessageToAdmins(subject, body, threadId=`conv:${getActive
     timestamp: serverTimestamp()
   });
 
-  // fan-out naar admins
-  const qAdmins = query(collection(db, 'users'), where('role','==','admin'));
-  const snap = await getDocs(qAdmins);
-  await Promise.all(snap.docs.map(a =>
-    addDoc(collection(db, 'users', a.id, 'mailbox'), {
-      threadId, system:false, kind:'message',
-      from:{ uid: meUid, name: meName, role:'user' },
-      to:{ type:'user', uid: a.id },
-      subject, body, read:false,
-      timestamp: serverTimestamp()
-    })
-  ));
+  // --- HET FOUTE GEDEELTE IS VERVANGEN ---
+  // In plaats van te 'fan-out' naar alle admins (wat mislukt)...
+  
+  // ...schrijven we één bericht naar de centrale 'admin_mail' collectie
+  await addDoc(collection(db, "admin_mail"), {
+      fromUserId: meUid,
+      fromName: meName,
+      fromEmail: meEmail, // Handig voor de admin
+      subject: subject,
+      body: body,
+      timestamp: serverTimestamp(),
+      read: false, // Ongelezen voor de admin
+      threadId: threadId // Behoud threadId voor context
+  });
 }
 
 async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
