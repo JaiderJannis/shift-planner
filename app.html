@@ -3963,11 +3963,14 @@ const mailFolderNav   = document.getElementById('mailFolderNav');
 const mailMarkAllReadBtn = document.getElementById('mailMarkAllReadBtn');
 const mailDeleteAllBtn = document.getElementById('mailDeleteAllBtn');
 
-let mailboxUnsubInbox = null;  // 👈 Aangepast
-let mailboxUnsubSent = null;   // 👈 Nieuw
-let mailboxCacheInbox = [];    // 👈 Nieuw
-let mailboxCacheSent = [];     // 👈 Nieuw
+let mailboxUnsubInbox = null;
+let mailboxUnsubSent = null;
+let mailboxCacheInbox = [];
+let mailboxCacheSent = [];
 let mailboxCache = [];         // alle berichten (snapshot)
+let mailFolder   = 'inbox'; // 'inbox' | 'sent'
+let composeThreadId = null; // reply flow
+let mailUIBound = false;
 
 /* ---------- helpers ---------- */
 function normTs(ts){
