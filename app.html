@@ -3101,8 +3101,6 @@ for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) 
     console.error(`PERMISSION ERROR in autoCheckNotifications (UID: ${uid}):`, err.message);
   }
 }
-  });
-}
 // ⚙️ Helper
 async function createUniqueNotification(uid, text) {
   const colRef = collection(db, 'users', uid, 'notifications');
