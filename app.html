@@ -2980,10 +2980,13 @@ function isoWeekId(date) {
 }
 // 🔔 Automatisch meldingsysteem — controleert volledige jaar
 async function autoCheckNotifications() {
-  // 0. 🛑 EERSTE CONTROLE (ongewijzigd)
-  if (!currentUserId) return; 
+  // 0. 🛑 VERBETERDE CONTROLE
+  // Check niet alleen de variabele, maar ook de ECHTE auth status
+  if (!currentUserId || !auth.currentUser) {
+    console.log("autoCheckNotifications: Gestopt, geen (actief) ingelogde gebruiker.");
+    return; // Stop de functie als het token verlopen is
+  }
   const uid = currentUserId;
-  
   // Zorg dat we een UID hebben VOORDAT we verder gaan
   if (!uid) {
     console.warn("autoCheckNotifications: Gestopt, geen UID.");
