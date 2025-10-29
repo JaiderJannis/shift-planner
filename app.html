@@ -3590,43 +3590,65 @@ document.getElementById('adminApproveYear')?.addEventListener('focus', e => {
 
 // Admin: Keur goed
 document.getElementById('adminApproveBtn')?.addEventListener('click', async () => {
-  const uid = adminUserSelect?.value || getActiveUserId();
-  if (!uid) return toast('Geen gebruiker gekozen', 'warning');
+  const userToApproveId = adminUserSelect?.value; // 1. Dit is de USER
+  if (!userToApproveId) return toast('Geen gebruiker gekozen', 'warning');
+  
   const y = Number(document.getElementById('adminApproveYear').value || new Date().getFullYear());
   const m = Number(document.getElementById('adminApproveMonth').value || 0);
   const comment = prompt('Commentaar voor de gebruiker (optioneel):', '');
+  
+  // 2. Haal de ECHTE admin info op (de ingelogde user)
+  const adminId = auth.currentUser.uid;
+  const adminName = auth.currentUser.displayName || "Admin";
+  const adminRole = dataStore.users[adminId]?.role || 'admin';
+
+  // 3. Status update
   const prev = dataStore.viewUserId;
-  dataStore.viewUserId = uid;
+  dataStore.viewUserId = userToApproveId;
   await setMonthStatus(y, m, 'approved');
   toast(`Goedgekeurd: ${monthsFull[m]} ${y}`, 'success');
   dataStore.viewUserId = prev;
 
-  // ✉️ Mail naar user
-// Check of huidige gebruiker admin is
-const adminDoc = await getDoc(doc(db, "users", getActiveUserId()));
-const isAdmin = adminDoc.exists() && adminDoc.data().role === "admin";
+  // 4. ✉️ Mail naar user (met correcte 'from' en 'system' info)
+  const subject = `[Planner] Goedgekeurd — ${monthsFull[m]} ${y}`;
+  const body = `Je planner voor ${monthsFull[m]} ${y} werd goedgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
 
-const subject = `[Planner] Goedgekeurd — ${monthsFull[m]} ${y}`;
-const body = `Je planner voor ${monthsFull[m]} ${y} werd goedgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
+  await addDoc(collection(db, "users", userToApproveId, "mailbox"), { // 👈 Schrijf naar USER mailbox
+    threadId: `plan:${userToApproveId}:${y}-${m}`,
+    system: true, // 👈 FIX: Altijd 'true', zodat het in Inbox komt
+    kind: "status",
+    from: {
+      uid: adminId, // 👈 FIX: ECHTE Admin ID
+      name: adminName,
+      role: adminRole
+    },
+    to: {
+      uid: userToApproveId,
+      type: "user"
+    },
+    subject, body, read: false,
+    timestamp: serverTimestamp()
+  });
 
-await addDoc(collection(db, "users", uid, "mailbox"), {
-  threadId: `plan:${uid}:${y}-${m}`,
-  system: isAdmin, // ← alleen true bij admin
-  kind: "status",
-  from: {
-    uid: getActiveUserId(),
-    name: auth.currentUser?.displayName || "Onbekende afzender",
-    role: isAdmin ? "admin" : "user"
-  },
-  to: {
-    uid,
-    type: "user"
-  },
-  subject,
-  body,
-  read: false,
-  timestamp: serverTimestamp()
-});
+  // 5. ✉️ Kopie in admin's "Verzonden" map (dit ontbrak)
+  await addDoc(collection(db, "users", adminId, "mailbox"), { // 👈 Schrijf naar ADMIN mailbox
+    threadId: `plan:${userToApproveId}:${y}-${m}`,
+    system: false, // 👈 'false' zodat het in "Verzonden" komt
+    kind: "status",
+    from: {
+      uid: adminId, 
+      name: adminName,
+      role: adminRole
+    },
+    to: {
+      uid: userToApproveId,
+      type: "user"
+    },
+    subject, body, read: true, // Gemarkeerd als gelezen
+    timestamp: serverTimestamp()
+  });
+
+  // 6. UI update
   if (getActiveUserId() === currentUserId && y===Number(yearSelectMain.value) && m===Number(monthSelectMain.value)) {
     renderMonth(y, m);
   }
@@ -3634,47 +3656,65 @@ await addDoc(collection(db, "users", uid, "mailbox"), {
 
 // Admin: Keur af
 document.getElementById('adminRejectBtn')?.addEventListener('click', async () => {
-  const uid = adminUserSelect?.value || getActiveUserId();
-  if (!uid) return toast('Geen gebruiker gekozen', 'warning');
+  const userToRejectId = adminUserSelect?.value; // 1. Dit is de USER
+  if (!userToRejectId) return toast('Geen gebruiker gekozen', 'warning');
+  
   const y = Number(document.getElementById('adminApproveYear').value || new Date().getFullYear());
   const m = Number(document.getElementById('adminApproveMonth').value || 0);
-
-  // ➕ Vraag om commentaar (optioneel)
   const comment = prompt('Commentaar voor de gebruiker (optioneel):', '');
 
+  // 2. Haal de ECHTE admin info op
+  const adminId = auth.currentUser.uid;
+  const adminName = auth.currentUser.displayName || "Admin";
+  const adminRole = dataStore.users[adminId]?.role || 'admin';
+
+  // 3. Status update
   const prev = dataStore.viewUserId;
-  dataStore.viewUserId = uid;
+  dataStore.viewUserId = userToRejectId;
   await setMonthStatus(y, m, 'rejected');
   toast(`Afgekeurd: ${monthsFull[m]} ${y}`, 'warning');
   dataStore.viewUserId = prev;
 
-  // ✉️ Mail naar user met commentaar
-// Check of huidige gebruiker admin is
-const adminDoc = await getDoc(doc(db, "users", getActiveUserId()));
-const isAdmin = adminDoc.exists() && adminDoc.data().role === "admin";
+  // 4. ✉️ Mail naar user (met correcte 'from' en 'system' info)
+  const subject = `[Planner] Afgekeurd — ${monthsFull[m]} ${y}`;
+  const body = `Je planner voor ${monthsFull[m]} ${y} werd afgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
 
-const subject = `[Planner] Afgekeurd — ${monthsFull[m]} ${y}`;
-const body = `Je planner voor ${monthsFull[m]} ${y} werd afgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
+  await addDoc(collection(db, "users", userToRejectId, "mailbox"), { // 👈 Schrijf naar USER mailbox
+    threadId: `plan:${userToRejectId}:${y}-${m}`,
+    system: true, // 👈 FIX: Altijd 'true', zodat het in Inbox komt
+    kind: "status",
+    from: {
+      uid: adminId, // 👈 FIX: ECHTE Admin ID
+      name: adminName,
+      role: adminRole
+    },
+    to: {
+      uid: userToRejectId,
+      type: "user"
+    },
+    subject, body, read: false,
+    timestamp: serverTimestamp()
+  });
 
-await addDoc(collection(db, "users", uid, "mailbox"), {
-  threadId: `plan:${uid}:${y}-${m}`,
-  system: isAdmin, // ← alleen true bij admin
-  kind: "status",
-  from: {
-    uid: getActiveUserId(),
-    name: auth.currentUser?.displayName || "Onbekende afzender",
-    role: isAdmin ? "admin" : "user"
-  },
-  to: {
-    uid,
-    type: "user"
-  },
-  subject,
-  body,
-  read: false,
-  timestamp: serverTimestamp()
-});
+  // 5. ✉️ Kopie in admin's "Verzonden" map (dit ontbrak)
+  await addDoc(collection(db, "users", adminId, "mailbox"), { // 👈 Schrijf naar ADMIN mailbox
+    threadId: `plan:${userToRejectId}:${y}-${m}`,
+    system: false, // 👈 'false' zodat het in "Verzonden" komt
+    kind: "status",
+    from: {
+      uid: adminId,
+      name: adminName,
+      role: adminRole
+    },
+    to: {
+      uid: userToRejectId,
+      type: "user"
+    },
+    subject, body, read: true, 
+    timestamp: serverTimestamp()
+  });
 
+  // 6. UI update
   if (getActiveUserId() === currentUserId && y===Number(yearSelectMain.value) && m===Number(monthSelectMain.value)) {
     renderMonth(y, m);
   }
@@ -4231,26 +4271,22 @@ mailFolderNav?.addEventListener('click', (e) => {
     const inboxBtn = document.getElementById('mailTabInbox');
     const sentBtn = document.getElementById('mailTabSent');
   
-    // 1. 👈 FIX: Update de knop-stijlen correct
+    // 1. FIX: Update de knop-stijlen correct
     if (mailFolder === 'sent') {
-      // Maak Inbox inactief
-      inboxBtn.classList.remove('active');
-      inboxBtn.classList.replace('btn-outline-primary', 'btn-outline-secondary'); // Wordt grijs
+      inboxBtn.classList.remove('active', 'btn-outline-primary');
+      inboxBtn.classList.add('btn-outline-secondary');
       
-      // Maak Verzonden actief
-      sentBtn.classList.add('active');
-      sentBtn.classList.replace('btn-outline-secondary', 'btn-outline-primary'); // Wordt blauw
+      sentBtn.classList.add('active', 'btn-outline-primary');
+      sentBtn.classList.remove('btn-outline-secondary');
     } else { // 'inbox'
-      // Maak Inbox actief
-      inboxBtn.classList.add('active');
-      inboxBtn.classList.replace('btn-outline-secondary', 'btn-outline-primary'); // Wordt blauw
+      inboxBtn.classList.add('active', 'btn-outline-primary');
+      inboxBtn.classList.remove('btn-outline-secondary');
       
-      // Maak Verzonden inactief
-      sentBtn.classList.remove('active');
-      sentBtn.classList.replace('btn-outline-primary', 'btn-outline-secondary'); // Wordt grijs
+      sentBtn.classList.remove('active', 'btn-outline-primary');
+      sentBtn.classList.add('btn-outline-secondary');
     }
   
-    // 2. 👈 FIX: Update de titel
+    // 2. FIX: Update de titel
     const titleEl = document.getElementById('mailListTitle');
     if (titleEl) {
       titleEl.textContent = (mailFolder === 'sent') ? 'Verzonden' : 'Inbox';
