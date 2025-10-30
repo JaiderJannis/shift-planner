@@ -1794,6 +1794,7 @@ function renderProjectFilterForMonth(){
       ud.monthData = ud.monthData || {};
       ud.monthData[y] = ud.monthData[y] || {};
       if(!ud.monthData[y][m]) ud.monthData[y][m] = { targetHours:0, targetMinutes:0, rows:{} };
+      await saveUserData();
       await renderMonth(y,m); updateInputTotals(); renderHome(); renderHistory();
     }
 // ✅ Automatische koppeling van project aan shift bij herladen
