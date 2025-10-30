@@ -1923,7 +1923,6 @@ async function renderMonth(year, month){
       });
       tr.querySelector('.breakInput').addEventListener('change', e=>{ // 👈 'input' is 'change' geworden
         r.break = Number(e.target.value)||0; recalcRowMinutes(r);
-      });
         saveCell(year, month, rowKey, r, tr);
         tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
         updateInputTotals(); saveUserData(); renderHistory();
