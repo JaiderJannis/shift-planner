@@ -1169,28 +1169,30 @@ function nextLineIndex(md, baseKey) {
 // ===== HOME DASHBOARD =====
 function fmt(mins){ return `${Math.floor(mins/60)}u ${mins%60}min`; }
 
-async function loadHomeNotifications() {
+// ✅ DEZE FUNCTIE IS NU "GRATIS" EN LEEST UIT DE CACHE
+function loadHomeNotifications() {
   try {
     if (!currentUserId) return;
     const listEl = document.getElementById('homeNotifList');
     if (!listEl) return;
-    const colRef = collection(db, 'users', currentUserId, 'notifications');
-    const qy = query(colRef, orderBy('timestamp','desc'), limit(5));
-    const snap = await getDocs(qy);
+
+    // Haal de eerste 5 meldingen op uit de dataStore (die al geladen is)
+    const notifications = dataStore.notifications.slice(0, 5);
 
     listEl.innerHTML = '';
-    if (snap.empty) {
+    if (notifications.length === 0) {
       listEl.innerHTML = '<li class="text-muted small">Geen meldingen.</li>';
       return;
     }
-    snap.forEach(d => {
-      const n = d.data();
+    
+    notifications.forEach(n => {
       const when = n.timestamp ? new Date(n.timestamp).toLocaleString('nl-BE') : '';
       listEl.insertAdjacentHTML('beforeend',
         `<li class="small mb-1">${n.text}<br><span class="text-muted">${when}</span></li>`);
     });
   } catch(e){ console.error(e); }
 }
+
 
 function renderHome() {
   const ud = getCurrentUserData();
