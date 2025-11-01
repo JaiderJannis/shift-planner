@@ -1033,7 +1033,14 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
       currentUser: null,
       notifications: [] // 👈 VOEG DEZE REGEL TOE
     };
-
+    let saveTimer = null; // Timer voor het vertraagd opslaan
+    const debouncedSave = () => {
+      clearTimeout(saveTimer); // Stop de vorige timer
+      saveTimer = setTimeout(() => {
+        saveUserData(); // Sla nu pas echt op
+        console.log("DB: Data opgeslagen (met vertraging).");
+      }, 2000); // Wacht 2 seconden (2000ms)
+    };
     // ======= Elements =======
     const sidebar = document.getElementById('sidebar');
     const main = document.getElementById('main');
