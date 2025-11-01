@@ -1935,7 +1935,7 @@ async function renderMonth(year, month){
         updateInputTotals(); debouncedSave(); renderHistory();
       });
       tr.querySelector('.omschrijvingInput').addEventListener('change', e=>{
-        r.omschrijving = e.target.value; saveCell(year, month, rowKey, r, tr); saveUserData(); renderHistory();
+        r.omschrijving = e.target.value; saveCell(year, month, rowKey, r, tr); debouncedSave(); renderHistory();
       });
 
       // + / − handlers
@@ -2013,30 +2013,30 @@ async function populateShiftSelectForRow(tr, rowKey){
     const all = ud.shifts || {};
     if (!chosen) {
       r.shift = ''; r.project = ''; projSel.value = '';
-      saveCell(year, month, rowKey, r, tr); await saveUserData(); updateInputTotals(); renderHistory();
+      saveCell(year, month, rowKey, r, tr); debouncedSave(); updateInputTotals(); renderHistory();
       return;
     }
 
     r.shift = chosen;
-    await saveUserData();
+    debouncedSave();
 
     // auto project (jouw bestaande logica)
     if (['Bench'].includes(chosen)) {
       r.project = '';
       saveCell(year, month, rowKey, r, tr);
-      await saveUserData();
+      debouncedSave();
     } 
     else if (['Schoolverlof','School'].includes(chosen)) {
       ensureProjectExists('PXL Verpleegkunde Hasselt');
       r.project = 'PXL Verpleegkunde Hasselt';
       saveCell(year, month, rowKey, r, tr);
-      await saveUserData();
+      debouncedSave();
     } 
     else if (['Verlof','Teammeeting','Ziekte'].includes(chosen)) {
       ensureProjectExists('Eght Care');
       r.project = 'Eght Care';
       saveCell(year, month, rowKey, r, tr);
-      await saveUserData();
+      debouncedSave();
     } 
     else {
       const sh = all[chosen];
@@ -2072,7 +2072,7 @@ async function populateShiftSelectForRow(tr, rowKey){
     tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
 
     saveCell(year, month, rowKey, r, tr);
-    await saveUserData();
+    debouncedSave();
     updateInputTotals();
 
     // + opnieuw (de)activeren
@@ -2120,13 +2120,13 @@ async function ensureProjectExists(name){
       const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
       const ud = getCurrentUserData();
       ud.monthData[y][m].targetHours = Number(monthTargetHours.value)||0;
-      await saveUserData(); updateInputTotals(); renderHistory();
+      debouncedSave(); updateInputTotals(); renderHistory();
     });
     monthTargetMinutes.addEventListener('input', async ()=>{
       const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
       const ud = getCurrentUserData();
       ud.monthData[y][m].targetMinutes = Number(monthTargetMinutes.value)||0;
-      await saveUserData(); updateInputTotals(); renderHistory();
+      debouncedSave(); updateInputTotals(); renderHistory();
     });
 
     projectFilterSelect.addEventListener('change', ()=> { renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value)); updateInputTotals(); renderProjectSummary(); });
