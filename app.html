@@ -1903,7 +1903,7 @@ async function renderMonth(year, month){
         saveCell(year, month, rowKey, r, tr);
         await populateShiftSelectForRow(tr, rowKey);
         updateInputTotals();
-        saveUserData();
+        debouncedSave();
 
         // + opnieuw (de)activeren
         const addBtn = tr.querySelector('.addLineBtn');
@@ -1920,19 +1920,19 @@ async function renderMonth(year, month){
         r.start = e.target.value; recalcRowMinutes(r);
         saveCell(year, month, rowKey, r, tr);
         tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-        updateInputTotals(); saveUserData(); renderHistory();
+        updateInputTotals(); debouncedSave(); renderHistory();
       });
       tr.querySelector('.endInput').addEventListener('change', e=>{
         r.end = e.target.value; recalcRowMinutes(r);
         saveCell(year, month, rowKey, r, tr);
         tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-        updateInputTotals(); saveUserData(); renderHistory();
+        updateInputTotals(); debouncedSave(); renderHistory();
       });
       tr.querySelector('.breakInput').addEventListener('change', e=>{ // 👈 'input' is 'change' geworden
         r.break = Number(e.target.value)||0; recalcRowMinutes(r);
         saveCell(year, month, rowKey, r, tr);
         tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-        updateInputTotals(); saveUserData(); renderHistory();
+        updateInputTotals(); debouncedSave(); renderHistory();
       });
       tr.querySelector('.omschrijvingInput').addEventListener('change', e=>{
         r.omschrijving = e.target.value; saveCell(year, month, rowKey, r, tr); saveUserData(); renderHistory();
