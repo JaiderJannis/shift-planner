@@ -982,6 +982,29 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
                   <input class="form-check-input" type="checkbox" role="switch" id="profileSidebarToggle">
                   <label class="form-check-label" for="profileSidebarToggle">Sidebar standaard ingeklapt</label>
                 </div>
+                
+                <hr class="my-4">
+                <h6 class="card-title">Voorkeuren</h6>
+                
+                <div class="mb-3">
+                  <label for="profileDefaultTab" class="form-label small">Opstart-tabblad</label>
+                  <select id="profileDefaultTab" class="form-select form-select-sm">
+                    <option value="#tab-home">Home</option>
+                    <option value="#tab-shifts">Shifts</option>
+                    <option value="#tab-invoer">Invoer</option>
+                    <option value="#tab-historiek">Historiek</option>
+                    <option value="#tab-converter">Converter</option>
+                    <option value="#tab-mail">Mailbox</option>
+                  </select>
+                </div>
+
+                <div class="form-check form-switch fs-5">
+                  <input class="form-check-input" type="checkbox" role="switch" id="profileNotifToggle">
+                  <label class="form-check-label" for="profileNotifToggle">Automatische herinneringen</label>
+                </div>
+                <p class="small text-muted mb-0">
+                  Indien aangevinkt, ontvang je meldingen (bv. als je een week niets hebt ingevuld).
+                </p>
                 </div>
             </div>
           </div>
@@ -1447,6 +1470,22 @@ currentUserId = user.uid;
       if (ud?.settings?.sidebarCollapsed) {
           sidebar.classList.add('collapsed');
           main.classList.add('collapsed');
+      }
+      // ✅ HIER TOEVOEGEN: Opstart-tabblad instellen
+      try {
+        if (ud?.settings?.defaultTab) {
+          const tabLink = document.querySelector(`a[href="${ud.settings.defaultTab}"]`);
+          if (tabLink) {
+            // Verberg de standaard 'Home' tab
+            document.getElementById('tab-home').classList.remove('show', 'active');
+            document.querySelector('a[href="#tab-home"]').classList.remove('active');
+            
+            // Toon de gekozen tab
+            new bootstrap.Tab(tabLink).show();
+          }
+        }
+      } catch (e) {
+        console.warn("Kon standaard tab niet laden:", e);
       }
       // EINDE TOEVOEGING
       initSelectors();
@@ -3071,6 +3110,13 @@ function isoWeekId(date) {
 }
 // 🔔 Automatisch meldingsysteem — controleert volledige jaar
 async function autoCheckNotifications() {
+// ✅ HIER TOEVOEGEN: Check voorkeur van de gebruiker
+  const udCheck = getCurrentUserData();
+  if (udCheck?.settings?.autoNotifsEnabled === false) {
+    console.log("autoCheckNotifications: Gestopt, gebruiker heeft dit uitgeschakeld.");
+    return;
+  }
+  // EINDE TOEVOEGING
   // 0. 🛑 VERBETERDE CONTROLE
   // Check niet alleen de variabele, maar ook de ECHTE auth status
   if (!currentUserId || !auth.currentUser) {
@@ -4695,8 +4741,23 @@ async function sendUserMail(db, adminUid, subject, body) {
       const sidebarToggle = document.getElementById('profileSidebarToggle');
       if (sidebarToggle) {
         sidebarToggle.checked = !!ud?.settings?.sidebarCollapsed;
+     }
+
+      // ✅ HIER TOEVOEGEN: Standaard tabblad & Notificaties instellen
+      
+      // 1. Standaard tabblad
+      const defaultTabSelect = document.getElementById('profileDefaultTab');
+      if (defaultTabSelect) {
+        defaultTabSelect.value = ud?.settings?.defaultTab || '#tab-home'; // Fallback naar Home
+      }
+
+      // 2. Notificatie vinkje
+      const notifToggle = document.getElementById('profileNotifToggle');
+      if (notifToggle) {
+        // Standaard AAN (true), dus we vinken aan als het NIET 'false' is
+        notifToggle.checked = ud?.settings?.autoNotifsEnabled !== false;
+      }
       // EINDE TOEVOEGING
-    }
     }
 
     // 2. Koppel de laad-functie aan het 'show' event van de modal
@@ -4755,6 +4816,28 @@ async function sendUserMail(db, adminUid, subject, body) {
       await saveUserData(); 
       toast('Sidebar-voorkeur opgeslagen', 'success');
     });
+// ✅ HIER TOEVOEGEN: Dropdown: Standaard opstart-tabblad
+    document.getElementById('profileDefaultTab')?.addEventListener('change', async (e) => {
+      const newTab = e.target.value;
+      const ud = getCurrentUserData();
+      ud.settings ||= {};
+      ud.settings.defaultTab = newTab;
+      
+      await saveUserData(); 
+      toast('Standaard opstart-tabblad opgeslagen', 'success');
+    });
+
+    // ✅ HIER TOEVOEGEN: Schakelaar: Notificatie voorkeur
+    document.getElementById('profileNotifToggle')?.addEventListener('change', async (e) => {
+      const active = e.target.checked; // true = aan, false = uit
+      const ud = getCurrentUserData();
+      ud.settings ||= {};
+      ud.settings.autoNotifsEnabled = active;
+      
+      await saveUserData(); 
+      toast(`Automatische herinneringen ${active ? 'ingeschakeld' : 'uitgeschakeld'}`, 'success');
+    });
+
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
   </script>
 <!-- 🔄 Loading overlay -->
