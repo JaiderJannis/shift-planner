@@ -953,23 +953,7 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
       </div>
       <div class="modal-body">
         <div class="row g-3">
-          <div class="col-12 col-md-6">
-            <div class="card shadow-sm border-0 h-100">
-              <div class="card-body">
-                <h6 class="card-title">Gegevens wijzigen</h6>
-                <div class="mb-3">
-                  <label for="profileName" class="form-label">Jouw naam</label>
-                  <input type="text" class="form-control" id="profileName" placeholder="Je volledige naam">
-                </div>
-                <div class="mb-3">
-                  <label for="profileEmail" class="form-label">E-mailadres</label>
-                  <input type="email" class="form-control" id="profileEmail" readonly disabled>
-                </div>
-                <button id="profileSaveBtn" class="btn btn-primary">Naam opslaan</button>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 col-md-6">
+                    <div class="col-12 col-md-6">
             <div class="card shadow-sm border-0 h-100">
               <div class="card-body d-flex flex-column">
                 <h6 class="card-title">Sessie</h6>
@@ -1038,7 +1022,7 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
   <!-- Firebase (Modular CDN) -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
-    import { getAuth, onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
+    import { getAuth, onAuthStateChanged, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
    import {
   getFirestore,
   doc,
@@ -4656,7 +4640,7 @@ async function sendUserMail(db, adminUid, subject, body) {
 /***** ========== /MAILBOX ========== *****/
 /***** ========== PROFIEL TABBLAD ========== *****/
 
-    // 1. Functie om de velden te vullen (deze blijft hetzelfde)
+    // 1. Functie om de velden te vullen
     function loadProfileTab() {
       const user = auth.currentUser;
       if (!user) return;
@@ -4664,12 +4648,13 @@ async function sendUserMail(db, adminUid, subject, body) {
       document.getElementById('profileEmail').value = user.email || '';
     }
 
-    // 2. Koppel de laad-functie aan het 'show' event van de NIEUWE modal
-const profileModalEl = document.getElementById('profileModal');
-profileModalEl?.addEventListener('show.bs.modal', loadProfileTab);
+    // 2. Koppel de laad-functie aan het 'show' event van de modal
+    //    Dit is de simpele, correcte manier.
+    const profileModalEl = document.getElementById('profileModal');
+    profileModalEl?.addEventListener('show.bs.modal', loadProfileTab);
 
 
-    // 3. Knop: Naam opslaan (deze blijft hetzelfde)
+    // 3. Knop: Naam opslaan
     document.getElementById('profileSaveBtn')?.addEventListener('click', async () => {
       const user = auth.currentUser;
       const newName = document.getElementById('profileName').value.trim();
@@ -4693,6 +4678,8 @@ profileModalEl?.addEventListener('show.bs.modal', loadProfileTab);
         toast('Opslaan mislukt: ' + err.message, 'danger');
       }
     });
+
+    // De Wachtwoord Reset Knop-logica is nu verwijderd.
   </script>
 <!-- 🔄 Loading overlay -->
 <div id="loadingOverlay" class="loading-overlay d-none">
