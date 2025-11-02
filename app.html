@@ -4669,9 +4669,13 @@ async function sendUserMail(db, adminUid, subject, body) {
         // A: Deactiveer alle 'actieve' knoppen in de sidebar
         document.querySelectorAll('#navTabs .nav-link').forEach(btn => btn.classList.remove('active'));
         
+        // 💡 HIER IS DE FIX: Verberg handmatig alle andere open tabbladen
+        document.querySelectorAll('.tab-content .tab-pane.active').forEach(pane => pane.classList.remove('active', 'show'));
+        
         // B: Toon het profiel tabblad
         profileTab.show();
       });
+
 
       // 3. Vul de velden pas als het tabblad daadwerkelijk getoond is
       profilePane.addEventListener('shown.bs.tab', loadProfileTab);
