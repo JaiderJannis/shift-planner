@@ -409,10 +409,10 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
     </div>
   </div>
 
-  <!-- 🚪 Uitloggen -->
-  <button id="logoutBtn" class="btn btn-outline-danger btn-sm">
-    <span class="material-icons-outlined">logout</span>
-  </button>
+  <!-- 🚪 Mijn profiel -->
+    <a class="btn btn-outline-secondary btn-sm" data-bs-toggle="tab" href="#tab-profiel" role="tab" aria-controls="tab-profiel" aria-selected="false">
+    <span class="material-icons-outlined">account_circle</span>
+  </a>
 </div>
     </div>
   </nav>
@@ -732,6 +732,45 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
           </div>
         </div>
       </section>
+<!-- PROFIEL -->
+<section id="tab-profiel" class="tab-pane fade">
+        <h5 class="mb-3">Mijn Profiel</h5>
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <div class="card shadow-sm border-0">
+              <div class="card-body">
+                <h6 class="card-title">Gegevens wijzigen</h6>
+                <div class="mb-3">
+                  <label for="profileName" class="form-label">Jouw naam</label>
+                  <input type="text" class="form-control" id="profileName" placeholder="Je volledige naam">
+                </div>
+                <div class="mb-3">
+                  <label for="profileEmail" class="form-label">E-mailadres</label>
+                  <input type="email" class="form-control" id="profileEmail" readonly disabled>
+                  <div class="form-text">E-mailadres kan niet gewijzigd worden.</div>
+                </div>
+                <button id="profileSaveBtn" class="btn btn-primary">Naam opslaan</button>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-md-6">
+            <div class="card shadow-sm border-0">
+              <div class="card-body">
+                <h6 class="card-title">Beveiliging</h6>
+                <p class="small text-muted">Klik hier om een e-mail te ontvangen waarmee je je wachtwoord opnieuw kunt instellen.</p>
+                <button id="profileResetPassBtn" class="btn btn-outline-warning mb-4">Stuur wachtwoord-reset e-mail</button>
+                
+                <hr>
+                
+                <p class="small text-muted">Hiermee sluit je de applicatie af.</p>
+                <button id="logoutBtn" class="btn btn-outline-danger">
+                  <span class="material-icons-outlined">logout</span> Uitloggen
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 <!-- ADMIN -->
 <section id="tab-admin" class="tab-pane fade">
   <div class="d-flex align-items-center justify-content-between mb-3">
@@ -990,7 +1029,7 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
   <!-- Firebase (Modular CDN) -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
-    import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
+    import { getAuth, onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
    import {
   getFirestore,
   doc,
@@ -4606,7 +4645,62 @@ async function sendUserMail(db, adminUid, subject, body) {
   });
 }
 /***** ========== /MAILBOX ========== *****/
+/***** ========== PROFIEL TABBLAD ========== *****/
 
+    // 1. Functie om de velden te vullen
+    function loadProfileTab() {
+      const user = auth.currentUser;
+      if (!user) return;
+      document.getElementById('profileName').value = user.displayName || '';
+      document.getElementById('profileEmail').value = user.email || '';
+    }
+
+    // 2. Koppel de functie aan het tonen van de tab
+    //    Deze selector vindt de knop in de topbar (en ook in de sidebar, als je die later toch toevoegt)
+    document.querySelector('a[href="#tab-profiel"]')?.addEventListener('shown.bs.tab', loadProfileTab);
+
+    // 3. Knop: Naam opslaan
+    document.getElementById('profileSaveBtn')?.addEventListener('click', async () => {
+      const user = auth.currentUser;
+      const newName = document.getElementById('profileName').value.trim();
+      if (!user || !newName) return toast('Vul een naam in', 'warning');
+
+      try {
+        // Stap A: Update Firebase Auth profiel
+        await updateProfile(user, { displayName: newName });
+        
+        // Stap B: Update naam in Firestore database (voor Admin paneel)
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, { name: newName });
+
+        // Stap C: Update de UI direct
+        document.getElementById('currentUserName').textContent = newName;
+        document.getElementById('homeUserName').textContent = newName;
+        
+        toast('Naam opgeslagen!', 'success');
+      } catch (err) {
+        console.error("Fout bij opslaan profiel:", err);
+        toast('Opslaan mislukt: ' + err.message, 'danger');
+      }
+    });
+
+    // 4. Knop: Wachtwoord resetten
+    document.getElementById('profileResetPassBtn')?.addEventListener('click', async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      if (!confirm(`Weet je zeker dat je een wachtwoord-reset mail wilt sturen naar ${user.email}?`)) {
+        return;
+      }
+      
+      try {
+        await sendPasswordResetEmail(auth, user.email);
+        toast('Reset-mail verzonden! Controleer je inbox.', 'success');
+      } catch (err) {
+        console.error("Fout bij reset mail:", err);
+        toast('Verzenden mislukt: ' + err.message, 'danger');
+      }
+    });
   </script>
 <!-- 🔄 Loading overlay -->
 <div id="loadingOverlay" class="loading-overlay d-none">
