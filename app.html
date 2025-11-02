@@ -4661,7 +4661,7 @@ async function sendUserMail(db, adminUid, subject, body) {
     const profilePane = document.getElementById('tab-profiel');
     
     if (topbarProfileButton && profilePane) {
-      const profileTab = new bootstrap.Tab(profilePane); // Maak een Bootstrap Tab-object
+      const profileTab = new bootstrap.Tab(topbarProfileButton); // Maak een Bootstrap Tab-object
 
       topbarProfileButton.addEventListener('click', (e) => {
         e.preventDefault(); // Stop de standaard #navigatie
