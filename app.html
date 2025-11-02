@@ -998,13 +998,29 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
                   </select>
                 </div>
 
-                <div class="form-check form-switch fs-5">
-                  <input class="form-check-input" type="checkbox" role="switch" id="profileNotifToggle">
-                  <label class="form-check-label" for="profileNotifToggle">Automatische herinneringen</label>
-                </div>
-                <p class="small text-muted mb-0">
-                  Indien aangevinkt, ontvang je meldingen (bv. als je een week niets hebt ingevuld).
-                </p>
+                <fieldset id="profileNotifPrefs">
+                  <label class="form-label small">Automatische herinneringen:</label>
+                  
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyDailyEmpty" data-key="notifyDailyEmpty">
+                    <label class="form-check-label small" for="prefNotifyDailyEmpty">Bij lege dagen (vergeten shift)</label>
+                  </div>
+                  
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyWeeklyEmpty" data-key="notifyWeeklyEmpty">
+                    <label class="form-check-label small" for="prefNotifyWeeklyEmpty">Bij een lege week</label>
+                  </div>
+
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyMonthlyGoal" data-key="notifyMonthlyGoal">
+                    <label class="form-check-label small" for="prefNotifyMonthlyGoal">Bij maanddoel niet behaald (&lt;80%)</label>
+                  </div>
+
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyProjectEnd" data-key="notifyProjectEnd">
+                    <label class="form-check-label small" for="prefNotifyProjectEnd">Bij aflopende projecten</label>
+                  </div>
+                </fieldset>
                 </div>
             </div>
           </div>
@@ -3119,15 +3135,18 @@ function isoWeekId(date) {
   const { week, year } = getISOWeekParts(date);
   return `${year}-W${String(week).padStart(2, '0')}`;
 }
+// ✅ HIER TOEVOEGEN: Helper om notificatie voorkeur te checken (default = true)
+    function getNotifPref(key) {
+      const ud = getCurrentUserData();
+      if (!ud.settings || !ud.settings.notificationPrefs) {
+        return true; // Bestaat niet? Standaard aan.
+      }
+      // Als de key is opgeslagen als 'false', geef 'false'.
+      // Als de key 'true' is of nog niet bestaat (undefined), geef 'true'.
+      return ud.settings.notificationPrefs[key] !== false; 
+    }
 // 🔔 Automatisch meldingsysteem — controleert volledige jaar
 async function autoCheckNotifications() {
-// ✅ HIER TOEVOEGEN: Check voorkeur van de gebruiker
-  const udCheck = getCurrentUserData();
-  if (udCheck?.settings?.autoNotifsEnabled === false) {
-    console.log("autoCheckNotifications: Gestopt, gebruiker heeft dit uitgeschakeld.");
-    return;
-  }
-  // EINDE TOEVOEGING
   // 0. 🛑 VERBETERDE CONTROLE
   // Check niet alleen de variabele, maar ook de ECHTE auth status
   if (!currentUserId || !auth.currentUser) {
@@ -3148,7 +3167,7 @@ async function autoCheckNotifications() {
   const currentYear = today.getFullYear();
 
 // 🔹 1. Controleer of gebruiker deze week nog niets heeft ingevoerd
-{
+if (getNotifPref('notifyWeeklyEmpty')) {
   const thisWeek = isoWeekId(new Date());
   let hasShiftThisWeek = false;
   const yearMap = ud.monthData || {};
@@ -3183,13 +3202,15 @@ async function autoCheckNotifications() {
 const currentMonthData = ud.monthData?.[currentYear]?.[today.getMonth()] || { rows: {}, targetHours: 0, targetMinutes: 0 };
 const md = currentMonthData;
   // 🔹 2. Controleer maanddoel vs. werkelijk (alleen huidige maand)
+  if (getNotifPref('notifyMonthlyGoal')) {
   const doel = (md.targetHours || 0) * 60 + (md.targetMinutes || 0);
   const gepland = Object.values(md.rows || {}).reduce((s, r) => s + (r.minutes || 0), 0);
   if (doel > 0 && gepland < doel * 0.8) {
     await createUniqueNotification(uid, 'Je hebt nog minder dan 80% van je maanddoel behaald.');
   }
-
+}
   // 🔹 3. Controleer of projecten binnenkort aflopen
+if (getNotifPref('notifyProjectEnd')) {
   const soon = ud.projects?.filter(p => {
     if (!p.end) return false;
     const end = new Date(p.end);
@@ -3200,8 +3221,9 @@ const md = currentMonthData;
     const names = soon.map(p => p.name).join(', ');
     await createUniqueNotification(uid, `Project(en) bijna afgelopen: ${names}`);
   }
-
+}
 // 🔹 4. Controleer ALLE dagen van het huidige jaar (alleen echte lege dagen)
+if (getNotifPref('notifyDailyEmpty')) {
 const startOfYear = new Date(today.getFullYear(), 0, 1);
 const endOfYear = new Date(today);
 
@@ -3233,7 +3255,7 @@ for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) 
     );
   }
 }
-
+}
     // 🔹 5. Automatisch opruimen van meldingen ouder dan 30 dagen
   try {
     const notifCol = collection(db, 'users', uid, 'notifications');
@@ -4762,12 +4784,12 @@ async function sendUserMail(db, adminUid, subject, body) {
         defaultTabSelect.value = ud?.settings?.defaultTab || '#tab-home'; // Fallback naar Home
       }
 
-      // 2. Notificatie vinkje
-      const notifToggle = document.getElementById('profileNotifToggle');
-      if (notifToggle) {
-        // Standaard AAN (true), dus we vinken aan als het NIET 'false' is
-        notifToggle.checked = ud?.settings?.autoNotifsEnabled !== false;
-      }
+      // 2. Notificatie vinkjes
+      const prefs = ud?.settings?.notificationPrefs || {};
+      document.getElementById('prefNotifyDailyEmpty').checked = prefs.notifyDailyEmpty !== false;
+      document.getElementById('prefNotifyWeeklyEmpty').checked = prefs.notifyWeeklyEmpty !== false;
+      document.getElementById('prefNotifyMonthlyGoal').checked = prefs.notifyMonthlyGoal !== false;
+      document.getElementById('prefNotifyProjectEnd').checked = prefs.notifyProjectEnd !== false;
       // EINDE TOEVOEGING
     }
 
@@ -4838,15 +4860,26 @@ async function sendUserMail(db, adminUid, subject, body) {
       toast('Standaard opstart-tabblad opgeslagen', 'success');
     });
 
-    // ✅ HIER TOEVOEGEN: Schakelaar: Notificatie voorkeur
-    document.getElementById('profileNotifToggle')?.addEventListener('change', async (e) => {
-      const active = e.target.checked; // true = aan, false = uit
+// ✅ HIER TOEVOEGEN: Fieldset: Notificatie voorkeuren (delegated)
+    document.getElementById('profileNotifPrefs')?.addEventListener('change', async (e) => {
+      // Reageer alleen op de vinkjes zelf
+      if (e.target.type !== 'checkbox') return; 
+
       const ud = getCurrentUserData();
       ud.settings ||= {};
-      ud.settings.autoNotifsEnabled = active;
+      
+      // Lees ALLE vinkjes in de fieldset en sla ze op als een object
+      const prefs = {
+        notifyDailyEmpty: document.getElementById('prefNotifyDailyEmpty').checked,
+        notifyWeeklyEmpty: document.getElementById('prefNotifyWeeklyEmpty').checked,
+        notifyMonthlyGoal: document.getElementById('prefNotifyMonthlyGoal').checked,
+        notifyProjectEnd: document.getElementById('prefNotifyProjectEnd').checked,
+      };
+      
+      ud.settings.notificationPrefs = prefs;
       
       await saveUserData(); 
-      toast(`Automatische herinneringen ${active ? 'ingeschakeld' : 'uitgeschakeld'}`, 'success');
+      toast(`Notificatie-voorkeuren opgeslagen`, 'success');
     });
 // ✅ HIER TOEVOEGEN: Knop: Exporteer Mijn Gegevens
     document.getElementById('profileExportBtn')?.addEventListener('click', () => {
