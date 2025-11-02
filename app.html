@@ -410,9 +410,10 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
   </div>
 
   <!-- 🚪 Mijn profiel -->
-    <a class="btn btn-outline-secondary btn-sm" data-bs-toggle="tab" href="#tab-profiel" role="tab" aria-controls="tab-profiel" aria-selected="false">
+      <a class="btn btn-outline-secondary btn-sm" id="topbarProfileBtn" href="#tab-profiel" role="tab" aria-controls="tab-profiel" aria-selected="false">
     <span class="material-icons-outlined">account_circle</span>
   </a>
+
 </div>
     </div>
   </nav>
@@ -4647,7 +4648,7 @@ async function sendUserMail(db, adminUid, subject, body) {
 /***** ========== /MAILBOX ========== *****/
 /***** ========== PROFIEL TABBLAD ========== *****/
 
-    // 1. Functie om de velden te vullen
+    // 1. Functie om de velden te vullen (deze blijft hetzelfde)
     function loadProfileTab() {
       const user = auth.currentUser;
       if (!user) return;
@@ -4655,11 +4656,29 @@ async function sendUserMail(db, adminUid, subject, body) {
       document.getElementById('profileEmail').value = user.email || '';
     }
 
-    // 2. Koppel de functie aan het tonen van de tab
-    //    Deze selector vindt de knop in de topbar (en ook in de sidebar, als je die later toch toevoegt)
-    document.querySelector('a[href="#tab-profiel"]')?.addEventListener('shown.bs.tab', loadProfileTab);
+    // 2. Koppel de functies aan het tonen van de tab (DEZE IS AANGEPAST)
+    const topbarProfileButton = document.getElementById('topbarProfileBtn');
+    const profilePane = document.getElementById('tab-profiel');
+    
+    if (topbarProfileButton && profilePane) {
+      const profileTab = new bootstrap.Tab(profilePane); // Maak een Bootstrap Tab-object
 
-    // 3. Knop: Naam opslaan
+      topbarProfileButton.addEventListener('click', (e) => {
+        e.preventDefault(); // Stop de standaard #navigatie
+        
+        // A: Deactiveer alle 'actieve' knoppen in de sidebar
+        document.querySelectorAll('#navTabs .nav-link').forEach(btn => btn.classList.remove('active'));
+        
+        // B: Toon het profiel tabblad
+        profileTab.show();
+      });
+
+      // 3. Vul de velden pas als het tabblad daadwerkelijk getoond is
+      profilePane.addEventListener('shown.bs.tab', loadProfileTab);
+    }
+
+
+    // 4. Knop: Naam opslaan (deze blijft hetzelfde)
     document.getElementById('profileSaveBtn')?.addEventListener('click', async () => {
       const user = auth.currentUser;
       const newName = document.getElementById('profileName').value.trim();
@@ -4684,7 +4703,7 @@ async function sendUserMail(db, adminUid, subject, body) {
       }
     });
 
-    // 4. Knop: Wachtwoord resetten
+    // 5. Knop: Wachtwoord resetten (deze blijft hetzelfde)
     document.getElementById('profileResetPassBtn')?.addEventListener('click', async () => {
       const user = auth.currentUser;
       if (!user) return;
