@@ -383,10 +383,6 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
 
 <div class="d-flex align-items-center gap-3 ms-auto">
   <span class="text-secondary small">Ingelogd als <strong id="currentUserName">-</strong></span>
-    <!-- Dark mode -->
-<button id="darkModeBtn" class="btn btn-outline-secondary btn-sm">
-  <span class="material-icons-outlined">dark_mode</span>
-</button>
   <!-- 🔔 Notificatieknop -->
   <div class="position-relative">
     <button id="notifBtn" class="btn btn-outline-secondary btn-sm position-relative">
@@ -3208,17 +3204,6 @@ async function notifyProjectChange(userId, type, projectName, newEndDate = null)
   await sendSystemMail(userId, 'Projectupdate', text, 'notification');
   console.log('🔔 Melding + mail gestuurd naar gebruiker:', text);
 }
-
-// 🌙 Donkere modus
-const darkModeBtn = document.getElementById('darkModeBtn');
-const prefersDark = localStorage.getItem('darkMode') === 'true';
-if (prefersDark) document.body.classList.add('dark-mode');
-
-darkModeBtn?.addEventListener('click', () => {
-  document.body.classList.toggle('dark-mode');
-  const active = document.body.classList.contains('dark-mode');
-  localStorage.setItem('darkMode', active);
-});
 
 // 🔄 Loading overlay
 function showLoading(show = true) {
