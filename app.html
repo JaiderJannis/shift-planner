@@ -4675,8 +4675,7 @@ async function sendUserMail(db, adminUid, subject, body) {
         // B: Toon het profiel tabblad
         profileTab.show();
       }
-
-
+      
       // 3. Vul de velden pas als het tabblad daadwerkelijk getoond is
       profilePane.addEventListener('shown.bs.tab', loadProfileTab);
     }
