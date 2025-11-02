@@ -949,7 +949,39 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
       </div>
       <div class="modal-body">
         <div class="row g-3">
-                    <div class="col-12 col-md-6">
+                <div class="col-12 col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                  <img id="profilePhoto" src="" alt="Profiel" class="rounded-circle me-3" style="width: 64px; height: 64px; object-fit: cover; background-color: #eee;">
+                  <div>
+                    <h6 class="card-title mb-0">Gegevens</h6>
+                    <p class="small text-muted mb-0">Pas je weergavenaam aan.</p>
+                  </div>
+                </div>
+                
+                <div class="mb-3">
+                  <label for="profileName" class="form-label">Jouw naam</label>
+                  <input type="text" class="form-control" id="profileName" placeholder="Je volledige naam">
+                </div>
+                <div class="mb-3">
+                  <label for="profileEmail" class="form-label">E-mailadres</label>
+                  <input type="email" class="form-control" id="profileEmail" readonly disabled>
+                </div>
+                <button id="profileSaveBtn" class="btn btn-primary">Naam opslaan</button>
+                
+                <hr class="my-4">
+
+                <h6 class="card-title">Thema</h6>
+                <div class="form-check form-switch fs-5">
+                  <input class="form-check-input" type="checkbox" role="switch" id="profileDarkModeToggle">
+                  <label class="form-check-label" for="profileDarkModeToggle">Donkere modus</label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6">
             <div class="card shadow-sm border-0 h-100">
               <div class="card-body d-flex flex-column">
                 <h6 class="card-title">Sessie</h6>
@@ -964,14 +996,6 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
               </div>
             </div>
           </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Sluiten</button>
-      </div>
-    </div>
-  </div>
-</div>
 <!-- Meerdere dagen invoeren Modal -->
 <div class="modal fade" id="multiDayModal" tabindex="-1"
      aria-labelledby="multiDayModalLabel" aria-hidden="true"
@@ -4629,12 +4653,26 @@ async function sendUserMail(db, adminUid, subject, body) {
     function loadProfileTab() {
       const user = auth.currentUser;
       if (!user) return;
+      
+      // Vul naam en e-mail in
       document.getElementById('profileName').value = user.displayName || '';
       document.getElementById('profileEmail').value = user.email || '';
+      
+      // Vul profielfoto in
+      const photoEl = document.getElementById('profilePhoto');
+      if (user.photoURL) {
+        photoEl.src = user.photoURL;
+      } else {
+        // Fallback (standaard anonieme avatar)
+        photoEl.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iY3VycmVudENvbG9yIiBjbGFzcz0iYmkgYmktcGVyc29uLWZpbGwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTMgMTQgczEtMiAyLTIgMiAyIDIgMiAyLTItMi0yem01LTAiLz48cGF0aCBkPSJNODguNUM4IDcuNjcgNy4zMyA3IDYuNSA3UzUgNy42NyA1IDguNSA1LjY3IDEwIDYuNSAxMFM4IDkuMzMgOCA4LjV6bS0yIDBjMCAxLjExLS44OSAyLTIgMnMtMi0uODktMi0yIC44OS0yIDItMiAyIC44OSAyIDJ6bS0yLTNjLTMuMTQ2IDAtNS41IDIuNTM2LTUuNSA1LjVWMTloMTJ2LTIuNWMwLTIuOTY0LTIuMzU0LTUuNS01LjUtNS41eiIvPjwvc3ZnPg==';
+      }
+      
+      // Zet de Dark Mode schakelaar in de juiste stand
+      const toggle = document.getElementById('profileDarkModeToggle');
+      toggle.checked = document.body.classList.contains('dark-mode');
     }
 
     // 2. Koppel de laad-functie aan het 'show' event van de modal
-    //    Dit is de simpele, correcte manier.
     const profileModalEl = document.getElementById('profileModal');
     profileModalEl?.addEventListener('show.bs.modal', loadProfileTab);
 
@@ -4663,6 +4701,19 @@ async function sendUserMail(db, adminUid, subject, body) {
         toast('Opslaan mislukt: ' + err.message, 'danger');
       }
     });
+
+    // 4. Schakelaar: Donkere Modus (NIEUW)
+    // Eerst controleren bij het laden van de pagina
+    const prefersDark = localStorage.getItem('darkMode') === 'true';
+    if (prefersDark) document.body.classList.add('dark-mode');
+
+    // Dan de knop in de modal koppelen
+    document.getElementById('profileDarkModeToggle')?.addEventListener('change', (e) => {
+      const active = e.target.checked;
+      document.body.classList.toggle('dark-mode', active);
+      localStorage.setItem('darkMode', active);
+    });
+
 
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
   </script>
