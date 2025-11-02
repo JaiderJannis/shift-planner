@@ -972,12 +972,17 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
                 
                 <hr class="my-4">
 
-                <h6 class="card-title">Thema</h6>
+                                <h6 class="card-title">Thema</h6>
                 <div class="form-check form-switch fs-5">
                   <input class="form-check-input" type="checkbox" role="switch" id="profileDarkModeToggle">
                   <label class="form-check-label" for="profileDarkModeToggle">Donkere modus</label>
                 </div>
-              </div>
+
+                <div class="form-check form-switch fs-5 mt-2">
+                  <input class="form-check-input" type="checkbox" role="switch" id="profileSidebarToggle">
+                  <label class="form-check-label" for="profileSidebarToggle">Sidebar standaard ingeklapt</label>
+                </div>
+                </div>
             </div>
           </div>
 
@@ -1435,9 +1440,15 @@ currentUserId = user.uid;
         // Fallback als er geen Google foto is (icoontje)
         topPhotoEl.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0iI2NjYyIgY2xhc3M9ImJpIGJpLXBlcnNvbi1jaXJjbGUiIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTExIDZhMyAzIDAgMTEtNiAwIDMgMyAwIDAxNiAwIi8+PHBhdGggZmlsbC1ydWxlPSJldmVub2RkIiBkPSJNMDggYTEuNSAxLjUgMCAwMC0xLjUgMS41VjE0YWguNWExLjUgMS41IDAgMDAxLjUtMS41VjkuNWEzIDMgMCAwMS41NTYtMS45OTEuNDk5LjQ5OSAwIDAwLS40NzEtLjAwMkExLjUgMS41IDAgMDA4IDEzLjQ5NnYxLjAxOEM4IDE1Ni44ODQgMTYgNS41IDE2SDIuNUEEuNSAxLjUgMCAwMTQgMTQuNUgxdjEuNUMxIDE1LjYxMiAxLjA0IDE2IDEuMzU3IDE2aDExLjI4NkMxMy45NiAxNiAxNCAxNS42MTIgMTQgMTUuNXYtMS41aC0zYTEuNSAxLjUgMCAwMS0xLjUtMS41VjEyYTEuNSAxLjUgMCAwMS4yNy0uODQ0LjQ5OS40OTkgMCAwMC0uNDctLjAwNkExLjUgMS41IDAgMDAtOCAxMy41MXYxLjAxOGMwIDEuMzczIDEuMTI3IDIuNSA2LjUgMi41aDNBNy41IDcuNSAwIDAwOCAwdjNhMy41IDMuNSAwIDAwLTQgNC41djNBMi41IDIuNSAwIDAwLjUgMTN2LjVhMS41IDEuNSAwIDAwLTEuNSAxLjVaIi8+PC9zdmc+';
       }
-      // Einde toevoeging
       await ensureUserDoc(user);
       await loadAllUsers();
+      // ✅ HIER TOEVOEGEN: Sidebar-voorkeur toepassen
+      const ud = getCurrentUserData(); // Haal de user data op (nu het geladen is)
+      if (ud?.settings?.sidebarCollapsed) {
+          sidebar.classList.add('collapsed');
+          main.classList.add('collapsed');
+      }
+      // EINDE TOEVOEGING
       initSelectors();
       renderAll();
       await revealAdminIfNeeded();
@@ -4679,6 +4690,12 @@ async function sendUserMail(db, adminUid, subject, body) {
       // Zet de Dark Mode schakelaar in de juiste stand
       const toggle = document.getElementById('profileDarkModeToggle');
       toggle.checked = document.body.classList.contains('dark-mode');
+      // ✅ HIER TOEVOEGEN: Sidebar-vinkje instellen
+      const ud = getCurrentUserData();
+      const sidebarToggle = document.getElementById('profileSidebarToggle');
+      if (sidebarToggle) {
+        sidebarToggle.checked = !!ud?.settings?.sidebarCollapsed;
+      // EINDE TOEVOEGING
     }
 
     // 2. Koppel de laad-functie aan het 'show' event van de modal
@@ -4722,7 +4739,21 @@ async function sendUserMail(db, adminUid, subject, body) {
       document.body.classList.toggle('dark-mode', active);
       localStorage.setItem('darkMode', active);
     });
-
+// ✅ HIER TOEVOEGEN: Schakelaar: Sidebar voorkeur
+    document.getElementById('profileSidebarToggle')?.addEventListener('change', async (e) => {
+      const active = e.target.checked;
+      const ud = getCurrentUserData();
+      ud.settings ||= {};
+      ud.settings.sidebarCollapsed = active;
+      
+      // Pas UI direct aan
+      sidebar.classList.toggle('collapsed', active);
+      main.classList.toggle('collapsed', active);
+      
+      // Sla op in Firestore (niet met 'debouncedSave' want dit is een directe actie)
+      await saveUserData(); 
+      toast('Sidebar-voorkeur opgeslagen', 'success');
+    });
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
   </script>
 <!-- 🔄 Loading overlay -->
