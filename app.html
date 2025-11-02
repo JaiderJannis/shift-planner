@@ -4667,7 +4667,7 @@ async function sendUserMail(db, adminUid, subject, body) {
     // 2. Koppel de laad-functie aan het 'show' event van de NIEUWE modal
 const profileModalEl = document.getElementById('profileModal');
 profileModalEl?.addEventListener('show.bs.modal', loadProfileTab);
-}
+
 
     // 3. Knop: Naam opslaan (deze blijft hetzelfde)
     document.getElementById('profileSaveBtn')?.addEventListener('click', async () => {
