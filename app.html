@@ -406,9 +406,9 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
   </div>
 
   <!-- 🚪 Mijn profiel -->
-          <a class="btn btn-outline-secondary btn-sm" id="topbarProfileBtn" data-bs-toggle="modal" data-bs-target="#profileModal" href="#">
-    <span class="material-icons-outlined">account_circle</span>
-  </a>
+  <a id="topbarProfileBtn" data-bs-toggle="modal" data-bs-target="#profileModal" href="#" title="Mijn Profiel">
+  <img id="topbarProfilePhoto" src="" alt="Profiel" class="rounded-circle" style="width: 32px; height: 32px; object-fit: cover; cursor: pointer; border: 1px solid #dee2e6;">
+</a>
 </div>
     </div>
   </nav>
@@ -1424,9 +1424,19 @@ onAuthStateChanged(auth, async (user)=>{
         // Je kan hier een loginpagina openen of FirebaseUI integreren.
         return;
       }
-      currentUserId = user.uid; // 👈 WORDT NU EERST INGESTELD
-      currentUserName.textContent = user.displayName || user.email;
+      // app (15).html, (pas code aan rond regel 1324)
+  currentUserId = user.uid; // 👈 WORDT NU EERST INGESTELD
+  currentUserName.textContent = user.displayName || user.email;
 
+  **// 📍 HIER TOEVOEGEN: Zet de profielfoto in de topbar
+  const topPhotoEl = document.getElementById('topbarProfilePhoto');
+  if (topPhotoEl && user.photoURL) {
+    topPhotoEl.src = user.photoURL;
+  } else if (topPhotoEl) {
+    // Fallback als er geen Google foto is (icoontje)
+    topPhotoEl.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0iI2NjYyIgY2xhc3M9ImJpIGJpLXBlcnNvbi1jaXJjbGUiIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTExIDZhMyAzIDAgMTEtNiAwIDMgMyAwIDAxNiAwIi8+PHBhdGggZmlsbC1ydWxlPSJldmVub2RkIiBkPSJNMDggYTEuNSAxLjUgMCAwMC0xLjUgMS41VjE0YWguNWExLjUgMS41IDAgMDAxLjUtMS41VjkuNWEzIDMgMCAwMS41NTYtMS45OTEuNDk5LjQ5OSAwIDAwLS40NzEtLjAwMkExLjUgMS41IDAgMDA4IDEzLjQ5NnYxLjAxOEM4IDE1Ni44ODQgMTYgNS41IDE2SDIuNUEEuNSAxLjUgMCAwMTQgMTQuNUgxdjEuNUMxIDE1LjYxMiAxLjA0IDE2IDEuMzU3IDE2aDExLjI4NkMxMy45NiAxNiAxNCAxNS42MTIgMTQgMTUuNXYtMS41aC0zYTEuNSAxLjUgMCAwMS0xLjUtMS41VjEyYTEuNSAxLjUgMCAwMS4yNy0uODQ0LjQ5OS40OTkgMCAwMC0uNDctLjAwNkExLjUgMS41IDAgMDAtOCAxMy41MXYxLjAxOGMwIDEuMzczIDEuMTI3IDIuNSA2LjUgMi41aDNBNy41IDcuNSAwIDAwOCAwdjNhMy41IDMuNSAwIDAwLTQgNC41djNBMi41IDIuNSAwIDAwLjUgMTN2LjVhMS41IDEuNSAwIDAwLTEuNSAxLjVaIi8+PC9zdmc+';
+  }
+  // Einde toevoeging**
       await ensureUserDoc(user);
       await loadAllUsers();
       initSelectors();
@@ -4653,12 +4663,12 @@ async function sendUserMail(db, adminUid, subject, body) {
     function loadProfileTab() {
       const user = auth.currentUser;
       if (!user) return;
-      
+
       // Vul naam en e-mail in
       document.getElementById('profileName').value = user.displayName || '';
       document.getElementById('profileEmail').value = user.email || '';
-      
-      // Vul profielfoto in
+
+      // Vul profielfoto in de MODAL in
       const photoEl = document.getElementById('profilePhoto');
       if (user.photoURL) {
         photoEl.src = user.photoURL;
@@ -4666,7 +4676,7 @@ async function sendUserMail(db, adminUid, subject, body) {
         // Fallback (standaard anonieme avatar)
         photoEl.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iY3VycmVudENvbG9yIiBjbGFzcz0iYmkgYmktcGVyc29uLWZpbGwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTMgMTQgczEtMiAyLTIgMiAyIDIgMiAyLTItMi0yem01LTAiLz48cGF0aCBkPSJNODguNUM4IDcuNjcgNy4zMyA3IDYuNSA3UzUgNy42NyA1IDguNSA1LjY3IDEwIDYuNSAxMFM4IDkuMzMgOCA4LjV6bS0yIDBjMCAxLjExLS44OSAyLTIgMnMtMi0uODktMi0yIC44OS0yIDItMiAyIC44OSAyIDJ6bS0yLTNjLTMuMTQ2IDAtNS41IDIuNTM2LTUuNSA1LjVWMTloMTJ2LTIuNWMwLTIuOTY0LTIuMzU0LTUuNS01LjUtNS41eiIvPjwvc3ZnPg==';
       }
-      
+
       // Zet de Dark Mode schakelaar in de juiste stand
       const toggle = document.getElementById('profileDarkModeToggle');
       toggle.checked = document.body.classList.contains('dark-mode');
@@ -4686,7 +4696,7 @@ async function sendUserMail(db, adminUid, subject, body) {
       try {
         // Stap A: Update Firebase Auth profiel
         await updateProfile(user, { displayName: newName });
-        
+
         // Stap B: Update naam in Firestore database (voor Admin paneel)
         const userRef = doc(db, 'users', user.uid);
         await updateDoc(userRef, { name: newName });
@@ -4694,7 +4704,7 @@ async function sendUserMail(db, adminUid, subject, body) {
         // Stap C: Update de UI direct
         document.getElementById('currentUserName').textContent = newName;
         document.getElementById('homeUserName').textContent = newName;
-        
+
         toast('Naam opgeslagen!', 'success');
       } catch (err) {
         console.error("Fout bij opslaan profiel:", err);
@@ -4713,7 +4723,6 @@ async function sendUserMail(db, adminUid, subject, body) {
       document.body.classList.toggle('dark-mode', active);
       localStorage.setItem('darkMode', active);
     });
-
 
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
   </script>
