@@ -410,10 +410,9 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
   </div>
 
   <!-- 🚪 Mijn profiel -->
-      <a class="btn btn-outline-secondary btn-sm" id="topbarProfileBtn" href="#tab-profiel" role="tab" aria-controls="tab-profiel" aria-selected="false">
+          <a class="btn btn-outline-secondary btn-sm" id="topbarProfileBtn" data-bs-toggle="modal" data-bs-target="#profileModal" href="#">
     <span class="material-icons-outlined">account_circle</span>
   </a>
-
 </div>
     </div>
   </nav>
@@ -733,45 +732,6 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
           </div>
         </div>
       </section>
-<!-- PROFIEL -->
-<section id="tab-profiel" class="tab-pane fade">
-        <h5 class="mb-3">Mijn Profiel</h5>
-        <div class="row g-3">
-          <div class="col-12 col-md-6">
-            <div class="card shadow-sm border-0">
-              <div class="card-body">
-                <h6 class="card-title">Gegevens wijzigen</h6>
-                <div class="mb-3">
-                  <label for="profileName" class="form-label">Jouw naam</label>
-                  <input type="text" class="form-control" id="profileName" placeholder="Je volledige naam">
-                </div>
-                <div class="mb-3">
-                  <label for="profileEmail" class="form-label">E-mailadres</label>
-                  <input type="email" class="form-control" id="profileEmail" readonly disabled>
-                  <div class="form-text">E-mailadres kan niet gewijzigd worden.</div>
-                </div>
-                <button id="profileSaveBtn" class="btn btn-primary">Naam opslaan</button>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 col-md-6">
-            <div class="card shadow-sm border-0">
-              <div class="card-body">
-                <h6 class="card-title">Beveiliging</h6>
-                <p class="small text-muted">Klik hier om een e-mail te ontvangen waarmee je je wachtwoord opnieuw kunt instellen.</p>
-                <button id="profileResetPassBtn" class="btn btn-outline-warning mb-4">Stuur wachtwoord-reset e-mail</button>
-                
-                <hr>
-                
-                <p class="small text-muted">Hiermee sluit je de applicatie af.</p>
-                <button id="logoutBtn" class="btn btn-outline-danger">
-                  <span class="material-icons-outlined">logout</span> Uitloggen
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 <!-- ADMIN -->
 <section id="tab-admin" class="tab-pane fade">
   <div class="d-flex align-items-center justify-content-between mb-3">
@@ -984,6 +944,54 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
       </div>
     </div>
   </div>
+<!-- Profile modal -->
+<div class="modal fade" id="profileModal" tabindex="-1">
+  <div class="modal-dialog modal-lg"> <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Mijn Profiel</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-body">
+                <h6 class="card-title">Gegevens wijzigen</h6>
+                <div class="mb-3">
+                  <label for="profileName" class="form-label">Jouw naam</label>
+                  <input type="text" class="form-control" id="profileName" placeholder="Je volledige naam">
+                </div>
+                <div class="mb-3">
+                  <label for="profileEmail" class="form-label">E-mailadres</label>
+                  <input type="email" class="form-control" id="profileEmail" readonly disabled>
+                </div>
+                <button id="profileSaveBtn" class="btn btn-primary">Naam opslaan</button>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-body d-flex flex-column">
+                <h6 class="card-title">Sessie</h6>
+                <p class="small text-muted">Hiermee sluit je de applicatie af en keer je terug naar het inlogscherm.</p>
+                
+                <div class="mt-auto">
+                  <hr>
+                  <button id="logoutBtn" class="btn btn-outline-danger w-100">
+                    <span class="material-icons-outlined" style="vertical-align: middle;">logout</span> Uitloggen
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Sluiten</button>
+      </div>
+    </div>
+  </div>
+</div>
 <!-- Meerdere dagen invoeren Modal -->
 <div class="modal fade" id="multiDayModal" tabindex="-1"
      aria-labelledby="multiDayModalLabel" aria-hidden="true"
@@ -4656,32 +4664,12 @@ async function sendUserMail(db, adminUid, subject, body) {
       document.getElementById('profileEmail').value = user.email || '';
     }
 
-    // 2. Koppel de functies aan het tonen van de tab (DEZE IS AANGEPAST)
-    const topbarProfileButton = document.getElementById('topbarProfileBtn');
-    const profilePane = document.getElementById('tab-profiel');
-    
-    if (topbarProfileButton && profilePane) {
-      const profileTab = new bootstrap.Tab(topbarProfileButton); // Maak een Bootstrap Tab-object
+    // 2. Koppel de laad-functie aan het 'show' event van de NIEUWE modal
+const profileModalEl = document.getElementById('profileModal');
+profileModalEl?.addEventListener('show.bs.modal', loadProfileTab);
+}
 
-      topbarProfileButton.addEventListener('click', (e) => {
-        e.preventDefault(); // Stop de standaard #navigatie
-        
-        // A: Deactiveer alle 'actieve' knoppen in de sidebar
-        document.querySelectorAll('#navTabs .nav-link').forEach(btn => btn.classList.remove('active'));
-        
-        // 💡 HIER IS DE FIX: Verberg handmatig alle andere open tabbladen
-        document.querySelectorAll('.tab-content .tab-pane.active').forEach(pane => pane.classList.remove('active', 'show'));
-        
-        // B: Toon het profiel tabblad
-        profileTab.show();
-      });
-      
-      // 3. Vul de velden pas als het tabblad daadwerkelijk getoond is
-      profilePane.addEventListener('shown.bs.tab', loadProfileTab);
-    }
-
-
-    // 4. Knop: Naam opslaan (deze blijft hetzelfde)
+    // 3. Knop: Naam opslaan (deze blijft hetzelfde)
     document.getElementById('profileSaveBtn')?.addEventListener('click', async () => {
       const user = auth.currentUser;
       const newName = document.getElementById('profileName').value.trim();
@@ -4703,24 +4691,6 @@ async function sendUserMail(db, adminUid, subject, body) {
       } catch (err) {
         console.error("Fout bij opslaan profiel:", err);
         toast('Opslaan mislukt: ' + err.message, 'danger');
-      }
-    });
-
-    // 5. Knop: Wachtwoord resetten (deze blijft hetzelfde)
-    document.getElementById('profileResetPassBtn')?.addEventListener('click', async () => {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      if (!confirm(`Weet je zeker dat je een wachtwoord-reset mail wilt sturen naar ${user.email}?`)) {
-        return;
-      }
-      
-      try {
-        await sendPasswordResetEmail(auth, user.email);
-        toast('Reset-mail verzonden! Controleer je inbox.', 'success');
-      } catch (err) {
-        console.error("Fout bij reset mail:", err);
-        toast('Verzenden mislukt: ' + err.message, 'danger');
       }
     });
   </script>
