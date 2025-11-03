@@ -185,7 +185,12 @@ body.dark-mode .alert-danger {
   transition: all 0.3s ease-in-out;
   opacity: 0.95; /* subtiel transparant */
 }
-
+/* Verberg de balk met een animatie als een modal open is */
+body.modal-open #remainingHoursAlert {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-50%) translateY(100%); /* Schuif naar beneden */
+}
 /* 📱 Mobiel — iets breder */
 @media (max-width: 768px){
   #exportPdfBtn,
