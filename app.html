@@ -1512,6 +1512,12 @@ function updateMonthStatusBadge(){
 onAuthStateChanged(auth, async (user)=>{
       //Stop alle intervals als we uitloggen
       if (notificationInterval) clearInterval(notificationInterval);
+// ✅ HIER TOEVOEGEN (BOVENAAN): Laad kleur uit localStorage (instant)
+      const savedColor = localStorage.getItem('accentColor');
+      if (savedColor) {
+        applyAccentColor(savedColor);
+      }
+      // EINDE TOEVOEGING
 
       if(!user){
         // Voor demo: toon eenvoudige melding
@@ -1533,8 +1539,15 @@ currentUserId = user.uid;
       }
       await ensureUserDoc(user);
       await loadAllUsers();
-      // ✅ HIER TOEVOEGEN: Sidebar-voorkeur toepassen
-      const ud = getCurrentUserData(); // Haal de user data op (nu het geladen is)
+      
+      // ✅ HIER TOEVOEGEN: Sidebar & accentkleur-voorkeur toepassen
+      const ud = getCurrentUserData();
+      // ✅ HIER AANPASSEN: Laad kleur uit Firestore (als sync)
+      // (Vervang de 'savedColor' check als die al bestaat)
+      if (ud?.settings?.accentColor) {
+        applyAccentColor(ud.settings.accentColor);
+      }
+      // EINDE AANPASSING
       if (ud?.settings?.sidebarCollapsed) {
           sidebar.classList.add('collapsed');
           main.classList.add('collapsed');
