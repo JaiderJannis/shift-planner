@@ -4875,7 +4875,22 @@ async function sendUserMail(db, adminUid, subject, body) {
       if (defaultTabSelect) {
         defaultTabSelect.value = ud?.settings?.defaultTab || '#tab-home'; // Fallback naar Home
       }
-
+// ✅ HIER TOEVOEGEN: Markeer het geselecteerde kleurbolletje
+      const picker = document.getElementById('profileColorPicker');
+      if (picker) {
+        // Haal huidige kleur op (uit localStorage, met fallback naar Firestore)
+        const currentColor = localStorage.getItem('accentColor') || ud?.settings?.accentColor || '#0d6efd';
+        
+        // Verwijder 'selected' van alle bolletjes
+        picker.querySelectorAll('.color-dot').forEach(dot => dot.classList.remove('selected'));
+        
+        // Voeg 'selected' toe aan de juiste
+        const activeDot = picker.querySelector(`.color-dot[data-color="${currentColor}"]`);
+        if (activeDot) {
+          activeDot.classList.add('selected');
+        }
+      }
+      // EINDE TOEVOEGING
       // 2. Notificatie vinkjes
       const prefs = ud?.settings?.notificationPrefs || {};
       document.getElementById('prefNotifyDailyEmpty').checked = prefs.notifyDailyEmpty !== false;
@@ -4972,6 +4987,28 @@ async function sendUserMail(db, adminUid, subject, body) {
       
       await saveUserData(); 
       toast(`Notificatie-voorkeuren opgeslagen`, 'success');
+    });
+// ✅ HIER TOEVOEGEN: Klik-listener voor Accentkleur
+    document.getElementById('profileColorPicker')?.addEventListener('click', async (e) => {
+      const dot = e.target.closest('.color-dot');
+      if (!dot) return; // Klik was niet op een bolletje
+
+      const newColor = dot.dataset.color;
+
+      // 1. Update de UI direct
+      applyAccentColor(newColor);
+
+      // 2. Update de "selected" class in de modal
+      document.querySelectorAll('#profileColorPicker .color-dot').forEach(d => d.classList.remove('selected'));
+      dot.classList.add('selected');
+
+      // 3. Sla op in Firestore
+      const ud = getCurrentUserData();
+      ud.settings ||= {};
+      ud.settings.accentColor = newColor;
+      await saveUserData();
+      
+      toast('Accentkleur opgeslagen!', 'success');
     });
 // ✅ HIER TOEVOEGEN: Knop: Exporteer Mijn Gegevens
     document.getElementById('profileExportBtn')?.addEventListener('click', () => {
