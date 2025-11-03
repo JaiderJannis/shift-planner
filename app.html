@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+app<!DOCTYPE html>
 <html lang="nl">
 <head>
   <meta charset="utf-8" />
@@ -3212,21 +3212,61 @@ function isoWeekId(date) {
       if (!hex) return; // Geen kleur, doe niets
 
       const rgb = hexToRgb(hex);
-      const lightBg = `rgba(${rgb}, 0.18)`; // Voor hovers en lichte badges
+      const lightBg = `rgba(${rgb}, 0.15)`; // Iets lichter voor hovers
+      const darkText = `rgba(${rgb}, 0.7)`; // Voor donkere tekst op lichte hover
 
       // 1. Schrijf de CSS-regels
       const cssRules = `
         :root {
           --bs-primary: ${hex};
           --bs-primary-rgb: ${rgb};
+          --bs-primary-text-emphasis: ${hex};
+          --bs-primary-bg-subtle: ${lightBg};
+          --bs-primary-border-subtle: ${hex};
         }
-        /* Overrides voor hard-gecodeerde stijlen */
+        
+        /* === ALGEMENE OVERRIDES === */
         .sp-sidebar { background: ${hex} !important; }
-        .sp-sidebar .nav-link.active, .sp-sidebar .nav-link:hover { background: ${lightBg} !important; }
+        .sp-sidebar .nav-link.active, 
+        .sp-sidebar .nav-link:hover { background: rgba(255,255,255, 0.18) !important; }
         .chip { color: ${hex}; background-color: ${lightBg}; }
         .chip .dot { background-color: ${hex}; }
         .badge-submitted { color: ${hex}; background-color: ${lightBg}; }
-        
+        .form-check-input:checked {
+            background-color: ${hex};
+            border-color: ${hex};
+        }
+        .flatpickr-day.selected, .flatpickr-day.selected:hover {
+            background: ${hex};
+            border-color: ${hex};
+        }
+
+        /* === KNOPPEN OVERRIDES (DEZE ONTBRAKEN) === */
+        .btn-primary {
+          --bs-btn-bg: ${hex};
+          --bs-btn-border-color: ${hex};
+          --bs-btn-hover-bg: ${darkText};
+          --bs-btn-hover-border-color: ${darkText};
+          --bs-btn-active-bg: ${darkText};
+          --bs-btn-active-border-color: ${darkText};
+          --bs-btn-disabled-bg: ${hex};
+          --bs-btn-disabled-border-color: ${hex};
+        }
+        .btn-outline-primary {
+          --bs-btn-color: ${hex};
+          --bs-btn-border-color: ${hex};
+          --bs-btn-hover-bg: ${hex};
+          --bs-btn-hover-color: #fff;
+          --bs-btn-active-bg: ${hex};
+          --bs-btn-active-color: #fff;
+          --bs-btn-disabled-color: ${hex};
+          --bs-btn-disabled-border-color: ${hex};
+        }
+        .btn-outline-primary.active { /* Voor de Mailbox tabs */
+          background-color: ${hex};
+          color: #fff;
+        }
+
         /* Zorg dat dark-mode de sidebar blijft overschrijven */
         body.dark-mode .sp-sidebar { background: #111 !important; }
       `;
