@@ -3267,7 +3267,40 @@ function isoWeekId(date) {
           color: #fff;
         }
 
-        /* Zorg dat dark-mode de sidebar blijft overschrijven */
+        /* === SPECIFIEKE KNOPPEN OVERRIDES (NIEUW) === */
+        /* PDF Knop (was outline-danger) */
+        #exportPdfBtn {
+          color: var(--bs-danger);
+          border-color: var(--bs-danger);
+        }
+        #exportPdfBtn:hover {
+          color: #fff;
+          background-color: var(--bs-danger);
+          border-color: var(--bs-danger);
+        }
+
+        /* Indienen Knop (was outline-success) */
+        #submitMonthBtn {
+          color: var(--bs-success);
+          border-color: var(--bs-success);
+        }
+        #submitMonthBtn:hover {
+          color: #fff;
+          background-color: var(--bs-success);
+          border-color: var(--bs-success);
+        }
+        
+        /* Snelle Invoer Knop (blijft oranje) */
+        #quickTopBtn {
+          border-color: #fd7e14 !important;
+          color: #fd7e14 !important;
+        }
+        #quickTopBtn:hover {
+          background-color: #fd7e14 !important;
+          color: #fff !important;
+        }
+
+        /* Donkere modus overrides */
         body.dark-mode .sp-sidebar { background: #111 !important; }
       `;
 
