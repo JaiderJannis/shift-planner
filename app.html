@@ -3241,7 +3241,7 @@ function isoWeekId(date) {
             border-color: ${hex};
         }
 
-        /* === KNOPPEN OVERRIDES (DEZE ONTBRAKEN) === */
+        /* === KNOPPEN OVERRIDES (DEZE WAREN HET PROBLEEM) === */
         .btn-primary {
           --bs-btn-bg: ${hex};
           --bs-btn-border-color: ${hex};
@@ -3267,8 +3267,8 @@ function isoWeekId(date) {
           color: #fff;
         }
 
-        /* === SPECIFIEKE KNOPPEN OVERRIDES (NIEUW) === */
-        /* PDF Knop (was outline-danger) */
+        /* === SPECIFIEKE KNOPPEN (BEHOUDEN HUN KLEUR) === */
+        /* PDF Knop (blijft rood) */
         #exportPdfBtn {
           color: var(--bs-danger);
           border-color: var(--bs-danger);
@@ -3279,7 +3279,7 @@ function isoWeekId(date) {
           border-color: var(--bs-danger);
         }
 
-        /* Indienen Knop (was outline-success) */
+        /* Indienen Knop (blijft groen) */
         #submitMonthBtn {
           color: var(--bs-success);
           border-color: var(--bs-success);
