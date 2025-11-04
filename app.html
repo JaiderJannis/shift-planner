@@ -3067,19 +3067,6 @@ const multiShiftEnd = document.getElementById('multiShiftEnd');
 const multiShiftDays = document.getElementById('multiShiftDays');
 const multiDayShiftBtn = document.getElementById('multiDayShiftBtn');
 
-// knop opent modal
-document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
-  const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
-  modal.show();
-});
-
-// 🖱️ Open modal en stel kalender in op huidige maand
-document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
-  const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
-  modal.show();
-  setTimeout(initMultiDayPicker, 150); // even wachten tot modal zichtbaar is
-});
-
 // 🔵 Herkleur direct alle ingeplande dagen opnieuw
 const plannedDates = Object.keys(
   getCurrentUserData()?.monthData?.[yearSelectMain.value]?.[monthSelectMain.value]?.rows || {}
@@ -3801,15 +3788,22 @@ function markPlannedDays() {
 }
 
 /* === Eventlisteners === */
-
-// 🟢 Open de modal
+// 🟢 Open de "Meerdere dagen" modal (GECOMBINEERDE LISTENER)
 document.getElementById("multiDayShiftBtn")?.addEventListener("click", () => {
-  const modal = new bootstrap.Modal(document.getElementById("multiDayModal"));
-  modal.show();
+  const modalEl = document.getElementById("multiDayModal");
+  
+  // Gebruik getOrCreateInstance om conflicten te voorkomen
+  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+  // 1. Bereid de shift-lijst voor
   populateMultiDayShifts();
+  
+  // 2. Toon de modal
+  modal.show();
+  
+  // 3. Initialiseer de kalender (met een korte vertraging)
   setTimeout(initMultiDayPicker, 150);
 });
-
 // 💾 Opslaan van meerdere dagen
 document.getElementById('saveMultiShift').addEventListener('click', async () => {
   try {
