@@ -3783,21 +3783,23 @@ function markPlannedDays() {
 }
 
 /* === Eventlisteners === */
-// 🟢 Open de "Meerdere dagen" modal (GECOMBINEERDE LISTENER)
+// 🟢 Open de "Meerdere dagen" modal
 document.getElementById("multiDayShiftBtn")?.addEventListener("click", () => {
   const modalEl = document.getElementById("multiDayModal");
-  
-  // Gebruik getOrCreateInstance om conflicten te voorkomen
   const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
-  // 1. Bereid de shift-lijst voor
+  // 1. Bereid de shift-lijst VOOR (dit mag wel)
   populateMultiDayShifts();
   
-  // 2. Toon de modal
+  // 2. Toon de modal (en doe verder NIETS)
   modal.show();
-  
-  // 3. Initialiseer de kalender (met een korte vertraging)
-  setTimeout(initMultiDayPicker, 150);
+});
+// 🗓️ Initialiseer de kalender ZODRA de modal volledig zichtbaar is
+const multiDayModalEl = document.getElementById('multiDayModal');
+multiDayModalEl?.addEventListener('shown.bs.modal', () => {
+  // Roep de initialisatie-functie pas hier aan,
+  // wanneer de modal-animatie klaar is.
+  initMultiDayPicker();
 });
 // 💾 Opslaan van meerdere dagen
 document.getElementById('saveMultiShift').addEventListener('click', async () => {
