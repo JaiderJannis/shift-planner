@@ -3659,11 +3659,6 @@ function highlightPlannedDays(inst, plannedDates = []) {
     }
   });
 }
-
-// 📋 Vult de shift-selectielijst in de modal
-document.getElementById('multiDayShiftBtn').addEventListener('click', () => {
-  populateMultiDayShifts();
-});
 function populateMultiDayShifts(selectedDates = []) {
   const ud = getCurrentUserData();
   const sel = document.getElementById('multiShiftName');
