@@ -3914,12 +3914,6 @@ function updateCalendarDay(date, shiftName) {
     <div class="shift-date">${new Date(date).getDate()}</div>
   `;
 }
-// Verwijder grijze overlay als die per ongeluk blijft staan
-document.getElementById('multiDayModal').addEventListener('hidden.bs.modal', () => {
-  document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-  document.body.classList.remove('modal-open');
-  document.body.style.removeProperty('overflow');
-});
 // User: Indienen
 document.getElementById('submitMonthBtn')?.addEventListener('click', async () => {
   const y = Number(yearSelectMain.value);
