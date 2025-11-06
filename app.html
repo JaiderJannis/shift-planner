@@ -3722,8 +3722,6 @@ function initMultiDayPicker() {
   const start = new Date(year, month, 1);
   const end = new Date(year, month + 1, 0);
 
-  if (window.multiDayPicker) window.multiDayPicker.destroy();
-
   const ud = getCurrentUserData();
   const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
   const plannedDates = Object.keys(maandData).filter(d => !!maandData[d]?.shift);
@@ -3799,7 +3797,7 @@ const multiDayModalEl = document.getElementById('multiDayModal');
 multiDayModalEl?.addEventListener('shown.bs.modal', () => {
   // Roep de initialisatie-functie pas hier aan,
   // wanneer de modal-animatie klaar is.
-  initMultiDayPicker();
+  if (!window.multiDayPicker) { initMultiDayPicker(); }
 });
 // 💾 Opslaan van meerdere dagen
 document.getElementById('saveMultiShift').addEventListener('click', async () => {
