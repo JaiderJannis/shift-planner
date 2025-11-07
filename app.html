@@ -3793,12 +3793,8 @@ document.getElementById("multiDayShiftBtn")?.addEventListener("click", () => {
   // 2. Toon de modal (en doe verder NIETS)
   modal.show();
 });
-// 🗓️ Initialiseer de kalender ZODRA de modal volledig zichtbaar is
-const multiDayModalEl = document.getElementById('multiDayModal');
-multiDayModalEl?.addEventListener('shown.bs.modal', () => {
-  // Roep de initialisatie-functie pas hier aan,
-  // wanneer de modal-animatie klaar is.
-  initMultiDayPicker();
+// 3. Initialiseer de kalender met een korte vertraging (dit is de fix)
+  setTimeout(initMultiDayPicker, 150);
 });
 // 💾 Opslaan van meerdere dagen
 document.getElementById('saveMultiShift').addEventListener('click', async () => {
