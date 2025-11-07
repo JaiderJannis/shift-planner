@@ -5141,25 +5141,6 @@ async function sendUserMail(db, adminUid, subject, body) {
 
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
 </script>
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  const input = document.getElementById("multiShiftDays");
-  if (input) {
-    flatpickr(input, {
-      mode: "multiple",
-      dateFormat: "Y-m-d",
-      locale: "nl",
-      altInput: true,
-      altFormat: "d-m-Y",
-      static: true,
-      appendTo: document.body,
-      onOpen: () => {
-        document.body.classList.remove("modal-open");
-      }
-    });
-  }
-});
-  </script>
 <!-- 🔄 Loading overlay -->
 <div id="loadingOverlay" class="loading-overlay d-none">
   <div class="spinner-border text-light" role="status">
