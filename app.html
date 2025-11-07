@@ -3729,6 +3729,7 @@ if (window.multiDayPicker) window.multiDayPicker.destroy();
   console.log("✅ Planned dates:", plannedDates);
 
 window.multiDayPicker = flatpickr("#multiShiftDays", {
+  static: true,
   mode: "multiple",
   dateFormat: "d-m-Y",
   altInput: true,
