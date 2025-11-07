@@ -1,4 +1,4 @@
-app<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="nl">
 <head>
   <meta charset="utf-8" />
@@ -10,8 +10,8 @@ app<!DOCTYPE html>
 <link rel="icon" type="image/png" sizes="512x512" href="favicon-512x512.png">
 <link rel="shortcut icon" href="favicon.ico">
 <!-- ===== Stylesheet ===== -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <style id="accent-color-overrides"></style>
+
 <!-- Apple (iPhone/iPad) -->
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
 <link rel="apple-touch-icon-precomposed" href="apple-touch-icon-180x180.png">
@@ -185,7 +185,12 @@ body.dark-mode .alert-danger {
   transition: all 0.3s ease-in-out;
   opacity: 0.95; /* subtiel transparant */
 }
-
+/* Verberg de balk met een animatie als een modal open is */
+body.modal-open #remainingHoursAlert {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-50%) translateY(100%); /* Schuif naar beneden */
+}
 /* 📱 Mobiel — iets breder */
 @media (max-width: 768px){
   #exportPdfBtn,
@@ -351,6 +356,10 @@ body.dark-mode .color-dot {
 }
 body.dark-mode .color-dot.selected {
   border-color: #fff;
+}
+/* Fix voor Flatpickr in een Modal */
+.flatpickr-calendar {
+  z-index: 2000 !important;
 }
     </style>
 </head>
@@ -3058,19 +3067,6 @@ const multiShiftEnd = document.getElementById('multiShiftEnd');
 const multiShiftDays = document.getElementById('multiShiftDays');
 const multiDayShiftBtn = document.getElementById('multiDayShiftBtn');
 
-// knop opent modal
-document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
-  const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
-  modal.show();
-});
-
-// 🖱️ Open modal en stel kalender in op huidige maand
-document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
-  const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
-  modal.show();
-  setTimeout(initMultiDayPicker, 150); // even wachten tot modal zichtbaar is
-});
-
 // 🔵 Herkleur direct alle ingeplande dagen opnieuw
 const plannedDates = Object.keys(
   getCurrentUserData()?.monthData?.[yearSelectMain.value]?.[monthSelectMain.value]?.rows || {}
@@ -3663,11 +3659,6 @@ function highlightPlannedDays(inst, plannedDates = []) {
     }
   });
 }
-
-// 📋 Vult de shift-selectielijst in de modal
-document.getElementById('multiDayShiftBtn').addEventListener('click', () => {
-  populateMultiDayShifts();
-});
 function populateMultiDayShifts(selectedDates = []) {
   const ud = getCurrentUserData();
   const sel = document.getElementById('multiShiftName');
@@ -3730,9 +3721,7 @@ function initMultiDayPicker() {
   const month = Number(document.getElementById("monthSelectMain").value);
   const start = new Date(year, month, 1);
   const end = new Date(year, month + 1, 0);
-
-  if (window.multiDayPicker) window.multiDayPicker.destroy();
-
+if (window.multiDayPicker) window.multiDayPicker.destroy();
   const ud = getCurrentUserData();
   const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
   const plannedDates = Object.keys(maandData).filter(d => !!maandData[d]?.shift);
@@ -3740,6 +3729,7 @@ function initMultiDayPicker() {
   console.log("✅ Planned dates:", plannedDates);
 
 window.multiDayPicker = flatpickr("#multiShiftDays", {
+  static: true,
   mode: "multiple",
   dateFormat: "d-m-Y",
   altInput: true,
@@ -3792,15 +3782,13 @@ function markPlannedDays() {
 }
 
 /* === Eventlisteners === */
-
-// 🟢 Open de modal
+// 🟢 Open de "Meerdere dagen" modal
 document.getElementById("multiDayShiftBtn")?.addEventListener("click", () => {
   const modal = new bootstrap.Modal(document.getElementById("multiDayModal"));
   modal.show();
   populateMultiDayShifts();
   setTimeout(initMultiDayPicker, 150);
 });
-
 // 💾 Opslaan van meerdere dagen
 document.getElementById('saveMultiShift').addEventListener('click', async () => {
   try {
@@ -3914,12 +3902,6 @@ function updateCalendarDay(date, shiftName) {
     <div class="shift-date">${new Date(date).getDate()}</div>
   `;
 }
-// Verwijder grijze overlay als die per ongeluk blijft staan
-document.getElementById('multiDayModal').addEventListener('hidden.bs.modal', () => {
-  document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-  document.body.classList.remove('modal-open');
-  document.body.style.removeProperty('overflow');
-});
 // User: Indienen
 document.getElementById('submitMonthBtn')?.addEventListener('click', async () => {
   const y = Number(yearSelectMain.value);
@@ -5148,7 +5130,7 @@ async function sendUserMail(db, adminUid, subject, body) {
     });
 
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
-  </script>
+</script>
 <!-- 🔄 Loading overlay -->
 <div id="loadingOverlay" class="loading-overlay d-none">
   <div class="spinner-border text-light" role="status">
