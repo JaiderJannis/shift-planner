@@ -3784,11 +3784,18 @@ function markPlannedDays() {
 /* === Eventlisteners === */
 // 🟢 Open de "Meerdere dagen" modal
 document.getElementById("multiDayShiftBtn")?.addEventListener("click", () => {
-  const modal = new bootstrap.Modal(document.getElementById("multiDayModal"));
-  modal.show();
+  const modalEl = document.getElementById("multiDayModal");
+  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+  // 1. Bereid de shift-lijst VOOR (dit mag wel)
   populateMultiDayShifts();
-  setTimeout(initMultiDayPicker, 150);
+  
+  // 2. Toon de modal (en doe verder NIETS)
+  modal.show();
 });
+// 3. Initialiseer de kalender met een korte vertraging (dit is de fix)
+  setTimeout(initMultiDayPicker, 150);
+  });
 // 💾 Opslaan van meerdere dagen
 document.getElementById('saveMultiShift').addEventListener('click', async () => {
   try {
