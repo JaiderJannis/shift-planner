@@ -9,6 +9,8 @@
 <link rel="icon" type="image/png" sizes="192x192" href="favicon-192x192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="favicon-512x512.png">
 <link rel="shortcut icon" href="favicon.ico">
+<!-- ===== Stylesheet ===== -->
+<style id="accent-color-overrides"></style>
 
 <!-- Apple (iPhone/iPad) -->
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
@@ -183,7 +185,12 @@ body.dark-mode .alert-danger {
   transition: all 0.3s ease-in-out;
   opacity: 0.95; /* subtiel transparant */
 }
-
+/* Verberg de balk met een animatie als een modal open is */
+body.modal-open #remainingHoursAlert {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-50%) translateY(100%); /* Schuif naar beneden */
+}
 /* 📱 Mobiel — iets breder */
 @media (max-width: 768px){
   #exportPdfBtn,
@@ -320,6 +327,40 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
     font-size: .8rem;
   }
 }
+/* Accentkleur-kiezer bolletjes */
+.color-picker-wrap {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.color-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.2);
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+body.dark-mode .color-dot {
+  border-color: #444;
+}
+.color-dot.selected {
+  border-color: #000;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.5);
+  transform: scale(1.1);
+}
+body.dark-mode .color-dot.selected {
+  border-color: #fff;
+}
+/* Fix voor Flatpickr in een Modal */
+.flatpickr-calendar {
+  z-index: 2000 !important;
+}
     </style>
 </head>
 <body>
@@ -383,10 +424,6 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
 
 <div class="d-flex align-items-center gap-3 ms-auto">
   <span class="text-secondary small">Ingelogd als <strong id="currentUserName">-</strong></span>
-    <!-- Dark mode -->
-<button id="darkModeBtn" class="btn btn-outline-secondary btn-sm">
-  <span class="material-icons-outlined">dark_mode</span>
-</button>
   <!-- 🔔 Notificatieknop -->
   <div class="position-relative">
     <button id="notifBtn" class="btn btn-outline-secondary btn-sm position-relative">
@@ -409,10 +446,10 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
     </div>
   </div>
 
-  <!-- 🚪 Uitloggen -->
-  <button id="logoutBtn" class="btn btn-outline-danger btn-sm">
-    <span class="material-icons-outlined">logout</span>
-  </button>
+  <!-- 🚪 Mijn profiel -->
+  <a id="topbarProfileBtn" data-bs-toggle="modal" data-bs-target="#profileModal" href="#" title="Mijn Profiel">
+  <img id="topbarProfilePhoto" src="" alt="Profiel" class="rounded-circle" style="width: 32px; height: 32px; object-fit: cover; cursor: pointer; border: 1px solid #dee2e6;">
+</a>
 </div>
     </div>
   </nav>
@@ -944,6 +981,147 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
       </div>
     </div>
   </div>
+<!-- Profile modal -->
+<div class="modal fade" id="profileModal" tabindex="-1">
+  <div class="modal-dialog modal-lg"> <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Mijn Profiel</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+                <div class="col-12 col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                  <img id="profilePhoto" src="" alt="Profiel" class="rounded-circle me-3" style="width: 64px; height: 64px; object-fit: cover; background-color: #eee;">
+                  <div>
+                    <h6 class="card-title mb-0">Gegevens</h6>
+                    <p class="small text-muted mb-0">Pas je weergavenaam aan.</p>
+                  </div>
+                </div>
+                
+                <div class="mb-3">
+                  <label for="profileName" class="form-label">Jouw naam</label>
+                  <input type="text" class="form-control" id="profileName" placeholder="Je volledige naam">
+                </div>
+                <div class="mb-3">
+                  <label for="profileEmail" class="form-label">E-mailadres</label>
+                  <input type="email" class="form-control" id="profileEmail" readonly disabled>
+                </div>
+                <button id="profileSaveBtn" class="btn btn-primary">Naam opslaan</button>
+                
+                <hr class="my-4">
+
+                                <h6 class="card-title">Thema</h6>
+                <div class="form-check form-switch fs-5">
+                  <input class="form-check-input" type="checkbox" role="switch" id="profileDarkModeToggle">
+                  <label class="form-check-label" for="profileDarkModeToggle">Donkere modus</label>
+                </div>
+
+                <div class="form-check form-switch fs-5 mt-2">
+                  <input class="form-check-input" type="checkbox" role="switch" id="profileSidebarToggle">
+                  <label class="form-check-label" for="profileSidebarToggle">Sidebar standaard ingeklapt</label>
+                </div>
+                
+                <hr class="my-4">
+                <h6 class="card-title">Voorkeuren</h6>
+                
+                <div class="mb-3">
+                  <label for="profileDefaultTab" class="form-label small">Opstart-tabblad</label>
+                  <select id="profileDefaultTab" class="form-select form-select-sm">
+                    <option value="#tab-home">Home</option>
+                    <option value="#tab-shifts">Shifts</option>
+                    <option value="#tab-invoer">Invoer</option>
+                    <option value="#tab-historiek">Historiek</option>
+                    <option value="#tab-converter">Converter</option>
+                    <option value="#tab-mail">Mailbox</option>
+                  </select>
+                </div>
+
+                <fieldset id="profileNotifPrefs">
+                  <label class="form-label small">Automatische herinneringen:</label>
+                  
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyDailyEmpty" data-key="notifyDailyEmpty">
+                    <label class="form-check-label small" for="prefNotifyDailyEmpty">Bij lege dagen (vergeten shift)</label>
+                  </div>
+                  
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyWeeklyEmpty" data-key="notifyWeeklyEmpty">
+                    <label class="form-check-label small" for="prefNotifyWeeklyEmpty">Bij een lege week</label>
+                  </div>
+
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyMonthlyGoal" data-key="notifyMonthlyGoal">
+                    <label class="form-check-label small" for="prefNotifyMonthlyGoal">Bij maanddoel niet behaald (&lt;80%)</label>
+                  </div>
+
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyProjectEnd" data-key="notifyProjectEnd">
+                    <label class="form-check-label small" for="prefNotifyProjectEnd">Bij aflopende projecten</label>
+                  </div>
+                </fieldset>
+                </div>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6">
+          <div class="card shadow-sm border-0 mb-3">
+                            <div class="card-body">
+                <label class="form-label small fw-semibold">Accentkleur</label>
+                
+                <div id="profileColorPicker" class="color-picker-wrap">
+                  <span class="color-dot" data-color="#0d6efd" style="background-color: #0d6efd;" title="Standaard Blauw"></span>
+                  <span class="color-dot" data-color="#198754" style="background-color: #198754;" title="Groen"></span>
+                  <span class="color-dot" data-color="#fd7e14" style="background-color: #fd7e14;" title="Oranje"></span>
+                  <span class="color-dot" data-color="#6f42c1" style="background-color: #6f42c1;" title="Paars"></span>
+                  <span class="color-dot" data-color="#dc3545" style="background-color: #dc3545;" title="Rood"></span>
+                  <span class="color-dot" data-color="#d63384" style="background-color: #d63384;" title="Roze (Pink)"></span>
+                  
+                  <span class="color-dot" data-color="#20c997" style="background-color: #20c997;" title="Turquoise (Teal)"></span>
+                  <span class="color-dot" data-color="#0dcaf0" style="background-color: #0dcaf0;" title="Cyaan (Cyan)"></span>
+                  <span class="color-dot" data-color="#6610f2" style="background-color: #6610f2;" title="Indigo"></span>
+                  <span class="color-dot" data-color="#ffc107" style="background-color: #ffc107;" title="Geel (Warning)"></span>
+                  <span class="color-dot" data-color="#0B5345" style="background-color: #0B5345;" title="Donkergroen"></span>
+                  <span class="color-dot" data-color="#495057" style="background-color: #495057;" title="Donkergrijs"></span>
+
+                  <span class="color-dot" data-color="#A93226" style="background-color: #A93226;" title="Kastanjebruin"></span>
+                  <span class="color-dot" data-color="#17202A" style="background-color: #17202A;" title="Zwartblauw"></span>
+                  <span class="color-dot" data-color="#5D6D7E" style="background-color: #5D6D7E;" title="Staalblauw"></span>
+                  <span class="color-dot" data-color="#7D3C98" style="background-color: #7D3C98;" title="Donkerpaars"></span>
+                  <span class="color-dot" data-color="#F39C12" style="background-color: #F39C12;" title="Goud"></span>
+                  <span class="color-dot" data-color="#0048BA" style="background-color: #0048BA;" title="Kobaltblauw"></span>
+                </div>
+                </div>
+            </div>
+              </div>
+            </div>
+            <div class="card shadow-sm border-0 mb-3">
+              <div class="card-body">
+                <h6 class="card-title">Exporteer Mijn Gegevens</h6>
+                <p class="small text-muted mb-2">
+                  Download een .json-bestand met al je persoonlijke app-gegevens (shifts, projecten, maand-data).
+                </p>
+                <button id="profileExportBtn" class="btn btn-outline-info w-100">
+                  <span class="material-icons-outlined" style="vertical-align: middle;">download</span>
+                  Download mijn data
+                </button>
+              </div>
+            </div>
+            <div class="card shadow-sm border-0"> <div class="card-body d-flex flex-column">
+                <h6 class="card-title">Sessie</h6>
+                <p class="small text-muted">Hiermee sluit je de applicatie af en keer je terug naar het inlogscherm.</p>
+                
+                <div class="mt-auto">
+                  <hr>
+                  <button id="logoutBtn" class="btn btn-outline-danger w-100">
+                    <span class="material-icons-outlined" style="vertical-align: middle;">logout</span> Uitloggen
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
 <!-- Meerdere dagen invoeren Modal -->
 <div class="modal fade" id="multiDayModal" tabindex="-1"
      aria-labelledby="multiDayModalLabel" aria-hidden="true"
@@ -990,7 +1168,7 @@ body.dark-mode #projectSummary .meta { color: #aaa; }
   <!-- Firebase (Modular CDN) -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
-    import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
+    import { getAuth, onAuthStateChanged, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
    import {
   getFirestore,
   doc,
@@ -1364,6 +1542,12 @@ function updateMonthStatusBadge(){
 onAuthStateChanged(auth, async (user)=>{
       //Stop alle intervals als we uitloggen
       if (notificationInterval) clearInterval(notificationInterval);
+// ✅ HIER TOEVOEGEN (BOVENAAN): Laad kleur uit localStorage (instant)
+      const savedColor = localStorage.getItem('accentColor');
+      if (savedColor) {
+        applyAccentColor(savedColor);
+      }
+      // EINDE TOEVOEGING
 
       if(!user){
         // Voor demo: toon eenvoudige melding
@@ -1372,11 +1556,49 @@ onAuthStateChanged(auth, async (user)=>{
         // Je kan hier een loginpagina openen of FirebaseUI integreren.
         return;
       }
-      currentUserId = user.uid; // 👈 WORDT NU EERST INGESTELD
+currentUserId = user.uid; 
       currentUserName.textContent = user.displayName || user.email;
 
+      // ✅ PLAATS DEZE CODE HIER
+      const topPhotoEl = document.getElementById('topbarProfilePhoto');
+      if (topPhotoEl && user.photoURL) {
+        topPhotoEl.src = user.photoURL;
+      } else if (topPhotoEl) {
+        // Fallback als er geen Google foto is (icoontje)
+        topPhotoEl.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0iI2NjYyIgY2xhc3M9ImJpIGJpLXBlcnNvbi1jaXJjbGUiIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTExIDZhMyAzIDAgMTEtNiAwIDMgMyAwIDAxNiAwIi8+PHBhdGggZmlsbC1ydWxlPSJldmVub2RkIiBkPSJNMDggYTEuNSAxLjUgMCAwMC0xLjUgMS41VjE0YWguNWExLjUgMS41IDAgMDAxLjUtMS41VjkuNWEzIDMgMCAwMS41NTYtMS45OTEuNDk5LjQ5OSAwIDAwLS40NzEtLjAwMkExLjUgMS41IDAgMDA4IDEzLjQ5NnYxLjAxOEM4IDE1Ni44ODQgMTYgNS41IDE2SDIuNUEEuNSAxLjUgMCAwMTQgMTQuNUgxdjEuNUMxIDE1LjYxMiAxLjA0IDE2IDEuMzU3IDE2aDExLjI4NkMxMy45NiAxNiAxNCAxNS42MTIgMTQgMTUuNXYtMS41aC0zYTEuNSAxLjUgMCAwMS0xLjUtMS41VjEyYTEuNSAxLjUgMCAwMS4yNy0uODQ0LjQ5OS40OTkgMCAwMC0uNDctLjAwNkExLjUgMS41IDAgMDAtOCAxMy41MXYxLjAxOGMwIDEuMzczIDEuMTI3IDIuNSA2LjUgMi41aDNBNy41IDcuNSAwIDAwOCAwdjNhMy41IDMuNSAwIDAwLTQgNC41djNBMi41IDIuNSAwIDAwLjUgMTN2LjVhMS41IDEuNSAwIDAwLTEuNSAxLjVaIi8+PC9zdmc+';
+      }
       await ensureUserDoc(user);
       await loadAllUsers();
+      
+      // ✅ HIER TOEVOEGEN: Sidebar & accentkleur-voorkeur toepassen
+      const ud = getCurrentUserData();
+      // ✅ HIER AANPASSEN: Laad kleur uit Firestore (als sync)
+      // (Vervang de 'savedColor' check als die al bestaat)
+      if (ud?.settings?.accentColor) {
+        applyAccentColor(ud.settings.accentColor);
+      }
+      // EINDE AANPASSING
+      if (ud?.settings?.sidebarCollapsed) {
+          sidebar.classList.add('collapsed');
+          main.classList.add('collapsed');
+      }
+      // ✅ HIER TOEVOEGEN: Opstart-tabblad instellen
+      try {
+        if (ud?.settings?.defaultTab) {
+          const tabLink = document.querySelector(`a[href="${ud.settings.defaultTab}"]`);
+          if (tabLink) {
+            // Verberg de standaard 'Home' tab
+            document.getElementById('tab-home').classList.remove('show', 'active');
+            document.querySelector('a[href="#tab-home"]').classList.remove('active');
+            
+            // Toon de gekozen tab
+            new bootstrap.Tab(tabLink).show();
+          }
+        }
+      } catch (e) {
+        console.warn("Kon standaard tab niet laden:", e);
+      }
+      // EINDE TOEVOEGING
       initSelectors();
       renderAll();
       await revealAdminIfNeeded();
@@ -1801,7 +2023,6 @@ function renderProjectFilterForMonth(){
       ud.monthData = ud.monthData || {};
       ud.monthData[y] = ud.monthData[y] || {};
       if(!ud.monthData[y][m]) ud.monthData[y][m] = { targetHours:0, targetMinutes:0, rows:{} };
-      await saveUserData();
       await renderMonth(y,m); updateInputTotals(); renderHome(); renderHistory();
     }
 // ✅ Automatische koppeling van project aan shift bij herladen
@@ -1903,7 +2124,7 @@ async function renderMonth(year, month){
         saveCell(year, month, rowKey, r, tr);
         await populateShiftSelectForRow(tr, rowKey);
         updateInputTotals();
-        saveUserData();
+        debouncedSave();
 
         // + opnieuw (de)activeren
         const addBtn = tr.querySelector('.addLineBtn');
@@ -1920,22 +2141,22 @@ async function renderMonth(year, month){
         r.start = e.target.value; recalcRowMinutes(r);
         saveCell(year, month, rowKey, r, tr);
         tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-        updateInputTotals(); saveUserData(); renderHistory();
+        updateInputTotals(); debouncedSave(); renderHistory();
       });
       tr.querySelector('.endInput').addEventListener('change', e=>{
         r.end = e.target.value; recalcRowMinutes(r);
         saveCell(year, month, rowKey, r, tr);
         tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-        updateInputTotals(); saveUserData(); renderHistory();
+        updateInputTotals(); debouncedSave(); renderHistory();
       });
       tr.querySelector('.breakInput').addEventListener('change', e=>{ // 👈 'input' is 'change' geworden
         r.break = Number(e.target.value)||0; recalcRowMinutes(r);
         saveCell(year, month, rowKey, r, tr);
         tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-        updateInputTotals(); saveUserData(); renderHistory();
+        updateInputTotals(); debouncedSave(); renderHistory();
       });
       tr.querySelector('.omschrijvingInput').addEventListener('change', e=>{
-        r.omschrijving = e.target.value; saveCell(year, month, rowKey, r, tr); saveUserData(); renderHistory();
+        r.omschrijving = e.target.value; saveCell(year, month, rowKey, r, tr); debouncedSave(); renderHistory();
       });
 
       // + / − handlers
@@ -2013,30 +2234,30 @@ async function populateShiftSelectForRow(tr, rowKey){
     const all = ud.shifts || {};
     if (!chosen) {
       r.shift = ''; r.project = ''; projSel.value = '';
-      saveCell(year, month, rowKey, r, tr); await saveUserData(); updateInputTotals(); renderHistory();
+      saveCell(year, month, rowKey, r, tr); debouncedSave(); updateInputTotals(); renderHistory();
       return;
     }
 
     r.shift = chosen;
-    await saveUserData();
+    debouncedSave();
 
     // auto project (jouw bestaande logica)
     if (['Bench'].includes(chosen)) {
       r.project = '';
       saveCell(year, month, rowKey, r, tr);
-      await saveUserData();
+      debouncedSave();
     } 
     else if (['Schoolverlof','School'].includes(chosen)) {
       ensureProjectExists('PXL Verpleegkunde Hasselt');
       r.project = 'PXL Verpleegkunde Hasselt';
       saveCell(year, month, rowKey, r, tr);
-      await saveUserData();
+      debouncedSave();
     } 
     else if (['Verlof','Teammeeting','Ziekte'].includes(chosen)) {
       ensureProjectExists('Eght Care');
       r.project = 'Eght Care';
       saveCell(year, month, rowKey, r, tr);
-      await saveUserData();
+      debouncedSave();
     } 
     else {
       const sh = all[chosen];
@@ -2072,7 +2293,7 @@ async function populateShiftSelectForRow(tr, rowKey){
     tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
 
     saveCell(year, month, rowKey, r, tr);
-    await saveUserData();
+    debouncedSave();
     updateInputTotals();
 
     // + opnieuw (de)activeren
@@ -2120,13 +2341,13 @@ async function ensureProjectExists(name){
       const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
       const ud = getCurrentUserData();
       ud.monthData[y][m].targetHours = Number(monthTargetHours.value)||0;
-      await saveUserData(); updateInputTotals(); renderHistory();
+      debouncedSave(); updateInputTotals(); renderHistory();
     });
     monthTargetMinutes.addEventListener('input', async ()=>{
       const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
       const ud = getCurrentUserData();
       ud.monthData[y][m].targetMinutes = Number(monthTargetMinutes.value)||0;
-      await saveUserData(); updateInputTotals(); renderHistory();
+      debouncedSave(); updateInputTotals(); renderHistory();
     });
 
     projectFilterSelect.addEventListener('change', ()=> { renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value)); updateInputTotals(); renderProjectSummary(); });
@@ -2846,19 +3067,6 @@ const multiShiftEnd = document.getElementById('multiShiftEnd');
 const multiShiftDays = document.getElementById('multiShiftDays');
 const multiDayShiftBtn = document.getElementById('multiDayShiftBtn');
 
-// knop opent modal
-document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
-  const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
-  modal.show();
-});
-
-// 🖱️ Open modal en stel kalender in op huidige maand
-document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
-  const modal = new bootstrap.Modal(document.getElementById('multiDayModal'));
-  modal.show();
-  setTimeout(initMultiDayPicker, 150); // even wachten tot modal zichtbaar is
-});
-
 // 🔵 Herkleur direct alle ingeplande dagen opnieuw
 const plannedDates = Object.keys(
   getCurrentUserData()?.monthData?.[yearSelectMain.value]?.[monthSelectMain.value]?.rows || {}
@@ -2998,6 +3206,127 @@ function isoWeekId(date) {
   const { week, year } = getISOWeekParts(date);
   return `${year}-W${String(week).padStart(2, '0')}`;
 }
+// ✅ HIER TOEVOEGEN: Helper om notificatie voorkeur te checken (default = true)
+    function getNotifPref(key) {
+      const ud = getCurrentUserData();
+      if (!ud.settings || !ud.settings.notificationPrefs) {
+        return true; // Bestaat niet? Standaard aan.
+      }
+      // Als de key is opgeslagen als 'false', geef 'false'.
+      // Als de key 'true' is of nog niet bestaat (undefined), geef 'true'.
+      return ud.settings.notificationPrefs[key] !== false; 
+    }
+// ✅ HIER TOEVOEGEN: Helper om Hex naar RGB om te zetten (voor CSS variabelen)
+    function hexToRgb(hex) {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `${r}, ${g}, ${b}`;
+    }
+
+    // ✅ HIER TOEVOEGEN: Functie die de kleur daadwerkelijk toepast
+    function applyAccentColor(hex) {
+      if (!hex) return; // Geen kleur, doe niets
+
+      const rgb = hexToRgb(hex);
+      const lightBg = `rgba(${rgb}, 0.15)`; // Iets lichter voor hovers
+      const darkText = `rgba(${rgb}, 0.7)`; // Voor donkere tekst op lichte hover
+
+      // 1. Schrijf de CSS-regels
+      const cssRules = `
+        :root {
+          --bs-primary: ${hex};
+          --bs-primary-rgb: ${rgb};
+          --bs-primary-text-emphasis: ${hex};
+          --bs-primary-bg-subtle: ${lightBg};
+          --bs-primary-border-subtle: ${hex};
+        }
+        
+        /* === ALGEMENE OVERRIDES === */
+        .sp-sidebar { background: ${hex} !important; }
+        .sp-sidebar .nav-link.active, 
+        .sp-sidebar .nav-link:hover { background: rgba(255,255,255, 0.18) !important; }
+        .chip { color: ${hex}; background-color: ${lightBg}; }
+        .chip .dot { background-color: ${hex}; }
+        .badge-submitted { color: ${hex}; background-color: ${lightBg}; }
+        .form-check-input:checked {
+            background-color: ${hex};
+            border-color: ${hex};
+        }
+        .flatpickr-day.selected, .flatpickr-day.selected:hover {
+            background: ${hex};
+            border-color: ${hex};
+        }
+
+        /* === KNOPPEN OVERRIDES (DEZE WAREN HET PROBLEEM) === */
+        .btn-primary {
+          --bs-btn-bg: ${hex};
+          --bs-btn-border-color: ${hex};
+          --bs-btn-hover-bg: ${darkText};
+          --bs-btn-hover-border-color: ${darkText};
+          --bs-btn-active-bg: ${darkText};
+          --bs-btn-active-border-color: ${darkText};
+          --bs-btn-disabled-bg: ${hex};
+          --bs-btn-disabled-border-color: ${hex};
+        }
+        .btn-outline-primary {
+          --bs-btn-color: ${hex};
+          --bs-btn-border-color: ${hex};
+          --bs-btn-hover-bg: ${hex};
+          --bs-btn-hover-color: #fff;
+          --bs-btn-active-bg: ${hex};
+          --bs-btn-active-color: #fff;
+          --bs-btn-disabled-color: ${hex};
+          --bs-btn-disabled-border-color: ${hex};
+        }
+        .btn-outline-primary.active { /* Voor de Mailbox tabs */
+          background-color: ${hex};
+          color: #fff;
+        }
+
+        /* === SPECIFIEKE KNOPPEN (BEHOUDEN HUN KLEUR) === */
+        /* PDF Knop (blijft rood) */
+        #exportPdfBtn {
+          color: var(--bs-danger);
+          border-color: var(--bs-danger);
+        }
+        #exportPdfBtn:hover {
+          color: #fff;
+          background-color: var(--bs-danger);
+          border-color: var(--bs-danger);
+        }
+
+        /* Indienen Knop (blijft groen) */
+        #submitMonthBtn {
+          color: var(--bs-success);
+          border-color: var(--bs-success);
+        }
+        #submitMonthBtn:hover {
+          color: #fff;
+          background-color: var(--bs-success);
+          border-color: var(--bs-success);
+        }
+        
+        /* Snelle Invoer Knop (blijft oranje) */
+        #quickTopBtn {
+          border-color: #fd7e14 !important;
+          color: #fd7e14 !important;
+        }
+        #quickTopBtn:hover {
+          background-color: #fd7e14 !important;
+          color: #fff !important;
+        }
+
+        /* Donkere modus overrides */
+        body.dark-mode .sp-sidebar { background: #111 !important; }
+      `;
+
+      // 2. Injecteer in de <style> tag die we in de <head> hebben gemaakt
+      document.getElementById('accent-color-overrides').innerHTML = cssRules;
+
+      // 3. Sla op in localStorage voor snelle laadtijd (voorkomt "knipperen")
+      localStorage.setItem('accentColor', hex);
+    }
 // 🔔 Automatisch meldingsysteem — controleert volledige jaar
 async function autoCheckNotifications() {
   // 0. 🛑 VERBETERDE CONTROLE
@@ -3020,7 +3349,7 @@ async function autoCheckNotifications() {
   const currentYear = today.getFullYear();
 
 // 🔹 1. Controleer of gebruiker deze week nog niets heeft ingevoerd
-{
+if (getNotifPref('notifyWeeklyEmpty')) {
   const thisWeek = isoWeekId(new Date());
   let hasShiftThisWeek = false;
   const yearMap = ud.monthData || {};
@@ -3055,13 +3384,15 @@ async function autoCheckNotifications() {
 const currentMonthData = ud.monthData?.[currentYear]?.[today.getMonth()] || { rows: {}, targetHours: 0, targetMinutes: 0 };
 const md = currentMonthData;
   // 🔹 2. Controleer maanddoel vs. werkelijk (alleen huidige maand)
+  if (getNotifPref('notifyMonthlyGoal')) {
   const doel = (md.targetHours || 0) * 60 + (md.targetMinutes || 0);
   const gepland = Object.values(md.rows || {}).reduce((s, r) => s + (r.minutes || 0), 0);
   if (doel > 0 && gepland < doel * 0.8) {
     await createUniqueNotification(uid, 'Je hebt nog minder dan 80% van je maanddoel behaald.');
   }
-
+}
   // 🔹 3. Controleer of projecten binnenkort aflopen
+if (getNotifPref('notifyProjectEnd')) {
   const soon = ud.projects?.filter(p => {
     if (!p.end) return false;
     const end = new Date(p.end);
@@ -3072,8 +3403,9 @@ const md = currentMonthData;
     const names = soon.map(p => p.name).join(', ');
     await createUniqueNotification(uid, `Project(en) bijna afgelopen: ${names}`);
   }
-
+}
 // 🔹 4. Controleer ALLE dagen van het huidige jaar (alleen echte lege dagen)
+if (getNotifPref('notifyDailyEmpty')) {
 const startOfYear = new Date(today.getFullYear(), 0, 1);
 const endOfYear = new Date(today);
 
@@ -3105,7 +3437,7 @@ for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) 
     );
   }
 }
-
+}
     // 🔹 5. Automatisch opruimen van meldingen ouder dan 30 dagen
   try {
     const notifCol = collection(db, 'users', uid, 'notifications');
@@ -3177,17 +3509,6 @@ async function notifyProjectChange(userId, type, projectName, newEndDate = null)
   await sendSystemMail(userId, 'Projectupdate', text, 'notification');
   console.log('🔔 Melding + mail gestuurd naar gebruiker:', text);
 }
-
-// 🌙 Donkere modus
-const darkModeBtn = document.getElementById('darkModeBtn');
-const prefersDark = localStorage.getItem('darkMode') === 'true';
-if (prefersDark) document.body.classList.add('dark-mode');
-
-darkModeBtn?.addEventListener('click', () => {
-  document.body.classList.toggle('dark-mode');
-  const active = document.body.classList.contains('dark-mode');
-  localStorage.setItem('darkMode', active);
-});
 
 // 🔄 Loading overlay
 function showLoading(show = true) {
@@ -3338,11 +3659,6 @@ function highlightPlannedDays(inst, plannedDates = []) {
     }
   });
 }
-
-// 📋 Vult de shift-selectielijst in de modal
-document.getElementById('multiDayShiftBtn').addEventListener('click', () => {
-  populateMultiDayShifts();
-});
 function populateMultiDayShifts(selectedDates = []) {
   const ud = getCurrentUserData();
   const sel = document.getElementById('multiShiftName');
@@ -3405,9 +3721,7 @@ function initMultiDayPicker() {
   const month = Number(document.getElementById("monthSelectMain").value);
   const start = new Date(year, month, 1);
   const end = new Date(year, month + 1, 0);
-
-  if (window.multiDayPicker) window.multiDayPicker.destroy();
-
+if (window.multiDayPicker) window.multiDayPicker.destroy();
   const ud = getCurrentUserData();
   const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
   const plannedDates = Object.keys(maandData).filter(d => !!maandData[d]?.shift);
@@ -3415,6 +3729,7 @@ function initMultiDayPicker() {
   console.log("✅ Planned dates:", plannedDates);
 
 window.multiDayPicker = flatpickr("#multiShiftDays", {
+  static: true,
   mode: "multiple",
   dateFormat: "d-m-Y",
   altInput: true,
@@ -3423,7 +3738,7 @@ window.multiDayPicker = flatpickr("#multiShiftDays", {
   weekNumbers: true,
   minDate: start,
   maxDate: end,
-  disableMobile: false,
+  disableMobile: true,
   defaultDate: [],
 
   // ✅ Eerste dag correct kleuren bij laden
@@ -3467,15 +3782,24 @@ function markPlannedDays() {
 }
 
 /* === Eventlisteners === */
-
-// 🟢 Open de modal
+// 🟢 Open de "Meerdere dagen" modal
 document.getElementById("multiDayShiftBtn")?.addEventListener("click", () => {
-  const modal = new bootstrap.Modal(document.getElementById("multiDayModal"));
-  modal.show();
-  populateMultiDayShifts();
-  setTimeout(initMultiDayPicker, 150);
-});
+  const modalEl = document.getElementById("multiDayModal");
+  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
+  // 1. Bereid de shift-lijst VOOR (dit mag wel)
+  populateMultiDayShifts();
+  
+  // 2. Toon de modal (en doe verder NIETS)
+  modal.show();
+});
+// 🗓️ Initialiseer de kalender ZODRA de modal volledig zichtbaar is
+const multiDayModalEl = document.getElementById('multiDayModal');
+multiDayModalEl?.addEventListener('shown.bs.modal', () => {
+  // Roep de initialisatie-functie pas hier aan,
+  // wanneer de modal-animatie klaar is.
+  initMultiDayPicker();
+});
 // 💾 Opslaan van meerdere dagen
 document.getElementById('saveMultiShift').addEventListener('click', async () => {
   try {
@@ -3589,12 +3913,6 @@ function updateCalendarDay(date, shiftName) {
     <div class="shift-date">${new Date(date).getDate()}</div>
   `;
 }
-// Verwijder grijze overlay als die per ongeluk blijft staan
-document.getElementById('multiDayModal').addEventListener('hidden.bs.modal', () => {
-  document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-  document.body.classList.remove('modal-open');
-  document.body.style.removeProperty('overflow');
-});
 // User: Indienen
 document.getElementById('submitMonthBtn')?.addEventListener('click', async () => {
   const y = Number(yearSelectMain.value);
@@ -4607,8 +4925,223 @@ async function sendUserMail(db, adminUid, subject, body) {
   });
 }
 /***** ========== /MAILBOX ========== *****/
+/***** ========== PROFIEL TABBLAD ========== *****/
 
-  </script>
+    // 1. Functie om de velden te vullen
+    function loadProfileTab() {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      // Vul naam en e-mail in
+      document.getElementById('profileName').value = user.displayName || '';
+      document.getElementById('profileEmail').value = user.email || '';
+
+      // Vul profielfoto in de MODAL in
+      const photoEl = document.getElementById('profilePhoto');
+      if (user.photoURL) {
+        photoEl.src = user.photoURL;
+      } else {
+        // Fallback (standaard anonieme avatar)
+        photoEl.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iY3VycmVudENvbG9yIiBjbGFzcz0iYmkgYmktcGVyc29uLWZpbGwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTMgMTQgczEtMiAyLTIgMiAyIDIgMiAyLTItMi0yem01LTAiLz48cGF0aCBkPSJNODguNUM4IDcuNjcgNy4zMyA3IDYuNSA3UzUgNy42NyA1IDguNSA1LjY3IDEwIDYuNSAxMFM4IDkuMzMgOCA4LjV6bS0yIDBjMCAxLjExLS44OSAyLTIgMnMtMi0uODktMi0yIC44OS0yIDItMiAyIC44OSAyIDJ6bS0yLTNjLTMuMTQ2IDAtNS41IDIuNTM2LTUuNSA1LjVWMTloMTJ2LTIuNWMwLTIuOTY0LTIuMzU0LTUuNS01LjUtNS41eiIvPjwvc3ZnPg==';
+      }
+
+      // Zet de Dark Mode schakelaar in de juiste stand
+      const toggle = document.getElementById('profileDarkModeToggle');
+      toggle.checked = document.body.classList.contains('dark-mode');
+      // ✅ HIER TOEVOEGEN: Sidebar-vinkje instellen
+      const ud = getCurrentUserData();
+      const sidebarToggle = document.getElementById('profileSidebarToggle');
+      if (sidebarToggle) {
+        sidebarToggle.checked = !!ud?.settings?.sidebarCollapsed;
+     }
+
+      // ✅ HIER TOEVOEGEN: Standaard tabblad & Notificaties instellen
+      
+      // 1. Standaard tabblad
+      const defaultTabSelect = document.getElementById('profileDefaultTab');
+      if (defaultTabSelect) {
+        defaultTabSelect.value = ud?.settings?.defaultTab || '#tab-home'; // Fallback naar Home
+      }
+// ✅ HIER TOEVOEGEN: Markeer het geselecteerde kleurbolletje
+      const picker = document.getElementById('profileColorPicker');
+      if (picker) {
+        // Haal huidige kleur op (uit localStorage, met fallback naar Firestore)
+        const currentColor = localStorage.getItem('accentColor') || ud?.settings?.accentColor || '#0d6efd';
+        
+        // Verwijder 'selected' van alle bolletjes
+        picker.querySelectorAll('.color-dot').forEach(dot => dot.classList.remove('selected'));
+        
+        // Voeg 'selected' toe aan de juiste
+        const activeDot = picker.querySelector(`.color-dot[data-color="${currentColor}"]`);
+        if (activeDot) {
+          activeDot.classList.add('selected');
+        }
+      }
+      // EINDE TOEVOEGING
+      // 2. Notificatie vinkjes
+      const prefs = ud?.settings?.notificationPrefs || {};
+      document.getElementById('prefNotifyDailyEmpty').checked = prefs.notifyDailyEmpty !== false;
+      document.getElementById('prefNotifyWeeklyEmpty').checked = prefs.notifyWeeklyEmpty !== false;
+      document.getElementById('prefNotifyMonthlyGoal').checked = prefs.notifyMonthlyGoal !== false;
+      document.getElementById('prefNotifyProjectEnd').checked = prefs.notifyProjectEnd !== false;
+      // EINDE TOEVOEGING
+    }
+
+    // 2. Koppel de laad-functie aan het 'show' event van de modal
+    const profileModalEl = document.getElementById('profileModal');
+    profileModalEl?.addEventListener('show.bs.modal', loadProfileTab);
+
+
+    // 3. Knop: Naam opslaan
+    document.getElementById('profileSaveBtn')?.addEventListener('click', async () => {
+      const user = auth.currentUser;
+      const newName = document.getElementById('profileName').value.trim();
+      if (!user || !newName) return toast('Vul een naam in', 'warning');
+
+      try {
+        // Stap A: Update Firebase Auth profiel
+        await updateProfile(user, { displayName: newName });
+
+        // Stap B: Update naam in Firestore database (voor Admin paneel)
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, { name: newName });
+
+        // Stap C: Update de UI direct
+        document.getElementById('currentUserName').textContent = newName;
+        document.getElementById('homeUserName').textContent = newName;
+
+        toast('Naam opgeslagen!', 'success');
+      } catch (err) {
+        console.error("Fout bij opslaan profiel:", err);
+        toast('Opslaan mislukt: ' + err.message, 'danger');
+      }
+    });
+
+    // 4. Schakelaar: Donkere Modus (NIEUW)
+    // Eerst controleren bij het laden van de pagina
+    const prefersDark = localStorage.getItem('darkMode') === 'true';
+    if (prefersDark) document.body.classList.add('dark-mode');
+
+    // Dan de knop in de modal koppelen
+    document.getElementById('profileDarkModeToggle')?.addEventListener('change', (e) => {
+      const active = e.target.checked;
+      document.body.classList.toggle('dark-mode', active);
+      localStorage.setItem('darkMode', active);
+    });
+// ✅ HIER TOEVOEGEN: Schakelaar: Sidebar voorkeur
+    document.getElementById('profileSidebarToggle')?.addEventListener('change', async (e) => {
+      const active = e.target.checked;
+      const ud = getCurrentUserData();
+      ud.settings ||= {};
+      ud.settings.sidebarCollapsed = active;
+      
+      // Pas UI direct aan
+      sidebar.classList.toggle('collapsed', active);
+      main.classList.toggle('collapsed', active);
+      
+      // Sla op in Firestore (niet met 'debouncedSave' want dit is een directe actie)
+      await saveUserData(); 
+      toast('Sidebar-voorkeur opgeslagen', 'success');
+    });
+// ✅ HIER TOEVOEGEN: Dropdown: Standaard opstart-tabblad
+    document.getElementById('profileDefaultTab')?.addEventListener('change', async (e) => {
+      const newTab = e.target.value;
+      const ud = getCurrentUserData();
+      ud.settings ||= {};
+      ud.settings.defaultTab = newTab;
+      
+      await saveUserData(); 
+      toast('Standaard opstart-tabblad opgeslagen', 'success');
+    });
+
+// ✅ HIER TOEVOEGEN: Fieldset: Notificatie voorkeuren (delegated)
+    document.getElementById('profileNotifPrefs')?.addEventListener('change', async (e) => {
+      // Reageer alleen op de vinkjes zelf
+      if (e.target.type !== 'checkbox') return; 
+
+      const ud = getCurrentUserData();
+      ud.settings ||= {};
+      
+      // Lees ALLE vinkjes in de fieldset en sla ze op als een object
+      const prefs = {
+        notifyDailyEmpty: document.getElementById('prefNotifyDailyEmpty').checked,
+        notifyWeeklyEmpty: document.getElementById('prefNotifyWeeklyEmpty').checked,
+        notifyMonthlyGoal: document.getElementById('prefNotifyMonthlyGoal').checked,
+        notifyProjectEnd: document.getElementById('prefNotifyProjectEnd').checked,
+      };
+      
+      ud.settings.notificationPrefs = prefs;
+      
+      await saveUserData(); 
+      toast(`Notificatie-voorkeuren opgeslagen`, 'success');
+    });
+// ✅ HIER TOEVOEGEN: Klik-listener voor Accentkleur
+    document.getElementById('profileColorPicker')?.addEventListener('click', async (e) => {
+      const dot = e.target.closest('.color-dot');
+      if (!dot) return; // Klik was niet op een bolletje
+
+      const newColor = dot.dataset.color;
+
+      // 1. Update de UI direct
+      applyAccentColor(newColor);
+
+      // 2. Update de "selected" class in de modal
+      document.querySelectorAll('#profileColorPicker .color-dot').forEach(d => d.classList.remove('selected'));
+      dot.classList.add('selected');
+
+      // 3. Sla op in Firestore
+      const ud = getCurrentUserData();
+      ud.settings ||= {};
+      ud.settings.accentColor = newColor;
+      await saveUserData();
+      
+      toast('Accentkleur opgeslagen!', 'success');
+    });
+// ✅ HIER TOEVOEGEN: Knop: Exporteer Mijn Gegevens
+    document.getElementById('profileExportBtn')?.addEventListener('click', () => {
+      try {
+        // 1. Haal de data op van de HUIDIGE ingelogde gebruiker
+        // We gebruiken currentUserId, NIET getActiveUserId(), want je exporteert altijd JEZELF.
+        const ud = dataStore.users[currentUserId];
+        if (!ud) {
+          return toast('Kon gebruikersdata niet vinden.', 'danger');
+        }
+
+        // 2. Converteer data naar een JSON-string
+        // null, 2 zorgt voor een "mooie" (leesbare) JSON-opmaak
+        const dataStr = JSON.stringify(ud, null, 2);
+
+        // 3. Maak een Blob (een 'bestand' in het geheugen)
+        const blob = new Blob([dataStr], { type: "application/json" });
+
+        // 4. Maak een download-link
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        
+        // 5. Stel de bestandsnaam in
+        const ymd = new Date().toISOString().slice(0, 10); // Bv. 2025-11-02
+        a.download = `shift_planner_export_${ud.name || 'user'}_${ymd}.json`;
+
+        // 6. "Klik" op de link om de download te starten
+        document.body.appendChild(a);
+        a.click();
+
+        // 7. Opruimen
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        toast('Gegevens worden gedownload!', 'success');
+      
+      } catch (err) {
+        console.error("Fout bij exporteren:", err);
+        toast('Export mislukt: ' + err.message, 'danger');
+      }
+    });
+
+    // De Wachtwoord Reset Knop-logica is nu verwijderd.
+</script>
 <!-- 🔄 Loading overlay -->
 <div id="loadingOverlay" class="loading-overlay d-none">
   <div class="spinner-border text-light" role="status">
