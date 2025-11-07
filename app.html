@@ -3787,15 +3787,16 @@ document.getElementById("multiDayShiftBtn")?.addEventListener("click", () => {
   const modalEl = document.getElementById("multiDayModal");
   const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
-  // 1. Bereid de shift-lijst VOOR (dit mag wel)
+  // 1. Bereid de shift-lijst VOOR
   populateMultiDayShifts();
   
-  // 2. Toon de modal (en doe verder NIETS)
+  // 2. Toon de modal
   modal.show();
-  
-// 3. Initialiseer de kalender met een korte vertraging (dit is de fix)
+
+  // 3. Initialiseer de kalender met een korte vertraging (dit is de fix)
   setTimeout(initMultiDayPicker, 150);
-  });
+}); // <-- NU CORRECT GEPLAATST
+
 // 💾 Opslaan van meerdere dagen
 document.getElementById('saveMultiShift').addEventListener('click', async () => {
   try {
@@ -3888,7 +3889,6 @@ document.getElementById('saveMultiShift').addEventListener('click', async () => 
     toast('Er ging iets mis bij opslaan', 'danger');
   }
 });
- console.log("Planned dates:", plannedDates);
 // 🧩 Functie om direct 1 dag op de kalender te updaten
 function updateCalendarDay(date, shiftName) {
   // Zoek het cel-element dat overeenkomt met deze datum
