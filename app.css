@@ -329,3 +329,19 @@ body.dark-mode .color-dot.selected {
 .flatpickr-calendar {
   z-index: 2051 !important;
 }
+/* === Donkere modus voor Goedkeuring-kaarten === */
+body.dark-mode #approvalYearlyOverview .card {
+  background-color: #2b2b2b !important;
+  border-color: #444 !important;
+  color: #eaeaea !important;
+}
+
+body.dark-mode #approvalYearlyOverview .btn-outline-secondary {
+  color: #eaeaea !important;
+  border-color: #666 !important;
+}
+
+body.dark-mode #approvalYearlyOverview .btn-outline-secondary:hover {
+  background-color: #666 !important;
+  color: #fff !important;
+}
