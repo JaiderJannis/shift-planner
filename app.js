@@ -94,6 +94,11 @@ document.querySelector('a[href="#tab-mail"]')?.addEventListener('shown.bs.tab', 
     const newProjectEnd = document.getElementById('newProjectEnd');
     const addProjectBtn = document.getElementById('addProjectBtn');
     const auditLog = document.getElementById('auditLog');
+    const adminApprovalTabBtn = document.getElementById('adminApprovalTabBtn');
+    const approvalUserSelect = document.getElementById('approvalUserSelect');
+    const approvalYearSelect = document.getElementById('approvalYearSelect');
+    const approvalActiveUserLabel = document.getElementById('approvalActiveUserLabel');
+    const approvalYearlyOverview = document.getElementById('approvalYearlyOverview');
 
     // Shift modal fields
     const newShiftName = document.getElementById('newShiftName');
@@ -529,7 +534,10 @@ function initSelectors(){
     async function revealAdminIfNeeded(){
       const meSnap = await getDoc(doc(db,'users', currentUserId));
       const role = meSnap.data().role;
-      if(role === 'admin'){ adminTabBtn.classList.remove('d-none'); }
+      if(role === 'admin'){ 
+        adminTabBtn.classList.remove('d-none');
+        adminApprovalTabBtn.classList.remove('d-none'); 
+      }
       renderAdminMonthlyMulti();
     }
 
@@ -1640,18 +1648,26 @@ function renderProjectSummaryForVisibleMonth()
 // ======= Admin =======
 // Gebruikerslijst renderen
 async function renderAdminUserSelect() {
-  adminUserSelect.innerHTML = '<option value="">-- Kies gebruiker --</option>';
+  // Leegmaken (als ze bestaan)
+  if (adminUserSelect) adminUserSelect.innerHTML = '<option value="">-- Kies gebruiker --</option>';
+  if (approvalUserSelect) approvalUserSelect.innerHTML = '<option value="">-- Kies gebruiker --</option>';
+
   const qs = await getDocs(collection(db, 'users'));
   qs.forEach(d => {
     const u = d.data();
     const opt = document.createElement('option');
     opt.value = d.id;
     opt.textContent = `${u.name || u.email || d.id} (${u.role || 'user'})`;
-    adminUserSelect.appendChild(opt);
+    
+    // Voeg toe aan beide selects (indien ze bestaan)
+    if (adminUserSelect) adminUserSelect.appendChild(opt.cloneNode(true));
+    if (approvalUserSelect) approvalUserSelect.appendChild(opt.cloneNode(true));
   });
 
-  activeUserLabel.textContent =
-    dataStore.users[currentUserId]?.name || currentUserName.textContent || '-';
+  // Update de "Actief:" labels (indien ze bestaan)
+  const activeName = dataStore.users[currentUserId]?.name || currentUserName.textContent || '-';
+  if (activeUserLabel) activeUserLabel.textContent = activeName;
+  if (approvalActiveUserLabel) approvalActiveUserLabel.textContent = activeName;
 }
 document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab', () => {
   buildSchoolYearOptions(document.getElementById('adminSchoolYearSelect'));
@@ -1768,6 +1784,45 @@ removeUserBtn?.addEventListener('click', async () => {
     // ======= Admin tab =======
     document.querySelector('a[href="#tab-admin"]')
   ?.addEventListener('shown.bs.tab', renderAdminMonthlyMulti);
+  // ✅ NIEUW: Listeners voor Goedkeuring Tab
+document.querySelector('a[href="#tab-goedkeuring"]')?.addEventListener('shown.bs.tab', () => {
+  // Zet het jaarveld
+  if (approvalYearSelect) approvalYearSelect.value = new Date().getFullYear();
+  
+  // Render de (lege) kaarten
+  const uid = approvalUserSelect.value;
+  const year = Number(approvalYearSelect.value);
+  if (uid) {
+    renderApprovalOverview(uid, year);
+  } else {
+    approvalYearlyOverview.innerHTML = '<div class="col-12"><div class="alert alert-info">Selecteer een gebruiker om het jaaroverzicht te zien.</div></div>';
+  }
+});
+
+approvalUserSelect?.addEventListener('change', async () => {
+  const uid = approvalUserSelect.value;
+  const year = Number(approvalYearSelect.value);
+
+  if (!uid) {
+    approvalYearlyOverview.innerHTML = '<div class="col-12"><div class="alert alert-info">Selecteer een gebruiker om het jaaroverzicht te zien.</div></div>';
+    approvalActiveUserLabel.textContent = '-';
+    return;
+  }
+
+  // Haal gebruikerdata op als we die nog niet hebben (voor de naam)
+  if (!dataStore.users[uid]) {
+    const snap = await getDoc(doc(db, 'users', uid));
+    if (snap.exists()) {
+      dataStore.users[uid] = snap.data();
+    }
+  }
+  
+  const u = dataStore.users[uid] || { name: 'Onbekend' };
+  approvalActiveUserLabel.textContent = u.name || u.email || uid;
+  
+  // Render het overzicht
+  renderApprovalOverview(uid, year);
+});
     // close sidebar on nav click (mobile)
     document.querySelectorAll('#navTabs .nav-link').forEach(a=>{
       a.addEventListener('click', ()=> sidebar.classList.remove('show'));
@@ -2776,150 +2831,253 @@ document.getElementById('adminApproveYear')?.addEventListener('focus', e => {
   if (!e.target.value) e.target.value = new Date().getFullYear();
 });
 
+// ===================================================
+// ✅ NIEUW: Centrale Logica voor Goedkeuring
+// (Deze plak je BOVEN de 'adminApproveBtn' listener)
+// ===================================================
+
+async function approveMonthLogic(userToApproveId, y, m, comment) {
+  // 1. Haal de ECHTE admin info op
+  const adminId = auth.currentUser.uid;
+  const adminName = auth.currentUser.displayName || "Admin";
+  const adminRole = dataStore.users[adminId]?.role || 'admin';
+
+  // 2. Status update
+  const prev = dataStore.viewUserId;
+  dataStore.viewUserId = userToApproveId; // Tijdelijk wisselen
+  await setMonthStatus(y, m, 'approved');
+  dataStore.viewUserId = prev; // Terugzetten
+
+  // 3. ✉️ Mail naar user
+  const subject = `[Planner] Goedgekeurd — ${monthsFull[m]} ${y}`;
+  const body = `Je planner voor ${monthsFull[m]} ${y} werd goedgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
+  const threadId = `plan:${userToApproveId}:${y}-${m}`;
+
+  await addDoc(collection(db, "users", userToApproveId, "mailbox"), {
+    threadId, system: true, kind: "status",
+    from: { uid: adminId, name: adminName, role: adminRole },
+    to: { uid: userToApproveId, type: "user" },
+    subject, body, read: false,
+    timestamp: serverTimestamp()
+  });
+
+  // 4. ✉️ Kopie in admin's "Verzonden" map
+  await addDoc(collection(db, "users", adminId, "mailbox"), {
+    threadId, system: false, kind: "status",
+    from: { uid: adminId, name: adminName, role: adminRole },
+    to: { uid: userToApproveId, type: "user" },
+    subject, body, read: true,
+    timestamp: serverTimestamp()
+  });
+}
+
+async function rejectMonthLogic(userToRejectId, y, m, comment) {
+  // 1. Haal de ECHTE admin info op
+  const adminId = auth.currentUser.uid;
+  const adminName = auth.currentUser.displayName || "Admin";
+  const adminRole = dataStore.users[adminId]?.role || 'admin';
+
+  // 2. Status update
+  const prev = dataStore.viewUserId;
+  dataStore.viewUserId = userToRejectId; // Tijdelijk wisselen
+  await setMonthStatus(y, m, 'rejected');
+  dataStore.viewUserId = prev; // Terugzetten
+
+  // 3. ✉️ Mail naar user
+  const subject = `[Planner] Afgekeurd — ${monthsFull[m]} ${y}`;
+  const body = `Je planner voor ${monthsFull[m]} ${y} werd afgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
+  const threadId = `plan:${userToRejectId}:${y}-${m}`;
+
+  await addDoc(collection(db, "users", userToRejectId, "mailbox"), {
+    threadId, system: true, kind: "status",
+    from: { uid: adminId, name: adminName, role: adminRole },
+    to: { uid: userToRejectId, type: "user" },
+    subject, body, read: false,
+    timestamp: serverTimestamp()
+  });
+
+  // 4. ✉️ Kopie in admin's "Verzonden" map
+  await addDoc(collection(db, "users", adminId, "mailbox"), {
+    threadId, system: false, kind: "status",
+    from: { uid: adminId, name: adminName, role: adminRole },
+    to: { uid: userToRejectId, type: "user" },
+    subject, body, read: true,
+    timestamp: serverTimestamp()
+  });
+}
+
+async function reopenMonthLogic(uid, y, m) {
+  const prev = dataStore.viewUserId;
+  dataStore.viewUserId = uid;
+  await setMonthStatus(y, m, 'draft');
+  dataStore.viewUserId = prev;
+}
+// ✅ NIEUW: Render het 12-maanden overzicht
+async function renderApprovalOverview(uid, year) {
+  if (!approvalYearlyOverview) return;
+  approvalYearlyOverview.innerHTML = ''; // Leegmaken
+
+  // We moeten tijdelijk de 'view' wisselen om getMonthStatus te laten werken
+  const prev = dataStore.viewUserId;
+  dataStore.viewUserId = uid;
+
+  // Zorg dat we de data van de user hebben
+  if (!dataStore.users[uid]) {
+    const snap = await getDoc(doc(db, 'users', uid));
+    if (snap.exists()) {
+      dataStore.users[uid] = snap.data();
+    } else {
+      approvalYearlyOverview.innerHTML = '<div class="col-12"><div class="alert alert-danger">Kon gebruiker niet laden.</div></div>';
+      dataStore.viewUserId = prev;
+      return;
+    }
+  }
+
+  for (let m = 0; m < 12; m++) {
+    const status = getMonthStatus(year, m);
+    const monthName = monthsFull[m];
+    
+    let statusText = 'Concept';
+    let statusClass = 'badge-draft'; // Gebruik de CSS classes die je al hebt
+    if (status === 'submitted') { statusText = 'Ingediend'; statusClass = 'badge-submitted'; }
+    if (status === 'approved') { statusText = 'Goedgekeurd'; statusClass = 'badge-approved'; }
+    if (status === 'rejected') { statusText = 'Afgekeurd'; statusClass = 'badge-rejected'; }
+
+    // Bepaal welke knoppen actief zijn
+    const canApprove = (status === 'submitted' || status === 'rejected');
+    const canReject = (status === 'submitted' || status === 'approved');
+    const canReopen = (status === 'approved' || status === 'rejected');
+
+    const card = document.createElement('div');
+    card.className = 'col-md-4 col-lg-3';
+    card.innerHTML = `
+      <div class="card shadow-sm h-100">
+        <div class="card-body d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-start">
+            <h6 class="card-title">${monthName} ${year}</h6>
+            <span class="badge badge-status ${statusClass}">${statusText}</span>
+          </div>
+          <div class_id="approval-card-${uid}-${m}" class="mt-auto pt-3 d-flex flex-column gap-2">
+            <button class="btn btn-success btn-sm" 
+              data-action="approve" data-uid="${uid}" data-y="${year}" data-m="${m}" 
+              ${canApprove ? '' : 'disabled'}>
+              Goedkeuren
+            </button>
+            <button class="btn btn-danger btn-sm" 
+              data-action="reject" data-uid="${uid}" data-y="${year}" data-m="${m}" 
+              ${canReject ? '' : 'disabled'}>
+              Afkeuren
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" 
+              data-action="reopen" data-uid="${uid}" data-y="${year}" data-m="${m}" 
+              ${canReopen ? '' : 'disabled'}>
+              Heropenen (Draft)
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    approvalYearlyOverview.appendChild(card);
+  }
+
+  // Zet de view terug
+  dataStore.viewUserId = prev;
+}
+// ✅ NIEUW: Gedelegeerde listener voor de knoppen in het jaaroverzicht
+approvalYearlyOverview?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-action]');
+  if (!btn) return;
+
+  const action = btn.dataset.action;
+  const uid = btn.dataset.uid;
+  const y = Number(btn.dataset.y);
+  const m = Number(btn.dataset.m);
+  const year = Number(approvalYearSelect.value);
+
+  if (!uid) return;
+
+  // Laat de knoppen even "laden"
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+
+  try {
+    if (action === 'approve') {
+      const comment = prompt('Commentaar voor de gebruiker (optioneel):', '');
+      await approveMonthLogic(uid, y, m, comment);
+      toast(`Goedgekeurd: ${monthsFull[m]} ${y}`, 'success');
+    } 
+    else if (action === 'reject') {
+      const comment = prompt('Reden voor afkeuring (optioneel):', '');
+      await rejectMonthLogic(uid, y, m, comment);
+      toast(`Afgekeurd: ${monthsFull[m]} ${y}`, 'warning');
+    }
+    else if (action === 'reopen') {
+      await reopenMonthLogic(uid, y, m);
+      toast(`Heropend: ${monthsFull[m]} ${y}`, 'info');
+    }
+
+    // Herlaad het overzicht
+    await renderApprovalOverview(uid, year);
+
+  } catch (err) {
+    console.error(`Fout bij actie ${action}:`, err);
+    toast('Er ging iets mis', 'danger');
+    // Herlaad ook bij fout, zodat de knop niet blijft spinnen
+    await renderApprovalOverview(uid, year);
+  }
+});
 // Admin: Keur goed
 document.getElementById('adminApproveBtn')?.addEventListener('click', async () => {
-  const userToApproveId = adminUserSelect?.value; // 1. Dit is de USER
+  const userToApproveId = adminUserSelect?.value;
   if (!userToApproveId) return toast('Geen gebruiker gekozen', 'warning');
   
   const y = Number(document.getElementById('adminApproveYear').value || new Date().getFullYear());
   const m = Number(document.getElementById('adminApproveMonth').value || 0);
   const comment = prompt('Commentaar voor de gebruiker (optioneel):', '');
+
+  await approveMonthLogic(userToApproveId, y, m, comment);
   
-  // 2. Haal de ECHTE admin info op (de ingelogde user)
-  const adminId = auth.currentUser.uid;
-  const adminName = auth.currentUser.displayName || "Admin";
-  const adminRole = dataStore.users[adminId]?.role || 'admin';
-
-  // 3. Status update
-  const prev = dataStore.viewUserId;
-  dataStore.viewUserId = userToApproveId;
-  await setMonthStatus(y, m, 'approved');
   toast(`Goedgekeurd: ${monthsFull[m]} ${y}`, 'success');
-  dataStore.viewUserId = prev;
 
-  // 4. ✉️ Mail naar user (met correcte 'from' en 'system' info)
-  const subject = `[Planner] Goedgekeurd — ${monthsFull[m]} ${y}`;
-  const body = `Je planner voor ${monthsFull[m]} ${y} werd goedgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
-
-  await addDoc(collection(db, "users", userToApproveId, "mailbox"), { // 👈 Schrijf naar USER mailbox
-    threadId: `plan:${userToApproveId}:${y}-${m}`,
-    system: true, // 👈 FIX: Altijd 'true', zodat het in Inbox komt
-    kind: "status",
-    from: {
-      uid: adminId, // 👈 FIX: ECHTE Admin ID
-      name: adminName,
-      role: adminRole
-    },
-    to: {
-      uid: userToApproveId,
-      type: "user"
-    },
-    subject, body, read: false,
-    timestamp: serverTimestamp()
-  });
-
-  // 5. ✉️ Kopie in admin's "Verzonden" map (dit ontbrak)
-  await addDoc(collection(db, "users", adminId, "mailbox"), { // 👈 Schrijf naar ADMIN mailbox
-    threadId: `plan:${userToApproveId}:${y}-${m}`,
-    system: false, // 👈 'false' zodat het in "Verzonden" komt
-    kind: "status",
-    from: {
-      uid: adminId, 
-      name: adminName,
-      role: adminRole
-    },
-    to: {
-      uid: userToApproveId,
-      type: "user"
-    },
-    subject, body, read: true, // Gemarkeerd als gelezen
-    timestamp: serverTimestamp()
-  });
-
-  // 6. UI update
-  if (getActiveUserId() === currentUserId && y===Number(yearSelectMain.value) && m===Number(monthSelectMain.value)) {
+  // UI update (als de admin naar zichzelf kijkt)
+  if (getActiveUserId() === userToApproveId && y===Number(yearSelectMain.value) && m===Number(monthSelectMain.value)) {
     renderMonth(y, m);
   }
 });
 
 // Admin: Keur af
 document.getElementById('adminRejectBtn')?.addEventListener('click', async () => {
-  const userToRejectId = adminUserSelect?.value; // 1. Dit is de USER
+  const userToRejectId = adminUserSelect?.value;
   if (!userToRejectId) return toast('Geen gebruiker gekozen', 'warning');
   
   const y = Number(document.getElementById('adminApproveYear').value || new Date().getFullYear());
   const m = Number(document.getElementById('adminApproveMonth').value || 0);
-  const comment = prompt('Commentaar voor de gebruiker (optioneel):', '');
+  const comment = prompt('Reden voor afkeuring (optioneel):', ''); // Vraag om reden
 
-  // 2. Haal de ECHTE admin info op
-  const adminId = auth.currentUser.uid;
-  const adminName = auth.currentUser.displayName || "Admin";
-  const adminRole = dataStore.users[adminId]?.role || 'admin';
+  await rejectMonthLogic(userToRejectId, y, m, comment);
 
-  // 3. Status update
-  const prev = dataStore.viewUserId;
-  dataStore.viewUserId = userToRejectId;
-  await setMonthStatus(y, m, 'rejected');
   toast(`Afgekeurd: ${monthsFull[m]} ${y}`, 'warning');
-  dataStore.viewUserId = prev;
-
-  // 4. ✉️ Mail naar user (met correcte 'from' en 'system' info)
-  const subject = `[Planner] Afgekeurd — ${monthsFull[m]} ${y}`;
-  const body = `Je planner voor ${monthsFull[m]} ${y} werd afgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
-
-  await addDoc(collection(db, "users", userToRejectId, "mailbox"), { // 👈 Schrijf naar USER mailbox
-    threadId: `plan:${userToRejectId}:${y}-${m}`,
-    system: true, // 👈 FIX: Altijd 'true', zodat het in Inbox komt
-    kind: "status",
-    from: {
-      uid: adminId, // 👈 FIX: ECHTE Admin ID
-      name: adminName,
-      role: adminRole
-    },
-    to: {
-      uid: userToRejectId,
-      type: "user"
-    },
-    subject, body, read: false,
-    timestamp: serverTimestamp()
-  });
-
-  // 5. ✉️ Kopie in admin's "Verzonden" map (dit ontbrak)
-  await addDoc(collection(db, "users", adminId, "mailbox"), { // 👈 Schrijf naar ADMIN mailbox
-    threadId: `plan:${userToRejectId}:${y}-${m}`,
-    system: false, // 👈 'false' zodat het in "Verzonden" komt
-    kind: "status",
-    from: {
-      uid: adminId,
-      name: adminName,
-      role: adminRole
-    },
-    to: {
-      uid: userToRejectId,
-      type: "user"
-    },
-    subject, body, read: true, 
-    timestamp: serverTimestamp()
-  });
-
-  // 6. UI update
-  if (getActiveUserId() === currentUserId && y===Number(yearSelectMain.value) && m===Number(monthSelectMain.value)) {
+  
+  // UI update
+  if (getActiveUserId() === userToRejectId && y===Number(yearSelectMain.value) && m===Number(monthSelectMain.value)) {
     renderMonth(y, m);
   }
 });
 
 // Admin: Heropenen (ontgrendelen)
 document.getElementById('adminReopenBtn')?.addEventListener('click', async () => {
-  const uid = adminUserSelect?.value || getActiveUserId();
+  const uid = adminUserSelect?.value; // Gebruik de geselecteerde gebruiker
   if (!uid) return toast('Geen gebruiker gekozen', 'warning');
+  
   const y = Number(document.getElementById('adminApproveYear').value || new Date().getFullYear());
   const m = Number(document.getElementById('adminApproveMonth').value || 0);
-  const prev = dataStore.viewUserId;
-  dataStore.viewUserId = uid;
-  await setMonthStatus(y, m, 'draft');
+
+  await reopenMonthLogic(uid, y, m);
+
   toast(`Heropend: ${monthsFull[m]} ${y}`, 'info');
-  dataStore.viewUserId = prev;
-  if (getActiveUserId() === currentUserId &&
+
+  // UI update
+  if (getActiveUserId() === uid &&
       y === Number(yearSelectMain.value) &&
       m === Number(monthSelectMain.value)) {
     renderMonth(y, m);
