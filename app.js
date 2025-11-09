@@ -3510,7 +3510,7 @@ function openMail(m) {
 }
 
 /* ---------- once-only UI binding ---------- */
-function bindMailBoxUIOnce() {
+function bindMailboxUIOnce() {
   if (mailUIBound) return;
   mailUIBound = true;
 
