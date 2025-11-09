@@ -1,0 +1,331 @@
+:root {
+  --sp-sidebar-w: 260px;
+  --sp-sidebar-w-collapsed: 78px;
+}
+body { background: #f5f7fb; }
+/* Sidebar */
+.sp-sidebar {
+  position: fixed; inset: 0 auto 0 0;
+  width: var(--sp-sidebar-w); background: #0d6efd; color: #fff;
+  padding-top: 64px; transition: width .25s ease, left .25s ease;
+  z-index: 1031;
+}
+.sp-sidebar.collapsed { width: var(--sp-sidebar-w-collapsed); }
+.sp-sidebar .nav-link {
+  color: #fff; display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+  border-radius: .375rem; margin: 2px 10px;
+}
+.sp-sidebar .nav-link.active, .sp-sidebar .nav-link:hover { background: rgba(255,255,255,.18); }
+.sp-sidebar .label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-sidebar.collapsed .label { display: none; }
+
+/* Topbar */
+.sp-topbar { position: fixed; top: 0; left: 0; right: 0; height: 64px; background: #fff; border-bottom: 1px solid #e9edf5; z-index: 1032; }
+
+/* Main content */
+.sp-main { padding: 86px 20px 24px; margin-left: var(--sp-sidebar-w); transition: margin-left .25s ease; }
+.sp-main.collapsed { margin-left: var(--sp-sidebar-w-collapsed); }
+
+/* Mobile: sidebar overlay */
+@media (max-width: 768px) {
+  .sp-sidebar { left: -100%; }
+  .sp-sidebar.show { left: 0; }
+  .sp-main, .sp-main.collapsed { margin-left: 0; }
+}
+
+.table-nowrap td, .table-nowrap th { white-space: nowrap; }
+.text-mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+.chip {display:inline-flex;align-items:center;gap:6px;padding:.25rem .5rem;border-radius:999px;background:#eef4ff;color:#0d6efd;font-size:.8rem}
+.chip .dot{width:.5rem;height:.5rem;border-radius:50%;background:#0d6efd}
+.drag-handle:hover { color: #0d6efd; transform: scale(1.15); }
+.sortable-chosen { background-color: #f0f8ff !important; }
+.sortable-ghost { opacity: 0.6; }
+#quickTopBtn {
+  border-color: #fd7e14 !important;   /* zachter oranje */
+  color: #fd7e14 !important;
+  transition: all .15s ease;
+}
+
+#quickTopBtn:hover {
+  background-color: #fd7e14 !important;
+  color: #fff !important;
+  transform: scale(1.05);
+}
+@media (max-width: 768px) {
+  #exportPdfBtn {
+    font-size: 0.9rem;
+    padding: 6px 10px;
+  }
+}
+@media (max-width: 768px) {
+  #multiDayShiftBtn {
+    font-size: 0.9rem;
+    padding: 6px 10px;
+  }
+}
+#notifList li.unread {
+  font-weight: 600;
+}
+.sp-topbar .ms-auto {
+  margin-left: auto !important;
+}
+#notifDropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 1050; /* hoger dan navbar */
+  display: none;
+}
+
+#notifDropdown.show {
+  display: block !important;
+}
+/* === 🌙 Donkere modus === */
+body.dark-mode {
+  background-color: #1e1e1e !important;
+  color: #eaeaea !important;
+}
+
+body.dark-mode .sp-topbar {
+  background-color: #2b2b2b !important;
+  border-bottom-color: #444 !important;
+}
+
+body.dark-mode .sp-sidebar {
+  background-color: #111 !important;
+}
+
+body.dark-mode .sp-main {
+  background-color: #1e1e1e !important;
+  color: #eaeaea !important;
+}
+
+body.dark-mode .table {
+  color: #ddd !important;
+}
+
+body.dark-mode .table thead {
+  background-color: #333 !important;
+  color: #fff !important;
+}
+
+body.dark-mode .modal-content {
+  background-color: #2b2b2b !important;
+  color: #eaeaea !important;
+}
+
+body.dark-mode .btn-outline-secondary {
+  color: #eaeaea !important;
+  border-color: #666 !important;
+}
+body.dark-mode .alert-info {
+  background-color: #2b3e50 !important;
+  color: #eaeaea !important;
+  border-color: #3d5065 !important;
+}
+body.dark-mode .alert-success {
+  background-color: #244c2c !important;
+  color: #a8f0a5 !important;
+}
+body.dark-mode .alert-warning {
+  background-color: #4d3a13 !important;
+  color: #ffe7a0 !important;
+}
+body.dark-mode .alert-danger {
+  background-color: #5b1b1b !important;
+  color: #ffbdbd !important;
+}
+/* 🌊 Altijd zwevende resterende uren-balk */
+#remainingHoursAlert {
+  position: fixed !important;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  width: auto;
+  max-width: 90%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 0.75rem;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  text-align: center;
+  transition: all 0.3s ease-in-out;
+  opacity: 0.95; /* subtiel transparant */
+}
+/* Verberg de balk met een animatie als een modal open is */
+body.modal-open #remainingHoursAlert {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-50%) translateY(100%); /* Schuif naar beneden */
+}
+/* 📱 Mobiel — iets breder */
+@media (max-width: 768px){
+  #exportPdfBtn,
+  #multiDayShiftBtn,
+  #submitMonthBtn{
+    --bs-btn-padding-y: .375rem;   /* hoogte (≈ 6px) */
+    --bs-btn-padding-x: .75rem;    /* breedte */
+    --bs-btn-line-height: 1.2;
+    font-size: 1rem;
+    padding: var(--bs-btn-padding-y) var(--bs-btn-padding-x) !important;
+  }
+}
+/* === 🔄 Loading overlay === */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+.main-content, .container {
+  overflow: visible !important;
+}
+/* 📱 Op mobiel: knoppen onder elkaar even breed maken */
+@media (max-width: 768px) {
+  #exportPdfBtn,
+  #multiDayShiftBtn,
+  #submitMonthBtn{
+    display: block;
+    width: 100%;
+    max-width: 320px;   /* optioneel: begrenst de breedte */
+    margin: 0 auto 0.5rem auto;
+  }
+}
+/* 🔶 Dagen met geplande shift */
+.flatpickr-day.planned-day {
+  background-color: #ffc107 !important; /* geel */
+  color: #000 !important;
+  border-radius: 50% !important;
+  font-weight: 600;
+  border: 2px solid #e0a800 !important;
+}
+.flatpickr-day.selected.planned-day {
+  background-color: #ff9800 !important; /* oranje */
+  color: white !important;
+}
+/* ── Maandstatus badges ─────────────────────────────── */
+.badge-status { font-weight: 600; }
+.badge-draft { background:#e9ecef; color:#495057; }
+.badge-submitted { background:#e7f1ff; color:#0d6efd; }
+.badge-approved { background:#e6f4ea; color:#1e7e34; }
+.badge-rejected { background:#fdecea; color:#842029; }
+/* mini actieknoppen in de invoertabel */
+.btn-line{
+  --bs-btn-padding-y: .15rem;
+  --bs-btn-padding-x: .35rem;
+  --bs-btn-font-size: .75rem;
+  line-height: 1;
+}
+/* Acties-kolom smal + niet afbreken */
+#thActions{ width:1%; white-space:nowrap; }
+td.actions-cell{ white-space:nowrap; }  
+.btn-success { font-weight: 600; }
+.badge.bg-secondary-subtle { background-color: #f1f3f5 !important; color: #495057 !important; }
+body.dark-mode .badge.bg-secondary-subtle { background-color: #2e2e2e !important; color: #ddd !important; }
+/* Compacte projectkaarten (Invoer) */
+#projectSummary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: .5rem;
+}
+
+.project-mini {
+  background: #fff;
+  border: 1px solid #e9edf5;
+  border-radius: .5rem;
+  padding: .5rem .75rem;          /* klein! */
+}
+
+.project-mini .meta { 
+  color: #6c757d; 
+  font-size: .75rem; 
+}
+.project-mini .title { 
+  font-weight: 600; 
+  font-size: .95rem; 
+}
+.project-mini .value { 
+  font-variant-numeric: tabular-nums; 
+  font-weight: 700; 
+}
+
+/* Donkere modus matchen */
+body.dark-mode #projectSummary .project-mini {
+  background: #2b2b2b;
+  border-color: #444;
+  color: #eaeaea;
+}
+body.dark-mode #projectSummary .meta { color: #aaa; }
+/* 🔸 Fade animaties */
+.fade-in {
+  animation: fadeIn 0.3s ease-in forwards;
+}
+
+.fade-out {
+  animation: fadeOut 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* 🔸 Volledig verbergen */
+.hidden-col {
+  display: none !important;
+}
+/* === Mailbox Mobile Fixes === */
+@media (max-width: 576px) {
+  /* Verberg datum-tekst in de lijst (is zichtbaar in detail) */
+  .mail-meta {
+    display: none;
+  }
+  /* Zorg dat actieknoppen niet te breed worden */
+  #mailListTable .btn {
+    padding: .15rem .3rem;
+    font-size: .8rem;
+  }
+}
+/* Accentkleur-kiezer bolletjes */
+.color-picker-wrap {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.color-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.2);
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+body.dark-mode .color-dot {
+  border-color: #444;
+}
+.color-dot.selected {
+  border-color: #000;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.5);
+  transform: scale(1.1);
+}
+body.dark-mode .color-dot.selected {
+  border-color: #fff;
+}
+/* Fix voor Flatpickr in een Modal */
+.flatpickr-calendar {
+  z-index: 2051 !important;
+}
