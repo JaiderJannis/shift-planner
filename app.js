@@ -2957,7 +2957,7 @@ async function renderApprovalOverview(uid, year) {
             <h6 class="card-title">${monthName} ${year}</h6>
             <span class="badge badge-status ${statusClass}">${statusText}</span>
           </div>
-          <div class_id="approval-card-${uid}-${m}" class="mt-auto pt-3 d-flex flex-column gap-2">
+          <div id="approval-card-${uid}-${m}" class="mt-auto pt-3 d-flex flex-column gap-2">
             <button class="btn btn-success btn-sm" 
               data-action="approve" data-uid="${uid}" data-y="${year}" data-m="${m}" 
               ${canApprove ? '' : 'disabled'}>
