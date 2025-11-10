@@ -1704,32 +1704,40 @@ document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab',
 // ✅ Gebruiker selecteren zonder adminstatus te verliezen
 adminUserSelect?.addEventListener('change', async () => {
   const uid = adminUserSelect.value;
-  if (!uid) return;
-
-  try {
-    const snap = await getDoc(doc(db, 'users', uid));
-    if (!snap.exists()) {
-      toast('Gebruiker niet gevonden', 'warning');
-      return;
-    }
-
-    const u = snap.data();
-    // Plaats de gebruiker tijdelijk in dataStore voor weergave
-    dataStore.users[uid] = u;
-
-    // UI labels bijwerken
-    activeUserLabel.textContent = u.name || u.email || uid;
-    roleSelect.value = u.role || 'user';
-    document.getElementById('currentUserName').textContent = u.name || u.email || uid;
-    document.getElementById('currentUserHistoriek').textContent = u.name || u.email || uid;
-
-    // We tonen enkel hun data (zonder rechten te verliezen)
-    await renderUserDataAsAdmin(uid);
-    toast(`Beheer actief voor ${u.name || uid}`, 'primary');
-  } catch (err) {
-    console.error(err);
-    toast('Fout bij laden van gebruiker', 'danger');
+  if (!uid) {
+    // Reset naar de ingelogde admin
+    dataStore.viewUserId = null; 
+    const self = dataStore.users[currentUserId];
+    activeUserLabel.textContent = self.name || self.email || currentUserId;
+    roleSelect.value = self.role || 'user';
+    document.getElementById('currentUserName').textContent = self.name || self.email || currentUserId;
+    document.getElementById('currentUserHistoriek').textContent = self.name || self.email || currentUserId;
+    
+    await renderUserDataAsAdmin(currentUserId);
+    toast('Beheer teruggezet naar jezelf', 'info');
+    return;
   }
+
+  // ✅ FIX: Haal data direct uit de 'dataStore' (die al geladen is)
+  // We hoeven geen 'getDoc' meer te doen, wat de permissiefout veroorzaakte.
+  const u = dataStore.users[uid];
+  if (!u) {
+    toast('Gebruiker niet gevonden in lokale data', 'warning');
+    return;
+  }
+  
+  // Plaats de gebruiker tijdelijk in dataStore voor weergave
+  dataStore.users[uid] = u;
+
+  // UI labels bijwerken
+  activeUserLabel.textContent = u.name || u.email || uid;
+  roleSelect.value = u.role || 'user';
+  document.getElementById('currentUserName').textContent = u.name || u.email || uid;
+  document.getElementById('currentUserHistoriek').textContent = u.name || u.email || uid;
+
+  // We tonen enkel hun data (zonder rechten te verliezen)
+  await renderUserDataAsAdmin(uid);
+  toast(`Beheer actief voor ${u.name || uid}`, 'primary');
 });
 
 // ✅ Alleen UI renderen voor geselecteerde gebruiker
