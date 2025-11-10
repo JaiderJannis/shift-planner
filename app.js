@@ -543,8 +543,12 @@ function initSelectors(){
         adminTabBtn.classList.remove('d-none');
         adminApprovalTabBtn.classList.remove('d-none');
         adminLeaveTabBtn.classList.remove('d-none');
-      }
-      renderAdminMonthlyMulti();
+        
+        // ✅ HIER TOEGEVOEGD:
+    // Deze functies mogen alleen door een admin worden aangeroepen
+    renderAdminUserSelect(); 
+    renderAdminMonthlyMulti();
+  }
     }
 
     // ======= Projects =======
@@ -1886,8 +1890,6 @@ approvalUserSelect?.addEventListener('change', async () => {
       populateFilterShiftYears();
       renderProjectFilterForMonth();
       generateMonth();
-      renderAdminUserSelect();
-      renderAdminMonthlyMulti();
       updateRemainingHours();
       updateLeaveBadges();
       renderHome();
