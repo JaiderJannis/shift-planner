@@ -99,6 +99,9 @@ document.querySelector('a[href="#tab-mail"]')?.addEventListener('shown.bs.tab', 
     const approvalYearSelect = document.getElementById('approvalYearSelect');
     const approvalActiveUserLabel = document.getElementById('approvalActiveUserLabel');
     const approvalYearlyOverview = document.getElementById('approvalYearlyOverview');
+    const adminLeaveTabBtn = document.getElementById('adminLeaveTabBtn');
+    const leaveRequestTableBody = document.getElementById('leaveRequestTableBody');
+    const refreshLeaveRequestsBtn = document.getElementById('refreshLeaveRequestsBtn');
 
     // Shift modal fields
     const newShiftName = document.getElementById('newShiftName');
@@ -536,7 +539,8 @@ function initSelectors(){
       const role = meSnap.data().role;
       if(role === 'admin'){ 
         adminTabBtn.classList.remove('d-none');
-        adminApprovalTabBtn.classList.remove('d-none'); 
+        adminApprovalTabBtn.classList.remove('d-none');
+        adminLeaveTabBtn.classList.remove('d-none');
       }
       renderAdminMonthlyMulti();
     }
@@ -1878,6 +1882,68 @@ approvalUserSelect?.addEventListener('change', async () => {
       renderHome();
 
     }
+// ✅ NIEUW: Listeners voor Verlofbeheer Tab
+document.querySelector('a[href="#tab-verlofbeheer"]')?.addEventListener('shown.bs.tab', () => {
+  loadAndRenderLeaveRequests();
+});
+
+refreshLeaveRequestsBtn?.addEventListener('click', () => {
+  toast('Verlof-aanvragen herladen...', 'info');
+  loadAndRenderLeaveRequests();
+});
+// ✅ NIEUW: Gedelegeerde listener voor Goedkeuren/Afkeuren Verlof
+leaveRequestTableBody?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-action]');
+  if (!btn) return;
+
+  const action = btn.dataset.action; // 'approve' or 'reject'
+  const newStatus = (action === 'approve') ? 'approved' : 'rejected';
+
+  // Haal alle data-attributen op
+  const { uid, year, month, key } = btn.dataset;
+
+  if (!uid || !year || !month || !key) {
+    return toast('Kon aanvraag niet vinden (data-attributen ontbreken)', 'danger');
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+
+  try {
+    // 1. Vind de data in de lokale store en pas de status aan
+    const row = dataStore.users[uid]?.monthData?.[year]?.[month]?.rows?.[key];
+    if (!row) {
+      throw new Error('Rij niet gevonden in dataStore');
+    }
+    row.status = newStatus;
+
+    // 2. Sla de *volledige* data van die gebruiker op
+    // (Dit volgt het bestaande patroon van je app)
+    const userRef = doc(db, 'users', uid);
+    await setDoc(userRef, dataStore.users[uid], { merge: true });
+    
+    // 3. Stuur een mail/notificatie
+    await notifyUserOfLeaveStatus(uid, row, key, newStatus);
+
+    // 4. Herlaad de lijst
+    await loadAndRenderLeaveRequests();
+    
+    toast(`Aanvraag ${newStatus}`, 'success');
+
+    // 5. (Optioneel) Update de 'Invoer'-tabel als de admin naar die user kijkt
+    if (getActiveUserId() === uid &&
+        Number(yearSelectMain.value) === Number(year) &&
+        Number(monthSelectMain.value) === Number(month)) {
+      await renderMonth(Number(year), Number(month));
+    }
+
+  } catch (err) {
+    console.error(`Fout bij ${action}:`, err);
+    toast('Er ging iets mis', 'danger');
+    // Herlaad de lijst om de knop te herstellen
+    await loadAndRenderLeaveRequests();
+  }
+});
      // ✅ Plaats DIT hier:
 document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
   const { jsPDF } = window.jspdf;
@@ -3062,6 +3128,78 @@ approvalYearlyOverview?.addEventListener('click', async (e) => {
     await renderApprovalOverview(uid, year);
   }
 });
+// ✅ NIEUW: Render de Verlofbeheer-tabel
+async function loadAndRenderLeaveRequests() {
+  if (!leaveRequestTableBody) return;
+  leaveRequestTableBody.innerHTML = '<tr><td colspan="5">Laden...</td></tr>';
+
+  const requests = [];
+
+  // Omdat een admin alle user-data al in 'dataStore' heeft, doorzoeken we die.
+  // Dit is veel sneller dan 100+ losse database-queries.
+  for (const [uid, user] of Object.entries(dataStore.users)) {
+    if (!user.monthData) continue;
+    
+    for (const [year, months] of Object.entries(user.monthData)) {
+      for (const [month, monthData] of Object.entries(months)) {
+        for (const [rowKey, row] of Object.entries(monthData.rows || {})) {
+          
+          // We zoeken alleen naar 'pending'
+          if (row.status === 'pending') {
+            requests.push({
+              uid: uid,
+              userName: user.name || user.email || uid,
+              year: Number(year),
+              month: Number(month),
+              rowKey: rowKey, // De datum "YYYY-MM-DD"
+              shift: row.shift,
+              note: row.omschrijving || '-',
+              data: row
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Sorteer op datum (nieuwste eerst)
+  requests.sort((a, b) => b.rowKey.localeCompare(a.rowKey));
+
+  if (requests.length === 0) {
+    leaveRequestTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Geen openstaande aanvragen gevonden.</td></tr>';
+    return;
+  }
+
+  // Render de tabel
+  leaveRequestTableBody.innerHTML = requests.map(req => `
+    <tr>
+      <td>${req.userName}</td>
+      <td>
+        <span class="badge ${req.shift === 'Ziekte' ? 'bg-warning text-dark' : 'bg-info'}">${req.shift}</span>
+      </td>
+      <td>${req.rowKey.split('-').reverse().join('-')}</td>
+      <td>${req.note}</td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-success me-1" 
+          data-action="approve" 
+          data-uid="${req.uid}" 
+          data-year="${req.year}" 
+          data-month="${req.month}" 
+          data-key="${req.rowKey}">
+          Goedkeuren
+        </button>
+        <button class="btn btn-sm btn-danger" 
+          data-action="reject" 
+          data-uid="${req.uid}" 
+          data-year="${req.year}" 
+          data-month="${req.month}" 
+          data-key="${req.rowKey}">
+          Afkeuren
+        </button>
+      </td>
+    </tr>
+  `).join('');
+}
 // Admin: Keur goed
 document.getElementById('adminApproveBtn')?.addEventListener('click', async () => {
   const userToApproveId = adminUserSelect?.value;
@@ -3945,6 +4083,44 @@ async function sendUserMail(db, adminUid, subject, body) {
   });
 }
 /***** ========== /MAILBOX ========== *****/
+// ✅ NIEUW: Helper voor verlof-status mail
+async function notifyUserOfLeaveStatus(uid, rowData, dateKey, status) {
+  const adminId = auth.currentUser.uid;
+  const adminName = auth.currentUser.displayName || "Admin";
+  const { shift, omschrijving } = rowData;
+  const dateStr = dateKey.split('-').reverse().join('-'); // ISO -> DD-MM-YYYY
+
+  let subject = '';
+  let body = '';
+
+  if (status === 'approved') {
+    subject = `[Planner] Verlof Goedgekeurd: ${shift} op ${dateStr}`;
+    body = `Je aanvraag voor ${shift} op ${dateStr} is goedgekeurd.`;
+  } else {
+    subject = `[Planner] Verlof Afgekeurd: ${shift} op ${dateStr}`;
+    body = `Je aanvraag voor ${shift} op ${dateStr} is helaas afgekeurd.`;
+  }
+
+  const threadId = `leave:${uid}:${dateKey}`;
+
+  // 1. Mail naar user
+  await addDoc(collection(db, "users", uid, "mailbox"), {
+    threadId, system: true, kind: "status",
+    from: { uid: adminId, name: adminName, role: 'admin' },
+    to: { uid: uid, type: "user" },
+    subject, body, read: false,
+    timestamp: serverTimestamp()
+  });
+
+  // 2. Kopie in admin's "Verzonden" map
+  await addDoc(collection(db, "users", adminId, "mailbox"), {
+    threadId, system: false, kind: "status",
+    from: { uid: adminId, name: adminName, role: 'admin' },
+    to: { uid: uid, type: "user" },
+    subject, body, read: true,
+    timestamp: serverTimestamp()
+  });
+}
 /***** ========== PROFIEL TABBLAD ========== *****/
 
     // 1. Functie om de velden te vullen
