@@ -982,25 +982,11 @@ async function renderMonth(year, month){
           addBtn.disabled = !(allowByMonth || allowByProject);
         }
       });
-// ✅ NIEUW: Toon het status-icoontje (na de listener)
-  const iconSpan = tr.querySelector('.shift-status-icon');
-  if (r.status === 'pending') {
-    iconSpan.className = 'shift-status-icon material-icons-outlined status-pending';
-    iconSpan.textContent = 'pending';
-    iconSpan.title = 'In aanvraag';
-  } else if (r.status === 'approved') {
-    iconSpan.className = 'shift-status-icon material-icons-outlined status-approved';
-    iconSpan.textContent = 'check_circle';
-    iconSpan.title = 'Goedgekeurd';
-  } else if (r.status === 'rejected') {
-    iconSpan.className = 'shift-status-icon material-icons-outlined status-rejected';
-    iconSpan.textContent = 'cancel';
-    iconSpan.title = 'Afgekeurd';
-  } else {
-    iconSpan.className = 'shift-status-icon d-none';
-    iconSpan.textContent = '';
-  }
-}
+      
+      // ======================================================
+      // HIER WAS DE FOUT: De } op regel 1017 is verwijderd
+      // ======================================================
+
       await populateShiftSelectForRow(tr, rowKey);
 
       tr.querySelector('.startInput').addEventListener('change', e=>{
@@ -1047,8 +1033,11 @@ async function renderMonth(year, month){
           updateInputTotals(); renderHistory();
         });
       }
-    }
-  }
+    
+    } // <-- ✅ HIER IS DE } GEPLAKT (Dit sluit de "for (let idx...)" loop)
+
+  } // <-- Dit sluit de "for (let d...)" loop
+
   await saveUserData();
   updateRemainingHours();
   renderProjectSummary(); 
@@ -1069,7 +1058,7 @@ const statusLocked = (getMonthStatus(year, month)==='approved' || getMonthStatus
 
   // 3. De knoppen (Indienen, etc.) worden beheerd door deze functie
   updateMonthStatusBadge();
-
+}
 async function populateShiftSelectForRow(tr, rowKey){
   const base = rowKey.split('#')[0];                   // YYYY-MM-DD
   const [yStr, mStr, dStr] = base.split('-');
