@@ -958,20 +958,25 @@ async function renderMonth(year, month){
       } else if (r.status === 'rejected') {
         statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-rejected" title="Afgekeurd">cancel</span>';
       }
+      const isPendingOrRejected = r.status && r.status !== 'approved';
+      const durationText = isPendingOrRejected 
+        ? '0u 0min' 
+        : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+
       tr.innerHTML = `
         ${actionsCell}
         <td>${idx === 0 ? dayName : ''}</td>
         <td>${idx === 0 ? `${String(d).padStart(2,'0')}-${String(month+1).padStart(2,'0')}-${year}` : ''}</td>
         <td><select class="form-select form-select-sm projectSelect"></select></td>
-                <td class="d-flex align-items-center gap-1">
+        <td class="d-flex align-items-center gap-1">
           <select class="form-select form-select-sm shiftSelect"></select>
-          <span class="shift-status-icon d-none"></span>
+          ${statusIconHtml}
         </td>
         <td><input class="form-control form-control-sm startInput" type="time" value="${r.start}"></td>
         <td><input class="form-control form-control-sm endInput" type="time" value="${r.end}"></td>
         <td><input class="form-control form-control-sm breakInput" type="number" min="0" value="${r.break}"></td>
         <td><input class="form-control form-control-sm omschrijvingInput" type="text" value="${r.omschrijving}"></td>
-        <td class="dur text-mono">${Math.floor(r.minutes/60)}u ${r.minutes%60}min</td>`;
+        <td class="dur text-mono">${durationText}</td>`; 
       tbody.appendChild(tr);
 
       // project dropdown (gefilterd op datum)
