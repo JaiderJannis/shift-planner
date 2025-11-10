@@ -1742,7 +1742,6 @@ adminUserSelect?.addEventListener('change', async () => {
 
 // ✅ Alleen UI renderen voor geselecteerde gebruiker
 async function renderUserDataAsAdmin(uid) {
-  const snap = await getDoc(doc(db, 'users', uid));
 const u = dataStore.users[uid];
 if (!u) {
     console.warn("renderUserDataAsAdmin: Kon user niet vinden in dataStore.");
