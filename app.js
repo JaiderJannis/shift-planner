@@ -1178,7 +1178,6 @@ sel.addEventListener('change', async ()=>{
     iconSpan.className = 'shift-status-icon d-none';
     iconSpan.textContent = '';
   }
-}
 });
 }
 async function ensureProjectExists(name){
