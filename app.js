@@ -944,7 +944,15 @@ async function renderMonth(year, month){
                </td>`
           )
         : '';
-
+// ✅ HIER TOEGEVOEGD: Bepaal het statusicoon
+      let statusIconHtml = '<span class="shift-status-icon d-none"></span>'; // Standaard leeg
+      if (r.status === 'pending') {
+        statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-pending" title="In aanvraag">hourglass_top</span>';
+      } else if (r.status === 'approved') {
+        statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-approved" title="Goedgekeurd">check_circle</span>';
+      } else if (r.status === 'rejected') {
+        statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-rejected" title="Afgekeurd">cancel</span>';
+      }
       tr.innerHTML = `
         ${actionsCell}
         <td>${idx === 0 ? dayName : ''}</td>
@@ -1112,7 +1120,27 @@ sel.addEventListener('change', async ()=>{
   } else {
     delete r.status; // Geen verlof? Geen status nodig.
   }
-
+    // ✅ Update het icoon direct
+    const iconSpan = tr.querySelector('.shift-status-icon');
+    if (iconSpan) {
+      if (r.status === 'pending') {
+        iconSpan.className = 'material-icons-outlined shift-status-icon status-pending';
+        iconSpan.textContent = 'hourglass_top';
+        iconSpan.title = 'In aanvraag';
+      } else if (r.status === 'approved') {
+        iconSpan.className = 'material-icons-outlined shift-status-icon status-approved';
+        iconSpan.textContent = 'check_circle';
+        iconSpan.title = 'Goedgekeurd';
+      } else if (r.status === 'rejected') {
+        iconSpan.className = 'material-icons-outlined shift-status-icon status-rejected';
+        iconSpan.textContent = 'cancel';
+        iconSpan.title = 'Afgekeurd';
+      } else {
+        iconSpan.className = 'shift-status-icon d-none';
+        iconSpan.textContent = '';
+        iconSpan.title = '';
+      }
+    }
   // auto project (jouw bestaande logica)
   if (['Bench'].includes(chosen)) {
     r.project = '';
