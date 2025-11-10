@@ -234,7 +234,12 @@ function renderHome() {
   if (monthNameEl) monthNameEl.textContent = `${monthsFull[m]} ${y}`;
 
   // totals
-  const planned = Object.values(md.rows||{}).reduce((s,r)=> s + (Number(r.minutes)||0), 0);
+  const planned = Object.values(md.rows || {}).reduce((s, r) => {
+  if (r.status && r.status !== 'approved') {
+    return s; // Tel niet mee (pending/rejected)
+  }
+  return s + (Number(r.minutes) || 0);
+}, 0);
   const target  = (Number(md.targetHours)||0)*60 + (Number(md.targetMinutes)||0);
   const diff    = planned - target;
   const pct     = target > 0 ? Math.min(100, Math.round(planned/target*100)) : 0;
@@ -1228,7 +1233,12 @@ async function ensureProjectExists(name){
       const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
       const ud = getCurrentUserData();
       const md = ud.monthData?.[y]?.[m] || { targetHours:0, targetMinutes:0, rows:{} };
-      const total = Object.values(md.rows||{}).reduce((s,r)=> s + (r.minutes||0), 0);
+      const total = Object.values(md.rows || {}).reduce((s, r) => {
+  if (r.status && r.status !== 'approved') {
+    return s; // Tel niet mee (pending/rejected)
+  }
+  return s + (r.minutes || 0);
+}, 0);
       const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
       const diff = total - target;
       updateRemainingHours();
@@ -1365,19 +1375,32 @@ function renderHistory() {
     const md = ud.monthData?.[year]?.[m] || { targetHours:0, targetMinutes:0, rows:{} };
     const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
     const rows = md.rows || {};
-    const planned = Object.values(rows).reduce((s, r) => s + (r.minutes||0), 0);
+    const planned = Object.values(rows).reduce((s, r) => {
+  if (r.status && r.status !== 'approved') {
+    return s; // Tel niet mee (pending/rejected)
+  }
+  return s + (r.minutes || 0);
+}, 0);
 
     // specifieke categorie-sommen
     let leave = 0, sick = 0, school = 0, holiday = 0, bench = 0;
     Object.values(rows).forEach(r => {
-      const s = (r.shift || '').trim();
-      if (!s) return;
-      if (s === 'Verlof') leave += Number(r.minutes)||0;
-      if (s === 'Ziekte') sick += Number(r.minutes)||0;
-      if (s === 'Schoolverlof' || s === 'School') school += Number(r.minutes)||0;
-      if (s === 'Feestdag') holiday += Number(r.minutes)||0;
-      if (s === 'Bench') bench += Number(r.minutes)||0;
-    });
+  if (r.status && r.status !== 'approved') {
+    return; 
+  }
+  
+  const s = (r.shift || '').trim();
+  if (!s) return;
+  
+  // Deze tellen nu alleen 'approved' (dankzij de check hierboven)
+  if (s === 'Verlof') leave += Number(r.minutes)||0;
+  if (s === 'Ziekte') sick += Number(r.minutes)||0;
+  if (s === 'Schoolverlof' || s === 'School') school += Number(r.minutes)||0;
+  
+  // Feestdag & Bench hebben geen 'pending' status, dus die zijn ok
+  if (s === 'Feestdag') holiday += Number(r.minutes)||0;
+  if (s === 'Bench') bench += Number(r.minutes)||0;
+});
 
     const diff = planned - target;
 
@@ -1452,9 +1475,13 @@ function sumTakenMinutesFor(year, shiftNames) {
   const months = ud.monthData?.[year] || {};
   Object.values(months).forEach(md => {
     Object.values(md?.rows || {}).forEach(r => {
-      const s = (r?.shift || '').trim();
-      if (s && shiftNames.includes(s)) total += Number(r.minutes) || 0;
-    });
+  const s = (r?.shift || '').trim();
+  if (s && shiftNames.includes(s)) {
+    if (r.status === 'approved') {
+      total += Number(r.minutes) || 0;
+    }
+  }
+});
   });
   return total;
 }
@@ -1483,8 +1510,10 @@ function sumTakenMinutesForRange(startISO, endISO, shiftNames) {
         const sName = (r?.shift || '').trim();
         if (!sName || !shiftNames.includes(sName)) continue;
         if (isDateWithin(key, startISO, endISO)) {
-          total += Number(r.minutes) || 0;
-        }
+  if (r.status === 'approved') {
+    total += Number(r.minutes) || 0;
+  }
+  }
       }
     }
   }
@@ -1672,11 +1701,15 @@ function renderProjectSummaryForVisibleMonth()
 
   const map = new Map(); // project -> minuten
   Object.values(md.rows || {}).forEach(r => {
-    const mins = Number(r?.minutes) || 0;
-    if (mins <= 0) return;
-    const key = (r?.project || '').trim() || '— Geen project';
-    map.set(key, (map.get(key) || 0) + mins);
-  });
+  if (r.status && r.status !== 'approved') {
+    return; // Tel niet mee
+  }
+  
+  const mins = Number(r?.minutes) || 0;
+  if (mins <= 0) return;
+  const key = (r?.project || '').trim() || '— Geen project';
+  map.set(key, (map.get(key) || 0) + mins);
+});
 
   if (map.size === 0) {
     wrap.innerHTML = '<div class="alert alert-light border small mb-0">Nog geen minuten in deze maand.</div>';
@@ -2414,7 +2447,12 @@ const md = currentMonthData;
   // 🔹 2. Controleer maanddoel vs. werkelijk (alleen huidige maand)
   if (getNotifPref('notifyMonthlyGoal')) {
   const doel = (md.targetHours || 0) * 60 + (md.targetMinutes || 0);
-  const gepland = Object.values(md.rows || {}).reduce((s, r) => s + (r.minutes || 0), 0);
+  const gepland = Object.values(md.rows || {}).reduce((s, r) => {
+  if (r.status && r.status !== 'approved') {
+    return s; // Tel niet mee
+  }
+  return s + (r.minutes || 0);
+}, 0);
   if (doel > 0 && gepland < doel * 0.8) {
     await createUniqueNotification(uid, 'Je hebt nog minder dan 80% van je maanddoel behaald.');
   }
@@ -2558,7 +2596,12 @@ function updateRemainingHours() {
   }
 
   const doel = (monthData.targetHours || 0) * 60 + (monthData.targetMinutes || 0);
-  const gepland = Object.values(monthData.rows || {}).reduce((s, r) => s + (r.minutes || 0), 0);
+  const gepland = Object.values(monthData.rows || {}).reduce((s, r) => {
+  if (r.status && r.status !== 'approved') {
+    return s; // Tel niet mee
+  }
+  return s + (r.minutes || 0);
+}, 0);
   const verschil = doel - gepland;
   const pct = doel > 0 ? Math.round((gepland / doel) * 100) : 0;
 
@@ -3362,11 +3405,16 @@ function renderProjectSummary()
   const filterProject = projectFilterSelect.value || '';
   const perProject = {};
   for (const r of Object.values(md.rows)) {
-    if (!r) continue;
-    const p = (r.project || '—');
-    if (filterProject && p !== filterProject) continue;
-    perProject[p] = (perProject[p] || 0) + (r.minutes || 0);
+  if (!r) continue;
+  
+  if (r.status && r.status !== 'approved') {
+    continue; // Tel niet mee
   }
+  
+  const p = (r.project || '—');
+  if (filterProject && p !== filterProject) continue;
+  perProject[p] = (perProject[p] || 0) + (r.minutes || 0);
+}
 
   const cards = Object.entries(perProject)
     .sort((a,b)=> b[1]-a[1])
