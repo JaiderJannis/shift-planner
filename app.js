@@ -1742,11 +1742,22 @@ adminUserSelect?.addEventListener('change', async () => {
 
 // ✅ Alleen UI renderen voor geselecteerde gebruiker
 async function renderUserDataAsAdmin(uid) {
-const u = dataStore.users[uid];
-if (!u) {
+  
+  // --- DIT IS DE CORRECTIE ---
+  // De 'getDoc' hieronder is verwijderd.
+  // We gebruiken nu 'u = dataStore.users[uid]' om de data uit de cache te halen.
+  
+  // const snap = await getDoc(doc(db, 'users', uid)); // <--- DEZE REGEL IS FOUT EN IS VERWIJDERD
+  // if (!snap.exists()) return; // <--- DEZE REGEL IS VERWIJDERD
+  // const u = snap.data(); // <--- DEZE REGEL IS VERWIJDERD
+
+  const u = dataStore.users[uid]; // <-- DIT IS DE NIEUWE REGEL
+  if (!u) {
     console.warn("renderUserDataAsAdmin: Kon user niet vinden in dataStore.");
     return;
   }
+  // --- EINDE CORRECTIE ---
+
 
   // Tijdelijk: toon deze data in invoer & historiek
   dataStore.users[uid] = u;
@@ -1756,9 +1767,12 @@ if (!u) {
   renderShifts();
   populateFilterShiftYears();
   renderProjectFilterForMonth();
-  await generateMonth();
+  await generateMonth(); // <-- 'await' is hier toegevoegd
   renderHistory();
 }
+
+
+
 
 // ✅ Rol bijwerken
 updateRoleBtn?.addEventListener('click', async () => {
