@@ -1068,7 +1068,6 @@ const statusLocked = (getMonthStatus(year, month)==='approved' || getMonthStatus
 
   // 3. De knoppen (Indienen, etc.) worden beheerd door deze functie
   updateMonthStatusBadge();
-}
 
 async function populateShiftSelectForRow(tr, rowKey){
   const base = rowKey.split('#')[0];                   // YYYY-MM-DD
