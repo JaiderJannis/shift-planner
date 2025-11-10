@@ -136,6 +136,8 @@ function autoProjectForShift(shiftName){
     // ======= UI helpers =======
     const daysFull = ["Zondag","Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag"];
     const monthsFull = ["Januari","Februari","Maart","April","Mei","Juni","Juli","Augustus","September","Oktober","November","December"];
+    const LEAVE_SHIFT_NAMES = ['Verlof'];              // telt mee als "verlof"
+const SCHOOL_LEAVE_SHIFT_NAMES = ['Schoolverlof']; // telt mee als "schoolverlof"
     const toast = (msg, type='primary') => {
       const el = document.createElement('div');
       el.className = `toast align-items-center text-bg-${type} border-0 position-fixed bottom-0 end-0 m-3`;
@@ -1047,7 +1049,6 @@ async function renderMonth(year, month){
       }
     }
   }
-
   await saveUserData();
   updateRemainingHours();
   renderProjectSummary(); 
@@ -1068,7 +1069,8 @@ const statusLocked = (getMonthStatus(year, month)==='approved' || getMonthStatus
 
   // 3. De knoppen (Indienen, etc.) worden beheerd door deze functie
   updateMonthStatusBadge();
-
+}
+}
 async function populateShiftSelectForRow(tr, rowKey){
   const base = rowKey.split('#')[0];                   // YYYY-MM-DD
   const [yStr, mStr, dStr] = base.split('-');
@@ -1413,8 +1415,6 @@ function renderHistory() {
   if (newTbody) newTbody.id = 'historyBody';
 }
 // === Verlof / Schoolverlof instellingen en badges ===
-const LEAVE_SHIFT_NAMES = ['Verlof'];              // telt mee als "verlof"
-const SCHOOL_LEAVE_SHIFT_NAMES = ['Schoolverlof']; // telt mee als "schoolverlof"
 
 function getLeaveAllowanceMinutes() {
   const ud = getCurrentUserData();
