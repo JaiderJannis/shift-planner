@@ -1743,8 +1743,11 @@ adminUserSelect?.addEventListener('change', async () => {
 // ✅ Alleen UI renderen voor geselecteerde gebruiker
 async function renderUserDataAsAdmin(uid) {
   const snap = await getDoc(doc(db, 'users', uid));
-  if (!snap.exists()) return;
-  const u = snap.data();
+const u = dataStore.users[uid];
+if (!u) {
+    console.warn("renderUserDataAsAdmin: Kon user niet vinden in dataStore.");
+    return;
+  }
 
   // Tijdelijk: toon deze data in invoer & historiek
   dataStore.users[uid] = u;
@@ -1754,7 +1757,7 @@ async function renderUserDataAsAdmin(uid) {
   renderShifts();
   populateFilterShiftYears();
   renderProjectFilterForMonth();
-  generateMonth();
+  await generateMonth();
   renderHistory();
 }
 
