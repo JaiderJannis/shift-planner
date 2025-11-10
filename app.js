@@ -940,7 +940,10 @@ async function renderMonth(year, month){
         <td>${idx === 0 ? dayName : ''}</td>
         <td>${idx === 0 ? `${String(d).padStart(2,'0')}-${String(month+1).padStart(2,'0')}-${year}` : ''}</td>
         <td><select class="form-select form-select-sm projectSelect"></select></td>
-        <td><select class="form-select form-select-sm shiftSelect"></select></td>
+                <td class="d-flex align-items-center gap-1">
+          <select class="form-select form-select-sm shiftSelect"></select>
+          <span class="shift-status-icon d-none"></span>
+        </td>
         <td><input class="form-control form-control-sm startInput" type="time" value="${r.start}"></td>
         <td><input class="form-control form-control-sm endInput" type="time" value="${r.end}"></td>
         <td><input class="form-control form-control-sm breakInput" type="number" min="0" value="${r.break}"></td>
@@ -1068,81 +1071,116 @@ async function populateShiftSelectForRow(tr, rowKey){
     o.value = name; o.textContent = name; if(r.shift===name) o.selected = true; sel.appendChild(o);
   }
 
-  sel.addEventListener('change', async ()=>{
-    const chosen = sel.value;
-    const all = ud.shifts || {};
-    if (!chosen) {
-      r.shift = ''; r.project = ''; projSel.value = '';
-      saveCell(year, month, rowKey, r, tr); debouncedSave(); updateInputTotals(); renderHistory();
-      return;
+sel.addEventListener('change', async ()=>{
+  const chosen = sel.value;
+  const all = ud.shifts || {};
+  if (!chosen) {
+    r.shift = ''; r.project = ''; projSel.value = '';
+    delete r.status; // ✅ Status verwijderen als shift leeg is
+    saveCell(year, month, rowKey, r, tr); debouncedSave(); updateInputTotals(); renderHistory();
+    return;
+  }
+
+  r.shift = chosen;
+  debouncedSave();
+
+  // ✅ Bepaal of dit een verloftype is
+  const isLeaveType = ['Verlof', 'Schoolverlof', 'Ziekte', 'Feestdag'].includes(chosen);
+  
+  // ✅ Status toevoegen (als admin: direct goedkeuren, anders: in aanvraag)
+  if (isLeaveType) {
+    if (isAdmin()) {
+      r.status = 'approved';
+    } else {
+      r.status = 'pending'; // 'pending' = in_aanvraag
     }
+  } else {
+    delete r.status; // Geen verlof? Geen status nodig.
+  }
 
-    r.shift = chosen;
-    debouncedSave();
-
-    // auto project (jouw bestaande logica)
-    if (['Bench'].includes(chosen)) {
-      r.project = '';
-      saveCell(year, month, rowKey, r, tr);
-      debouncedSave();
-    } 
-    else if (['Schoolverlof','School'].includes(chosen)) {
-      ensureProjectExists('PXL Verpleegkunde Hasselt');
-      r.project = 'PXL Verpleegkunde Hasselt';
-      saveCell(year, month, rowKey, r, tr);
-      debouncedSave();
-    } 
-    else if (['Verlof','Teammeeting','Ziekte'].includes(chosen)) {
-      ensureProjectExists('Eght Care');
-      r.project = 'Eght Care';
-      saveCell(year, month, rowKey, r, tr);
-      debouncedSave();
-    } 
-    else {
-      const sh = all[chosen];
-      if (sh && sh.project) {
-        const p = (ud.projects||[]).find(px => px.name===sh.project);
-        if (p && isDateWithin(base, p.start||null, p.end||null)) {
-          r.project = p.name;
-        }
-      }
-    }
-
-    // project dropdown herladen
-    projSel.innerHTML = '<option value="">--</option>';
-    (getCurrentUserData().projects || []).forEach(p=>{
-      if(isDateWithin(base, p.start || null, p.end || null)){
-        const o = document.createElement('option');
-        o.value = p.name; o.textContent = p.name; projSel.appendChild(o);
-      }
-    });
-    setTimeout(()=> { projSel.value = r.project || ''; }, 50);
-
-    // tijden/pauze invullen
-    const sh = all[chosen];
-    if (sh) {
-      r.start = sh.start || '00:00';
-      r.end   = sh.end   || '00:00';
-      r.break = Number(sh.break) || 0;
-    }
-    recalcRowMinutes(r);
-    tr.querySelector('.startInput').value = r.start;
-    tr.querySelector('.endInput').value = r.end;
-    tr.querySelector('.breakInput').value = r.break;
-    tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-
+  // auto project (jouw bestaande logica)
+  if (['Bench'].includes(chosen)) {
+    r.project = '';
     saveCell(year, month, rowKey, r, tr);
     debouncedSave();
-    updateInputTotals();
+  } 
+  else if (['Schoolverlof','School'].includes(chosen)) {
+    ensureProjectExists('PXL Verpleegkunde Hasselt');
+    r.project = 'PXL Verpleegkunde Hasselt';
+    saveCell(year, month, rowKey, r, tr);
+    debouncedSave();
+  } 
+  else if (['Verlof','Teammeeting','Ziekte'].includes(chosen)) {
+    ensureProjectExists('Eght Care');
+    r.project = 'Eght Care';
+    saveCell(year, month, rowKey, r, tr);
+    debouncedSave();
+  } 
+  else {
+    const sh = all[chosen];
+    if (sh && sh.project) {
+      const p = (ud.projects||[]).find(px => px.name===sh.project);
+      if (p && isDateWithin(base, p.start||null, p.end||null)) {
+        r.project = p.name;
+      }
+    }
+  }
 
-    // + opnieuw (de)activeren
-    const addBtn = tr.querySelector('.addLineBtn');
-    if (addBtn) {
-      const allowByMonth   = userAllowsMultiMonth(getCurrentUserData(), year, month);
-      const allowByProject = r.project ? canAddMultiForProject(r.project) : false;
-      addBtn.disabled = !(allowByMonth || allowByProject);
+  // project dropdown herladen
+  projSel.innerHTML = '<option value="">--</option>';
+  (getCurrentUserData().projects || []).forEach(p=>{
+    if(isDateWithin(base, p.start || null, p.end || null)){
+      const o = document.createElement('option');
+      o.value = p.name; o.textContent = p.name; projSel.appendChild(o);
     }
   });
+  setTimeout(()=> { projSel.value = r.project || ''; }, 50);
+
+  // tijden/pauze invullen
+  const sh = all[chosen];
+  if (sh) {
+    r.start = sh.start || '00:00';
+    r.end   = sh.end   || '00:00';
+    r.break = Number(sh.break) || 0;
+  }
+  recalcRowMinutes(r);
+  tr.querySelector('.startInput').value = r.start;
+  tr.querySelector('.endInput').value = r.end;
+  tr.querySelector('.breakInput').value = r.break;
+  tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+
+  saveCell(year, month, rowKey, r, tr);
+  debouncedSave();
+  updateInputTotals();
+
+  // + opnieuw (de)activeren
+  const addBtn = tr.querySelector('.addLineBtn');
+  if (addBtn) {
+    const allowByMonth   = userAllowsMultiMonth(getCurrentUserData(), year, month);
+    const allowByProject = r.project ? canAddMultiForProject(r.project) : false;
+    addBtn.disabled = !(allowByMonth || allowByProject);
+  }
+// ✅ NIEUW: Toon het status-icoontje (na de listener)
+  const iconSpan = tr.querySelector('.shift-status-icon');
+  if (r.status === 'pending') {
+    iconSpan.className = 'shift-status-icon material-icons-outlined status-pending';
+    iconSpan.textContent = 'pending';
+    iconSpan.title = 'In aanvraag';
+  } else if (r.status === 'approved') {
+    iconSpan.className = 'shift-status-icon material-icons-outlined status-approved';
+    iconSpan.textContent = 'check_circle';
+    iconSpan.title = 'Goedgekeurd';
+  } else if (r.status === 'rejected') {
+    iconSpan.className = 'shift-status-icon material-icons-outlined status-rejected';
+    iconSpan.textContent = 'cancel';
+    iconSpan.title = 'Afgekeurd';
+  } else {
+    iconSpan.className = 'shift-status-icon d-none';
+    iconSpan.textContent = '';
+  }
+
+}
+});
 }
 async function ensureProjectExists(name){
   const ud = getCurrentUserData();
