@@ -70,6 +70,9 @@
 <a class="nav-link d-none" id="adminApprovalTabBtn" data-bs-toggle="tab" href="#tab-goedkeuring">
     <span class="material-icons-outlined">fact_check</span> <span class="label">Goedkeuring</span>
   </a>
+<a class="nav-link d-none" id="adminLeaveTabBtn" data-bs-toggle="tab" href="#tab-verlofbeheer">
+    <span class="material-icons-outlined">event_available</span> <span class="label">Verlofbeheer</span>
+  </a>
   <a class="nav-link d-none" id="adminTabBtn" data-bs-toggle="tab" href="#tab-admin">
     <span class="material-icons-outlined">admin_panel_settings</span> <span class="label">Admin</span>
   </a>
@@ -470,6 +473,38 @@
     </div>
 
 </section>   
+<!-- Verlofbeheer -->
+<section id="tab-verlofbeheer" class="tab-pane fade">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h5 class="mb-0">Verlofbeheer</h5>
+    <button id="refreshLeaveRequestsBtn" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1">
+      <span class="material-icons-outlined">refresh</span> Vernieuwen
+    </button>
+  </div>
+
+  <div class="card p-3 mb-3">
+    <h6 class="mb-2">Openstaande aanvragen</h6>
+    <p class="text-muted small mb-0">
+      Overzicht van alle 'Verlof', 'Schoolverlof' en 'Ziekte' aanvragen met de status 'In aanvraag'.
+    </p>
+  </div>
+
+  <div class="table-responsive">
+    <table id="leaveRequestTable" class="table table-striped table-hover align-middle table-nowrap">
+      <thead class="table-light">
+        <tr>
+          <th>Gebruiker</th>
+          <th>Type</th>
+          <th>Datum</th>
+          <th>Notitie</th>
+          <th class="text-end">Acties</th>
+        </tr>
+      </thead>
+      <tbody id="leaveRequestTableBody">
+        </tbody>
+    </table>
+  </div>
+</section>
 <!-- ADMIN -->
 <section id="tab-admin" class="tab-pane fade">
   <div class="d-flex align-items-center justify-content-between mb-3">
