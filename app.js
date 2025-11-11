@@ -1012,23 +1012,38 @@ async function renderMonth(year, month){
       await populateShiftSelectForRow(tr, rowKey);
 
       tr.querySelector('.startInput').addEventListener('change', e=>{
-        r.start = e.target.value; recalcRowMinutes(r);
-        saveCell(year, month, rowKey, r, tr);
-        tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-        updateInputTotals(); debouncedSave(); renderHistory();
-      });
-      tr.querySelector('.endInput').addEventListener('change', e=>{
-        r.end = e.target.value; recalcRowMinutes(r);
-        saveCell(year, month, rowKey, r, tr);
-        tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-        updateInputTotals(); debouncedSave(); renderHistory();
-      });
-      tr.querySelector('.breakInput').addEventListener('change', e=>{ // 👈 'input' is 'change' geworden
-        r.break = Number(e.target.value)||0; recalcRowMinutes(r);
-        saveCell(year, month, rowKey, r, tr);
-        tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-        updateInputTotals(); debouncedSave(); renderHistory();
-      });
+  r.start = e.target.value; recalcRowMinutes(r);
+  saveCell(year, month, rowKey, r, tr);
+  
+  const isPendingOrRejected = r.status && r.status !== 'approved';
+  tr.querySelector('.dur').textContent = isPendingOrRejected
+    ? '0u 0min'
+    : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+    
+  updateInputTotals(); debouncedSave(); renderHistory();
+});
+  tr.querySelector('.endInput').addEventListener('change', e=>{
+  r.end = e.target.value; recalcRowMinutes(r);
+  saveCell(year, month, rowKey, r, tr);
+ 
+  const isPendingOrRejected = r.status && r.status !== 'approved';
+  tr.querySelector('.dur').textContent = isPendingOrRejected
+    ? '0u 0min'
+    : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+
+  updateInputTotals(); debouncedSave(); renderHistory();
+});
+  tr.querySelector('.breakInput').addEventListener('change', e=>{ // 👈 'input' is 'change' geworden
+  r.break = Number(e.target.value)||0; recalcRowMinutes(r);
+  saveCell(year, month, rowKey, r, tr);
+  
+  const isPendingOrRejected = r.status && r.status !== 'approved';
+  tr.querySelector('.dur').textContent = isPendingOrRejected
+    ? '0u 0min'
+    : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+
+  updateInputTotals(); debouncedSave(); renderHistory();
+});
       tr.querySelector('.omschrijvingInput').addEventListener('change', e=>{
         r.omschrijving = e.target.value; saveCell(year, month, rowKey, r, tr); debouncedSave(); renderHistory();
       });
@@ -1197,12 +1212,16 @@ sel.addEventListener('change', async ()=>{
     r.break = Number(sh.break) || 0;
   }
   recalcRowMinutes(r);
-  tr.querySelector('.startInput').value = r.start;
-  tr.querySelector('.endInput').value = r.end;
-  tr.querySelector('.breakInput').value = r.break;
-  tr.querySelector('.dur').textContent = `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+tr.querySelector('.startInput').value = r.start;
+tr.querySelector('.endInput').value = r.end;
+tr.querySelector('.breakInput').value = r.break;
 
-  saveCell(year, month, rowKey, r, tr);
+const isPendingOrRejected = r.status && r.status !== 'approved';
+tr.querySelector('.dur').textContent = isPendingOrRejected
+  ? '0u 0min'
+  : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+
+saveCell(year, month, rowKey, r, tr);
   debouncedSave();
   updateInputTotals();
 
