@@ -3858,7 +3858,7 @@ async function notifyAdminOfPendingLeave(uid, year, month, rowKey, row) {
   const body = `${meName} heeft een nieuwe aanvraag ingediend:
 - Shift: ${row.shift}
 - Datum: ${rowKey.split('-').reverse().join('-')}
-- Omschr: ${row.omschrijving || '-'}`;
+- Omschrijving: ${row.omschrijving || '-'}`;
 
   // Schrijf naar de centrale 'admin_mail' collectie
   await addDoc(collection(db, "admin_mail"), {
