@@ -1141,6 +1141,12 @@ sel.addEventListener('change', async ()=>{
       r.status = 'approved';
     } else {
       r.status = 'pending'; // 'pending' = in_aanvraag
+    // ✨ HIER WORDT DE LIVE NOTIFICATIE VERSTUURD ✨
+      try {
+        await notifyAdminOfPendingLeave(getActiveUserId(), year, month, rowKey, r);
+      } catch(e) {
+        console.warn("Kon admin niet live notificeren over verlof", e);
+      }
     }
   } else {
     delete r.status; // Geen verlof? Geen status nodig.
@@ -3645,9 +3651,43 @@ function listenMailbox(uid) {
     const inboxColRef = collection(db, 'admin_mail');
     const qyInbox = query(inboxColRef, orderBy('timestamp','desc'), limit(200));
     mailboxUnsubInbox = onSnapshot(qyInbox, (snap) => {
-      // ⬇️ HIER IS DE FIX: _source tag toegevoegd
-      mailboxCacheInbox = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp), _source: 'admin_mail' }));
-      mergeAndRenderMail(); 
+      let hasNewLeaveRequest = false; // 👈 Nieuwe vlag
+
+      mailboxCacheInbox = snap.docs.map(d => {
+        const data = d.data();
+        // Check of het een NIEUWE, ONGELEZEN verlofaanvraag is
+        if (data.kind === 'leave_request' && data.read === false) {
+          hasNewLeaveRequest = true; // 👈 We vonden een nieuwe!
+        }
+        return { _id:d.id, ...data, _tsIso: normTs(data.timestamp), _source: 'admin_mail' };
+      });
+      
+      mergeAndRenderMail(); // 👈 Deze update de mail-UI (bestaand)
+
+      // 
+      // ✨ HIER DE LIVE TAB-UPDATE ✨
+      //
+      if (hasNewLeaveRequest) {
+        // Is de verlofbeheer-tab momenteel zichtbaar?
+        const isVerlofTabActive = document.querySelector('a[href="#tab-verlofbeheer"]')?.classList.contains('active');
+        
+        if (isVerlofTabActive) {
+          // Tab is open! Herlaad hem live.
+          console.log("Live update: Nieuwe verlofaanvraag gedetecteerd, herlaad tab.");
+          toast('Nieuwe verlofaanvraag!', 'info');
+          
+          // Dit is de enige betrouwbare manier:
+          // Eerst de data verversen, dan de tabel hertekenen.
+          (async () => {
+             await loadAllUsers(); 
+             loadAndRenderLeaveRequests();
+          })();
+
+        } else {
+          // Tab is niet open, de mail-badge en notificatie zijn genoeg.
+          console.log("Live update: Nieuwe verlofaanvraag in mailbox.");
+        }
+      }
     });
 
     // Bron 2: Hun EIGEN mailbox (voor Verzonden items en replies)
@@ -3808,7 +3848,33 @@ async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
     subject, body, read:false, timestamp: serverTimestamp()
   });
 }
+async function notifyAdminOfPendingLeave(uid, year, month, rowKey, row) {
+  const me = dataStore.users[uid];
+  const meName = me?.name || me?.email || uid;
+  const meEmail = me?.email || 'onbekend';
+  
+  const threadId = `leave:${uid}:${rowKey}`; // Uniek voor deze aanvraag
+  const subject = `[Verlof] Nieuwe aanvraag: ${row.shift} op ${rowKey}`;
+  const body = `${meName} heeft een nieuwe aanvraag ingediend:
+- Shift: ${row.shift}
+- Datum: ${rowKey.split('-').reverse().join('-')}
+- Omschr: ${row.omschrijving || '-'}`;
 
+  // Schrijf naar de centrale 'admin_mail' collectie
+  await addDoc(collection(db, "admin_mail"), {
+      fromUserId: uid,
+      fromName: meName,
+      fromEmail: meEmail,
+      subject: subject,
+      body: body,
+      kind: 'leave_request', // 👈 Nieuw, belangrijk type!
+      timestamp: serverTimestamp(),
+      read: false, 
+      threadId: threadId,
+      // 👈 Extra data voor de admin (minder belangrijk, maar kan handig zijn)
+      requestData: { uid: uid, year: Number(year), month: Number(month), rowKey: rowKey } 
+  });
+}
 /* ---------- actions ---------- */
 async function markMailRead(messageId, val = true) {
   const uid = currentUserId; 
