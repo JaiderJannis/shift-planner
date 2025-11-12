@@ -1981,12 +1981,15 @@ approvalUserSelect?.addEventListener('change', async () => {
 
     }
 // ✅ NIEUW: Listeners voor Verlofbeheer Tab
-document.querySelector('a[href="#tab-verlofbeheer"]')?.addEventListener('shown.bs.tab', () => {
+document.querySelector('a[href="#tab-verlofbeheer"]')?.addEventListener('shown.bs.tab', async () => { // 👈 async
+  toast('Verlof-aanvragen laden...', 'info');
+  await loadAllUsers(); // 👈 FIX: Haal EERST alle data opnieuw op
   loadAndRenderLeaveRequests();
 });
 
-refreshLeaveRequestsBtn?.addEventListener('click', () => {
+refreshLeaveRequestsBtn?.addEventListener('click', async () => { // 👈 async
   toast('Verlof-aanvragen herladen...', 'info');
+  await loadAllUsers(); // 👈 FIX: Haal EERST alle data opnieuw op
   loadAndRenderLeaveRequests();
 });
 // ✅ NIEUW: Gedelegeerde listener voor Goedkeuren/Afkeuren Verlof
