@@ -360,4 +360,37 @@ body.dark-mode #approvalYearlyOverview .btn-outline-secondary:hover {
 .status-rejected {
   color: #dc3545; /* Rood */
 }
+/* === ADMIN DASHBOARD STATS === */
+.stat-card {
+  position: relative;
+  padding: 1.25rem;
+  border-radius: .75rem;
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+.stat-card .stat-value {
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.stat-card .stat-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.stat-card .stat-icon {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  font-size: 3.5rem;
+  opacity: 0.2;
+  transform: rotate(-10deg);
+}
+.stat-card .btn-link {
+  color: inherit;
+  text-decoration-color: rgba(255,255,255,0.5);
+  font-size: 0.9rem;
+}
+.bg-warning { background-color: #ffc107 !important; }
+.bg-danger { background-color: #dc3545 !important; }
+.bg-info { background-color: #0dcaf0 !important; }
 
