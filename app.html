@@ -73,6 +73,9 @@
 <a class="nav-link d-none" id="adminLeaveTabBtn" data-bs-toggle="tab" href="#tab-verlofbeheer">
     <span class="material-icons-outlined">event_available</span> <span class="label">Verlofbeheer</span>
   </a>
+<a class="nav-link d-none" id="adminHomeTabBtn" data-bs-toggle="tab" href="#tab-admin-home">
+    <span class="material-icons-outlined">dashboard</span> <span class="label">Admin Dashboard</span>
+</a>
   <a class="nav-link d-none" id="adminTabBtn" data-bs-toggle="tab" href="#tab-admin">
     <span class="material-icons-outlined">admin_panel_settings</span> <span class="label">Admin</span>
   </a>
@@ -203,6 +206,61 @@
           </div>
           <ul class="mb-0" id="homeNotifList"></ul>
         </div>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- tab-admin-home -->
+<section id="tab-admin-home" class="tab-pane fade">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Admin Dashboard</h5>
+    <button id="adminDashboardRefreshBtn" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1">
+      <span class="material-icons-outlined">refresh</span> Vernieuwen
+    </button>
+  </div>
+
+  <div class="row g-3 mb-3" id="adminStatsContainer">
+    <div class="col-md-4">
+      <div class="stat-card bg-warning text-dark">
+        <div class="stat-value" id="statPendingMonths">0</div>
+        <div class="stat-label">Maanden ter goedkeuring</div>
+        <div class="stat-icon"><span class="material-icons-outlined">hourglass_top</span></div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-card bg-danger text-white">
+        <div class="stat-value" id="statSickHours">0u 0m</div>
+        <div class="stat-label">Uren 'Ziek' (huidige maand)</div>
+        <div class="stat-icon"><span class="material-icons-outlined">sick</span></div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-card bg-info text-white">
+        <div class="stat-value" id="statLeaveHours">0u 0m</div>
+        <div class="stat-label">Uren 'Verlof' (huidige maand)</div>
+        <div class="stat-icon"><span class="material-icons-outlined">beach_access</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <h6><span class="material-icons-outlined">fact_check</span> Maanden ter Goedkeuring</h6>
+      <div class="table-responsive">
+        <table class="table table-striped table-hover">
+          <thead class="table-light"><tr><th>Gebruiker</th><th>Maand</th><th>Actie</th></tr></thead>
+          <tbody id="adminPendingList"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <h6><span class="material-icons-outlined">event_busy</span> Gebruikers achter op planning</h6>
+      <p class="small text-muted">Overzicht van gebruikers die de vorige maand nog niet hebben ingediend.</p>
+      <div class="table-responsive">
+        <table class="table table-striped table-hover">
+          <thead class="table-light"><tr><th>Gebruiker</th><th>Status</th></tr></thead>
+          <tbody id="adminBehindList"></tbody>
+        </table>
       </div>
     </div>
   </div>
