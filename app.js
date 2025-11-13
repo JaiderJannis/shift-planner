@@ -1,5 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
+// A. De Firestore imports (zonder storage)
 import {
   getFirestore,
   doc,
@@ -16,14 +17,18 @@ import {
   onSnapshot,
   where,
   startAfter,
-  serverTimestamp,
+  serverTimestamp
+} from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+
+// B. De Storage imports (in een nieuw blok)
+import { 
   getStorage, 
   ref, 
   uploadBytes, 
   getDownloadURL, 
   deleteObject,
   uploadBytesResumable
-} from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+} from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js';
 
     // ===== Firebase config (jouw bestaande waarden) =====
     const firebaseConfig = {
@@ -4003,11 +4008,13 @@ async function notifyAdminOfPendingLeave(uid, year, month, rowKey, row) {
   
   const threadId = `leave:${uid}:${rowKey}`; // Uniek voor deze aanvraag
   const subject = `[Verlof] Nieuwe aanvraag: ${row.shift} op ${rowKey}`;
-  const body = `${meName} heeft een nieuwe aanvraag ingediend:
+const body = `${meName} heeft een nieuwe aanvraag ingediend:
 - Shift: ${row.shift}
 - Datum: ${rowKey.split('-').reverse().join('-')}
-- Omschrijving: ${row.omschrijving || '-'}`;
-${row.attachmentURL ? `\n- BIJLAGE: ${row.attachmentURL}` : ''}`;
+- Omschrijving: ${row.omschrijving || '-'}
+${row.attachmentURL ? `\n- BIJLAGE: ${row.attachmentURL}` : ''}
+`; // 👈 De backtick sluit hier de variabele af
+
   // Schrijf naar de centrale 'admin_mail' collectie
   await addDoc(collection(db, "admin_mail"), {
       fromUserId: uid,
