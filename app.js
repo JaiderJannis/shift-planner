@@ -16,7 +16,13 @@ import {
   onSnapshot,
   where,
   startAfter,
-  serverTimestamp 
+  serverTimestamp,
+  getStorage, 
+  ref, 
+  uploadBytes, 
+  getDownloadURL, 
+  deleteObject,
+  uploadBytesResumable
 } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
 
     // ===== Firebase config (jouw bestaande waarden) =====
@@ -33,6 +39,7 @@ import {
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
+    const storage = getStorage(app);
 
         // ======= State =======
     let currentUserId = null;
@@ -548,6 +555,7 @@ function initSelectors(){
         adminTabBtn.classList.remove('d-none');
         adminApprovalTabBtn.classList.remove('d-none');
         adminLeaveTabBtn.classList.remove('d-none');
+        document.getElementById('adminHomeTabBtn').classList.remove('d-none');
         
         // ✅ HIER TOEGEVOEGD:
     // Deze functies mogen alleen door een admin worden aangeroepen
@@ -1986,6 +1994,128 @@ approvalUserSelect?.addEventListener('change', async () => {
       renderHome();
 
     }
+// =============================================
+// 📈 ADMIN DASHBOARD
+// =============================================
+async function renderAdminDashboard() {
+  const adminHomeTab = document.getElementById('tab-admin-home');
+  if (!adminHomeTab) return; // Stop als het tabblad niet bestaat
+
+  // Zorg dat we de laatste data hebben
+  await loadAllUsers();
+
+  const elPending = document.getElementById('adminPendingList');
+  const elBehind = document.getElementById('adminBehindList');
+  const elStatPending = document.getElementById('statPendingMonths');
+  const elStatSick = document.getElementById('statSickHours');
+  const elStatLeave = document.getElementById('statLeaveHours');
+
+  if (!elPending) return; // Stop als de elementen er niet zijn
+
+  // Reset UI
+  elPending.innerHTML = '<tr><td colspan="3">Laden...</td></tr>';
+  elBehind.innerHTML = '<tr><td colspan="2">Laden...</td></tr>';
+  
+  let pendingCount = 0;
+  let sickMinutes = 0;
+  let leaveMinutes = 0;
+  let pendingHtml = '';
+  let behindHtml = '';
+
+  const now = new Date();
+  const currentY = now.getFullYear();
+  const currentM = now.getMonth(); // 0-11
+  
+  const prevDate = new Date(now.setDate(0)); // Zet op laatste dag vorige maand
+  const prevY = prevDate.getFullYear();
+  const prevM = prevDate.getMonth(); // 0-11
+  
+  for (const [uid, user] of Object.entries(dataStore.users)) {
+    if (user.role === 'admin') continue; // Sla andere admins over
+
+    const userName = user.name || user.email || uid;
+
+    // 1. Check voor 'ingediend'
+    for (const [y, months] of Object.entries(user.monthData || {})) {
+      for (const [m, data] of Object.entries(months || {})) {
+        if (data.status === 'submitted') {
+          pendingCount++;
+          pendingHtml += `
+            <tr>
+              <td>${userName}</td>
+              <td>${monthsFull[m]} ${y}</td>
+              <td>
+                <a href="#tab-goedkeuring" data-uid="${uid}" class="btn btn-sm btn-primary js-goto-approval">
+                  Beoordelen
+                </a>
+              </td>
+            </tr>`;
+        }
+      }
+    }
+
+    // 2. Check 'achter op planning' (vorige maand)
+    const prevMonthStatus = user.monthData?.[prevY]?.[prevM]?.status || 'draft';
+    if (prevMonthStatus === 'draft' || prevMonthStatus === 'rejected') {
+      behindHtml += `
+        <tr>
+          <td>${userName}</td>
+          <td><span class="badge ${prevMonthStatus === 'rejected' ? 'badge-rejected' : 'badge-draft'}">${prevMonthStatus}</span></td>
+        </tr>`;
+    }
+
+    // 3. Bereken uren voor huidige maand (Ziek/Verlof)
+    const monthData = user.monthData?.[currentY]?.[currentM]?.rows || {};
+    for (const row of Object.values(monthData)) {
+      if (row.status === 'approved' || !row.status) { // Alleen goedgekeurd of niet-verlof
+        if (row.shift === 'Ziekte') {
+          sickMinutes += Number(row.minutes) || 0;
+        }
+        if (row.shift === 'Verlof') {
+          leaveMinutes += Number(row.minutes) || 0;
+        }
+      }
+    }
+  }
+
+  // Update de UI
+  elStatPending.textContent = pendingCount;
+  elStatSick.textContent = fmt(sickMinutes);
+  elStatLeave.textContent = fmt(leaveMinutes);
+
+  elPending.innerHTML = pendingHtml || '<tr><td colspan="3" class="text-muted">Geen maanden ter goedkeuring.</td></tr>';
+  elBehind.innerHTML = behindHtml || '<tr><td colspan="2" class="text-muted">Iedereen is bij.</td></tr>';
+}
+
+// Activeer de refresh knop en de 'ga naar' knoppen
+document.addEventListener('click', e => {
+  if (e.target.id === 'adminDashboardRefreshBtn') {
+    toast('Dashboard vernieuwen...', 'info');
+    renderAdminDashboard();
+  }
+  if (e.target.classList.contains('js-goto-approval')) {
+    const uid = e.target.dataset.uid;
+    
+    // 1. Open de 'Goedkeuring' tab
+    const tabLink = document.querySelector('a[href="#tab-goedkeuring"]');
+    if (tabLink) new bootstrap.Tab(tabLink).show();
+
+    // 2. Selecteer de gebruiker
+    // Wacht even tot de tab-UI geladen is
+    setTimeout(() => {
+      const userSelect = document.getElementById('approvalUserSelect');
+      if (userSelect) {
+        userSelect.value = uid;
+        // Trigger de 'change' event handmatig om het overzicht te laden
+        userSelect.dispatchEvent(new Event('change'));
+      }
+    }, 200);
+  }
+});
+
+// Laad het dashboard wanneer de tab wordt geopend
+document.querySelector('a[href="#tab-admin-home"]')?.addEventListener('shown.bs.tab', renderAdminDashboard);
+
 // ✅ NIEUW: Listeners voor Verlofbeheer Tab
 document.querySelector('a[href="#tab-verlofbeheer"]')?.addEventListener('shown.bs.tab', async () => { // 👈 async
   toast('Verlof-aanvragen laden...', 'info');
