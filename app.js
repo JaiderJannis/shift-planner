@@ -983,7 +983,17 @@ async function renderMonth(year, month){
         <td><input class="form-control form-control-sm startInput" type="time" value="${r.start}"></td>
         <td><input class="form-control form-control-sm endInput" type="time" value="${r.end}"></td>
         <td><input class="form-control form-control-sm breakInput" type="number" min="0" value="${r.break}"></td>
-        <td><input class="form-control form-control-sm omschrijvingInput" type="text" value="${r.omschrijving}"></td>
+        <td class="d-flex align-items-center gap-1">
+  <input class="form-control form-control-sm omschrijvingInput" type="text" value="${r.omschrijving}">
+  <span 
+    class="material-icons-outlined attachment-icon ${r.attachmentURL ? 'has-attachment' : ''}" 
+    title="Bijlage beheren" 
+    data-key="${rowKey}" 
+    data-bs-toggle="modal" 
+    data-bs-target="#attachmentModal">
+    ${r.attachmentURL ? 'attach_file' : 'attachment'}
+  </span>
+</td>
         <td class="dur text-mono">${durationText}</td>`; 
       tbody.appendChild(tr);
 
@@ -3413,7 +3423,7 @@ async function loadAndRenderLeaveRequests() {
   requests.sort((a, b) => b.rowKey.localeCompare(a.rowKey));
 
   if (requests.length === 0) {
-    leaveRequestTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Geen openstaande aanvragen gevonden.</td></tr>';
+    leaveRequestTableBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Geen openstaande aanvragen gevonden.</td></tr>';
     return;
   }
 
@@ -3426,6 +3436,14 @@ async function loadAndRenderLeaveRequests() {
       </td>
       <td>${req.rowKey.split('-').reverse().join('-')}</td>
       <td>${req.note}</td>
+<td class="text-center">
+  ${req.data.attachmentURL ? 
+    `<a href="${req.data.attachmentURL}" target="_blank" class="btn btn-sm btn-outline-secondary" title="${req.data.attachmentName || 'Bekijk'}">
+      <span class="material-icons-outlined" style="font-size:16px">attach_file</span>
+    </a>` : 
+    '<span>-</span>'
+  }
+</td>
       <td class="text-end">
         <button class="btn btn-sm btn-success me-1" 
           data-action="approve" 
@@ -3989,7 +4007,7 @@ async function notifyAdminOfPendingLeave(uid, year, month, rowKey, row) {
 - Shift: ${row.shift}
 - Datum: ${rowKey.split('-').reverse().join('-')}
 - Omschrijving: ${row.omschrijving || '-'}`;
-
+${row.attachmentURL ? `\n- BIJLAGE: ${row.attachmentURL}` : ''}`;
   // Schrijf naar de centrale 'admin_mail' collectie
   await addDoc(collection(db, "admin_mail"), {
       fromUserId: uid,
@@ -4647,5 +4665,168 @@ async function notifyUserOfLeaveStatus(uid, rowData, dateKey, status) {
         toast('Export mislukt: ' + err.message, 'danger');
       }
     });
+// =============================================
+// 📎 BIJLAGE LOGICA
+// =============================================
+
+const attachmentModal = document.getElementById('attachmentModal');
+const currentAttachmentBox = document.getElementById('currentAttachmentBox');
+const currentAttachmentName = document.getElementById('currentAttachmentName');
+const downloadAttachmentBtn = document.getElementById('downloadAttachmentBtn');
+const deleteAttachmentBtn = document.getElementById('deleteAttachmentBtn');
+const uploadAttachmentBox = document.getElementById('uploadAttachmentBox');
+const uploadBoxLabel = document.getElementById('uploadBoxLabel');
+const attachmentUploadInput = document.getElementById('attachmentUploadInput');
+const uploadAttachmentBtn = document.getElementById('uploadAttachmentBtn');
+const progressContainer = document.getElementById('attachmentUploadProgressContainer');
+const progressBar = document.getElementById('attachmentUploadProgress');
+
+let currentRowKey = null; // Houdt bij welke rij we bewerken
+
+// 1. Modal openen: data vullen
+attachmentModal?.addEventListener('show.bs.modal', (e) => {
+  // Haal de 'rowKey' op van de paperclip-knop die de modal opende
+  const triggerButton = e.relatedTarget;
+  currentRowKey = triggerButton?.dataset?.key;
+  if (!currentRowKey) {
+    console.error("Geen rowKey gevonden voor bijlage modal");
+    return;
+  }
+  
+  // Haal de data voor deze rij
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const ud = getCurrentUserData();
+  const r = ud.monthData?.[y]?.[m]?.rows?.[currentRowKey];
+
+  if (!r) {
+    console.error("Kon rij-data niet vinden:", currentRowKey);
+    return;
+  }
+
+  // Reset de UI
+  attachmentUploadInput.value = null;
+  uploadAttachmentBtn.classList.add('d-none');
+  progressContainer.classList.add('d-none');
+  progressBar.style.width = '0%';
+
+  if (r.attachmentURL) {
+    // We hebben een bijlage: toon 'huidige' box
+    currentAttachmentBox.classList.remove('d-none');
+    currentAttachmentName.textContent = r.attachmentName || 'Bijlage';
+    downloadAttachmentBtn.href = r.attachmentURL;
+    uploadAttachmentBox.classList.add('d-none'); // Verberg upload-form
+  } else {
+    // Geen bijlage: toon 'upload' box
+    currentAttachmentBox.classList.add('d-none');
+    uploadAttachmentBox.classList.remove('d-none');
+    uploadBoxLabel.textContent = "Nog geen bijlage. Kies een bestand (max 5MB):";
+  }
+});
+
+// 2. Bestand kiezen: toon de upload-knop
+attachmentUploadInput?.addEventListener('change', () => {
+  if (attachmentUploadInput.files.length > 0) {
+    uploadAttachmentBtn.classList.remove('d-none');
+    uploadBoxLabel.textContent = `Geselecteerd: ${attachmentUploadInput.files[0].name}`;
+  } else {
+    uploadAttachmentBtn.classList.add('d-none');
+  }
+});
+
+// 3. Upload-knop
+uploadAttachmentBtn?.addEventListener('click', async () => {
+  if (!currentRowKey || !attachmentUploadInput.files.length) return;
+
+  const file = attachmentUploadInput.files[0];
+  if (file.size > 5 * 1024 * 1024) { // 5MB limit
+    return toast('Bestand is te groot (max 5MB)', 'danger');
+  }
+  
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const ud = getCurrentUserData();
+  const r = ud.monthData?.[y]?.[m]?.rows?.[currentRowKey];
+  if (!r) return;
+
+  // Maak uniek pad
+  const filePath = `attachments/${currentUserId}/${currentRowKey}/${file.name}`;
+  const storageRef = ref(storage, filePath);
+
+  // Toon progress bar
+  progressContainer.classList.remove('d-none');
+  uploadAttachmentBtn.classList.add('d-none');
+  
+  try {
+    const uploadTask = uploadBytesResumable(storageRef, file);
+
+    // Luister naar progress
+    uploadTask.on('state_changed', 
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        progressBar.style.width = progress + '%';
+      }, 
+      (error) => {
+        console.error("Upload fout:", error);
+        toast('Upload mislukt', 'danger');
+        progressContainer.classList.add('d-none');
+      }, 
+      async () => {
+        // Upload voltooid
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+        
+        // Sla op in Firestore
+        r.attachmentURL = downloadURL;
+        r.attachmentName = file.name;
+        await saveUserData();
+        
+        toast('Bijlage opgeslagen!', 'success');
+        
+        // Update UI
+        await renderMonth(y, m); // Herteken de maandtabel
+        bootstrap.Modal.getInstance(attachmentModal).hide();
+      }
+    );
+
+  } catch (err) {
+    console.error(err);
+    toast('Fout bij opslaan bijlage', 'danger');
+  }
+});
+
+// 4. Verwijder-knop
+deleteAttachmentBtn?.addEventListener('click', async () => {
+  if (!currentRowKey) return;
+  if (!confirm('Weet je zeker dat je deze bijlage wilt verwijderen?')) return;
+
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const ud = getCurrentUserData();
+  const r = ud.monthData?.[y]?.[m]?.rows?.[currentRowKey];
+  if (!r || !r.attachmentName) return;
+
+  const filePath = `attachments/${currentUserId}/${currentRowKey}/${r.attachmentName}`;
+  const storageRef = ref(storage, filePath);
+
+  try {
+    // Verwijder uit Storage
+    await deleteObject(storageRef);
+
+    // Verwijder uit Firestore
+    delete r.attachmentURL;
+    delete r.attachmentName;
+    await saveUserData();
+
+    toast('Bijlage verwijderd', 'success');
+
+    // Update UI
+    await renderMonth(y, m); // Herteken de maandtabel
+    bootstrap.Modal.getInstance(attachmentModal).hide();
+
+  } catch (err) {
+    console.error("Verwijderfout:", err);
+    toast('Verwijderen mislukt', 'danger');
+  }
+});
 
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
