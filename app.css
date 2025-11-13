@@ -393,4 +393,19 @@ body.dark-mode #approvalYearlyOverview .btn-outline-secondary:hover {
 .bg-warning { background-color: #ffc107 !important; }
 .bg-danger { background-color: #dc3545 !important; }
 .bg-info { background-color: #0dcaf0 !important; }
+/* === BIJLAGE ICOON === */
+.attachment-icon {
+  font-size: 16px;
+  vertical-align: middle;
+  cursor: pointer;
+  color: #6c757d; /* Standaard grijs */
+  transition: color 0.15s ease;
+}
+.attachment-icon:hover {
+  color: #0d6efd; /* Primair kleur bij hover */
+}
+.attachment-icon.has-attachment {
+  color: #0d6efd; /* Blauw als er een bijlage is */
+  transform: rotate(45deg);
+}
 
