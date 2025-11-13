@@ -806,6 +806,43 @@
     </div>
   </div>
 </div>
+<!-- Ziekte modal -->
+<div class="modal fade" id="attachmentModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Shift Bijlage</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        
+        <div id="currentAttachmentBox" class="d-none">
+          <p>Huidige bijlage:</p>
+          <div class="alert alert-info d-flex justify-content-between align-items-center">
+            <span id="currentAttachmentName">-</span>
+            <div>
+              <a id="downloadAttachmentBtn" href="#" target="_blank" class="btn btn-sm btn-success">Download</a>
+              <button id="deleteAttachmentBtn" class_="btn btn-sm btn-danger">Verwijder</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="uploadAttachmentBox">
+          <p id="uploadBoxLabel">Nog geen bijlage. Kies een bestand (max 5MB):</p>
+          <input type="file" id="attachmentUploadInput" class="form-control" accept=".pdf,.png,.jpg,.jpeg,.heic">
+          <div class="progress mt-2 d-none" id="attachmentUploadProgressContainer">
+             <div id="attachmentUploadProgress" class="progress-bar" role="progressbar" style="width: 0%"></div>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Sluiten</button>
+        <button id="uploadAttachmentBtn" class="btn btn-primary d-none">Upload en Opslaan</button>
+      </div>
+    </div>
+  </div>
+</div>
 <!-- Profile modal -->
 <div class="modal fade" id="profileModal" tabindex="-1">
   <div class="modal-dialog modal-lg"> <div class="modal-content">
