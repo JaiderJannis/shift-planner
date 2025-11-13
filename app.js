@@ -1467,6 +1467,14 @@ function renderHistory() {
     totals.holiday += holiday;
     totals.bench += bench;
 
+// --- HIER IS DE WIJZIGING (BODY) ---
+    const diffSign = diff >= 0 ? '+' : '-';
+    // Bepaal kleur: groen voor positief, rood voor negatief, grijs voor 0
+    const diffColor = diff > 0 ? 'text-success' : (diff < 0 ? 'text-danger' : 'text-muted');
+    const diffText = `${diffSign}${fmtTime(Math.abs(diff))}`;
+    // Maak de HTML string met de juiste class
+    const diffHtml = `<span class="${diffColor} fw-semibold">${diffText}</span>`;
+
     const rowMap = {
       monthLabel: monthsFull[m],
       target: `${Math.floor(target/60)}u ${target%60}min`,
@@ -1483,6 +1491,13 @@ function renderHistory() {
   }
 
   bodyHtml += '</tbody>';
+
+// --- HIER IS DE WIJZIGING (FOOTER) ---
+  const totalDiff = totals.diff;
+  const totalDiffSign = totalDiff >= 0 ? '+' : '-';
+  const totalDiffColor = totalDiff > 0 ? 'text-success' : (totalDiff < 0 ? 'text-danger' : 'text-muted');
+  const totalDiffText = `${totalDiffSign}${fmtTime(Math.abs(totalDiff))}`;
+  const totalDiffHtml = `<span class="${totalDiffColor} fw-semibold">${totalDiffText}</span>`;
 
   // footer (totaal)
   const footerMap = {
