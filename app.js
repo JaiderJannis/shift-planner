@@ -1546,7 +1546,7 @@ function renderHistory() {
     return `<th>${footerMap[c.key] || ''}</th>`;
   }).join('');
   // === EINDE WIJZIGING (totaal-rij) ===
-
+}
   const tfootHtml = `<tfoot class="table-light"><tr>${tfootCells}</tr></tfoot>`;
 
   // zet alles in de table
