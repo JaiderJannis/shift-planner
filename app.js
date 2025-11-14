@@ -1479,6 +1479,29 @@ function renderHistory() {
       holiday: `${Math.floor(holiday/60)}u ${holiday%60}min`
     };
 
+// === START WIJZIGING (maand-rij) ===
+    // We bouwen de cellen nu op met een check voor de 'diff' kolom
+    const rowCells = visibleCols.map(c => {
+      if (c.key === 'diff') {
+        const diffValue = diff; // 'diff' is hier berekend
+        const diffText = rowMap[c.key]; // De opgemaakte string (bv: "+10u 0min")
+        
+        let colorClass = '';
+        if (diffValue > 0) {
+          colorClass = 'text-success'; // Bootstrap groen
+        } else if (diffValue < 0) {
+          colorClass = 'text-danger'; // Bootstrap rood
+        }
+        return `<td class="fw-medium ${colorClass}">${diffText}</td>`;
+      }
+      // Andere kolommen
+      return `<td>${rowMap[c.key] || ''}</td>`;
+    }).join('');
+    
+    bodyHtml += `<tr>${rowCells}</tr>`;
+    // === EINDE WIJZIGING (maand-rij) ===
+  }
+
     bodyHtml += `<tr>${visibleCols.map(c => `<td>${rowMap[c.key] || ''}</td>`).join('')}</tr>`;
   }
 
@@ -1500,6 +1523,29 @@ function renderHistory() {
     if (c.key === 'monthLabel') return `<th>Totaal</th>`;
     return `<th>${footerMap[c.key] || ''}</th>`;
   }).join('');
+
+  // === START WIJZIGING (totaal-rij) ===
+  // Zelfde logica voor de footer
+  const tfootCells = visibleCols.map(c => {
+    if (c.key === 'monthLabel') return `<th>Totaal</th>`;
+
+    if (c.key === 'diff') {
+      const diffValue = totals.diff; // De totale 'diff'
+      const diffText = footerMap[c.key]; // De opgemaakte string
+      
+      let colorClass = '';
+      if (diffValue > 0) {
+        colorClass = 'text-success';
+      } else if (diffValue < 0) {
+        colorClass = 'text-danger';
+      }
+      return `<th class="${colorClass}">${diffText}</th>`;
+    }
+    
+    // Andere kolommen
+    return `<th>${footerMap[c.key] || ''}</th>`;
+  }).join('');
+  // === EINDE WIJZIGING (totaal-rij) ===
 
   const tfootHtml = `<tfoot class="table-light"><tr>${tfootCells}</tr></tfoot>`;
 
