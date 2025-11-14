@@ -1524,29 +1524,6 @@ function renderHistory() {
     return `<th>${footerMap[c.key] || ''}</th>`;
   }).join('');
 
-  // === START WIJZIGING (totaal-rij) ===
-  // Zelfde logica voor de footer
-  const tfootCells = visibleCols.map(c => {
-    if (c.key === 'monthLabel') return `<th>Totaal</th>`;
-
-    if (c.key === 'diff') {
-      const diffValue = totals.diff; // De totale 'diff'
-      const diffText = footerMap[c.key]; // De opgemaakte string
-      
-      let colorClass = '';
-      if (diffValue > 0) {
-        colorClass = 'text-success';
-      } else if (diffValue < 0) {
-        colorClass = 'text-danger';
-      }
-      return `<th class="${colorClass}">${diffText}</th>`;
-    }
-    
-    // Andere kolommen
-    return `<th>${footerMap[c.key] || ''}</th>`;
-  }).join('');
-  // === EINDE WIJZIGING (totaal-rij) ===
-}
   const tfootHtml = `<tfoot class="table-light"><tr>${tfootCells}</tr></tfoot>`;
 
   // zet alles in de table
