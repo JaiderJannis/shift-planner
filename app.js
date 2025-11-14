@@ -1479,7 +1479,7 @@ function renderHistory() {
       holiday: `${Math.floor(holiday/60)}u ${holiday%60}min`
     };
 
-// === START WIJZIGING (maand-rij) ===
+    // === START WIJZIGING (maand-rij) ===
     // We bouwen de cellen nu op met een check voor de 'diff' kolom
     const rowCells = visibleCols.map(c => {
       if (c.key === 'diff') {
@@ -1502,9 +1502,6 @@ function renderHistory() {
     // === EINDE WIJZIGING (maand-rij) ===
   }
 
-    bodyHtml += `<tr>${visibleCols.map(c => `<td>${rowMap[c.key] || ''}</td>`).join('')}</tr>`;
-  }
-
   bodyHtml += '</tbody>';
 
   // footer (totaal)
@@ -1519,10 +1516,28 @@ function renderHistory() {
     holiday: `${Math.floor(totals.holiday/60)}u ${totals.holiday%60}min`
   };
 
+  // === START WIJZIGING (totaal-rij) ===
+  // Zelfde logica voor de footer
   const tfootCells = visibleCols.map(c => {
     if (c.key === 'monthLabel') return `<th>Totaal</th>`;
+
+    if (c.key === 'diff') {
+      const diffValue = totals.diff; // De totale 'diff'
+      const diffText = footerMap[c.key]; // De opgemaakte string
+      
+      let colorClass = '';
+      if (diffValue > 0) {
+        colorClass = 'text-success';
+      } else if (diffValue < 0) {
+        colorClass = 'text-danger';
+      }
+      return `<th class="${colorClass}">${diffText}</th>`;
+    }
+    
+    // Andere kolommen
     return `<th>${footerMap[c.key] || ''}</th>`;
   }).join('');
+  // === EINDE WIJZIGING (totaal-rij) ===
 
   const tfootHtml = `<tfoot class="table-light"><tr>${tfootCells}</tr></tfoot>`;
 
@@ -1533,6 +1548,7 @@ function renderHistory() {
   const newTbody = table.querySelector('tbody');
   if (newTbody) newTbody.id = 'historyBody';
 }
+
 // === Verlof / Schoolverlof instellingen en badges ===
 
 function getLeaveAllowanceMinutes() {
