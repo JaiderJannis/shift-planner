@@ -1471,15 +1471,15 @@ function renderHistory() {
       monthLabel: monthsFull[m],
       target: `${Math.floor(target/60)}u ${target%60}min`,
       planned: `${Math.floor(planned/60)}u ${planned%60}min`,
-      diff: `${diff>=0?'+':''}${Math.floor(Math.abs(diff)/60)}u ${Math.abs(diff)%60}min`,
+      // === REGEL 1 AANGEPAST ===
+      diff: `${diff > 0 ? '+' : (diff < 0 ? '-' : '')}${Math.floor(Math.abs(diff)/60)}u ${Math.abs(diff)%60}min`,
       leave: `${Math.floor(leave/60)}u ${leave%60}min`,
       sick: `${Math.floor(sick/60)}u ${sick%60}min`,
       bench: `${Math.floor(bench/60)}u ${bench%60}min`,
       school: `${Math.floor(school/60)}u ${school%60}min`,
       holiday: `${Math.floor(holiday/60)}u ${holiday%60}min`
     };
-
-    // === START WIJZIGING (maand-rij) ===
+    
     // We bouwen de cellen nu op met een check voor de 'diff' kolom
     const rowCells = visibleCols.map(c => {
       if (c.key === 'diff') {
@@ -1492,6 +1492,7 @@ function renderHistory() {
         } else if (diffValue < 0) {
           colorClass = 'text-danger'; // Bootstrap rood
         }
+        // Voeg ook fw-medium toe voor leesbaarheid
         return `<td class="fw-medium ${colorClass}">${diffText}</td>`;
       }
       // Andere kolommen
@@ -1499,7 +1500,6 @@ function renderHistory() {
     }).join('');
     
     bodyHtml += `<tr>${rowCells}</tr>`;
-    // === EINDE WIJZIGING (maand-rij) ===
   }
 
   bodyHtml += '</tbody>';
@@ -1508,15 +1508,15 @@ function renderHistory() {
   const footerMap = {
     target: `${Math.floor(totals.target/60)}u ${totals.target%60}min`,
     planned: `${Math.floor(totals.planned/60)}u ${totals.planned%60}min`,
-    diff: `${totals.diff>=0?'+':''}${Math.floor(Math.abs(totals.diff)/60)}u ${Math.abs(totals.diff)%60}min`,
+    // === REGEL 2 AANGEPAST ===
+    diff: `${totals.diff > 0 ? '+' : (totals.diff < 0 ? '-' : '')}${Math.floor(Math.abs(totals.diff)/60)}u ${Math.abs(totals.diff)%60}min`,
     leave: `${Math.floor(totals.leave/60)}u ${totals.leave%60}min`,
     sick: `${Math.floor(totals.sick/60)}u ${totals.sick%60}min`,
     bench: `${Math.floor(totals.bench/60)}u ${totals.bench%60}min`,
     school: `${Math.floor(totals.school/60)}u ${totals.school%60}min`,
     holiday: `${Math.floor(totals.holiday/60)}u ${totals.holiday%60}min`
   };
-
-  // === START WIJZIGING (totaal-rij) ===
+  
   // Zelfde logica voor de footer
   const tfootCells = visibleCols.map(c => {
     if (c.key === 'monthLabel') return `<th>Totaal</th>`;
@@ -1537,7 +1537,6 @@ function renderHistory() {
     // Andere kolommen
     return `<th>${footerMap[c.key] || ''}</th>`;
   }).join('');
-  // === EINDE WIJZIGING (totaal-rij) ===
 
   const tfootHtml = `<tfoot class="table-light"><tr>${tfootCells}</tr></tfoot>`;
 
@@ -1548,6 +1547,7 @@ function renderHistory() {
   const newTbody = table.querySelector('tbody');
   if (newTbody) newTbody.id = 'historyBody';
 }
+
 
 // === Verlof / Schoolverlof instellingen en badges ===
 
