@@ -445,12 +445,13 @@ currentUserId = user.uid;
         if (ud?.settings?.defaultTab) {
           const tabLink = document.querySelector(`a[href="${ud.settings.defaultTab}"]`);
           if (tabLink) {
-            // Verberg de standaard 'Home' tab
-            document.getElementById('tab-home').classList.remove('show', 'active');
-            document.querySelector('a[href="#tab-home"]').classList.remove('active');
+            // De .show() functie hieronder deactiveert automatisch de 'Home' tab.
+            // Deze regels zijn dus niet nodig en kunnen conflicten geven:
+            // document.getElementById('tab-home').classList.remove('show', 'active');
+            // document.querySelector('a[href="#tab-home"]').classList.remove('active');
             
             // Toon de gekozen tab
-            new bootstrap.Tab(tabLink).show();
+            bootstrap.Tab.getOrCreateInstance(tabLink).show(); // 👈 CORRECTIE
           }
         }
       } catch (e) {
