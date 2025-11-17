@@ -440,24 +440,7 @@ currentUserId = user.uid;
           sidebar.classList.add('collapsed');
           main.classList.add('collapsed');
       }
-      // ✅ HIER TOEVOEGEN: Opstart-tabblad instellen
-      try {
-        if (ud?.settings?.defaultTab) {
-          const tabLink = document.querySelector(`a[href="${ud.settings.defaultTab}"]`);
-          if (tabLink) {
-            // De .show() functie hieronder deactiveert automatisch de 'Home' tab.
-            // Deze regels zijn dus niet nodig en kunnen conflicten geven:
-            // document.getElementById('tab-home').classList.remove('show', 'active');
-            // document.querySelector('a[href="#tab-home"]').classList.remove('active');
-            
-            // Toon de gekozen tab
-            bootstrap.Tab.getOrCreateInstance(tabLink).show(); // 👈 CORRECTIE
-          }
-        }
-      } catch (e) {
-        console.warn("Kon standaard tab niet laden:", e);
-      }
-      // EINDE TOEVOEGING
+
       initSelectors();
       renderAll();
       await revealAdminIfNeeded();
@@ -481,6 +464,25 @@ currentUserId = user.uid;
       bindMailboxUIOnce();
       listenMailbox(user.uid);
       // --- EINDE NIEUWE LOGICA ---
+      // ✅ HIER TOEVOEGEN: Opstart-tabblad instellen
+      try {
+        if (ud?.settings?.defaultTab) {
+          const tabLink = document.querySelector(`a[href="${ud.settings.defaultTab}"]`);
+          if (tabLink) {
+            // De .show() functie hieronder deactiveert automatisch de 'Home' tab.
+            // Deze regels zijn dus niet nodig en kunnen conflicten geven:
+            // document.getElementById('tab-home').classList.remove('show', 'active');
+            // document.querySelector('a[href="#tab-home"]').classList.remove('active');
+            
+            // Toon de gekozen tab
+            bootstrap.Tab.getOrCreateInstance(tabLink).show(); // 👈 CORRECTIE
+          }
+        }
+      } catch (e) {
+        console.warn("Kon standaard tab niet laden:", e);
+      }
+      // EINDE TOEVOEGING  
+
 });
 
     logoutBtn?.addEventListener('click', async ()=>{
