@@ -4889,7 +4889,7 @@ deleteAttachmentBtn?.addEventListener('click', async () => {
   }
 });
 // ==========================================
-// 📅 TEAM ROOSTER (ADMIN) - LEGENDE PER USER
+// 📅 TEAM ROOSTER (ADMIN) - ALGEMENE LEGENDE
 // ==========================================
 
 // 🎨 Helper: Genereer een consistente pastelkleur op basis van tekst
@@ -4906,19 +4906,19 @@ function stringToColor(str) {
 function getShiftStyle(shiftName) {
   const sLower = shiftName.toLowerCase();
 
-  // 1. Vaste systeem-shiften (blijven altijd hetzelfde)
+  // 1. Vaste systeem-shiften
   if (['ziekte', 'ziek'].includes(sLower))       return { class: 'bg-shift-sick',   letter: 'Z', label: 'Ziekte', isDynamic: false };
   if (['verlof', 'feestdag'].includes(sLower))   return { class: 'bg-shift-leave',  letter: 'V', label: 'Verlof', isDynamic: false };
   if (['school', 'schoolverlof'].includes(sLower)) return { class: 'bg-shift-school', letter: 'S', label: 'School', isDynamic: false };
   if (sLower === 'bench')                        return { class: '', letter: '-', label: 'Bench', isDynamic: false };
 
-  // 2. Semi-vaste kleuren (Vroege/Late/Nacht etc.)
+  // 2. Semi-vaste kleuren
   if (sLower.includes('vroege'))                 return { class: 'bg-shift-vroege', letter: 'Vr', label: 'Vroege', isDynamic: false };
   if (sLower.includes('late'))                   return { class: 'bg-shift-late',   letter: 'L',  label: 'Late', isDynamic: false };
   if (sLower.includes('nacht'))                  return { class: 'bg-shift-nacht',  letter: 'N',  label: 'Nacht', isDynamic: false };
   if (sLower.includes('dag'))                    return { class: 'bg-shift-dag',    letter: 'D',  label: 'Dagdienst', isDynamic: false };
 
-  // 3. 🚀 DYNAMISCH: Voor alle custom shiften
+  // 3. 🚀 DYNAMISCH: Voor alle andere shiften
   const dynamicColor = stringToColor(shiftName);
   const letter = shiftName.substring(0, 2).toUpperCase();
 
@@ -4969,7 +4969,7 @@ function initRoosterSelectors() {
 function renderTeamRooster() {
   const rBody = document.getElementById('roosterBody');
   const rHead = document.getElementById('roosterHeaderRow');
-  const rLegend = document.getElementById('roosterLegendContainer'); // Container voor legende
+  const rLegend = document.getElementById('roosterLegendContainer');
   const rMonth = document.getElementById('roosterMonth');
   const rYear = document.getElementById('roosterYear');
 
@@ -4983,9 +4983,8 @@ function renderTeamRooster() {
   const month = Number(rMonth.value);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   
-  // Hier bewaren we per user welke shiften ze hebben
-  // Structuur: [ { name: "Jaider", shifts: Map(...) }, ... ]
-  const userLegends = []; 
+  // Map om ALLE unieke shiften van de hele tabel bij te houden
+  const globalUniqueShifts = new Map(); 
 
   // A. Header bouwen
   let headerHtml = '<th style="min-width:150px; background:#fff; position:sticky; left:0; z-index:30;">Werknemer</th>';
@@ -5012,9 +5011,6 @@ function renderTeamRooster() {
     let rowHtml = `<th style="background:#fff; position:sticky; left:0; z-index:20;">${userName}</th>`;
 
     const monthData = u.monthData?.[year]?.[month]?.rows || {};
-    
-    // Map om unieke shiften voor DEZE user bij te houden
-    const uniqueShiftsForUser = new Map();
 
     for (let d = 1; d <= daysInMonth; d++) {
       const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -5036,9 +5032,10 @@ function renderTeamRooster() {
         cellClass = style.class;
         cellStyle = style.style || '';
 
-        // Opslaan voor de legende van deze user
+        // Voeg toe aan de ALGEMENE legende lijst
         if (style.letter !== '-') {
-           uniqueShiftsForUser.set(style.label, style);
+            // Gebruik label als key, zodat we dubbels voorkomen
+            globalUniqueShifts.set(style.label, style);
         }
       }
 
@@ -5047,36 +5044,24 @@ function renderTeamRooster() {
           <div class="rooster-content">${cellContent}</div>
         </td>`;
     }
-    
-    // Als deze user shiften heeft, voeg toe aan de lijst voor de legende
-    if (uniqueShiftsForUser.size > 0) {
-        userLegends.push({
-            name: userName,
-            shifts: Array.from(uniqueShiftsForUser.values()).sort((a, b) => a.label.localeCompare(b.label))
-        });
-    }
-
     tr.innerHTML = rowHtml;
     rBody.appendChild(tr);
   });
 
-  // C. Legende Genereren (Per User)
-  if (rLegend && userLegends.length > 0) {
-    let legendHtml = '<h6 class="small text-muted fw-bold mb-2">Legende per gebruiker:</h6><div class="row g-2">';
+  // C. Legende Genereren (Algemeen)
+  if (rLegend && globalUniqueShifts.size > 0) {
+    let legendHtml = '<h6 class="small text-muted fw-bold mb-2">Legende (Algemeen):</h6><div class="d-flex flex-wrap gap-3 small">';
     
-    userLegends.forEach(user => {
-        let badgesHtml = user.shifts.map(s => {
-            const c = s.class || '';
-            const st = s.style || '';
-            return `<span class="badge ${c} border text-dark" style="font-weight:normal; font-size:0.75rem; ${st}">${s.letter} = ${s.label}</span>`;
-        }).join(' ');
+    // Sorteer alfabetisch op naam
+    const sortedShifts = Array.from(globalUniqueShifts.values()).sort((a, b) => a.label.localeCompare(b.label));
 
+    sortedShifts.forEach(s => {
+        const c = s.class || '';
+        const st = s.style || '';
         legendHtml += `
-          <div class="col-12">
-            <div class="d-flex align-items-center flex-wrap gap-2 small bg-light p-1 rounded border">
-              <strong class="text-nowrap me-2" style="min-width:120px;">${user.name}:</strong>
-              ${badgesHtml}
-            </div>
+          <div class="d-flex align-items-center gap-1">
+            <span class="badge ${c} border text-dark" style="min-width:25px; font-weight:normal; font-size:0.75rem; ${st}">${s.letter}</span> 
+            <span>${s.label}</span>
           </div>`;
     });
     
