@@ -4887,6 +4887,7 @@ deleteAttachmentBtn?.addEventListener('click', async () => {
     console.error("Verwijderfout:", err);
     toast('Verwijderen mislukt', 'danger');
   }
+});
 // ==========================================
 // 📅 TEAM ROOSTER (ADMIN) - VERBETERDE VERSIE
 // ==========================================
@@ -5024,7 +5025,6 @@ function renderTeamRooster() {
 document.querySelector('a[href="#tab-team-rooster"]')?.addEventListener('shown.bs.tab', () => {
     initRoosterSelectors();
     renderTeamRooster();
-});
 });
 
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
