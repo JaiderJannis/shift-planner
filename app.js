@@ -730,20 +730,15 @@ function renderShifts() {
 
   const selectedYear = filterShiftYear.value ? Number(filterShiftYear.value) : null;
 
-  // Leegmaken
   shiftTableBody.innerHTML = '';
 
-  // Opnieuw opbouwen
   order.forEach(name => {
     const sh = shifts[name];
     if (!sh) return;
 
-    // ✅ Filteren op gekozen jaar
     if (selectedYear) {
       const startY = sh.startDate ? new Date(sh.startDate).getFullYear() : null;
       const endY = sh.endDate ? new Date(sh.endDate).getFullYear() : null;
-
-      // Geen overlap → overslaan
       if (
         (startY && endY && (selectedYear < startY || selectedYear > endY)) ||
         (startY && !endY && selectedYear < startY) ||
@@ -753,12 +748,18 @@ function renderShifts() {
       }
     }
 
+    // 🎨 Kleurbolletje voor visuele indicatie in de lijst
+    const colorDot = sh.color 
+      ? `<span class="d-inline-block rounded-circle border me-2" style="width:12px; height:12px; background-color:${sh.color};"></span>` 
+      : '';
+
     const tr = document.createElement('tr');
     tr.dataset.name = name;
     tr.setAttribute('draggable', true);
     tr.innerHTML = `
       <td class="fw-medium">
-        <span class="material-icons-outlined drag-handle me-1" style="cursor:grab;">drag_indicator</span>${name}
+        <span class="material-icons-outlined drag-handle me-1" style="cursor:grab; font-size:18px; vertical-align:middle;">drag_indicator</span>
+        ${colorDot}${name}
       </td>
       <td class="text-mono">${sh.start || ''}</td>
       <td class="text-mono">${sh.end || ''}</td>
@@ -766,57 +767,66 @@ function renderShifts() {
       <td>${sh.project || ''}</td>
       <td>${toDisplayDate(sh.startDate)} → ${toDisplayDate(sh.endDate)}</td>
       <td class="text-end">
-        <button class="btn btn-sm btn-warning me-1" data-name="${name}" data-act="edit">Bewerk</button>
-        <button class="btn btn-sm btn-danger" data-name="${name}" data-act="delete">Verwijder</button>
+        <button class="btn btn-sm btn-outline-primary me-1" data-name="${name}" data-act="copy" title="Kopieer">
+          <span class="material-icons-outlined" style="font-size:16px">content_copy</span>
+        </button>
+        <button class="btn btn-sm btn-warning me-1" data-name="${name}" data-act="edit" title="Bewerk">
+           <span class="material-icons-outlined" style="font-size:16px">edit</span>
+        </button>
+        <button class="btn btn-sm btn-danger" data-name="${name}" data-act="delete" title="Verwijder">
+           <span class="material-icons-outlined" style="font-size:16px">delete</span>
+        </button>
       </td>`;
     shiftTableBody.appendChild(tr);
   });
 
-  // ✅ Activeer SortableJS
-  if (shiftTableBody.sortableInstance) {
-    shiftTableBody.sortableInstance.destroy();
-  }
-
+  // Sortable init...
+  if (shiftTableBody.sortableInstance) shiftTableBody.sortableInstance.destroy();
   shiftTableBody.sortableInstance = new Sortable(shiftTableBody, {
-    handle: '.drag-handle',
-    animation: 150,
-    fallbackOnBody: true,
-    swapThreshold: 0.65,
-    ghostClass: 'bg-light',
+    handle: '.drag-handle', animation: 150, fallbackOnBody: true, swapThreshold: 0.65, ghostClass: 'bg-light',
     onEnd: async (evt) => {
       const newOrder = Array.from(shiftTableBody.querySelectorAll('tr')).map(tr => tr.dataset.name);
-      ud.shiftOrder = newOrder;
-      await saveUserData();
-      toast('Volgorde opgeslagen', 'success');
+      ud.shiftOrder = newOrder; await saveUserData(); toast('Volgorde opgeslagen', 'success');
     }
   });
 
-  // acties
+  // BUTTON ACTIONS
   shiftTableBody.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', async () => {
       const act = btn.dataset.act, name = btn.dataset.name;
+      const sh = ud.shifts[name];
+
       if (act === 'delete') {
         if (!confirm(`Shift ${name} verwijderen?`)) return;
         delete ud.shifts[name];
         ud.shiftOrder = (ud.shiftOrder || []).filter(n => n !== name);
-        await saveUserData();
-        renderShifts();
-      } else if (act === 'edit') {
-        const sh = ud.shifts[name];
+        await saveUserData(); renderShifts();
+      } 
+      
+      // 📋 KOPIEER LOGICA
+      else if (act === 'copy') {
+        if (!sh) return;
+        // Vul modal in met data van de shift
+        newShiftName.value = `${name} (kopie)`; // Voorstel naam
+        document.getElementById('newShiftShort').value = sh.shortName || '';
+        document.getElementById('newShiftColor').value = sh.color || '#e9ecef';
+        newShiftStart.value = sh.start || '00:00';
+        newShiftEnd.value = sh.end || '00:00';
+        newShiftBreak.value = sh.break || 0;
+        newShiftProjectSelect.value = sh.project || '';
+        newShiftStartDate.value = sh.startDate || '';
+        newShiftEndDate.value = sh.endDate || '';
         
-        // ✅ VEILIGHEIDSCHECK: Als de shift data mist, stop dan (voorkomt crash)
-        if (!sh) {
-            console.error(`Shift data voor '${name}' ontbreekt!`);
-            toast(`Fout: Kan '${name}' niet laden. Verwijder deze shift en maak hem opnieuw aan.`, 'danger');
-            return;
-        }
-
+        // Open modal (we slaan pas op als gebruiker op Opslaan klikt)
+        new bootstrap.Modal(document.getElementById('shiftModal')).show();
+      } 
+      
+      // ✏️ BEWERK LOGICA
+      else if (act === 'edit') {
+        if (!sh) return;
         newShiftName.value = name;
-        
-        // Vul het afkorting veld in
-        const shortInput = document.getElementById('newShiftShort');
-        if (shortInput) shortInput.value = sh.shortName || '';
-
+        document.getElementById('newShiftShort').value = sh.shortName || '';
+        document.getElementById('newShiftColor').value = sh.color || '#e9ecef';
         newShiftStart.value = sh.start || '08:00';
         newShiftEnd.value = sh.end || '16:00';
         newShiftBreak.value = sh.break || 0;
@@ -824,12 +834,9 @@ function renderShifts() {
         newShiftStartDate.value = sh.startDate || '';
         newShiftEndDate.value = sh.endDate || '';
         
-        // Tijdelijk verwijderen om te kunnen overschrijven bij opslaan
-        // (Let op: dit betekent dat als je annuleert, de shift weg is uit de lijst tot je refresht. 
-        //  Een betere manier is om de key pas aan te passen bij opslaan, maar dit was je bestaande logica).
+        // Tijdelijk verwijderen (zodat naamwijziging geen duplicaat maakt)
         delete ud.shifts[name];
         await saveUserData();
-        
         new bootstrap.Modal(document.getElementById('shiftModal')).show();
       }
     });
@@ -840,13 +847,14 @@ function renderShifts() {
       const name = newShiftName.value.trim(); 
       if(!name) return toast('Vul shift naam in','warning');
       
-      // ✅ DEZE REGEL ONTBRAK: Haal de waarde op uit het invulveld
       const shortName = document.getElementById('newShiftShort')?.value.trim() || '';
+      const color = document.getElementById('newShiftColor')?.value || '#e9ecef'; // 👈 NIEUW: Kleur ophalen
 
       const ud = getCurrentUserData();
       ud.shifts = ud.shifts || {};
       ud.shifts[name] = {
-        shortName: shortName, // Nu is deze variabele bekend
+        shortName: shortName,
+        color: color,       // 👈 NIEUW: Opslaan
         start: newShiftStart.value || '00:00',
         end: newShiftEnd.value || '00:00',
         break: Number(newShiftBreak.value) || 0,
@@ -869,6 +877,7 @@ function renderShifts() {
       newShiftStartDate.value=''; 
       newShiftEndDate.value='';
       if(document.getElementById('newShiftShort')) document.getElementById('newShiftShort').value = '';
+      if(document.getElementById('newShiftColor')) document.getElementById('newShiftColor').value = '#e9ecef'; // Reset kleur
       
       toast('Shift opgeslagen','success');
     });
@@ -4938,34 +4947,46 @@ function stringToColor(str) {
 // Helper: Bepaal stijl
 function getShiftStyle(shiftName, userShifts = null) {
   const sLower = shiftName.toLowerCase();
-
-  // Probeer de afkorting te vinden in de shifts van de specifieke gebruiker
-  // Als userShifts niet is meegegeven, val terug op de huidige gebruiker (voor zekerheid)
   const sourceShifts = userShifts || getCurrentUserData().shifts;
   const shiftDef = sourceShifts ? sourceShifts[shiftName] : null;
   
-  // 1. HEEFT DEZE SHIFT BIJ DEZE USER EEN EIGEN AFKORTING?
+  // 1. EIGEN AFKORTING?
   let letter = '';
   if (shiftDef && shiftDef.shortName) {
       letter = shiftDef.shortName;
   } else {
-      // Fallback: Eerste 2 letters
       letter = shiftName.substring(0, 2).toUpperCase();
   }
 
-  // 2. Vaste systeem-shiften (Kleur vast, maar letter kan overschreven zijn)
+  // 2. EIGEN KLEUR? (Dit is nieuw!)
+  // Als de gebruiker een kleur heeft gekozen, heeft dat voorrang op alles!
+  if (shiftDef && shiftDef.color && shiftDef.color !== '#e9ecef') { // #e9ecef is default grijs
+      // We moeten bepalen of de tekst wit of zwart moet zijn o.b.v. de achtergrond
+      // Simpele check: is het een donkere kleur? (niet perfect, maar werkt vaak)
+      // Voor nu zetten we text op 'auto' (zwart) of wit als je dat wilt.
+      return {
+          class: '',
+          style: `background-color: ${shiftDef.color}; color: #000; font-weight:600; border:1px solid rgba(0,0,0,0.1);`, 
+          letter: letter,
+          label: shiftName,
+          isGlobal: false // Custom kleuren zijn meestal specifiek
+      };
+  }
+
+  // 3. Vaste systeem-shiften (Als er geen eigen kleur is gekozen)
   if (['ziekte', 'ziek'].includes(sLower))       return { class: 'bg-shift-sick',   letter: letter || 'Z', label: 'Ziekte', isGlobal: true };
   if (['verlof', 'feestdag'].includes(sLower))   return { class: 'bg-shift-leave',  letter: 'V', label: 'Verlof', isGlobal: true }; 
   if (['school', 'schoolverlof'].includes(sLower)) return { class: 'bg-shift-school', letter: 'S', label: 'School', isGlobal: true };
   if (sLower === 'bench')                        return { class: '', letter: '-', label: 'Bench', isGlobal: true };
 
-  // 2. Semi-vaste kleuren
+  // 4. Semi-vaste kleuren
   if (sLower.includes('vroege'))                 return { class: 'bg-shift-vroege', letter: letter, label: 'Vroege', isGlobal: true };
   if (sLower.includes('late'))                   return { class: 'bg-shift-late',   letter: letter, label: 'Late', isGlobal: true };
   if (sLower.includes('nacht'))                  return { class: 'bg-shift-nacht',  letter: letter, label: 'Nacht', isGlobal: true };
   if (sLower.includes('dag'))                    return { class: 'bg-shift-dag',    letter: letter, label: 'Dagdienst', isGlobal: true };
+  if (sLower.includes('vrij weekend'))           return { class: 'bg-shift-normal', letter: 'VR', label: 'Vrij weekend', isGlobal: true };
   
-  // 3. 🚀 DYNAMISCH
+  // 5. DYNAMISCHE FALLBACK
   const dynamicColor = stringToColor(shiftName);
   
   return { 
