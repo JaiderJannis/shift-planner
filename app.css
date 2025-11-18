@@ -474,3 +474,38 @@ body.dark-mode .rooster-table thead th:first-child { background-color: #444; }
 .bg-shift-normal { background-color: #f8f9fa; color: #212529; } /* Grijs */
 
 body.dark-mode .bg-shift-normal { background-color: #343a40; color: #dee2e6; }
+/* === ROOSTER SHIFT KLEUREN === */
+
+/* 🌅 Vroege shift (Geel/Oranje achtig) */
+.bg-shift-vroege { 
+  background-color: #fff3cd !important; 
+  color: #856404 !important; 
+  font-weight: 600;
+}
+
+/* 🌇 Late shift (Blauw achtig) */
+.bg-shift-late { 
+  background-color: #cfe2ff !important; 
+  color: #084298 !important; 
+  font-weight: 600;
+}
+
+/* 🌙 Nacht shift (Donker/Paars) */
+.bg-shift-nacht { 
+  background-color: #e0cffc !important; 
+  color: #3700b3 !important; 
+  font-weight: 600;
+}
+
+/* 🌞 Dagdienst / Kantoor (Groen achtig) */
+.bg-shift-dag { 
+  background-color: #d1e7dd !important; 
+  color: #0f5132 !important; 
+}
+
+/* Zorg dat de Verlof kleur goed opvalt */
+.bg-shift-leave { 
+  background-color: #0dcaf0 !important; /* Feller cyaan */
+  color: #fff !important;
+  font-weight: bold;
+}
