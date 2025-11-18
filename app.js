@@ -730,12 +730,35 @@ function renderShifts() {
 
   const selectedYear = filterShiftYear.value ? Number(filterShiftYear.value) : null;
 
+  // ✅ 1. ADMIN CHECK: Doe dit ÉÉN keer aan het begin
+  // Dit regelt de zichtbaarheid van de velden in de Modal
+  const isAdminUser = (ud.role === 'admin');
+  const divShort = document.getElementById('divShiftShort');
+  const divColor = document.getElementById('divShiftColor');
+  const divName  = document.getElementById('divShiftName');
+
+  if (divShort && divColor && divName) {
+    if (isAdminUser) {
+      // Admin: Toon alles
+      divShort.classList.remove('d-none');
+      divColor.classList.remove('d-none');
+      divName.className = 'col-md-5'; 
+    } else {
+      // User: Verberg extra's
+      divShort.classList.add('d-none');
+      divColor.classList.add('d-none');
+      divName.className = 'col-md-9'; 
+    }
+  }
+
+  // ✅ 2. Start de tabel opbouw
   shiftTableBody.innerHTML = '';
 
   order.forEach(name => {
     const sh = shifts[name];
     if (!sh) return;
 
+    // Jaar filter
     if (selectedYear) {
       const startY = sh.startDate ? new Date(sh.startDate).getFullYear() : null;
       const endY = sh.endDate ? new Date(sh.endDate).getFullYear() : null;
@@ -748,7 +771,7 @@ function renderShifts() {
       }
     }
 
-    // 🎨 Kleurbolletje voor visuele indicatie in de lijst
+    // 🎨 Kleurbolletje
     const colorDot = sh.color 
       ? `<span class="d-inline-block rounded-circle border me-2" style="width:12px; height:12px; background-color:${sh.color};"></span>` 
       : '';
@@ -780,7 +803,7 @@ function renderShifts() {
     shiftTableBody.appendChild(tr);
   });
 
-  // Sortable init...
+  // Sortable init
   if (shiftTableBody.sortableInstance) shiftTableBody.sortableInstance.destroy();
   shiftTableBody.sortableInstance = new Sortable(shiftTableBody, {
     handle: '.drag-handle', animation: 150, fallbackOnBody: true, swapThreshold: 0.65, ghostClass: 'bg-light',
@@ -806,8 +829,7 @@ function renderShifts() {
       // 📋 KOPIEER LOGICA
       else if (act === 'copy') {
         if (!sh) return;
-        // Vul modal in met data van de shift
-        newShiftName.value = `${name} (kopie)`; // Voorstel naam
+        newShiftName.value = `${name} (kopie)`;
         document.getElementById('newShiftShort').value = sh.shortName || '';
         document.getElementById('newShiftColor').value = sh.color || '#e9ecef';
         newShiftStart.value = sh.start || '00:00';
@@ -817,7 +839,6 @@ function renderShifts() {
         newShiftStartDate.value = sh.startDate || '';
         newShiftEndDate.value = sh.endDate || '';
         
-        // Open modal (we slaan pas op als gebruiker op Opslaan klikt)
         new bootstrap.Modal(document.getElementById('shiftModal')).show();
       } 
       
@@ -834,7 +855,6 @@ function renderShifts() {
         newShiftStartDate.value = sh.startDate || '';
         newShiftEndDate.value = sh.endDate || '';
         
-        // Tijdelijk verwijderen (zodat naamwijziging geen duplicaat maakt)
         delete ud.shifts[name];
         await saveUserData();
         new bootstrap.Modal(document.getElementById('shiftModal')).show();
