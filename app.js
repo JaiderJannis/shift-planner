@@ -564,6 +564,7 @@ function initSelectors(){
         adminApprovalTabBtn.classList.remove('d-none');
         adminLeaveTabBtn.classList.remove('d-none');
         document.getElementById('adminHomeTabBtn').classList.remove('d-none');
+        document.getElementById('adminRoosterTabBtn').classList.remove('d-none');
         
         // ✅ HIER TOEGEVOEGD:
     // Deze functies mogen alleen door een admin worden aangeroepen
@@ -4876,6 +4877,137 @@ deleteAttachmentBtn?.addEventListener('click', async () => {
     console.error("Verwijderfout:", err);
     toast('Verwijderen mislukt', 'danger');
   }
+// ==========================================
+// 📅 TEAM ROOSTER (ADMIN)
+// ==========================================
+
+const roosterMonthSelect = document.getElementById('roosterMonth');
+const roosterYearSelect = document.getElementById('roosterYear');
+const roosterBody = document.getElementById('roosterBody');
+const roosterHeaderRow = document.getElementById('roosterHeaderRow');
+
+// 1. Init (vullen van selects)
+function initRoosterSelectors() {
+  if (!roosterMonthSelect || !roosterYearSelect) return;
+  
+  // Maanden
+  roosterMonthSelect.innerHTML = monthsFull.map((m, i) => `<option value="${i}">${m}</option>`).join('');
+  roosterMonthSelect.value = new Date().getMonth();
+
+  // Jaren
+  const yNow = new Date().getFullYear();
+  roosterYearSelect.innerHTML = '';
+  for (let y = yNow - 1; y <= yNow + 2; y++) {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = y;
+    if (y === yNow) opt.selected = true;
+    roosterYearSelect.appendChild(opt);
+  }
+
+  // Listeners
+  roosterMonthSelect.addEventListener('change', renderTeamRooster);
+  roosterYearSelect.addEventListener('change', renderTeamRooster);
+  document.getElementById('refreshRoosterBtn')?.addEventListener('click', async () => {
+    toast('Rooster verversen...', 'info');
+    await loadAllUsers(); // Haal verse data uit DB
+    renderTeamRooster();
+  });
+}
+
+// 2. Render Functie
+function renderTeamRooster() {
+  if (!roosterBody) return;
+  roosterBody.innerHTML = '';
+  roosterHeaderRow.innerHTML = '';
+
+  const year = Number(roosterYearSelect.value);
+  const month = Number(roosterMonthSelect.value);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // A. Header bouwen (Dagen)
+  let headerHtml = '<th>Werknemer</th>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateObj = new Date(year, month, d);
+    const dayLetter = daysFull[dateObj.getDay()].charAt(0); // Z, M, D...
+    const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
+    
+    headerHtml += `
+      <th class="${isWeekend ? 'bg-light text-muted' : ''}" style="min-width:35px;">
+        <div>${d}</div>
+        <div style="font-weight:400; opacity:0.7;">${dayLetter}</div>
+      </th>`;
+  }
+  roosterHeaderRow.innerHTML = headerHtml;
+
+  // B. Data Rows bouwen
+  // Sorteer users op naam
+  const users = Object.values(dataStore.users).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  users.forEach(u => {
+    // Skip admin zelf als je dat wilt, of toon iedereen
+    // if (u.role === 'admin') return; 
+
+    const tr = document.createElement('tr');
+    const userName = u.name || u.email.split('@')[0];
+    
+    // Naam kolom (sticky)
+    let rowHtml = `<th>${userName}</th>`;
+
+    // Data ophalen voor deze maand
+    const monthData = u.monthData?.[year]?.[month]?.rows || {};
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const rowData = monthData[key];
+      
+      let cellContent = '';
+      let cellClass = '';
+      let tooltip = '';
+
+      if (rowData && rowData.shift) {
+        const shiftName = rowData.shift;
+        tooltip = `${shiftName} (${rowData.start} - ${rowData.end})`;
+
+        // Bepaal kleur en korte tekst
+        if (['Ziekte', 'Ziek'].includes(shiftName)) {
+          cellClass = 'bg-shift-sick';
+          cellContent = 'Z';
+        } else if (['Verlof', 'Feestdag'].includes(shiftName)) {
+          cellClass = 'bg-shift-leave';
+          cellContent = 'V';
+        } else if (['School', 'Schoolverlof'].includes(shiftName)) {
+          cellClass = 'bg-shift-school';
+          cellContent = 'S';
+        } else if (shiftName === 'Bench') {
+             cellContent = '-';
+        } else {
+          // Gewone shift: Pak eerste letter of eerste 2 letters
+          cellClass = 'bg-shift-normal';
+          // Bv. "Vroege" -> "V", "Late" -> "L", "Nacht" -> "N"
+          cellContent = shiftName.charAt(0).toUpperCase();
+        }
+      }
+
+      rowHtml += `
+        <td class="rooster-cell ${cellClass}" title="${tooltip}">
+          <div class="rooster-content">${cellContent}</div>
+        </td>`;
+    }
+    
+    tr.innerHTML = rowHtml;
+    roosterBody.appendChild(tr);
+  });
+}
+
+// 3. Starten bij openen tab
+document.querySelector('a[href="#tab-team-rooster"]')?.addEventListener('shown.bs.tab', () => {
+  // Eerste keer init
+  if (roosterMonthSelect.options.length === 0) {
+    initRoosterSelectors();
+  }
+  renderTeamRooster();
+});
 });
 
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
