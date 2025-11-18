@@ -4889,36 +4889,35 @@ deleteAttachmentBtn?.addEventListener('click', async () => {
   }
 });
 // ==========================================
-// 📅 TEAM ROOSTER (ADMIN) - ALGEMENE LEGENDE
+// 📅 TEAM ROOSTER (ADMIN) - HYBRIDE LEGENDE
 // ==========================================
 
-// 🎨 Helper: Genereer een consistente pastelkleur op basis van tekst
+// 🎨 Helper: Genereer kleur
 function stringToColor(str) {
   let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
+  for (let i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
   const h = Math.abs(hash % 360);
   return `hsl(${h}, 70%, 80%)`;
 }
 
-// Helper: Bepaal stijl (vast OF dynamisch)
+// Helper: Bepaal stijl
 function getShiftStyle(shiftName) {
   const sLower = shiftName.toLowerCase();
 
   // 1. Vaste systeem-shiften
-  if (['ziekte', 'ziek'].includes(sLower))       return { class: 'bg-shift-sick',   letter: 'Z', label: 'Ziekte', isDynamic: false };
-  if (['verlof', 'feestdag'].includes(sLower))   return { class: 'bg-shift-leave',  letter: 'V', label: 'Verlof', isDynamic: false };
-  if (['school', 'schoolverlof'].includes(sLower)) return { class: 'bg-shift-school', letter: 'S', label: 'School', isDynamic: false };
-  if (sLower === 'bench')                        return { class: '', letter: '-', label: 'Bench', isDynamic: false };
+  if (['ziekte', 'ziek'].includes(sLower))       return { class: 'bg-shift-sick',   letter: 'Z', label: 'Ziekte', isGlobal: true };
+  if (['verlof', 'feestdag'].includes(sLower))   return { class: 'bg-shift-leave',  letter: 'V', label: 'Verlof', isGlobal: true };
+  if (['school', 'schoolverlof'].includes(sLower)) return { class: 'bg-shift-school', letter: 'S', label: 'School', isGlobal: true };
+  if (sLower === 'bench')                        return { class: '', letter: 'B', label: 'Bench', isGlobal: true };
 
-  // 2. Semi-vaste kleuren
-  if (sLower.includes('vroege'))                 return { class: 'bg-shift-vroege', letter: 'Vr', label: 'Vroege', isDynamic: false };
-  if (sLower.includes('late'))                   return { class: 'bg-shift-late',   letter: 'L',  label: 'Late', isDynamic: false };
-  if (sLower.includes('nacht'))                  return { class: 'bg-shift-nacht',  letter: 'N',  label: 'Nacht', isDynamic: false };
-  if (sLower.includes('dag'))                    return { class: 'bg-shift-dag',    letter: 'D',  label: 'Dagdienst', isDynamic: false };
+  // 2. Semi-vaste kleuren (Vroege/Late/Nacht/Dag/Weekend) -> OOK GLOBAAL
+  if (sLower.includes('vroege'))                 return { class: 'bg-shift-vroege', letter: 'Vr', label: 'Vroege', isGlobal: true };
+  if (sLower.includes('late'))                   return { class: 'bg-shift-late',   letter: 'L',  label: 'Late', isGlobal: true };
+  if (sLower.includes('nacht'))                  return { class: 'bg-shift-nacht',  letter: 'N',  label: 'Nacht', isGlobal: true };
+  if (sLower.includes('dag'))                    return { class: 'bg-shift-dag',    letter: 'D',  label: 'Dagdienst', isGlobal: true };
+  if (sLower.includes('vrij weekend'))           return { class: 'bg-shift-normal', letter: 'Vw', label: 'Vrij weekend', isGlobal: true };
 
-  // 3. 🚀 DYNAMISCH: Voor alle andere shiften
+  // 3. 🚀 SPECIFIEK: Alle andere (afwijkende) shiften zijn user-specific
   const dynamicColor = stringToColor(shiftName);
   const letter = shiftName.substring(0, 2).toUpperCase();
 
@@ -4927,11 +4926,11 @@ function getShiftStyle(shiftName) {
     style: `background-color: ${dynamicColor}; color: #333; font-weight:600;`, 
     letter: letter, 
     label: shiftName,
-    isDynamic: true 
+    isGlobal: false // 👈 Deze gaan naar de user-lijst
   };
 }
 
-// 1. Init (Selects vullen)
+// 1. Init
 function initRoosterSelectors() {
   const rMonth = document.getElementById('roosterMonth');
   const rYear = document.getElementById('roosterYear');
@@ -4983,8 +4982,9 @@ function renderTeamRooster() {
   const month = Number(rMonth.value);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   
-  // Map om ALLE unieke shiften van de hele tabel bij te houden
-  const globalUniqueShifts = new Map(); 
+  // Data containers voor legende
+  const globalShifts = new Map();
+  const userSpecificShifts = new Map(); // Key: UserName, Value: Map(Shifts)
 
   // A. Header bouwen
   let headerHtml = '<th style="min-width:150px; background:#fff; position:sticky; left:0; z-index:30;">Werknemer</th>';
@@ -5032,10 +5032,17 @@ function renderTeamRooster() {
         cellClass = style.class;
         cellStyle = style.style || '';
 
-        // Voeg toe aan de ALGEMENE legende lijst
         if (style.letter !== '-') {
-            // Gebruik label als key, zodat we dubbels voorkomen
-            globalUniqueShifts.set(style.label, style);
+          if (style.isGlobal) {
+            // Voeg toe aan ALGEMENE lijst
+            globalShifts.set(style.label, style);
+          } else {
+            // Voeg toe aan SPECIFIEKE lijst voor deze user
+            if (!userSpecificShifts.has(userName)) {
+              userSpecificShifts.set(userName, new Map());
+            }
+            userSpecificShifts.get(userName).set(style.label, style);
+          }
         }
       }
 
@@ -5048,14 +5055,16 @@ function renderTeamRooster() {
     rBody.appendChild(tr);
   });
 
-  // C. Legende Genereren (Algemeen)
-  if (rLegend && globalUniqueShifts.size > 0) {
-    let legendHtml = '<h6 class="small text-muted fw-bold mb-2">Legende (Algemeen):</h6><div class="d-flex flex-wrap gap-3 small">';
-    
-    // Sorteer alfabetisch op naam
-    const sortedShifts = Array.from(globalUniqueShifts.values()).sort((a, b) => a.label.localeCompare(b.label));
+  // C. Legende Genereren (Hybride)
+  if (rLegend) {
+    let legendHtml = '';
 
-    sortedShifts.forEach(s => {
+    // 1. Algemene Legende (indien aanwezig)
+    if (globalShifts.size > 0) {
+      const sortedGlobal = Array.from(globalShifts.values()).sort((a, b) => a.label.localeCompare(b.label));
+      
+      legendHtml += '<div class="mb-2"><small class="text-muted fw-bold">Algemeen:</small><div class="d-flex flex-wrap gap-3 small mt-1">';
+      sortedGlobal.forEach(s => {
         const c = s.class || '';
         const st = s.style || '';
         legendHtml += `
@@ -5063,12 +5072,41 @@ function renderTeamRooster() {
             <span class="badge ${c} border text-dark" style="min-width:25px; font-weight:normal; font-size:0.75rem; ${st}">${s.letter}</span> 
             <span>${s.label}</span>
           </div>`;
-    });
-    
-    legendHtml += '</div>';
+      });
+      legendHtml += '</div></div>';
+    }
+
+    // 2. Specifieke Legende per User (indien aanwezig)
+    if (userSpecificShifts.size > 0) {
+      if (globalShifts.size > 0) legendHtml += '<hr class="my-2">'; // Scheidingslijn als beide bestaan
+      
+      legendHtml += '<div class="mb-2"><small class="text-muted fw-bold">Specifiek per gebruiker:</small><div class="row g-2 mt-1">';
+      
+      userSpecificShifts.forEach((shiftsMap, userName) => {
+        const sortedUserShifts = Array.from(shiftsMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+        
+        let badgesHtml = sortedUserShifts.map(s => {
+            const st = s.style || '';
+            return `<span class="badge border text-dark" style="font-weight:normal; font-size:0.75rem; ${st}">${s.letter} = ${s.label}</span>`;
+        }).join(' ');
+
+        legendHtml += `
+          <div class="col-12 col-md-auto">
+            <div class="d-flex align-items-center flex-wrap gap-2 small bg-light p-1 px-2 rounded border">
+              <strong class="text-nowrap me-1">${userName}:</strong>
+              ${badgesHtml}
+            </div>
+          </div>`;
+      });
+      legendHtml += '</div></div>';
+    }
+
+    // Fallback als alles leeg is
+    if (globalShifts.size === 0 && userSpecificShifts.size === 0) {
+       legendHtml = '<small class="text-muted fst-italic">Geen shiften gepland deze maand.</small>';
+    }
+
     rLegend.innerHTML = legendHtml;
-  } else if (rLegend) {
-      rLegend.innerHTML = '<small class="text-muted fst-italic">Geen shiften gepland deze maand.</small>';
   }
 }
 
