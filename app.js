@@ -803,17 +803,33 @@ function renderShifts() {
         renderShifts();
       } else if (act === 'edit') {
         const sh = ud.shifts[name];
+        
+        // ✅ VEILIGHEIDSCHECK: Als de shift data mist, stop dan (voorkomt crash)
+        if (!sh) {
+            console.error(`Shift data voor '${name}' ontbreekt!`);
+            toast(`Fout: Kan '${name}' niet laden. Verwijder deze shift en maak hem opnieuw aan.`, 'danger');
+            return;
+        }
+
         newShiftName.value = name;
+        
+        // Vul het afkorting veld in
         const shortInput = document.getElementById('newShiftShort');
         if (shortInput) shortInput.value = sh.shortName || '';
+
         newShiftStart.value = sh.start || '08:00';
         newShiftEnd.value = sh.end || '16:00';
         newShiftBreak.value = sh.break || 0;
         newShiftProjectSelect.value = sh.project || '';
         newShiftStartDate.value = sh.startDate || '';
         newShiftEndDate.value = sh.endDate || '';
+        
+        // Tijdelijk verwijderen om te kunnen overschrijven bij opslaan
+        // (Let op: dit betekent dat als je annuleert, de shift weg is uit de lijst tot je refresht. 
+        //  Een betere manier is om de key pas aan te passen bij opslaan, maar dit was je bestaande logica).
         delete ud.shifts[name];
         await saveUserData();
+        
         new bootstrap.Modal(document.getElementById('shiftModal')).show();
       }
     });
@@ -821,11 +837,16 @@ function renderShifts() {
 }
 
     addShiftBtn?.addEventListener('click', async ()=>{
-      const name = newShiftName.value.trim(); if(!name) return toast('Vul shift naam in','warning');
+      const name = newShiftName.value.trim(); 
+      if(!name) return toast('Vul shift naam in','warning');
+      
+      // ✅ DEZE REGEL ONTBRAK: Haal de waarde op uit het invulveld
+      const shortName = document.getElementById('newShiftShort')?.value.trim() || '';
+
       const ud = getCurrentUserData();
       ud.shifts = ud.shifts || {};
       ud.shifts[name] = {
-        shortName: shortName,
+        shortName: shortName, // Nu is deze variabele bekend
         start: newShiftStart.value || '00:00',
         end: newShiftEnd.value || '00:00',
         break: Number(newShiftBreak.value) || 0,
@@ -833,11 +854,22 @@ function renderShifts() {
         startDate: newShiftStartDate.value || null,
         endDate: newShiftEndDate.value || null
       };
+      
       ud.shiftOrder = ud.shiftOrder || [];
       if(!ud.shiftOrder.includes(name)) ud.shiftOrder.push(name);
-      await saveUserData(); renderShifts();
+      
+      await saveUserData(); 
+      renderShifts();
+      
       bootstrap.Modal.getInstance(document.getElementById('shiftModal')).hide();
-      newShiftName.value=''; newShiftBreak.value=0; newShiftStartDate.value=''; newShiftEndDate.value='';
+      
+      // Velden resetten
+      newShiftName.value=''; 
+      newShiftBreak.value=0; 
+      newShiftStartDate.value=''; 
+      newShiftEndDate.value='';
+      if(document.getElementById('newShiftShort')) document.getElementById('newShiftShort').value = '';
+      
       toast('Shift opgeslagen','success');
     });
 
