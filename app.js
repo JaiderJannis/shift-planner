@@ -4889,22 +4889,42 @@ deleteAttachmentBtn?.addEventListener('click', async () => {
   }
 });
 // ==========================================
-// 📅 TEAM ROOSTER (ADMIN) - VERBETERDE VERSIE
+// 📅 TEAM ROOSTER (ADMIN) - MET DYNAMISCHE LEGENDE
 // ==========================================
 
-// 1. Init (vullen van selects)
+// Helper: Bepaal stijl en afkorting op basis van shiftnaam
+function getShiftStyle(shiftName) {
+  const sLower = shiftName.toLowerCase();
+  
+  if (['ziekte', 'ziek'].includes(sLower))       return { class: 'bg-shift-sick',   letter: 'Z', label: 'Ziekte' };
+  if (['verlof', 'feestdag'].includes(sLower))   return { class: 'bg-shift-leave',  letter: 'V', label: 'Verlof' };
+  if (['school', 'schoolverlof'].includes(sLower)) return { class: 'bg-shift-school', letter: 'S', label: 'School' };
+  
+  if (sLower.includes('vroege'))                 return { class: 'bg-shift-vroege', letter: 'Vr', label: 'Vroege' };
+  if (sLower.includes('late'))                   return { class: 'bg-shift-late',   letter: 'L',  label: 'Late' };
+  if (sLower.includes('nacht'))                  return { class: 'bg-shift-nacht',  letter: 'N',  label: 'Nacht' };
+  if (sLower.includes('dag'))                    return { class: 'bg-shift-dag',    letter: 'D',  label: 'Dagdienst' };
+  
+  if (shiftName === 'Bench')                     return { class: '', letter: '-', label: 'Bench' };
+
+  // Fallback voor custom shiften: eerste 2 letters + grijs
+  return { 
+    class: 'bg-shift-normal', 
+    letter: shiftName.substring(0, 2).toUpperCase(), 
+    label: shiftName 
+  };
+}
+
+// 1. Init (Selects vullen)
 function initRoosterSelectors() {
   const rMonth = document.getElementById('roosterMonth');
   const rYear = document.getElementById('roosterYear');
-  
   if (!rMonth || !rYear) return;
   
-  // Vul alleen als ze nog leeg zijn
   if (rMonth.options.length === 0) {
       rMonth.innerHTML = monthsFull.map((m, i) => `<option value="${i}">${m}</option>`).join('');
       rMonth.value = new Date().getMonth();
   }
-
   if (rYear.options.length === 0) {
       const yNow = new Date().getFullYear();
       rYear.innerHTML = '';
@@ -4916,8 +4936,6 @@ function initRoosterSelectors() {
         rYear.appendChild(opt);
       }
   }
-
-  // Listeners (vermijd dubbele listeners door onclick te gebruiken of check)
   rMonth.onchange = renderTeamRooster;
   rYear.onchange = renderTeamRooster;
   
@@ -4935,6 +4953,7 @@ function initRoosterSelectors() {
 function renderTeamRooster() {
   const rBody = document.getElementById('roosterBody');
   const rHead = document.getElementById('roosterHeaderRow');
+  const rLegend = document.getElementById('roosterLegendContainer');
   const rMonth = document.getElementById('roosterMonth');
   const rYear = document.getElementById('roosterYear');
 
@@ -4942,10 +4961,14 @@ function renderTeamRooster() {
   
   rBody.innerHTML = '';
   rHead.innerHTML = '';
+  if(rLegend) rLegend.innerHTML = '';
 
   const year = Number(rYear.value);
   const month = Number(rMonth.value);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
+  
+  // Set om unieke shiften bij te houden voor de legende
+  const usedShifts = new Map(); 
 
   // A. Header bouwen
   let headerHtml = '<th style="min-width:150px; background:#fff; position:sticky; left:0; z-index:30;">Werknemer</th>';
@@ -4954,7 +4977,6 @@ function renderTeamRooster() {
     const dayIndex = dateObj.getDay(); 
     const dayLetter = daysFull[dayIndex].charAt(0); 
     const isWeekend = (dayIndex === 0 || dayIndex === 6);
-    
     headerHtml += `
       <th class="${isWeekend ? 'bg-light text-muted' : ''}" style="min-width:35px; font-weight:normal; font-size:0.8rem;">
         <div>${d}</div>
@@ -4965,7 +4987,6 @@ function renderTeamRooster() {
 
   // B. Data Rows bouwen
   if (!dataStore.users) return;
-  
   const users = Object.values(dataStore.users).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   users.forEach(u => {
@@ -4987,48 +5008,18 @@ function renderTeamRooster() {
       let tooltip = '';
 
       if (rowData && rowData.shift) {
-        const shiftName = rowData.shift; // De originele naam (bv "Vroege")
-        const sLower = shiftName.toLowerCase(); // Kleine letters voor makkelijk vergelijken
-        
+        const shiftName = rowData.shift;
         tooltip = `${shiftName} (${rowData.start} - ${rowData.end})`;
-
-        // === 🎨 HIER BEPALEN WE DE KLEUR EN LETTER ===
         
-        if (['ziekte', 'ziek'].includes(sLower)) {
-          cellClass = 'bg-shift-sick';
-          cellContent = 'Z';
-        } 
-        else if (['verlof', 'feestdag'].includes(sLower)) {
-          cellClass = 'bg-shift-leave';
-          cellContent = 'V'; // Verlof blijft V
-        } 
-        else if (['school', 'schoolverlof'].includes(sLower)) {
-          cellClass = 'bg-shift-school';
-          cellContent = 'S';
-        } 
-        else if (sLower.includes('vroege')) {
-          cellClass = 'bg-shift-vroege';
-          cellContent = 'Vr'; // Vroege wordt 'Vr'
-        }
-        else if (sLower.includes('late')) {
-          cellClass = 'bg-shift-late';
-          cellContent = 'L';
-        }
-        else if (sLower.includes('nacht')) {
-          cellClass = 'bg-shift-nacht';
-          cellContent = 'N';
-        }
-        else if (sLower.includes('dag') || sLower.includes('kantoor')) {
-          cellClass = 'bg-shift-dag';
-          cellContent = 'D';
-        }
-        else if (shiftName === 'Bench') {
-           cellContent = '-';
-        } 
-        else {
-          // Onbekende shift? Grijs en eerste 2 letters
-          cellClass = 'bg-shift-normal';
-          cellContent = shiftName.substring(0, 2).toUpperCase();
+        // 🎨 Bepaal stijl via helper
+        const style = getShiftStyle(shiftName);
+        
+        cellContent = style.letter;
+        cellClass = style.class;
+
+        // Voeg toe aan legende-set (gebruik label als unieke key)
+        if (style.letter !== '-') {
+            usedShifts.set(style.label, style);
         }
       }
 
@@ -5037,13 +5028,32 @@ function renderTeamRooster() {
           <div class="rooster-content">${cellContent}</div>
         </td>`;
     }
-    
     tr.innerHTML = rowHtml;
     rBody.appendChild(tr);
   });
+
+  // C. Legende Genereren (Dynamisch)
+  if (rLegend && usedShifts.size > 0) {
+    let legendHtml = '<small class="text-muted fw-semibold d-block mb-2">Legende (deze maand):</small><div class="d-flex flex-wrap gap-3 small">';
+    
+    // Sorteer de legende op alfabet van label
+    const sortedShifts = Array.from(usedShifts.values()).sort((a, b) => a.label.localeCompare(b.label));
+
+    sortedShifts.forEach(style => {
+      legendHtml += `
+        <div class="d-flex align-items-center gap-1">
+          <span class="badge ${style.class} border" style="min-width:25px;">${style.letter}</span> 
+          <span>${style.label}</span>
+        </div>`;
+    });
+    legendHtml += '</div>';
+    rLegend.innerHTML = legendHtml;
+  } else if (rLegend) {
+      rLegend.innerHTML = '<small class="text-muted fst-italic">Geen shiften gepland deze maand.</small>';
+  }
 }
 
-// 3. Event Listener voor de tab (fallback)
+// 3. Event Listener
 document.querySelector('a[href="#tab-team-rooster"]')?.addEventListener('shown.bs.tab', () => {
     initRoosterSelectors();
     renderTeamRooster();
