@@ -4947,11 +4947,11 @@ function renderTeamRooster() {
   const month = Number(rMonth.value);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  // A. Header bouwen (Dagen)
+  // A. Header bouwen
   let headerHtml = '<th style="min-width:150px; background:#fff; position:sticky; left:0; z-index:30;">Werknemer</th>';
   for (let d = 1; d <= daysInMonth; d++) {
     const dateObj = new Date(year, month, d);
-    const dayIndex = dateObj.getDay(); // 0=zon, 6=zat
+    const dayIndex = dateObj.getDay(); 
     const dayLetter = daysFull[dayIndex].charAt(0); 
     const isWeekend = (dayIndex === 0 || dayIndex === 6);
     
@@ -4971,42 +4971,64 @@ function renderTeamRooster() {
   users.forEach(u => {
     const tr = document.createElement('tr');
     const userName = u.name || u.email.split('@')[0];
-    
-    // Naam kolom (sticky)
     let rowHtml = `<th style="background:#fff; position:sticky; left:0; z-index:20;">${userName}</th>`;
 
     const monthData = u.monthData?.[year]?.[month]?.rows || {};
 
     for (let d = 1; d <= daysInMonth; d++) {
       const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      // Check ook op eventuele extra lijnen (#2, #3) door te filteren op startsWith key
-      // Voor dit rooster tonen we simpelweg de EERSTE shift die we vinden op die dag
+      
+      // Zoek shift (ook in extra regels)
+      const entryKey = Object.keys(monthData).find(k => k === key || k.startsWith(key + '#'));
+      const rowData = entryKey ? monthData[entryKey] : null;
+
       let cellContent = '';
       let cellClass = '';
       let tooltip = '';
 
-      // Zoek in monthData of deze key bestaat (of key#...)
-      const entryKey = Object.keys(monthData).find(k => k === key || k.startsWith(key + '#'));
-      const rowData = entryKey ? monthData[entryKey] : null;
-
       if (rowData && rowData.shift) {
-        const shiftName = rowData.shift;
+        const shiftName = rowData.shift; // De originele naam (bv "Vroege")
+        const sLower = shiftName.toLowerCase(); // Kleine letters voor makkelijk vergelijken
+        
         tooltip = `${shiftName} (${rowData.start} - ${rowData.end})`;
 
-        if (['Ziekte', 'Ziek'].includes(shiftName)) {
+        // === 🎨 HIER BEPALEN WE DE KLEUR EN LETTER ===
+        
+        if (['ziekte', 'ziek'].includes(sLower)) {
           cellClass = 'bg-shift-sick';
           cellContent = 'Z';
-        } else if (['Verlof', 'Feestdag'].includes(shiftName)) {
+        } 
+        else if (['verlof', 'feestdag'].includes(sLower)) {
           cellClass = 'bg-shift-leave';
-          cellContent = 'V';
-        } else if (['School', 'Schoolverlof'].includes(shiftName)) {
+          cellContent = 'V'; // Verlof blijft V
+        } 
+        else if (['school', 'schoolverlof'].includes(sLower)) {
           cellClass = 'bg-shift-school';
           cellContent = 'S';
-        } else if (shiftName === 'Bench') {
-             cellContent = '-';
-        } else {
+        } 
+        else if (sLower.includes('vroege')) {
+          cellClass = 'bg-shift-vroege';
+          cellContent = 'Vr'; // Vroege wordt 'Vr'
+        }
+        else if (sLower.includes('late')) {
+          cellClass = 'bg-shift-late';
+          cellContent = 'L';
+        }
+        else if (sLower.includes('nacht')) {
+          cellClass = 'bg-shift-nacht';
+          cellContent = 'N';
+        }
+        else if (sLower.includes('dag') || sLower.includes('kantoor')) {
+          cellClass = 'bg-shift-dag';
+          cellContent = 'D';
+        }
+        else if (shiftName === 'Bench') {
+           cellContent = '-';
+        } 
+        else {
+          // Onbekende shift? Grijs en eerste 2 letters
           cellClass = 'bg-shift-normal';
-          cellContent = shiftName.charAt(0).toUpperCase();
+          cellContent = shiftName.substring(0, 2).toUpperCase();
         }
       }
 
