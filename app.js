@@ -5008,6 +5008,5 @@ document.querySelector('a[href="#tab-team-rooster"]')?.addEventListener('shown.b
   }
   renderTeamRooster();
 });
-});
 
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
