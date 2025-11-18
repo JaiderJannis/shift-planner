@@ -556,21 +556,31 @@ function initSelectors(){
   const mNow = new Date().getMonth();
   monthSelectMain.value = String(mNow);
 }
-    async function revealAdminIfNeeded(){
+async function revealAdminIfNeeded(){
       const meSnap = await getDoc(doc(db,'users', currentUserId));
+      if (!meSnap.exists()) return;
+      
       const role = meSnap.data().role;
       if(role === 'admin'){ 
+        // Knoppen zichtbaar maken
         adminTabBtn.classList.remove('d-none');
         adminApprovalTabBtn.classList.remove('d-none');
         adminLeaveTabBtn.classList.remove('d-none');
         document.getElementById('adminHomeTabBtn').classList.remove('d-none');
         document.getElementById('adminRoosterTabBtn').classList.remove('d-none');
         
-        // ✅ HIER TOEGEVOEGD:
-    // Deze functies mogen alleen door een admin worden aangeroepen
-    renderAdminUserSelect(); 
-    renderAdminMonthlyMulti();
-  }
+        // Admin functies initialiseren
+        renderAdminUserSelect(); 
+        renderAdminMonthlyMulti();
+
+        // ✅ FIX: Team Rooster direct starten en data ophalen
+        // We gebruiken een korte timeout om zeker te zijn dat de DOM elementen gevonden worden
+        setTimeout(async () => {
+            initRoosterSelectors();
+            await loadAllUsers(); // Zorg dat we de data van iedereen hebben
+            renderTeamRooster();
+        }, 100);
+      }
     }
 
     // ======= Projects =======
@@ -4878,98 +4888,110 @@ deleteAttachmentBtn?.addEventListener('click', async () => {
     toast('Verwijderen mislukt', 'danger');
   }
 // ==========================================
-// 📅 TEAM ROOSTER (ADMIN)
+// 📅 TEAM ROOSTER (ADMIN) - VERBETERDE VERSIE
 // ==========================================
-
-const roosterMonthSelect = document.getElementById('roosterMonth');
-const roosterYearSelect = document.getElementById('roosterYear');
-const roosterBody = document.getElementById('roosterBody');
-const roosterHeaderRow = document.getElementById('roosterHeaderRow');
 
 // 1. Init (vullen van selects)
 function initRoosterSelectors() {
-  if (!roosterMonthSelect || !roosterYearSelect) return;
+  const rMonth = document.getElementById('roosterMonth');
+  const rYear = document.getElementById('roosterYear');
   
-  // Maanden
-  roosterMonthSelect.innerHTML = monthsFull.map((m, i) => `<option value="${i}">${m}</option>`).join('');
-  roosterMonthSelect.value = new Date().getMonth();
-
-  // Jaren
-  const yNow = new Date().getFullYear();
-  roosterYearSelect.innerHTML = '';
-  for (let y = yNow - 1; y <= yNow + 2; y++) {
-    const opt = document.createElement('option');
-    opt.value = y;
-    opt.textContent = y;
-    if (y === yNow) opt.selected = true;
-    roosterYearSelect.appendChild(opt);
+  if (!rMonth || !rYear) return;
+  
+  // Vul alleen als ze nog leeg zijn
+  if (rMonth.options.length === 0) {
+      rMonth.innerHTML = monthsFull.map((m, i) => `<option value="${i}">${m}</option>`).join('');
+      rMonth.value = new Date().getMonth();
   }
 
-  // Listeners
-  roosterMonthSelect.addEventListener('change', renderTeamRooster);
-  roosterYearSelect.addEventListener('change', renderTeamRooster);
-  document.getElementById('refreshRoosterBtn')?.addEventListener('click', async () => {
-    toast('Rooster verversen...', 'info');
-    await loadAllUsers(); // Haal verse data uit DB
-    renderTeamRooster();
-  });
+  if (rYear.options.length === 0) {
+      const yNow = new Date().getFullYear();
+      rYear.innerHTML = '';
+      for (let y = yNow - 1; y <= yNow + 2; y++) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        if (y === yNow) opt.selected = true;
+        rYear.appendChild(opt);
+      }
+  }
+
+  // Listeners (vermijd dubbele listeners door onclick te gebruiken of check)
+  rMonth.onchange = renderTeamRooster;
+  rYear.onchange = renderTeamRooster;
+  
+  const refreshBtn = document.getElementById('refreshRoosterBtn');
+  if (refreshBtn) {
+      refreshBtn.onclick = async () => {
+        toast('Rooster verversen...', 'info');
+        await loadAllUsers(); 
+        renderTeamRooster();
+      };
+  }
 }
 
 // 2. Render Functie
 function renderTeamRooster() {
-  if (!roosterBody) return;
-  roosterBody.innerHTML = '';
-  roosterHeaderRow.innerHTML = '';
+  const rBody = document.getElementById('roosterBody');
+  const rHead = document.getElementById('roosterHeaderRow');
+  const rMonth = document.getElementById('roosterMonth');
+  const rYear = document.getElementById('roosterYear');
 
-  const year = Number(roosterYearSelect.value);
-  const month = Number(roosterMonthSelect.value);
+  if (!rBody || !rHead) return;
+  
+  rBody.innerHTML = '';
+  rHead.innerHTML = '';
+
+  const year = Number(rYear.value);
+  const month = Number(rMonth.value);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   // A. Header bouwen (Dagen)
-  let headerHtml = '<th>Werknemer</th>';
+  let headerHtml = '<th style="min-width:150px; background:#fff; position:sticky; left:0; z-index:30;">Werknemer</th>';
   for (let d = 1; d <= daysInMonth; d++) {
     const dateObj = new Date(year, month, d);
-    const dayLetter = daysFull[dateObj.getDay()].charAt(0); // Z, M, D...
-    const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
+    const dayIndex = dateObj.getDay(); // 0=zon, 6=zat
+    const dayLetter = daysFull[dayIndex].charAt(0); 
+    const isWeekend = (dayIndex === 0 || dayIndex === 6);
     
     headerHtml += `
-      <th class="${isWeekend ? 'bg-light text-muted' : ''}" style="min-width:35px;">
+      <th class="${isWeekend ? 'bg-light text-muted' : ''}" style="min-width:35px; font-weight:normal; font-size:0.8rem;">
         <div>${d}</div>
-        <div style="font-weight:400; opacity:0.7;">${dayLetter}</div>
+        <div>${dayLetter}</div>
       </th>`;
   }
-  roosterHeaderRow.innerHTML = headerHtml;
+  rHead.innerHTML = headerHtml;
 
   // B. Data Rows bouwen
-  // Sorteer users op naam
+  if (!dataStore.users) return;
+  
   const users = Object.values(dataStore.users).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   users.forEach(u => {
-    // Skip admin zelf als je dat wilt, of toon iedereen
-    // if (u.role === 'admin') return; 
-
     const tr = document.createElement('tr');
     const userName = u.name || u.email.split('@')[0];
     
     // Naam kolom (sticky)
-    let rowHtml = `<th>${userName}</th>`;
+    let rowHtml = `<th style="background:#fff; position:sticky; left:0; z-index:20;">${userName}</th>`;
 
-    // Data ophalen voor deze maand
     const monthData = u.monthData?.[year]?.[month]?.rows || {};
 
     for (let d = 1; d <= daysInMonth; d++) {
       const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const rowData = monthData[key];
-      
+      // Check ook op eventuele extra lijnen (#2, #3) door te filteren op startsWith key
+      // Voor dit rooster tonen we simpelweg de EERSTE shift die we vinden op die dag
       let cellContent = '';
       let cellClass = '';
       let tooltip = '';
+
+      // Zoek in monthData of deze key bestaat (of key#...)
+      const entryKey = Object.keys(monthData).find(k => k === key || k.startsWith(key + '#'));
+      const rowData = entryKey ? monthData[entryKey] : null;
 
       if (rowData && rowData.shift) {
         const shiftName = rowData.shift;
         tooltip = `${shiftName} (${rowData.start} - ${rowData.end})`;
 
-        // Bepaal kleur en korte tekst
         if (['Ziekte', 'Ziek'].includes(shiftName)) {
           cellClass = 'bg-shift-sick';
           cellContent = 'Z';
@@ -4982,9 +5004,7 @@ function renderTeamRooster() {
         } else if (shiftName === 'Bench') {
              cellContent = '-';
         } else {
-          // Gewone shift: Pak eerste letter of eerste 2 letters
           cellClass = 'bg-shift-normal';
-          // Bv. "Vroege" -> "V", "Late" -> "L", "Nacht" -> "N"
           cellContent = shiftName.charAt(0).toUpperCase();
         }
       }
@@ -4996,17 +5016,14 @@ function renderTeamRooster() {
     }
     
     tr.innerHTML = rowHtml;
-    roosterBody.appendChild(tr);
+    rBody.appendChild(tr);
   });
 }
 
-// 3. Starten bij openen tab
+// 3. Event Listener voor de tab (fallback)
 document.querySelector('a[href="#tab-team-rooster"]')?.addEventListener('shown.bs.tab', () => {
-  // Eerste keer init
-  if (roosterMonthSelect.options.length === 0) {
     initRoosterSelectors();
-  }
-  renderTeamRooster();
+    renderTeamRooster();
 });
 });
 
