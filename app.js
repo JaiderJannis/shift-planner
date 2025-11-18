@@ -4889,7 +4889,7 @@ deleteAttachmentBtn?.addEventListener('click', async () => {
   }
 });
 // ==========================================
-// 📅 TEAM ROOSTER (ADMIN) - VOLLEDIG DYNAMISCH
+// 📅 TEAM ROOSTER (ADMIN) - LEGENDE PER USER
 // ==========================================
 
 // 🎨 Helper: Genereer een consistente pastelkleur op basis van tekst
@@ -4898,7 +4898,6 @@ function stringToColor(str) {
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
   }
-  // HSL Kleur: Hue (0-360) op basis van naam, Saturation 70%, Lightness 80% (zacht pastel)
   const h = Math.abs(hash % 360);
   return `hsl(${h}, 70%, 80%)`;
 }
@@ -4907,28 +4906,25 @@ function stringToColor(str) {
 function getShiftStyle(shiftName) {
   const sLower = shiftName.toLowerCase();
 
-  // 1. Vaste kleuren voor systeem-shiften (zoals gedefinieerd in CSS)
+  // 1. Vaste systeem-shiften (blijven altijd hetzelfde)
   if (['ziekte', 'ziek'].includes(sLower))       return { class: 'bg-shift-sick',   letter: 'Z', label: 'Ziekte', isDynamic: false };
   if (['verlof', 'feestdag'].includes(sLower))   return { class: 'bg-shift-leave',  letter: 'V', label: 'Verlof', isDynamic: false };
   if (['school', 'schoolverlof'].includes(sLower)) return { class: 'bg-shift-school', letter: 'S', label: 'School', isDynamic: false };
   if (sLower === 'bench')                        return { class: '', letter: '-', label: 'Bench', isDynamic: false };
 
-  // 2. Semi-vaste kleuren (optioneel, als je Vroege/Late/Nacht specifiek wilt houden)
+  // 2. Semi-vaste kleuren (Vroege/Late/Nacht etc.)
   if (sLower.includes('vroege'))                 return { class: 'bg-shift-vroege', letter: 'Vr', label: 'Vroege', isDynamic: false };
   if (sLower.includes('late'))                   return { class: 'bg-shift-late',   letter: 'L',  label: 'Late', isDynamic: false };
   if (sLower.includes('nacht'))                  return { class: 'bg-shift-nacht',  letter: 'N',  label: 'Nacht', isDynamic: false };
   if (sLower.includes('dag'))                    return { class: 'bg-shift-dag',    letter: 'D',  label: 'Dagdienst', isDynamic: false };
 
-  // 3. 🚀 DYNAMISCH: Voor alle andere shiften (Middag, Weekend, etc.)
-  // Genereer automatisch een kleur
+  // 3. 🚀 DYNAMISCH: Voor alle custom shiften
   const dynamicColor = stringToColor(shiftName);
-  
-  // Maak een afkorting (Eerste 2 letters, Hoofdletter)
   const letter = shiftName.substring(0, 2).toUpperCase();
 
   return { 
     class: '', 
-    style: `background-color: ${dynamicColor}; color: #333; font-weight:600;`, // Inline stijl
+    style: `background-color: ${dynamicColor}; color: #333; font-weight:600;`, 
     letter: letter, 
     label: shiftName,
     isDynamic: true 
@@ -4973,7 +4969,7 @@ function initRoosterSelectors() {
 function renderTeamRooster() {
   const rBody = document.getElementById('roosterBody');
   const rHead = document.getElementById('roosterHeaderRow');
-  const rLegend = document.getElementById('roosterLegendContainer');
+  const rLegend = document.getElementById('roosterLegendContainer'); // Container voor legende
   const rMonth = document.getElementById('roosterMonth');
   const rYear = document.getElementById('roosterYear');
 
@@ -4987,7 +4983,9 @@ function renderTeamRooster() {
   const month = Number(rMonth.value);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   
-  const usedShifts = new Map(); 
+  // Hier bewaren we per user welke shiften ze hebben
+  // Structuur: [ { name: "Jaider", shifts: Map(...) }, ... ]
+  const userLegends = []; 
 
   // A. Header bouwen
   let headerHtml = '<th style="min-width:150px; background:#fff; position:sticky; left:0; z-index:30;">Werknemer</th>';
@@ -5014,11 +5012,12 @@ function renderTeamRooster() {
     let rowHtml = `<th style="background:#fff; position:sticky; left:0; z-index:20;">${userName}</th>`;
 
     const monthData = u.monthData?.[year]?.[month]?.rows || {};
+    
+    // Map om unieke shiften voor DEZE user bij te houden
+    const uniqueShiftsForUser = new Map();
 
     for (let d = 1; d <= daysInMonth; d++) {
       const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      
-      // Zoek shift (inclusief extra lijnen)
       const entryKey = Object.keys(monthData).find(k => k === key || k.startsWith(key + '#'));
       const rowData = entryKey ? monthData[entryKey] : null;
 
@@ -5031,16 +5030,15 @@ function renderTeamRooster() {
         const shiftName = rowData.shift;
         tooltip = `${shiftName} (${rowData.start} - ${rowData.end})`;
         
-        // 🎨 STIJL BEPALEN
         const style = getShiftStyle(shiftName);
         
         cellContent = style.letter;
-        cellClass = style.class; // Voor vaste CSS classes
-        cellStyle = style.style || ''; // Voor dynamische kleuren
+        cellClass = style.class;
+        cellStyle = style.style || '';
 
-        // Voeg toe aan legende (behalve bench)
+        // Opslaan voor de legende van deze user
         if (style.letter !== '-') {
-            usedShifts.set(style.label, style);
+           uniqueShiftsForUser.set(style.label, style);
         }
       }
 
@@ -5049,27 +5047,39 @@ function renderTeamRooster() {
           <div class="rooster-content">${cellContent}</div>
         </td>`;
     }
+    
+    // Als deze user shiften heeft, voeg toe aan de lijst voor de legende
+    if (uniqueShiftsForUser.size > 0) {
+        userLegends.push({
+            name: userName,
+            shifts: Array.from(uniqueShiftsForUser.values()).sort((a, b) => a.label.localeCompare(b.label))
+        });
+    }
+
     tr.innerHTML = rowHtml;
     rBody.appendChild(tr);
   });
 
-  // C. Legende Genereren
-  if (rLegend && usedShifts.size > 0) {
-    let legendHtml = '<small class="text-muted fw-semibold d-block mb-2">Legende (deze maand):</small><div class="d-flex flex-wrap gap-3 small">';
+  // C. Legende Genereren (Per User)
+  if (rLegend && userLegends.length > 0) {
+    let legendHtml = '<h6 class="small text-muted fw-bold mb-2">Legende per gebruiker:</h6><div class="row g-2">';
     
-    const sortedShifts = Array.from(usedShifts.values()).sort((a, b) => a.label.localeCompare(b.label));
+    userLegends.forEach(user => {
+        let badgesHtml = user.shifts.map(s => {
+            const c = s.class || '';
+            const st = s.style || '';
+            return `<span class="badge ${c} border text-dark" style="font-weight:normal; font-size:0.75rem; ${st}">${s.letter} = ${s.label}</span>`;
+        }).join(' ');
 
-    sortedShifts.forEach(style => {
-      // Gebruik OFWEL de class, OFWEL de inline style (voor dynamisch)
-      const badgeClass = style.class ? style.class : '';
-      const badgeStyle = style.style ? style.style : '';
-
-      legendHtml += `
-        <div class="d-flex align-items-center gap-1">
-          <span class="badge ${badgeClass} border" style="min-width:25px; ${badgeStyle}">${style.letter}</span> 
-          <span>${style.label}</span>
-        </div>`;
+        legendHtml += `
+          <div class="col-12">
+            <div class="d-flex align-items-center flex-wrap gap-2 small bg-light p-1 rounded border">
+              <strong class="text-nowrap me-2" style="min-width:120px;">${user.name}:</strong>
+              ${badgesHtml}
+            </div>
+          </div>`;
     });
+    
     legendHtml += '</div>';
     rLegend.innerHTML = legendHtml;
   } else if (rLegend) {
