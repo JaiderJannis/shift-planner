@@ -476,36 +476,54 @@ body.dark-mode .rooster-table thead th:first-child { background-color: #444; }
 body.dark-mode .bg-shift-normal { background-color: #343a40; color: #dee2e6; }
 /* === ROOSTER SHIFT KLEUREN === */
 
-/* 🌅 Vroege shift (Geel/Oranje achtig) */
+/* 🟧 School = Oranje (zoals gevraagd) */
+.bg-shift-school { 
+  background-color: #fd7e14 !important; /* Bootstrap Orange */
+  color: #fff !important; 
+  font-weight: 600;
+}
+
+/* 🟨 Ziekte = Geel/Goud */
+.bg-shift-sick { 
+  background-color: #ffc107 !important; /* Warning Yellow */
+  color: #000 !important; 
+  font-weight: 600;
+}
+
+/* 🟦 Verlof = Blauw/Cyaan */
+.bg-shift-leave { 
+  background-color: #0dcaf0 !important; 
+  color: #fff !important;
+  font-weight: 600;
+}
+
+/* 🌅 Vroege = Zacht Geel */
 .bg-shift-vroege { 
   background-color: #fff3cd !important; 
   color: #856404 !important; 
   font-weight: 600;
 }
 
-/* 🌇 Late shift (Blauw achtig) */
+/* 🌇 Late = Zacht Blauw */
 .bg-shift-late { 
   background-color: #cfe2ff !important; 
   color: #084298 !important; 
   font-weight: 600;
 }
 
-/* 🌙 Nacht shift (Donker/Paars) */
+/* 🌙 Nacht = Donker/Paars */
 .bg-shift-nacht { 
   background-color: #e0cffc !important; 
   color: #3700b3 !important; 
   font-weight: 600;
 }
 
-/* 🌞 Dagdienst / Kantoor (Groen achtig) */
-.bg-shift-dag { 
-  background-color: #d1e7dd !important; 
-  color: #0f5132 !important; 
+/* ☁️ Default / Overige = Grijs */
+.bg-shift-normal { 
+  background-color: #e9ecef; 
+  color: #495057; 
+  font-weight: 600;
 }
 
-/* Zorg dat de Verlof kleur goed opvalt */
-.bg-shift-leave { 
-  background-color: #0dcaf0 !important; /* Feller cyaan */
-  color: #fff !important;
-  font-weight: bold;
-}
+/* Donkere modus fix */
+body.dark-mode .bg-shift-normal { background-color: #343a40; color: #dee2e6; }
