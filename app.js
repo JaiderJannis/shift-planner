@@ -804,6 +804,8 @@ function renderShifts() {
       } else if (act === 'edit') {
         const sh = ud.shifts[name];
         newShiftName.value = name;
+        const shortInput = document.getElementById('newShiftShort');
+        if (shortInput) shortInput.value = sh.shortName || '';
         newShiftStart.value = sh.start || '08:00';
         newShiftEnd.value = sh.end || '16:00';
         newShiftBreak.value = sh.break || 0;
@@ -823,6 +825,7 @@ function renderShifts() {
       const ud = getCurrentUserData();
       ud.shifts = ud.shifts || {};
       ud.shifts[name] = {
+        shortName: shortName,
         start: newShiftStart.value || '00:00',
         end: newShiftEnd.value || '00:00',
         break: Number(newShiftBreak.value) || 0,
@@ -4904,29 +4907,44 @@ function stringToColor(str) {
 function getShiftStyle(shiftName) {
   const sLower = shiftName.toLowerCase();
 
-  // 1. Vaste systeem-shiften
-  if (['ziekte', 'ziek'].includes(sLower))       return { class: 'bg-shift-sick',   letter: 'Z', label: 'Ziekte', isGlobal: true };
-  if (['verlof', 'feestdag'].includes(sLower))   return { class: 'bg-shift-leave',  letter: 'V', label: 'Verlof', isGlobal: true };
-  if (['school', 'schoolverlof'].includes(sLower)) return { class: 'bg-shift-school', letter: 'S', label: 'School', isGlobal: true };
-  if (sLower === 'bench')                        return { class: '', letter: 'B', label: 'Bench', isGlobal: true };
+  // Probeer de originele shift-definitie op te halen uit de dataStore
+  // We hebben toegang tot 'dataStore.currentUser' of we moeten even zoeken in de admin-data.
+  // Omdat deze functie puur visueel is en geen 'user object' heeft, doen we een slimme check.
+  // We kijken in de shift-lijst van de HUIDIGE ingelogde admin (want die beheert de shift-definities).
+  const ud = getCurrentUserData(); 
+  const shiftDef = ud.shifts ? ud.shifts[shiftName] : null;
+  
+  // 1. HEEFT DE SHIFT EEN EIGEN AFKORTING? GEBRUIK DIE!
+  let letter = '';
+  if (shiftDef && shiftDef.shortName) {
+      letter = shiftDef.shortName;
+  } else {
+      // Fallback: Eerste 2 letters automatisch (of 4, wat je wil)
+      letter = shiftName.substring(0, 2).toUpperCase();
+  }
 
-  // 2. Semi-vaste kleuren (Vroege/Late/Nacht/Dag/Weekend) -> OOK GLOBAAL
-  if (sLower.includes('vroege'))                 return { class: 'bg-shift-vroege', letter: 'Vr', label: 'Vroege', isGlobal: true };
-  if (sLower.includes('late'))                   return { class: 'bg-shift-late',   letter: 'L',  label: 'Late', isGlobal: true };
-  if (sLower.includes('nacht'))                  return { class: 'bg-shift-nacht',  letter: 'N',  label: 'Nacht', isGlobal: true };
-  if (sLower.includes('dag'))                    return { class: 'bg-shift-dag',    letter: 'D',  label: 'Dagdienst', isGlobal: true };
-  if (sLower.includes('vrij weekend'))           return { class: 'bg-shift-normal', letter: 'Vw', label: 'Vrij weekend', isGlobal: true };
-
-  // 3. 🚀 SPECIFIEK: Alle andere (afwijkende) shiften zijn user-specific
+  // 2. Vaste systeem-shiften (Kleur blijft vast, maar letter kan nu overschreven worden)
+  // Als je 'Ziekte' bewerkt en afkorting 'ZK' geeft, toont hij 'ZK' met gele kleur.
+  if (['ziekte', 'ziek'].includes(sLower))       return { class: 'bg-shift-sick',   letter: letter || 'Z', label: 'Ziekte', isGlobal: true };
+  if (['verlof', 'feestdag'].includes(sLower))   return { class: 'bg-shift-leave',  letter: 'V', label: 'Verlof', isGlobal: true }; // 'V' is hier hardcoded fallback
+  // Let op: Als je de afkorting van Verlof wilt aanpassen, moet je de logica hierboven iets slimmer maken, 
+  // maar voor systeem-shiften is de standaard vaak prima.
+  
+  // Voor de custom shiften gebruiken we de opgehaalde letter:
+  if (sLower.includes('vroege'))                 return { class: 'bg-shift-vroege', letter: letter, label: 'Vroege', isGlobal: true };
+  if (sLower.includes('late'))                   return { class: 'bg-shift-late',   letter: letter, label: 'Late', isGlobal: true };
+  if (sLower.includes('nacht'))                  return { class: 'bg-shift-nacht',  letter: letter, label: 'Nacht', isGlobal: true };
+  if (sLower.includes('dag'))                    return { class: 'bg-shift-dag',    letter: letter, label: 'Dagdienst', isGlobal: true };
+  
+  // 3. 🚀 DYNAMISCH (Alle overige shiften)
   const dynamicColor = stringToColor(shiftName);
-  const letter = shiftName.substring(0, 2).toUpperCase();
-
+  
   return { 
     class: '', 
     style: `background-color: ${dynamicColor}; color: #333; font-weight:600;`, 
     letter: letter, 
     label: shiftName,
-    isGlobal: false // 👈 Deze gaan naar de user-lijst
+    isGlobal: false 
   };
 }
 
