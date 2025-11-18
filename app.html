@@ -76,6 +76,9 @@
 <a class="nav-link d-none" id="adminHomeTabBtn" data-bs-toggle="tab" href="#tab-admin-home">
     <span class="material-icons-outlined">dashboard</span> <span class="label">Admin Dashboard</span>
 </a>
+<a class="nav-link d-none" id="adminRoosterTabBtn" data-bs-toggle="tab" href="#tab-team-rooster">
+  <span class="material-icons-outlined">calendar_view_month</span> <span class="label">Team Rooster</span>
+</a>
   <a class="nav-link d-none" id="adminTabBtn" data-bs-toggle="tab" href="#tab-admin">
     <span class="material-icons-outlined">admin_panel_settings</span> <span class="label">Admin</span>
   </a>
@@ -263,6 +266,41 @@
         </table>
       </div>
     </div>
+  </div>
+</section>
+<!-- team-rooster -->
+<section id="tab-team-rooster" class="tab-pane fade">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Team Planning</h5>
+    <div class="d-flex gap-2">
+      <select id="roosterMonth" class="form-select form-select-sm" style="width:120px;">
+        </select>
+      <select id="roosterYear" class="form-select form-select-sm" style="width:100px;">
+        </select>
+      <button id="refreshRoosterBtn" class="btn btn-outline-primary btn-sm">
+        <span class="material-icons-outlined">refresh</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive rooster-wrapper" style="max-height: 80vh;">
+        <table class="table table-bordered table-sm mb-0 text-center align-middle rooster-table">
+          <thead class="table-light text-secondary small">
+            <tr id="roosterHeaderRow">
+              </tr>
+          </thead>
+          <tbody id="roosterBody">
+            </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  
+  <div class="mt-2 text-muted small">
+    <span class="badge bg-warning text-dark">Z</span> = Ziekte &nbsp;|&nbsp; 
+    <span class="badge bg-info text-dark">V</span> = Verlof
   </div>
 </section>
       <!-- SHIFTS -->
