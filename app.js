@@ -4936,39 +4936,36 @@ function stringToColor(str) {
 }
 
 // Helper: Bepaal stijl
-function getShiftStyle(shiftName) {
+function getShiftStyle(shiftName, userShifts = null) {
   const sLower = shiftName.toLowerCase();
 
-  // Probeer de originele shift-definitie op te halen uit de dataStore
-  // We hebben toegang tot 'dataStore.currentUser' of we moeten even zoeken in de admin-data.
-  // Omdat deze functie puur visueel is en geen 'user object' heeft, doen we een slimme check.
-  // We kijken in de shift-lijst van de HUIDIGE ingelogde admin (want die beheert de shift-definities).
-  const ud = getCurrentUserData(); 
-  const shiftDef = ud.shifts ? ud.shifts[shiftName] : null;
+  // Probeer de afkorting te vinden in de shifts van de specifieke gebruiker
+  // Als userShifts niet is meegegeven, val terug op de huidige gebruiker (voor zekerheid)
+  const sourceShifts = userShifts || getCurrentUserData().shifts;
+  const shiftDef = sourceShifts ? sourceShifts[shiftName] : null;
   
-  // 1. HEEFT DE SHIFT EEN EIGEN AFKORTING? GEBRUIK DIE!
+  // 1. HEEFT DEZE SHIFT BIJ DEZE USER EEN EIGEN AFKORTING?
   let letter = '';
   if (shiftDef && shiftDef.shortName) {
       letter = shiftDef.shortName;
   } else {
-      // Fallback: Eerste 2 letters automatisch (of 4, wat je wil)
+      // Fallback: Eerste 2 letters
       letter = shiftName.substring(0, 2).toUpperCase();
   }
 
-  // 2. Vaste systeem-shiften (Kleur blijft vast, maar letter kan nu overschreven worden)
-  // Als je 'Ziekte' bewerkt en afkorting 'ZK' geeft, toont hij 'ZK' met gele kleur.
+  // 2. Vaste systeem-shiften (Kleur vast, maar letter kan overschreven zijn)
   if (['ziekte', 'ziek'].includes(sLower))       return { class: 'bg-shift-sick',   letter: letter || 'Z', label: 'Ziekte', isGlobal: true };
-  if (['verlof', 'feestdag'].includes(sLower))   return { class: 'bg-shift-leave',  letter: 'V', label: 'Verlof', isGlobal: true }; // 'V' is hier hardcoded fallback
-  // Let op: Als je de afkorting van Verlof wilt aanpassen, moet je de logica hierboven iets slimmer maken, 
-  // maar voor systeem-shiften is de standaard vaak prima.
-  
-  // Voor de custom shiften gebruiken we de opgehaalde letter:
+  if (['verlof', 'feestdag'].includes(sLower))   return { class: 'bg-shift-leave',  letter: 'V', label: 'Verlof', isGlobal: true }; 
+  if (['school', 'schoolverlof'].includes(sLower)) return { class: 'bg-shift-school', letter: 'S', label: 'School', isGlobal: true };
+  if (sLower === 'bench')                        return { class: '', letter: '-', label: 'Bench', isGlobal: true };
+
+  // 2. Semi-vaste kleuren
   if (sLower.includes('vroege'))                 return { class: 'bg-shift-vroege', letter: letter, label: 'Vroege', isGlobal: true };
   if (sLower.includes('late'))                   return { class: 'bg-shift-late',   letter: letter, label: 'Late', isGlobal: true };
   if (sLower.includes('nacht'))                  return { class: 'bg-shift-nacht',  letter: letter, label: 'Nacht', isGlobal: true };
   if (sLower.includes('dag'))                    return { class: 'bg-shift-dag',    letter: letter, label: 'Dagdienst', isGlobal: true };
   
-  // 3. 🚀 DYNAMISCH (Alle overige shiften)
+  // 3. 🚀 DYNAMISCH
   const dynamicColor = stringToColor(shiftName);
   
   return { 
@@ -5034,7 +5031,7 @@ function renderTeamRooster() {
   
   // Data containers voor legende
   const globalShifts = new Map();
-  const userSpecificShifts = new Map(); // Key: UserName, Value: Map(Shifts)
+  const userSpecificShifts = new Map(); 
 
   // A. Header bouwen
   let headerHtml = '<th style="min-width:150px; background:#fff; position:sticky; left:0; z-index:30;">Werknemer</th>';
@@ -5076,7 +5073,9 @@ function renderTeamRooster() {
         const shiftName = rowData.shift;
         tooltip = `${shiftName} (${rowData.start} - ${rowData.end})`;
         
-        const style = getShiftStyle(shiftName);
+        // ✅ HIER IS DE FIX: We geven nu 'u.shifts' mee!
+        // Zo kijkt hij naar de afkortingen van DEZE gebruiker (u), niet van de kijker.
+        const style = getShiftStyle(shiftName, u.shifts);
         
         cellContent = style.letter;
         cellClass = style.class;
@@ -5084,10 +5083,8 @@ function renderTeamRooster() {
 
         if (style.letter !== '-') {
           if (style.isGlobal) {
-            // Voeg toe aan ALGEMENE lijst
             globalShifts.set(style.label, style);
           } else {
-            // Voeg toe aan SPECIFIEKE lijst voor deze user
             if (!userSpecificShifts.has(userName)) {
               userSpecificShifts.set(userName, new Map());
             }
@@ -5105,14 +5102,13 @@ function renderTeamRooster() {
     rBody.appendChild(tr);
   });
 
-  // C. Legende Genereren (Hybride)
+  // C. Legende Genereren
   if (rLegend) {
     let legendHtml = '';
 
-    // 1. Algemene Legende (indien aanwezig)
+    // 1. Algemeen
     if (globalShifts.size > 0) {
       const sortedGlobal = Array.from(globalShifts.values()).sort((a, b) => a.label.localeCompare(b.label));
-      
       legendHtml += '<div class="mb-2"><small class="text-muted fw-bold">Algemeen:</small><div class="d-flex flex-wrap gap-3 small mt-1">';
       sortedGlobal.forEach(s => {
         const c = s.class || '';
@@ -5126,20 +5122,16 @@ function renderTeamRooster() {
       legendHtml += '</div></div>';
     }
 
-    // 2. Specifieke Legende per User (indien aanwezig)
+    // 2. Specifiek per User
     if (userSpecificShifts.size > 0) {
-      if (globalShifts.size > 0) legendHtml += '<hr class="my-2">'; // Scheidingslijn als beide bestaan
-      
+      if (globalShifts.size > 0) legendHtml += '<hr class="my-2">';
       legendHtml += '<div class="mb-2"><small class="text-muted fw-bold">Specifiek per gebruiker:</small><div class="row g-2 mt-1">';
-      
       userSpecificShifts.forEach((shiftsMap, userName) => {
         const sortedUserShifts = Array.from(shiftsMap.values()).sort((a, b) => a.label.localeCompare(b.label));
-        
         let badgesHtml = sortedUserShifts.map(s => {
             const st = s.style || '';
             return `<span class="badge border text-dark" style="font-weight:normal; font-size:0.75rem; ${st}">${s.letter} = ${s.label}</span>`;
         }).join(' ');
-
         legendHtml += `
           <div class="col-12 col-md-auto">
             <div class="d-flex align-items-center flex-wrap gap-2 small bg-light p-1 px-2 rounded border">
@@ -5151,11 +5143,9 @@ function renderTeamRooster() {
       legendHtml += '</div></div>';
     }
 
-    // Fallback als alles leeg is
     if (globalShifts.size === 0 && userSpecificShifts.size === 0) {
        legendHtml = '<small class="text-muted fst-italic">Geen shiften gepland deze maand.</small>';
     }
-
     rLegend.innerHTML = legendHtml;
   }
 }
