@@ -408,4 +408,69 @@ body.dark-mode #approvalYearlyOverview .btn-outline-secondary:hover {
   color: #0d6efd; /* Blauw als er een bijlage is */
   transform: rotate(45deg);
 }
+/* === TEAM ROOSTER STYLES === */
+.rooster-wrapper {
+  position: relative;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+}
 
+/* Header sticky bovenaan */
+.rooster-table thead th {
+  position: sticky;
+  top: 0;
+  background-color: #f8f9fa; /* Lichte achtergrond */
+  z-index: 10; /* Boven de cellen */
+  box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+}
+
+/* Eerste kolom (Namen) sticky links */
+.rooster-table tbody th, 
+.rooster-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  background-color: #fff;
+  z-index: 20; /* Boven de andere headers en cellen */
+  border-right: 2px solid #dee2e6;
+  min-width: 150px;
+  text-align: left;
+  padding-left: 10px;
+}
+.rooster-table thead th:first-child {
+  z-index: 30; /* Allerhoogste (linksboven hoek) */
+  background-color: #e9ecef;
+}
+
+/* Donkere modus fix voor sticky */
+body.dark-mode .rooster-table thead th { background-color: #333; color: #fff; border-color: #555; }
+body.dark-mode .rooster-table tbody th { background-color: #2b2b2b; color: #fff; border-color: #555; }
+body.dark-mode .rooster-table thead th:first-child { background-color: #444; }
+
+/* Cellen styling */
+.rooster-cell {
+  min-width: 40px;
+  height: 40px;
+  font-size: 0.75rem;
+  cursor: default;
+  padding: 0 !important; /* Zodat de hele cel gekleurd kan worden */
+  vertical-align: middle;
+}
+
+/* Inhoud van de cel */
+.rooster-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Kleurtjes voor specifieke shifts */
+.bg-shift-sick { background-color: #ffeeba; color: #856404; } /* Geel/Oranje */
+.bg-shift-leave { background-color: #cff4fc; color: #055160; } /* Lichtblauw */
+.bg-shift-school { background-color: #d1e7dd; color: #0f5132; } /* Groen */
+.bg-shift-normal { background-color: #f8f9fa; color: #212529; } /* Grijs */
+
+body.dark-mode .bg-shift-normal { background-color: #343a40; color: #dee2e6; }
