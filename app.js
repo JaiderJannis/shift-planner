@@ -4889,29 +4889,49 @@ deleteAttachmentBtn?.addEventListener('click', async () => {
   }
 });
 // ==========================================
-// 📅 TEAM ROOSTER (ADMIN) - MET DYNAMISCHE LEGENDE
+// 📅 TEAM ROOSTER (ADMIN) - VOLLEDIG DYNAMISCH
 // ==========================================
 
-// Helper: Bepaal stijl en afkorting op basis van shiftnaam
+// 🎨 Helper: Genereer een consistente pastelkleur op basis van tekst
+function stringToColor(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  // HSL Kleur: Hue (0-360) op basis van naam, Saturation 70%, Lightness 80% (zacht pastel)
+  const h = Math.abs(hash % 360);
+  return `hsl(${h}, 70%, 80%)`;
+}
+
+// Helper: Bepaal stijl (vast OF dynamisch)
 function getShiftStyle(shiftName) {
   const sLower = shiftName.toLowerCase();
-  
-  if (['ziekte', 'ziek'].includes(sLower))       return { class: 'bg-shift-sick',   letter: 'Z', label: 'Ziekte' };
-  if (['verlof', 'feestdag'].includes(sLower))   return { class: 'bg-shift-leave',  letter: 'V', label: 'Verlof' };
-  if (['school', 'schoolverlof'].includes(sLower)) return { class: 'bg-shift-school', letter: 'S', label: 'School' };
-  
-  if (sLower.includes('vroege'))                 return { class: 'bg-shift-vroege', letter: 'Vr', label: 'Vroege' };
-  if (sLower.includes('late'))                   return { class: 'bg-shift-late',   letter: 'L',  label: 'Late' };
-  if (sLower.includes('nacht'))                  return { class: 'bg-shift-nacht',  letter: 'N',  label: 'Nacht' };
-  if (sLower.includes('dag'))                    return { class: 'bg-shift-dag',    letter: 'D',  label: 'Dagdienst' };
-  
-  if (shiftName === 'Bench')                     return { class: '', letter: '-', label: 'Bench' };
 
-  // Fallback voor custom shiften: eerste 2 letters + grijs
+  // 1. Vaste kleuren voor systeem-shiften (zoals gedefinieerd in CSS)
+  if (['ziekte', 'ziek'].includes(sLower))       return { class: 'bg-shift-sick',   letter: 'Z', label: 'Ziekte', isDynamic: false };
+  if (['verlof', 'feestdag'].includes(sLower))   return { class: 'bg-shift-leave',  letter: 'V', label: 'Verlof', isDynamic: false };
+  if (['school', 'schoolverlof'].includes(sLower)) return { class: 'bg-shift-school', letter: 'S', label: 'School', isDynamic: false };
+  if (sLower === 'bench')                        return { class: '', letter: '-', label: 'Bench', isDynamic: false };
+
+  // 2. Semi-vaste kleuren (optioneel, als je Vroege/Late/Nacht specifiek wilt houden)
+  if (sLower.includes('vroege'))                 return { class: 'bg-shift-vroege', letter: 'Vr', label: 'Vroege', isDynamic: false };
+  if (sLower.includes('late'))                   return { class: 'bg-shift-late',   letter: 'L',  label: 'Late', isDynamic: false };
+  if (sLower.includes('nacht'))                  return { class: 'bg-shift-nacht',  letter: 'N',  label: 'Nacht', isDynamic: false };
+  if (sLower.includes('dag'))                    return { class: 'bg-shift-dag',    letter: 'D',  label: 'Dagdienst', isDynamic: false };
+
+  // 3. 🚀 DYNAMISCH: Voor alle andere shiften (Middag, Weekend, etc.)
+  // Genereer automatisch een kleur
+  const dynamicColor = stringToColor(shiftName);
+  
+  // Maak een afkorting (Eerste 2 letters, Hoofdletter)
+  const letter = shiftName.substring(0, 2).toUpperCase();
+
   return { 
-    class: 'bg-shift-normal', 
-    letter: shiftName.substring(0, 2).toUpperCase(), 
-    label: shiftName 
+    class: '', 
+    style: `background-color: ${dynamicColor}; color: #333; font-weight:600;`, // Inline stijl
+    letter: letter, 
+    label: shiftName,
+    isDynamic: true 
   };
 }
 
@@ -4967,7 +4987,6 @@ function renderTeamRooster() {
   const month = Number(rMonth.value);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   
-  // Set om unieke shiften bij te houden voor de legende
   const usedShifts = new Map(); 
 
   // A. Header bouwen
@@ -4999,32 +5018,34 @@ function renderTeamRooster() {
     for (let d = 1; d <= daysInMonth; d++) {
       const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       
-      // Zoek shift (ook in extra regels)
+      // Zoek shift (inclusief extra lijnen)
       const entryKey = Object.keys(monthData).find(k => k === key || k.startsWith(key + '#'));
       const rowData = entryKey ? monthData[entryKey] : null;
 
       let cellContent = '';
       let cellClass = '';
+      let cellStyle = '';
       let tooltip = '';
 
       if (rowData && rowData.shift) {
         const shiftName = rowData.shift;
         tooltip = `${shiftName} (${rowData.start} - ${rowData.end})`;
         
-        // 🎨 Bepaal stijl via helper
+        // 🎨 STIJL BEPALEN
         const style = getShiftStyle(shiftName);
         
         cellContent = style.letter;
-        cellClass = style.class;
+        cellClass = style.class; // Voor vaste CSS classes
+        cellStyle = style.style || ''; // Voor dynamische kleuren
 
-        // Voeg toe aan legende-set (gebruik label als unieke key)
+        // Voeg toe aan legende (behalve bench)
         if (style.letter !== '-') {
             usedShifts.set(style.label, style);
         }
       }
 
       rowHtml += `
-        <td class="rooster-cell ${cellClass}" title="${tooltip}">
+        <td class="rooster-cell ${cellClass}" style="${cellStyle}" title="${tooltip}">
           <div class="rooster-content">${cellContent}</div>
         </td>`;
     }
@@ -5032,17 +5053,20 @@ function renderTeamRooster() {
     rBody.appendChild(tr);
   });
 
-  // C. Legende Genereren (Dynamisch)
+  // C. Legende Genereren
   if (rLegend && usedShifts.size > 0) {
     let legendHtml = '<small class="text-muted fw-semibold d-block mb-2">Legende (deze maand):</small><div class="d-flex flex-wrap gap-3 small">';
     
-    // Sorteer de legende op alfabet van label
     const sortedShifts = Array.from(usedShifts.values()).sort((a, b) => a.label.localeCompare(b.label));
 
     sortedShifts.forEach(style => {
+      // Gebruik OFWEL de class, OFWEL de inline style (voor dynamisch)
+      const badgeClass = style.class ? style.class : '';
+      const badgeStyle = style.style ? style.style : '';
+
       legendHtml += `
         <div class="d-flex align-items-center gap-1">
-          <span class="badge ${style.class} border" style="min-width:25px;">${style.letter}</span> 
+          <span class="badge ${badgeClass} border" style="min-width:25px; ${badgeStyle}">${style.letter}</span> 
           <span>${style.label}</span>
         </div>`;
     });
