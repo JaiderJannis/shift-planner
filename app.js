@@ -2931,49 +2931,27 @@ function updateRemainingHours() {
   `;
   alertBox.classList.remove('d-none');
 }
-// 💡 Laat de balk zweven — maar schuif omhoog bij paginabodem
+// 💡 Laat de balk zweven — FIX: Extra scrollruimte en positie
 document.addEventListener('DOMContentLoaded', () => {
   const alertBox = document.getElementById('remainingHoursAlert');
   if (!alertBox) return;
 
-  const TOPBAR_H = 70;
-  const getThreshold = () => Math.max(0, alertBox.offsetTop - TOPBAR_H);
-  let threshold = getThreshold();
+  // 1. BELANGRIJK: Voeg lege ruimte toe onderaan de hele pagina (120px).
+  // Hierdoor kun je de tabel 'voorbij' de zwevende balk scrollen, 
+  // en zijn de onderste regels (30/31e) gewoon zichtbaar en klikbaar.
+  document.body.style.paddingBottom = "120px";
 
-  const toggleFloating = () => {
-    const shouldFloat = window.scrollY > threshold;
-    alertBox.classList.toggle('floating', shouldFloat);
-
-    const scrollBottom = window.innerHeight + window.scrollY;
-    const pageHeight = document.body.offsetHeight;
-
-    if (pageHeight - scrollBottom < 120) {
-      alertBox.style.bottom = `${120 - (pageHeight - scrollBottom)}px`;
-    } else {
-      alertBox.style.bottom = '1rem';
-    }
-  };
-
-  // ✅ direct forceren bij laden
-  alertBox.style.position = "fixed";
-  alertBox.style.bottom = "1rem";
-  alertBox.style.left = "50%";
-  alertBox.style.transform = "translateX(-50%)";
-  alertBox.style.zIndex = "2000";
-
-  // hercontrole na 0,5s
-  setTimeout(() => {
-    alertBox.style.position = "fixed";
-    alertBox.style.bottom = "1rem";
-    alertBox.style.left = "50%";
-    alertBox.style.transform = "translateX(-50%)";
-  }, 500);
-
-  toggleFloating();
-  window.addEventListener('scroll', toggleFloating, { passive: true });
-  window.addEventListener('resize', () => {
-    threshold = getThreshold();
-    toggleFloating();
+  // 2. Zet de balk vast onderaan het scherm
+  Object.assign(alertBox.style, {
+    position: "fixed",
+    bottom: "15px",         // Iets van de rand af
+    left: "50%",
+    transform: "translateX(-50%)",
+    zIndex: "2000",
+    width: "auto",
+    maxWidth: "95%",        // Zorgt dat hij op mobiel niet buiten beeld valt
+    boxShadow: "0 4px 10px rgba(0,0,0,0.2)", // Mooie schaduw zodat hij loskomt van de tabel
+    borderRadius: "50px"    // Netter uiterlijk (pil-vorm)
   });
 });
 // ✅ Fix: resterende uren-balk altijd onderaan direct bij laden
