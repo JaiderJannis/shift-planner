@@ -5004,7 +5004,7 @@ function getShiftStyle(shiftName, userShifts = null) {
   if (sLower.includes('late'))                   return { class: 'bg-shift-late',   letter: letter, label: 'Late', isGlobal: true };
   if (sLower.includes('nacht'))                  return { class: 'bg-shift-nacht',  letter: letter, label: 'Nacht', isGlobal: true };
   if (sLower.includes('dag'))                    return { class: 'bg-shift-dag',    letter: letter, label: 'Dagdienst', isGlobal: true };
-  if (sLower.includes('vrij weekend'))           return { class: 'bg-shift-normal', letter: 'VR', label: 'Vrij weekend', isGlobal: true };
+  if (sLower.includes('vrij weekend'))           return { class: 'bg-shift-normal', letter: 'Vw', label: 'Vrij weekend', isGlobal: true };
   
   // 5. DYNAMISCHE FALLBACK
   const dynamicColor = stringToColor(shiftName);
