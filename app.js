@@ -2476,23 +2476,28 @@ markAllReadBtn?.addEventListener('click', async () => {
 let lastVisible = null; // houdt bij tot waar we geladen hebben
 
 // 🔁 Laad de eerste reeks meldingen
-// 🔁 Laad de eerste reeks meldingen
 function listenToNotifications(uid) {
   const colRef = collection(db, 'users', uid, 'notifications');
   const q = query(colRef, orderBy('timestamp', 'desc'), limit(20));
+
+  // 1. 🛑 Vlag om te voorkomen dat je bij het opstarten 20 meldingen krijgt
+  let isFirstRun = true; 
 
   onSnapshot(q, (snapshot) => {
     notifList.innerHTML = '';
     let unread = 0;
     
-    dataStore.notifications = []; // 👈 VOEG DEZE REGEL TOE (Cache legen)
+    dataStore.notifications = []; 
 
     const docs = snapshot.docs;
-    lastVisible = docs[docs.length - 1]; // laatste document bewaren
+    if (docs.length > 0) {
+        lastVisible = docs[docs.length - 1]; 
+    }
 
+    // --- A. DE BESTAANDE UI-LUS (Lijst opbouwen) ---
     snapshot.forEach((docSnap) => {
       const n = docSnap.data();
-      dataStore.notifications.push(n); // 👈 VOEG DEZE REGEL TOE (Cache vullen)
+      dataStore.notifications.push(n); 
       
       const time = n.timestamp ? new Date(n.timestamp).toLocaleString('nl-BE') : '';
       if (!n.read) unread++;
@@ -2505,13 +2510,33 @@ function listenToNotifications(uid) {
       notifList.appendChild(li);
     });
 
+    // --- B. NIEUW: DE BROWSER NOTIFICATIE LUS ---
+    // We voeren dit alleen uit als het NIET de eerste keer laden is
+    if (!isFirstRun) {
+      snapshot.docChanges().forEach((change) => {
+        // Als er een nieuw bericht is binnengekomen (added)
+        if (change.type === "added") {
+          const n = change.doc.data();
+          // Stuur de browser melding (functie die we eerder maakten)
+          sendBrowserNotification("Nieuwe melding", n.text);
+        }
+      });
+    }
+
+    // Update de badges
     notifBadge.textContent = unread;
     notifBadge.classList.toggle('d-none', unread === 0);
 
-    // Toon 'Toon meer' als er minstens 20 meldingen zijn
-    document.getElementById('loadMoreNotifBtn').classList.toggle('d-none', docs.length < 20);
+    // Toon 'Toon meer' knop logic
+    const loadMoreBtn = document.getElementById('loadMoreNotifBtn');
+    if (loadMoreBtn) {
+        loadMoreBtn.classList.toggle('d-none', docs.length < 20);
+    }
     
-    loadHomeNotifications(); // 👈 VOEG DEZE REGEL TOE (Homepagina bijwerken)
+    loadHomeNotifications(); 
+
+    // 2. 🛑 Zet de vlag op false na de eerste keer laden
+    isFirstRun = false;
   });
 }
 
@@ -3891,76 +3916,113 @@ function listenMailbox(uid) {
   mailboxCacheInbox = [];
   mailboxCacheSent = [];
 
-  const me = dataStore.users[uid]; // Gebruik de ingelogde user ID
+  const me = dataStore.users[uid]; 
   const iAmAdmin = (me?.role || 'user') === 'admin';
 
   if (iAmAdmin) {
-    // ADMIN: Luistert naar TWEE bronnen
+    // --- ADMIN: Luistert naar TWEE bronnen ---
     
     // Bron 1: De 'admin_mail' collectie (voor de Inbox)
     const inboxColRef = collection(db, 'admin_mail');
     const qyInbox = query(inboxColRef, orderBy('timestamp','desc'), limit(200));
-    mailboxUnsubInbox = onSnapshot(qyInbox, (snap) => {
-      let hasNewLeaveRequest = false; // 👈 Nieuwe vlag
+    
+    let isFirstLoadAdmin = true; // 🛑 Vlag om meldingen bij opstarten te blokkeren
 
+    mailboxUnsubInbox = onSnapshot(qyInbox, (snap) => {
+      let hasNewLeaveRequest = false; 
+
+      // A. NOTIFICATIE LOOP (Nieuw)
+      if (!isFirstLoadAdmin) {
+        snap.docChanges().forEach((change) => {
+          if (change.type === "added") {
+            const d = change.doc.data();
+            // Als het ongelezen is, stuur melding
+            if (!d.read) {
+              const sender = d.fromName || d.from?.name || "Onbekend";
+              const subject = d.subject || "(Geen onderwerp)";
+              
+              // Stuur browser melding
+              sendBrowserNotification(`Nieuw bericht van ${sender}`, subject);
+            }
+          }
+        });
+      }
+
+      // B. BESTAANDE UI LOGICA
       mailboxCacheInbox = snap.docs.map(d => {
         const data = d.data();
-        // Check of het een NIEUWE, ONGELEZEN verlofaanvraag is
         if (data.kind === 'leave_request' && data.read === false) {
-          hasNewLeaveRequest = true; // 👈 We vonden een nieuwe!
+          hasNewLeaveRequest = true; 
         }
         return { _id:d.id, ...data, _tsIso: normTs(data.timestamp), _source: 'admin_mail' };
       });
       
-      mergeAndRenderMail(); // 👈 Deze update de mail-UI (bestaand)
+      mergeAndRenderMail(); 
 
-      // 
-      // ✨ HIER DE LIVE TAB-UPDATE ✨
-      //
+      // C. LIVE TAB UPDATE LOGICA
       if (hasNewLeaveRequest) {
-        // Is de verlofbeheer-tab momenteel zichtbaar?
         const isVerlofTabActive = document.querySelector('a[href="#tab-verlofbeheer"]')?.classList.contains('active');
-        
         if (isVerlofTabActive) {
-          // Tab is open! Herlaad hem live.
-          console.log("Live update: Nieuwe verlofaanvraag gedetecteerd, herlaad tab.");
+          console.log("Live update: Nieuwe verlofaanvraag gedetecteerd.");
           toast('Nieuwe verlofaanvraag!', 'info');
-          
-          // Dit is de enige betrouwbare manier:
-          // Eerst de data verversen, dan de tabel hertekenen.
           (async () => {
              await loadAllUsers(); 
              loadAndRenderLeaveRequests();
           })();
-
-        } else {
-          // Tab is niet open, de mail-badge en notificatie zijn genoeg.
-          console.log("Live update: Nieuwe verlofaanvraag in mailbox.");
         }
       }
+
+      isFirstLoadAdmin = false; // 🛑 Vlag uitzetten na eerste keer
     });
 
-    // Bron 2: Hun EIGEN mailbox (voor Verzonden items en replies)
+    // Bron 2: Hun EIGEN mailbox (voor Verzonden items) -> Geen notificaties nodig
     const sentColRef = collection(db, 'users', uid, 'mailbox');
     const qySent = query(sentColRef, orderBy('timestamp','desc'), limit(200));
     mailboxUnsubSent = onSnapshot(qySent, (snap) => {
-      // ⬇️ HIER IS DE FIX: _source tag toegevoegd
       mailboxCacheSent = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp), _source: 'user_mailbox' }));
       mergeAndRenderMail(); 
     });
 
   } else {
-    // GEWONE USER: Luistert naar ÉÉN bron (hun eigen mailbox)
+    // --- GEWONE USER: Luistert naar ÉÉN bron ---
     const userColRef = collection(db, 'users', uid, 'mailbox');
     const qyUser = query(userColRef, orderBy('timestamp','desc'), limit(200));
+
+    let isFirstLoadUser = true; // 🛑 Vlag om meldingen bij opstarten te blokkeren
+
     mailboxUnsubInbox = onSnapshot(qyUser, (snap) => {
-      // ⬇️ HIER IS DE FIX: _source tag toegevoegd
+      
+      // A. NOTIFICATIE LOOP (Nieuw)
+      if (!isFirstLoadUser) {
+        snap.docChanges().forEach((change) => {
+          if (change.type === "added") {
+            const d = change.doc.data();
+            
+            // Check: bericht voor mij? ongelezen? niet van mijzelf?
+            const isForMe = d.to?.uid === uid || d.to?.type === 'user'; 
+            const notFromMe = d.from?.uid !== uid; 
+
+            if (!d.read && isForMe && notFromMe) {
+               const sender = d.system ? "Shift Planner" : (d.from?.name || "Admin");
+               const subject = d.subject || "(Geen onderwerp)";
+               
+               // Stuur browser melding
+               sendBrowserNotification(`Nieuw bericht van ${sender}`, subject);
+            }
+          }
+        });
+      }
+
+      // B. BESTAANDE UI LOGICA
       mailboxCacheInbox = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp), _source: 'user_mailbox' }));
       mailboxCacheSent = []; 
       mergeAndRenderMail(); 
+
+      isFirstLoadUser = false; // 🛑 Vlag uitzetten
     });
   }
 }
+
 /* ---------- compose ---------- */
 function isAdmin() {
   const me = dataStore.users[getActiveUserId()];
