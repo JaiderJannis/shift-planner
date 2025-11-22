@@ -415,6 +415,7 @@ onAuthStateChanged(auth, async (user)=>{
   // 2. WEL EEN GEBRUIKER? TOON DE APP!
   // Dit verwijdert de blokkade die we in CSS hebben gezet
   document.body.classList.add('auth-checked');
+  requestNotificationPermission(); 
 currentUserId = user.uid; 
       currentUserName.textContent = user.displayName || user.email;
 
@@ -5175,5 +5176,43 @@ document.querySelector('a[href="#tab-team-rooster"]')?.addEventListener('shown.b
     initRoosterSelectors();
     renderTeamRooster();
 });
+// --- ECHTE APP NOTIFICATIES (BROWSER LEVEL) ---
+
+// 1. Vraag toestemming aan de gebruiker
+async function requestNotificationPermission() {
+  if (!("Notification" in window)) {
+    console.log("Deze browser ondersteunt geen desktop notificaties");
+    return false;
+  }
+
+  const permission = await Notification.requestPermission();
+  if (permission === "granted") {
+    console.log("Notificatie toestemming gekregen!");
+    return true;
+  } else {
+    console.log("Notificatie toestemming geweigerd.");
+    return false;
+  }
+}
+
+// 2. Stuur de daadwerkelijke melding
+function sendBrowserNotification(title, body) {
+  // Check of we toestemming hebben
+  if (Notification.permission === "granted") {
+    // Maak de notificatie
+    const notification = new Notification(title, {
+      body: body,
+      icon: 'favicon-192x192.png', // Zorg dat dit pad klopt met je favicon
+      vibrate: [200, 100, 200] // Trillen op mobiel (indien ondersteund)
+    });
+
+    // Actie bij klikken op de melding (focus de tab)
+    notification.onclick = function(event) {
+      event.preventDefault(); // Voorkom standaard browser gedrag
+      window.focus(); // Breng de app naar de voorgrond
+      notification.close();
+    };
+  }
+}
 
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
