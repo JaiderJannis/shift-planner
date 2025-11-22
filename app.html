@@ -896,6 +896,7 @@
           <div class="col-12 col-md-6">
             <div class="card shadow-sm border-0 h-100">
               <div class="card-body">
+                
                 <div class="d-flex align-items-center mb-3">
                   <img id="profilePhoto" src="" alt="Profiel" class="rounded-circle me-3" style="width: 64px; height: 64px; object-fit: cover; background-color: #eee;">
                   <div>
@@ -928,6 +929,7 @@
                 </div>
                 
                 <hr class="my-4">
+                
                 <h6 class="card-title">Voorkeuren</h6>
                 
                 <div class="mb-3">
@@ -942,6 +944,16 @@
                   </select>
                 </div>
 
+                <div class="mb-3 p-2 border rounded bg-light-subtle">
+                  <label class="form-label small fw-bold mb-2">App Meldingen</label>
+                  <button id="enableNotifBtn" class="btn btn-outline-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-2">
+                    <span class="material-icons-outlined" style="font-size:18px">notifications_active</span>
+                    Activeer Meldingen
+                  </button>
+                  <div id="notifStatusText" class="text-muted fst-italic" style="font-size: 0.75rem; margin-top: 4px;">
+                    Op iPhone: Voeg eerst toe aan beginscherm.
+                  </div>
+                </div>
                 <fieldset id="profileNotifPrefs">
                   <label class="form-label small fw-bold">Automatische herinneringen:</label>
                   
@@ -1025,7 +1037,10 @@
               </div>
             </div>
 
-          </div> </div> </div> </div>
+          </div> 
+        </div> 
+      </div> 
+    </div>
   </div>
 </div>
 
