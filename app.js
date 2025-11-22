@@ -5276,5 +5276,24 @@ function sendBrowserNotification(title, body) {
     };
   }
 }
+// Knop logica voor iOS/Android meldingen
+document.getElementById('enableNotifBtn')?.addEventListener('click', async () => {
+  const allowed = await requestNotificationPermission();
+  if (allowed) {
+    toast('Meldingen zijn geactiveerd!', 'success');
+    document.getElementById('enableNotifBtn').classList.add('d-none'); // Verberg knop als het gelukt is
+    document.getElementById('notifStatusText').textContent = '✅ Meldingen zijn actief.';
+  } else {
+    toast('Meldingen geweigerd of niet mogelijk.', 'warning');
+  }
+});
+
+// Check bij het openen van het profiel of we al toestemming hebben
+document.getElementById('profileModal')?.addEventListener('show.bs.modal', () => {
+  if (Notification.permission === 'granted') {
+     document.getElementById('enableNotifBtn').classList.add('d-none');
+     document.getElementById('notifStatusText').textContent = '✅ Meldingen zijn actief.';
+  }
+});
 
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
