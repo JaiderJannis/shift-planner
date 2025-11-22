@@ -408,11 +408,9 @@ onAuthStateChanged(auth, async (user)=>{
       // EINDE TOEVOEGING
 
       if(!user){
-        // Voor demo: toon eenvoudige melding
-        currentUserName.textContent = 'Niet ingelogd';
-        toast('Geen gebruiker ingelogd. Redirect naar login…', 'warning');
-        // Je kan hier een loginpagina openen of FirebaseUI integreren.
-        return;
+        // Als er geen gebruiker is, stuur DIRECT terug naar de login pagina (index.html)
+        window.location.replace('index.html'); 
+        return; // Stop de rest van de functie
       }
 currentUserId = user.uid; 
       currentUserName.textContent = user.displayName || user.email;
