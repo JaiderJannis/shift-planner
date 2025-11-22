@@ -527,3 +527,20 @@ body.dark-mode .bg-shift-normal { background-color: #343a40; color: #dee2e6; }
 
 /* Donkere modus fix */
 body.dark-mode .bg-shift-normal { background-color: #343a40; color: #dee2e6; }
+/* === ANTI-FLASH: Verberg app tot login check klaar is === */
+
+/* 1. Zolang de body de class 'auth-checked' NIET heeft, verberg de interface */
+body:not(.auth-checked) #sidebar,
+body:not(.auth-checked) .sp-topbar,
+body:not(.auth-checked) .sp-main {
+  display: none !important;
+}
+
+/* 2. Zolang de body de class 'auth-checked' NIET heeft, FORCEER de loader */
+body:not(.auth-checked) #loadingOverlay {
+  display: flex !important; /* Overschrijft d-none */
+  opacity: 1 !important;
+  visibility: visible !important;
+  background-color: #f5f7fb; /* Zelfde kleur als achtergrond */
+  z-index: 9999;
+}
