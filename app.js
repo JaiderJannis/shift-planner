@@ -406,12 +406,15 @@ onAuthStateChanged(auth, async (user)=>{
         applyAccentColor(savedColor);
       }
       // EINDE TOEVOEGING
+// 1. GEEN GEBRUIKER? REDIRECT!
+  if (!user) {
+    window.location.replace('index.html');
+    return; // Stop hier, laat de app NIET zien
+  }
 
-      if(!user){
-        // Als er geen gebruiker is, stuur DIRECT terug naar de login pagina (index.html)
-        window.location.replace('index.html'); 
-        return; // Stop de rest van de functie
-      }
+  // 2. WEL EEN GEBRUIKER? TOON DE APP!
+  // Dit verwijdert de blokkade die we in CSS hebben gezet
+  document.body.classList.add('auth-checked');
 currentUserId = user.uid; 
       currentUserName.textContent = user.displayName || user.email;
 
