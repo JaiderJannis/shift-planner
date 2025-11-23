@@ -1333,7 +1333,7 @@ tr.querySelector('.dur').textContent = isPendingOrRejected
 saveCell(year, month, rowKey, r, tr);
   debouncedSave();
   updateInputTotals();
-  renderhistory();
+  renderHistory();
 
   // + opnieuw (de)activeren
   const addBtn = tr.querySelector('.addLineBtn');
