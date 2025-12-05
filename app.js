@@ -3650,6 +3650,18 @@ document.getElementById('adminReopenBtn')?.addEventListener('click', async () =>
     renderMonth(y, m);
   }
 });
+Mijn excuses, je hebt gelijk. Ik heb inderdaad een slordige fout gemaakt in de laatste regel van die functie.
+
+De variabele prev werd onderaan aangeroepen, maar was nergens gedefinieerd in die functie. Dat veroorzaakt de crash bij het opstarten.
+
+Hier is de gecorrigeerde functie renderAdminMonthlyMulti. De foute regel (dataStore.viewUserId = prev;) is onderaan verwijderd.
+
+Stap 1: Open app.js
+Zoek de functie renderAdminMonthlyMulti (rond regel 3680) en vervang deze volledig door onderstaande versie.
+
+Stap 2: Vervang met deze code
+JavaScript
+
 function renderAdminMonthlyMulti(){
   const yInput   = document.getElementById('adminMultiYear');
   const mSelect  = document.getElementById('adminMultiMonth');
@@ -3666,7 +3678,7 @@ function renderAdminMonthlyMulti(){
     return;
   }
 
-  // 2. Haal de data van de doel-gebruiker op (zonder viewUserId globaal te wijzigen voor de hele app)
+  // 2. Haal de data van de doel-gebruiker op
   const ud = dataStore.users[uid];
   if (!ud) return; 
 
@@ -3686,7 +3698,7 @@ function renderAdminMonthlyMulti(){
   yInput.onchange = () => renderAdminMonthlyMulti();
   mSelect.onchange = () => renderAdminMonthlyMulti();
   
-  // 4. DE FIX ZIT HIERONDER:
+  // 4. Checkbox logica
   allowBox.onchange = async () => {
     const key = `${yInput.value}-${String(Number(mSelect.value)+1).padStart(2,'0')}`;
     
@@ -3694,21 +3706,17 @@ function renderAdminMonthlyMulti(){
     if (allowBox.checked) ud.settings.multiByMonth[key] = true;
     else delete ud.settings.multiByMonth[key];
 
-    // === FIX START ===
-    // We moeten tijdelijk de 'viewUserId' forceren naar de doel-gebruiker
-    // zodat saveUserData() de juiste document-referentie pakt.
+    // Tijdelijk switchen naar die gebruiker om correct op te slaan
     const originalView = dataStore.viewUserId;
     dataStore.viewUserId = uid; 
     
     await saveUserData();
 
-    // Zet de view terug naar hoe hij was (waarschijnlijk null of admin zelf)
+    // Zet terug naar wie het was
     dataStore.viewUserId = originalView;
-    // === FIX END ===
 
     // Als we toevallig in de 'Invoer' tab kijken naar DEZE gebruiker en DEZE maand, verversen we de tabel
-    // zodat het "+"-knopje direct verschijnt.
-    const activeViewId = getActiveUserId(); // Wie bekijken we nu in de UI?
+    const activeViewId = getActiveUserId(); 
     if (activeViewId === uid &&
         Number(yearSelectMain.value) === Number(yInput.value) &&
         Number(monthSelectMain.value) === Number(mSelect.value)) {
