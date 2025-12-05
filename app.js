@@ -3656,16 +3656,20 @@ function renderAdminMonthlyMulti(){
   const allowBox = document.getElementById('adminMultiAllow');
   if (!yInput || !mSelect || !allowBox) return;
 
+  // 1. Haal de doel-gebruiker op
   const uid = adminUserSelect?.value || getActiveUserId();
+  
+  // Als er geen gebruiker is geselecteerd (of admin zelf), reset UI
   if (!uid){
     allowBox.checked = false;
     allowBox.disabled = true;
     return;
   }
 
-  const prev = dataStore.viewUserId;
-  dataStore.viewUserId = uid;
-  const ud = getCurrentUserData();
+  // 2. Haal de data van de doel-gebruiker op (zonder viewUserId globaal te wijzigen voor de hele app)
+  const ud = dataStore.users[uid];
+  if (!ud) return; 
+
   ensureUserMonthlyMap(ud);
 
   if (!yInput.value)   yInput.value = new Date().getFullYear();
@@ -3673,23 +3677,44 @@ function renderAdminMonthlyMulti(){
 
   const y = Number(yInput.value);
   const m = Number(mSelect.value);
+
+  // 3. UI instellen op basis van opgeslagen waarde
   allowBox.disabled = false;
   allowBox.checked  = userAllowsMultiMonth(ud, y, m);
 
+  // Event listeners vernieuwen (voorkom dubbele listeners)
   yInput.onchange = () => renderAdminMonthlyMulti();
   mSelect.onchange = () => renderAdminMonthlyMulti();
+  
+  // 4. DE FIX ZIT HIERONDER:
   allowBox.onchange = async () => {
     const key = `${yInput.value}-${String(Number(mSelect.value)+1).padStart(2,'0')}`;
+    
+    // Update de data in het object
     if (allowBox.checked) ud.settings.multiByMonth[key] = true;
     else delete ud.settings.multiByMonth[key];
+
+    // === FIX START ===
+    // We moeten tijdelijk de 'viewUserId' forceren naar de doel-gebruiker
+    // zodat saveUserData() de juiste document-referentie pakt.
+    const originalView = dataStore.viewUserId;
+    dataStore.viewUserId = uid; 
+    
     await saveUserData();
 
-    // herteken als het de zichtbare maand is
-    if (getActiveUserId() === uid &&
+    // Zet de view terug naar hoe hij was (waarschijnlijk null of admin zelf)
+    dataStore.viewUserId = originalView;
+    // === FIX END ===
+
+    // Als we toevallig in de 'Invoer' tab kijken naar DEZE gebruiker en DEZE maand, verversen we de tabel
+    // zodat het "+"-knopje direct verschijnt.
+    const activeViewId = getActiveUserId(); // Wie bekijken we nu in de UI?
+    if (activeViewId === uid &&
         Number(yearSelectMain.value) === Number(yInput.value) &&
         Number(monthSelectMain.value) === Number(mSelect.value)) {
       renderMonth(Number(yInput.value), Number(mSelect.value));
     }
+    
     toast(`Extra lijnen: ${allowBox.checked ? 'toegestaan' : 'uitgezet'} voor ${key}`, 'success');
   };
 
