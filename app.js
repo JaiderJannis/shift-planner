@@ -3713,8 +3713,6 @@ function renderAdminMonthlyMulti(){
     
     toast(`Extra lijnen: ${allowBox.checked ? 'toegestaan' : 'uitgezet'} voor ${key}`, 'success');
   };
-
-  dataStore.viewUserId = prev;
 }
 // aanroepen bij wisselen admin user
 adminUserSelect?.addEventListener('change', renderAdminMonthlyMulti);
