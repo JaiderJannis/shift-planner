@@ -3650,18 +3650,6 @@ document.getElementById('adminReopenBtn')?.addEventListener('click', async () =>
     renderMonth(y, m);
   }
 });
-Mijn excuses, je hebt gelijk. Ik heb inderdaad een slordige fout gemaakt in de laatste regel van die functie.
-
-De variabele prev werd onderaan aangeroepen, maar was nergens gedefinieerd in die functie. Dat veroorzaakt de crash bij het opstarten.
-
-Hier is de gecorrigeerde functie renderAdminMonthlyMulti. De foute regel (dataStore.viewUserId = prev;) is onderaan verwijderd.
-
-Stap 1: Open app.js
-Zoek de functie renderAdminMonthlyMulti (rond regel 3680) en vervang deze volledig door onderstaande versie.
-
-Stap 2: Vervang met deze code
-JavaScript
-
 function renderAdminMonthlyMulti(){
   const yInput   = document.getElementById('adminMultiYear');
   const mSelect  = document.getElementById('adminMultiMonth');
