@@ -1032,18 +1032,20 @@ async function renderMonth(year, month){
 
       const tr = document.createElement('tr');
 
+      // ✅ FIX 1: type="button" toegevoegd zodat de pagina niet herlaadt
       const actionsCell = showActions
         ? (idx === 0
             ? `<td class="actions-cell">
-                 <button class="btn btn-outline-success btn-line addLineBtn" ${allowThisRow ? '' : 'disabled'} title="Extra regel toevoegen">+</button>
+                 <button type="button" class="btn btn-outline-success btn-line addLineBtn" ${allowThisRow ? '' : 'disabled'} title="Extra regel toevoegen">+</button>
                </td>`
             : `<td class="actions-cell">
-                 <button class="btn btn-outline-danger btn-line delLineBtn" data-key="${rowKey}" title="Deze regel verwijderen">−</button>
+                 <button type="button" class="btn btn-outline-danger btn-line delLineBtn" data-key="${rowKey}" title="Deze regel verwijderen">−</button>
                </td>`
           )
         : '';
-// ✅ HIER TOEGEVOEGD: Bepaal het statusicoon
-      let statusIconHtml = '<span class="shift-status-icon d-none"></span>'; // Standaard leeg
+      
+      // Status icoon logica
+      let statusIconHtml = '<span class="shift-status-icon d-none"></span>'; 
       if (r.status === 'pending') {
         statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-pending" title="In aanvraag">hourglass_top</span>';
       } else if (r.status === 'approved') {
@@ -1069,16 +1071,16 @@ async function renderMonth(year, month){
         <td><input class="form-control form-control-sm endInput" type="time" value="${r.end}"></td>
         <td><input class="form-control form-control-sm breakInput" type="number" min="0" value="${r.break}"></td>
         <td class="d-flex align-items-center gap-1">
-  <input class="form-control form-control-sm omschrijvingInput" type="text" value="${r.omschrijving}">
-  <span 
-    class="material-icons-outlined attachment-icon ${r.attachmentURL ? 'has-attachment' : ''}" 
-    title="Bijlage beheren" 
-    data-key="${rowKey}" 
-    data-bs-toggle="modal" 
-    data-bs-target="#attachmentModal">
-    ${r.attachmentURL ? 'attach_file' : 'attachment'}
-  </span>
-</td>
+            <input class="form-control form-control-sm omschrijvingInput" type="text" value="${r.omschrijving}">
+            <span 
+                class="material-icons-outlined attachment-icon ${r.attachmentURL ? 'has-attachment' : ''}" 
+                title="Bijlage beheren" 
+                data-key="${rowKey}" 
+                data-bs-toggle="modal" 
+                data-bs-target="#attachmentModal">
+                ${r.attachmentURL ? 'attach_file' : 'attachment'}
+            </span>
+        </td>
         <td class="dur text-mono">${durationText}</td>`; 
       tbody.appendChild(tr);
 
@@ -1107,65 +1109,53 @@ async function renderMonth(year, month){
           addBtn.disabled = !(allowByMonth || allowByProject);
         }
       });
-      
-      // ======================================================
-      // HIER WAS DE FOUT: De } op regel 1017 is verwijderd
-      // ======================================================
 
       await populateShiftSelectForRow(tr, rowKey);
 
       tr.querySelector('.startInput').addEventListener('change', e=>{
-  r.start = e.target.value; recalcRowMinutes(r);
-  saveCell(year, month, rowKey, r, tr);
-  
-  const isPendingOrRejected = r.status && r.status !== 'approved';
-  tr.querySelector('.dur').textContent = isPendingOrRejected
-    ? '0u 0min'
-    : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-    
-  updateInputTotals(); debouncedSave(); renderHistory();
-});
-  tr.querySelector('.endInput').addEventListener('change', e=>{
-  r.end = e.target.value; recalcRowMinutes(r);
-  saveCell(year, month, rowKey, r, tr);
- 
-  const isPendingOrRejected = r.status && r.status !== 'approved';
-  tr.querySelector('.dur').textContent = isPendingOrRejected
-    ? '0u 0min'
-    : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-
-  updateInputTotals(); debouncedSave(); renderHistory();
-});
-  tr.querySelector('.breakInput').addEventListener('change', e=>{ // 👈 'input' is 'change' geworden
-  r.break = Number(e.target.value)||0; recalcRowMinutes(r);
-  saveCell(year, month, rowKey, r, tr);
-  
-  const isPendingOrRejected = r.status && r.status !== 'approved';
-  tr.querySelector('.dur').textContent = isPendingOrRejected
-    ? '0u 0min'
-    : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-
-  updateInputTotals(); debouncedSave(); renderHistory();
-});
+        r.start = e.target.value; recalcRowMinutes(r);
+        saveCell(year, month, rowKey, r, tr);
+        const isPendingOrRejected = r.status && r.status !== 'approved';
+        tr.querySelector('.dur').textContent = isPendingOrRejected ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+        updateInputTotals(); debouncedSave(); renderHistory();
+      });
+      tr.querySelector('.endInput').addEventListener('change', e=>{
+        r.end = e.target.value; recalcRowMinutes(r);
+        saveCell(year, month, rowKey, r, tr);
+        const isPendingOrRejected = r.status && r.status !== 'approved';
+        tr.querySelector('.dur').textContent = isPendingOrRejected ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+        updateInputTotals(); debouncedSave(); renderHistory();
+      });
+      tr.querySelector('.breakInput').addEventListener('change', e=>{
+        r.break = Number(e.target.value)||0; recalcRowMinutes(r);
+        saveCell(year, month, rowKey, r, tr);
+        const isPendingOrRejected = r.status && r.status !== 'approved';
+        tr.querySelector('.dur').textContent = isPendingOrRejected ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+        updateInputTotals(); debouncedSave(); renderHistory();
+      });
       tr.querySelector('.omschrijvingInput').addEventListener('change', e=>{
         r.omschrijving = e.target.value; saveCell(year, month, rowKey, r, tr); debouncedSave(); renderHistory();
       });
 
-      // + / − handlers
+      // ✅ FIX 2: e.preventDefault() toegevoegd aan de listener
       const addBtn = tr.querySelector('.addLineBtn');
       if (addBtn) {
-        addBtn.addEventListener('click', async () => {
+        addBtn.addEventListener('click', async (e) => {
+          e.preventDefault(); // Stop herladen!
           const idxNew = nextLineIndex(md, baseKey);
           const newKey = `${baseKey}#${idxNew}`;
+          // Neem project over van de huidige regel
           md.rows[newKey] = { project: r.project, shift:'', start:'00:00', end:'00:00', break:0, omschrijving:'', minutes:0 };
           await saveUserData();
           renderMonth(year, month);
           updateInputTotals(); renderHistory();
         });
       }
+      
       const delBtn = tr.querySelector('.delLineBtn');
       if (delBtn) {
-        delBtn.addEventListener('click', async () => {
+        delBtn.addEventListener('click', async (e) => {
+          e.preventDefault();
           const k = delBtn.dataset.key;
           delete md.rows[k];
           await saveUserData();
@@ -1174,9 +1164,8 @@ async function renderMonth(year, month){
         });
       }
     
-    } // <-- ✅ HIER IS DE } GEPLAKT (Dit sluit de "for (let idx...)" loop)
-
-  } // <-- Dit sluit de "for (let d...)" loop
+    } 
+  }
 
   await saveUserData();
   updateRemainingHours();
@@ -1184,19 +1173,16 @@ async function renderMonth(year, month){
   updateLeaveBadges(); 
   renderHome();
 
-// 🔒 velden vergrendelen bij submitted/approved
-const statusLocked = (getMonthStatus(year, month)==='approved' || getMonthStatus(year, month)==='submitted');
-  const lockedNow = statusLocked && !isAdmin(); // 👈 HIER AANGEPAST
+  // 🔒 velden vergrendelen bij submitted/approved
+  const statusLocked = (getMonthStatus(year, month)==='approved' || getMonthStatus(year, month)==='submitted');
+  const lockedNow = statusLocked && !isAdmin(); 
   
-  // 1. Vergrendel de tabel-rijen
   tbody.querySelectorAll('select, input').forEach(el => { el.disabled = lockedNow; });
 
-  // 2. Vergrendel ook de "Doel" velden en de project filter
   if (monthTargetHours) monthTargetHours.disabled = lockedNow;
   if (monthTargetMinutes) monthTargetMinutes.disabled = lockedNow;
   if (projectFilterSelect) projectFilterSelect.disabled = lockedNow;
 
-  // 3. De knoppen (Indienen, etc.) worden beheerd door deze functie
   updateMonthStatusBadge();
 }
 async function populateShiftSelectForRow(tr, rowKey){
