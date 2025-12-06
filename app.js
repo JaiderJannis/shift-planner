@@ -992,13 +992,25 @@ async function renderMonth(year, month){
   monthTargetHours.value = md.targetHours || 0;
   monthTargetMinutes.value = md.targetMinutes || 0;
 
-  // lock & tonen acties-kolom
+  // 1. BEPAAL OF WE DE ACTIE-KNOPPEN (+) TONEN
   const statusNow = getMonthStatus(year, month);
-  const locked = (statusNow==='approved' || statusNow==='submitted');
+  
+  // Check of de INGELOGDE gebruiker admin is (niet de gebruiker die we bekijken)
+  const loggedInUser = dataStore.users[currentUserId];
+  const iAmAdmin = loggedInUser && loggedInUser.role === 'admin';
 
-  const showActions =
-    !locked && ( userAllowsMultiMonth(ud, year, month) || (ud.projects||[]).some(p => p.allowMulti) );
-  document.getElementById('thActions')?.classList.toggle('d-none', !showActions);
+  // Als je Admin bent, is de maand voor jou nooit 'op slot'
+  const locked = !iAmAdmin && (statusNow==='approved' || statusNow==='submitted');
+
+  // Toon acties als: (niet op slot) EN (instelling staat aan OF project staat het toe)
+  const showActions = !locked && ( 
+    userAllowsMultiMonth(ud, year, month) || 
+    (ud.projects||[]).some(p => p.allowMulti) 
+  );
+
+  // Zorg dat de kolom-header ook zichtbaar wordt
+  const th = document.getElementById('thActions');
+  if (th) th.classList.toggle('d-none', !showActions);
 
   const daysInMonth = new Date(year, month+1, 0).getDate();
   for(let d=1; d<=daysInMonth; d++){
@@ -1025,14 +1037,14 @@ async function renderMonth(year, month){
       const r = md.rows[rowKey];
       const dayName = daysFull[new Date(year, month, d).getDay()];
 
-      // rechten voor + op deze rij
+      // Rechten voor + op deze specifieke rij
       const allowByMonth   = userAllowsMultiMonth(ud, year, month);
       const allowByProject = r.project ? canAddMultiForProject(r.project) : false;
       const allowThisRow   = allowByMonth || allowByProject;
 
       const tr = document.createElement('tr');
 
-      // ✅ FIX 1: type="button" toegevoegd. Dit voorkomt dat de pagina herlaadt.
+      // HTML voor de knoppen (+ of -)
       const actionsCell = showActions
         ? (idx === 0
             ? `<td class="actions-cell">
@@ -1084,7 +1096,7 @@ async function renderMonth(year, month){
         <td class="dur text-mono">${durationText}</td>`; 
       tbody.appendChild(tr);
 
-      // project dropdown (gefilterd op datum)
+      // --- Project dropdown ---
       const projSel = tr.querySelector('.projectSelect');
       projSel.innerHTML = '<option value="">--</option>';
       (ud.projects || []).forEach(p=>{
@@ -1101,7 +1113,7 @@ async function renderMonth(year, month){
         updateInputTotals();
         debouncedSave();
 
-        // + opnieuw (de)activeren
+        // Check of de + knop nu aan/uit moet (afhankelijk van projectrechten)
         const addBtn = tr.querySelector('.addLineBtn');
         if (addBtn) {
           const allowByMonth   = userAllowsMultiMonth(getCurrentUserData(), year, month);
@@ -1112,6 +1124,7 @@ async function renderMonth(year, month){
 
       await populateShiftSelectForRow(tr, rowKey);
 
+      // --- Event Listeners voor inputs ---
       tr.querySelector('.startInput').addEventListener('change', e=>{
         r.start = e.target.value; recalcRowMinutes(r);
         saveCell(year, month, rowKey, r, tr);
@@ -1137,14 +1150,13 @@ async function renderMonth(year, month){
         r.omschrijving = e.target.value; saveCell(year, month, rowKey, r, tr); debouncedSave(); renderHistory();
       });
 
-      // ✅ FIX 2: e.preventDefault() en type="button" logica
+      // --- Knoppen acties ---
       const addBtn = tr.querySelector('.addLineBtn');
       if (addBtn) {
         addBtn.addEventListener('click', async (e) => {
-          e.preventDefault(); // Stop herladen!
+          e.preventDefault(); 
           const idxNew = nextLineIndex(md, baseKey);
           const newKey = `${baseKey}#${idxNew}`;
-          // Neem project over van de huidige regel
           md.rows[newKey] = { project: r.project, shift:'', start:'00:00', end:'00:00', break:0, omschrijving:'', minutes:0 };
           await saveUserData();
           renderMonth(year, month);
@@ -1163,7 +1175,6 @@ async function renderMonth(year, month){
           updateInputTotals(); renderHistory();
         });
       }
-    
     } 
   }
 
@@ -1173,9 +1184,9 @@ async function renderMonth(year, month){
   updateLeaveBadges(); 
   renderHome();
 
-  // 🔒 velden vergrendelen bij submitted/approved
+  // Velden vergrendelen als het geen admin is EN de status is submitted/approved
   const statusLocked = (getMonthStatus(year, month)==='approved' || getMonthStatus(year, month)==='submitted');
-  const lockedNow = statusLocked && !isAdmin(); 
+  const lockedNow = statusLocked && !iAmAdmin; // 👈 Admin mag altijd bewerken
   
   tbody.querySelectorAll('select, input').forEach(el => { el.disabled = lockedNow; });
 
@@ -1185,6 +1196,7 @@ async function renderMonth(year, month){
 
   updateMonthStatusBadge();
 }
+
 
 async function populateShiftSelectForRow(tr, rowKey){
   const base = rowKey.split('#')[0];                   // YYYY-MM-DD
