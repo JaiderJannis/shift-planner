@@ -377,22 +377,41 @@ function updateMonthStatusBadge(){
   const status = getMonthStatus(y,m);
   const badge = document.getElementById('monthStatusBadge');
   const submitBtn = document.getElementById('submitMonthBtn');
+  
   if (!badge) return;
 
+  // 1. Badge tekst en kleur (zoals voorheen)
   badge.className = 'badge badge-status';
   if (status==='draft'){ badge.classList.add('badge-draft'); badge.textContent='Concept'; }
   if (status==='submitted'){ badge.classList.add('badge-submitted'); badge.textContent='Ingediend'; }
   if (status==='approved'){ badge.classList.add('badge-approved'); badge.textContent='Goedgekeurd'; }
   if (status==='rejected'){ badge.classList.add('badge-rejected'); badge.textContent='Afgekeurd'; }
 
-  const hide = (status==='submitted' || status==='approved') && !isAdmin();
+  // 2. BEPALEN WIE ER KIJKT (De Fix)
+  // We kijken naar de rol van de ECHTE ingelogde user (currentUserId),
+  // niet naar de user die we aan het bekijken zijn.
+  const loggedInUser = dataStore.users[currentUserId];
+  const iAmAdmin = loggedInUser && loggedInUser.role === 'admin';
+
+  // 3. Verberg knoppen ALLEEN als:
+  // - De status 'submitted' of 'approved' is
+  // - EN de kijker GEEN admin is.
+  const hide = (status === 'submitted' || status === 'approved') && !iAmAdmin;
+
+  // 4. Knoppen aanpassen
   if (submitBtn){
+    // Als admin zie je de knop altijd, maar we kunnen hem uitschakelen als hij al 'approved' is
+    // om verwarring te voorkomen, of gewoon altijd tonen. 
+    // Volgens jouw wens: "Admin moet knoppen altijd zien".
+    
+    // We verbergen hem alleen voor gewone users als hij vaststaat.
     submitBtn.classList.toggle('d-none', hide);
-    submitBtn.disabled = hide;
+    submitBtn.disabled = hide; 
   }
 
-  if (multiDayShiftBtn){
-    multiDayShiftBtn.classList.toggle('d-none', hide);  // ✅ “Invoer meerdere dagen” ook verbergen
+  // De knop "Invoer meerdere dagen"
+  if (typeof multiDayShiftBtn !== 'undefined' && multiDayShiftBtn){
+    multiDayShiftBtn.classList.toggle('d-none', hide);
     multiDayShiftBtn.disabled = hide;
   }
 }
