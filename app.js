@@ -1032,7 +1032,7 @@ async function renderMonth(year, month){
 
       const tr = document.createElement('tr');
 
-      // ✅ FIX 1: type="button" toegevoegd zodat de pagina niet herlaadt
+      // ✅ FIX 1: type="button" toegevoegd. Dit voorkomt dat de pagina herlaadt.
       const actionsCell = showActions
         ? (idx === 0
             ? `<td class="actions-cell">
@@ -1137,7 +1137,7 @@ async function renderMonth(year, month){
         r.omschrijving = e.target.value; saveCell(year, month, rowKey, r, tr); debouncedSave(); renderHistory();
       });
 
-      // ✅ FIX 2: e.preventDefault() toegevoegd aan de listener
+      // ✅ FIX 2: e.preventDefault() en type="button" logica
       const addBtn = tr.querySelector('.addLineBtn');
       if (addBtn) {
         addBtn.addEventListener('click', async (e) => {
@@ -1185,6 +1185,7 @@ async function renderMonth(year, month){
 
   updateMonthStatusBadge();
 }
+
 async function populateShiftSelectForRow(tr, rowKey){
   const base = rowKey.split('#')[0];                   // YYYY-MM-DD
   const [yStr, mStr, dStr] = base.split('-');
