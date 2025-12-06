@@ -3641,66 +3641,88 @@ function renderAdminMonthlyMulti(){
   const yInput   = document.getElementById('adminMultiYear');
   const mSelect  = document.getElementById('adminMultiMonth');
   const allowBox = document.getElementById('adminMultiAllow');
+  
+  // Veiligheidscheck: als elementen niet bestaan, stop direct
   if (!yInput || !mSelect || !allowBox) return;
 
-  // 1. Haal de doel-gebruiker op
+  // 1. Haal de doel-gebruiker op (of admin zelf als niets gekozen)
   const uid = adminUserSelect?.value || getActiveUserId();
   
-  // Als er geen gebruiker is geselecteerd (of admin zelf), reset UI
   if (!uid){
     allowBox.checked = false;
     allowBox.disabled = true;
     return;
   }
 
-  // 2. Haal de data van de doel-gebruiker op
-  const ud = dataStore.users[uid];
+  // Helper om altijd de 'verse' data uit de store te halen
+  const getFreshUserData = () => dataStore.users[uid];
+
+  let ud = getFreshUserData();
   if (!ud) return; 
 
   ensureUserMonthlyMap(ud);
 
+  // Standaardwaarden instellen als leeg
   if (!yInput.value)   yInput.value = new Date().getFullYear();
   if (!mSelect.value)  mSelect.value = String(new Date().getMonth());
 
   const y = Number(yInput.value);
   const m = Number(mSelect.value);
 
-  // 3. UI instellen op basis van opgeslagen waarde
+  // 3. Checkbox instellen op basis van huidige data
   allowBox.disabled = false;
   allowBox.checked  = userAllowsMultiMonth(ud, y, m);
 
-  // Event listeners vernieuwen (voorkom dubbele listeners)
+  // Event listeners vernieuwen
   yInput.onchange = () => renderAdminMonthlyMulti();
   mSelect.onchange = () => renderAdminMonthlyMulti();
   
-  // 4. Checkbox logica
+  // 4. Checkbox logica (met fix voor opslaan)
   allowBox.onchange = async () => {
-    const key = `${yInput.value}-${String(Number(mSelect.value)+1).padStart(2,'0')}`;
+    // Haal opnieuw de gebruiker op (belangrijk!)
+    const freshUd = getFreshUserData();
+    if (!freshUd) return;
+    ensureUserMonthlyMap(freshUd);
+
+    const yearVal = Number(yInput.value);
+    const monthVal = Number(mSelect.value);
+    const key = `${yearVal}-${String(monthVal+1).padStart(2,'0')}`;
     
     // Update de data in het object
-    if (allowBox.checked) ud.settings.multiByMonth[key] = true;
-    else delete ud.settings.multiByMonth[key];
+    if (allowBox.checked) {
+      freshUd.settings.multiByMonth[key] = true;
+    } else {
+      delete freshUd.settings.multiByMonth[key];
+    }
 
-    // Tijdelijk switchen naar die gebruiker om correct op te slaan
+    // Truc: Tijdelijk switchen naar die gebruiker om correct op te slaan via saveUserData
     const originalView = dataStore.viewUserId;
     dataStore.viewUserId = uid; 
     
     await saveUserData();
 
-    // Zet terug naar wie het was
+    // Zet view terug naar wie het was
     dataStore.viewUserId = originalView;
 
-    // Als we toevallig in de 'Invoer' tab kijken naar DEZE gebruiker en DEZE maand, verversen we de tabel
-    const activeViewId = getActiveUserId(); 
-    if (activeViewId === uid &&
-        Number(yearSelectMain.value) === Number(yInput.value) &&
-        Number(monthSelectMain.value) === Number(mSelect.value)) {
-      renderMonth(Number(yInput.value), Number(mSelect.value));
+    // Feedback
+    const userName = freshUd.name || freshUd.email || 'Gebruiker';
+    const statusTxt = allowBox.checked ? 'AAN' : 'UIT';
+    toast(`Extra lijnen ${statusTxt} voor ${userName} (${monthsFull[monthVal]} ${yearVal})`, 'success');
+
+    // 5. UPDATE DE INVOER TAB DIRECT
+    // Als de admin toevallig kijkt naar dezelfde maand en hetzelfde jaar (bij zichzelf of bij de user), ververs de tabel.
+    const currentInputYear = Number(document.getElementById('yearSelectMain').value);
+    const currentInputMonth = Number(document.getElementById('monthSelectMain').value);
+    const activeUser = getActiveUserId();
+
+    // Check of we de tabel moeten verversen (als we naar dezelfde user en maand kijken)
+    if (activeUser === uid && currentInputYear === yearVal && currentInputMonth === monthVal) {
+       console.log("Directe update van Invoer tabel...");
+       await renderMonth(yearVal, monthVal);
     }
-    
-    toast(`Extra lijnen: ${allowBox.checked ? 'toegestaan' : 'uitgezet'} voor ${key}`, 'success');
   };
 }
+
 // aanroepen bij wisselen admin user
 adminUserSelect?.addEventListener('change', renderAdminMonthlyMulti);
 function renderProjectSummary() 
