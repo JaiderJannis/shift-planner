@@ -5626,7 +5626,12 @@ function loadAnnouncements() {
       }
       
       const div = document.createElement('div');
-      div.className = 'alert alert-light border mb-2 p-2 d-flex justify-content-between align-items-start';
+      // 👇 Bepaal de kleur class (default naar 'light' als er geen kleur is)
+      const colorClass = a.color ? `alert-${a.color}` : 'alert-light';
+      
+      const div = document.createElement('div');
+      // We gebruiken de dynamische colorClass hier
+      div.className = `alert ${colorClass} border mb-2 p-2 d-flex justify-content-between align-items-start shadow-sm`;
       
       // Admin mag verwijderen knopje
       const deleteBtn = (getCurrentUserData()?.role === 'admin') 
@@ -5659,7 +5664,7 @@ window.deleteAnnouncement = async (id) => {
     toast('Kon niet verwijderen', 'danger');
   }
 };
-// 1. Open de Modal i.p.v. de prompt
+// 1. Open de Modal
 document.getElementById('addAnnouncementBtn')?.addEventListener('click', () => {
   const ud = getCurrentUserData();
   const myName = ud.name || ud.email || 'Admin';
@@ -5669,16 +5674,17 @@ document.getElementById('addAnnouncementBtn')?.addEventListener('click', () => {
   document.getElementById('announcementCustomAuthor').value = '';
   document.getElementById('announcementCustomAuthorDiv').classList.add('d-none');
   
-  // Zet de dropdown goed en toon mijn eigen naam in de optie
+  // 👇 Reset de kleur naar 'Wit' (light)
+  document.getElementById('colorLight').checked = true;
+  
   const select = document.getElementById('announcementAuthorSelect');
   select.value = 'me';
   select.options[0].text = `Mijn naam (${myName})`;
 
-  // Toon de modal
   new bootstrap.Modal(document.getElementById('announcementModal')).show();
 });
 
-// 2. Logica voor het 'Anders, namelijk...' veld
+// (Dit stukje voor 'Anders' blijft hetzelfde, maar moet wel blijven staan)
 document.getElementById('announcementAuthorSelect')?.addEventListener('change', (e) => {
   const customDiv = document.getElementById('announcementCustomAuthorDiv');
   if (e.target.value === 'custom') {
@@ -5689,15 +5695,19 @@ document.getElementById('announcementAuthorSelect')?.addEventListener('change', 
   }
 });
 
-// 3. Opslaan knop in de Modal
+// 3. Opslaan knop (Nu met kleur!)
 document.getElementById('saveAnnouncementBtn')?.addEventListener('click', async () => {
   const text = document.getElementById('announcementInputText').value.trim();
   const selectVal = document.getElementById('announcementAuthorSelect').value;
+  
+  // 👇 Haal de geselecteerde kleur op
+  const colorInput = document.querySelector('input[name="annColor"]:checked');
+  const color = colorInput ? colorInput.value : 'light';
+
   let authorName = '';
 
   if (!text) return toast('Typ eerst een bericht', 'warning');
 
-  // Bepaal de naam
   if (selectVal === 'me') {
     const ud = getCurrentUserData();
     authorName = ud.name || ud.email || 'Admin';
@@ -5705,18 +5715,17 @@ document.getElementById('saveAnnouncementBtn')?.addEventListener('click', async 
     authorName = document.getElementById('announcementCustomAuthor').value.trim();
     if (!authorName) return toast('Vul een afzender in', 'warning');
   } else {
-    // Shift Planner of Admin Team
     authorName = selectVal;
   }
 
   try {
     await addDoc(collection(db, 'announcements'), {
       text: text,
-      author: authorName, // Hier gebruiken we nu de gekozen naam
+      author: authorName,
+      color: color,  // 👈 DIT SLAAN WE NU OP
       timestamp: new Date().toISOString()
     });
     
-    // Sluit modal en geef melding
     const modalEl = document.getElementById('announcementModal');
     bootstrap.Modal.getInstance(modalEl).hide();
     toast('Mededeling geplaatst', 'success');
