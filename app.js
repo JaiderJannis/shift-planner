@@ -2362,7 +2362,6 @@ document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(9);
   doc.text(`Gebruiker: ${ud.name || ud.email || '-'}`, 14, 32);
-  doc.text(`Exportdatum: ${new Date().toLocaleDateString('nl-BE')}`, 14, 37);
 
   // === Data voorbereiden ===
   const body = Object.entries(md.rows)
