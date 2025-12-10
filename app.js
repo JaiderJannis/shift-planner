@@ -5355,5 +5355,211 @@ document.getElementById('profileModal')?.addEventListener('show.bs.modal', () =>
      document.getElementById('notifStatusText').textContent = '✅ Meldingen zijn actief.';
   }
 });
+// =============================================
+// ⏱️ NON-BILLABLE TABBLAD LOGICA
+// =============================================
 
+const nbMonthSelect = document.getElementById('nbMonthSelect');
+const nbYearSelect = document.getElementById('nbYearSelect');
+const nbCategorySelect = document.getElementById('nbCategorySelect');
+const nbAddCategoryBtn = document.getElementById('nbAddCategoryBtn');
+const nbDateInput = document.getElementById('nbDateInput');
+const nbHoursInput = document.getElementById('nbHoursInput');
+const nbMinutesInput = document.getElementById('nbMinutesInput');
+const nbNoteInput = document.getElementById('nbNoteInput');
+const nbAddBtn = document.getElementById('nbAddBtn');
+const nbTableBody = document.getElementById('nbTableBody');
+const nbTotalDisplay = document.getElementById('nbTotalDisplay');
+
+// Standaard categorieën als er nog niets is opgeslagen
+const DEFAULT_NB_CATS = ['Administratie', 'Reistijd', 'Interne Meeting', 'Opleiding', 'Ziekte (Kort)'];
+
+// 1. Initialiseren
+function initNonBillable() {
+  // Vul de jaartallen
+  const yNow = new Date().getFullYear();
+  nbYearSelect.innerHTML = '';
+  for (let y = yNow - 2; y <= yNow + 2; y++) {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = y;
+    if (y === yNow) opt.selected = true;
+    nbYearSelect.appendChild(opt);
+  }
+  
+  // Zet huidige maand
+  nbMonthSelect.value = new Date().getMonth();
+
+  // Datum input default op vandaag
+  nbDateInput.value = new Date().toISOString().slice(0, 10);
+
+  // Categorieën laden
+  renderNbCategories();
+
+  // Listeners voor wisselen maand/jaar
+  nbMonthSelect.addEventListener('change', renderNonBillable);
+  nbYearSelect.addEventListener('change', renderNonBillable);
+}
+
+// 2. Categorieën beheren
+function renderNbCategories() {
+  const ud = getCurrentUserData();
+  // Haal op of gebruik default
+  const cats = ud.nonBillableCategories || DEFAULT_NB_CATS;
+  
+  // Sla op als ze nog niet bestaan (eerste keer)
+  if (!ud.nonBillableCategories) {
+    ud.nonBillableCategories = cats;
+    // We slaan dit stilzwijgend op bij de volgende save, of nu direct:
+    // saveUserData(); (optioneel, gebeurt wel bij toevoegen item)
+  }
+
+  nbCategorySelect.innerHTML = '';
+  cats.sort().forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c;
+    nbCategorySelect.appendChild(opt);
+  });
+}
+
+// Knop: Nieuwe categorie toevoegen
+nbAddCategoryBtn?.addEventListener('click', async () => {
+  const newCat = prompt("Nieuwe categorie naam:");
+  if (!newCat) return;
+
+  const ud = getCurrentUserData();
+  ud.nonBillableCategories = ud.nonBillableCategories || [...DEFAULT_NB_CATS];
+  
+  // Check dubbel
+  if (ud.nonBillableCategories.includes(newCat)) {
+    return toast('Categorie bestaat al', 'warning');
+  }
+
+  ud.nonBillableCategories.push(newCat);
+  await saveUserData();
+  
+  renderNbCategories();
+  // Selecteer de nieuwe direct
+  nbCategorySelect.value = newCat;
+  toast(`Categorie '${newCat}' toegevoegd`, 'success');
+});
+
+// 3. Renderen van de lijst en totalen
+function renderNonBillable() {
+  const y = Number(nbYearSelect.value);
+  const m = Number(nbMonthSelect.value);
+  
+  const ud = getCurrentUserData();
+  // Data structuur: monthData[y][m].nonBillable = [ {id, date, cat, minutes, note} ]
+  const md = ud.monthData?.[y]?.[m];
+  const items = md?.nonBillable || [];
+
+  nbTableBody.innerHTML = '';
+  let totalMins = 0;
+
+  if (items.length === 0) {
+    nbTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Geen non-billable uren in deze maand.</td></tr>';
+  } else {
+    // Sorteer op datum
+    items.sort((a,b) => a.date.localeCompare(b.date));
+
+    items.forEach((item, idx) => {
+      totalMins += (item.minutes || 0);
+      
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${item.date.split('-').reverse().join('-')}</td>
+        <td><span class="badge bg-light text-dark border">${item.cat}</span></td>
+        <td>${item.note || ''}</td>
+        <td class="text-mono">${Math.floor(item.minutes/60)}u ${item.minutes%60}m</td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-danger nb-del-btn" data-idx="${idx}">
+            <span class="material-icons-outlined" style="font-size:16px">delete</span>
+          </button>
+        </td>
+      `;
+      nbTableBody.appendChild(tr);
+    });
+  }
+
+  // Update Totaal
+  nbTotalDisplay.textContent = `${Math.floor(totalMins/60)}u ${totalMins%60}min`;
+
+  // Delete events koppelen
+  document.querySelectorAll('.nb-del-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      if(!confirm("Verwijderen?")) return;
+      const idx = Number(e.currentTarget.dataset.idx);
+      items.splice(idx, 1);
+      await saveUserData();
+      renderNonBillable();
+      toast('Item verwijderd', 'success');
+    });
+  });
+}
+
+// 4. Toevoegen van een item
+nbAddBtn?.addEventListener('click', async () => {
+  const cat = nbCategorySelect.value;
+  const date = nbDateInput.value;
+  const h = Number(nbHoursInput.value) || 0;
+  const min = Number(nbMinutesInput.value) || 0;
+  const note = nbNoteInput.value.trim();
+
+  if (!cat) return toast('Selecteer een categorie', 'warning');
+  if (!date) return toast('Kies een datum', 'warning');
+  if (h === 0 && min === 0) return toast('Vul een tijd in', 'warning');
+
+  const totalMinutes = (h * 60) + min;
+
+  // Bepaal jaar/maand uit de *gekozen datum* (niet de selector per se, 
+  // maar we slaan het op in de maand van de datum om logisch te blijven)
+  const dObj = new Date(date);
+  const y = dObj.getFullYear();
+  const m = dObj.getMonth(); // 0-11
+
+  const ud = getCurrentUserData();
+  ud.monthData = ud.monthData || {};
+  ud.monthData[y] = ud.monthData[y] || {};
+  ud.monthData[y][m] = ud.monthData[y][m] || { targetHours:0, targetMinutes:0, rows:{} };
+  
+  // Maak array aan indien nodig
+  if (!ud.monthData[y][m].nonBillable) {
+    ud.monthData[y][m].nonBillable = [];
+  }
+
+  ud.monthData[y][m].nonBillable.push({
+    id: Date.now(), // simpele ID
+    date: date,
+    cat: cat,
+    minutes: totalMinutes,
+    note: note
+  });
+
+  await saveUserData();
+  
+  // Reset inputs
+  nbNoteInput.value = '';
+  nbHoursInput.value = '';
+  nbMinutesInput.value = '';
+  
+  // Als de gebruiker iets toevoegt in een andere maand dan geselecteerd, switch view
+  nbYearSelect.value = y;
+  nbMonthSelect.value = m;
+  
+  renderNonBillable();
+  toast('Non-billable uren toegevoegd', 'success');
+});
+
+// 5. Koppelen aan Tab Switch (zodat data laadt als je de tab opent)
+document.querySelector('a[href="#tab-nonbillable"]')?.addEventListener('shown.bs.tab', () => {
+  // Zorg dat categorieën geladen zijn
+  renderNbCategories();
+  // Render de data
+  renderNonBillable();
+});
+
+// Initialiseer bij laden pagina (voor de selectors)
+document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
