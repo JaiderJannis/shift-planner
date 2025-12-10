@@ -5586,101 +5586,73 @@ document.querySelector('a[href="#tab-nonbillable"]')?.addEventListener('shown.bs
 // 📢 PRIKBORD LOGICA
 // =============================================
 
-// 1. Functie om het prikbord te starten
-function initAnnouncements() {
-  const btn = document.getElementById('addAnnouncementBtn');
-  const list = document.getElementById('announcementList');
-  
-  if (!list) return; // Stop als element niet bestaat
-
-  // Check of huidige gebruiker admin is
+// 1. Open de Modal i.p.v. de prompt
+document.getElementById('addAnnouncementBtn')?.addEventListener('click', () => {
   const ud = getCurrentUserData();
-  if (ud?.role === 'admin') {
-    btn?.classList.remove('d-none'); // Toon knop
+  const myName = ud.name || ud.email || 'Admin';
+
+  // Reset de velden
+  document.getElementById('announcementInputText').value = '';
+  document.getElementById('announcementCustomAuthor').value = '';
+  document.getElementById('announcementCustomAuthorDiv').classList.add('d-none');
+  
+  // Zet de dropdown goed en toon mijn eigen naam in de optie
+  const select = document.getElementById('announcementAuthorSelect');
+  select.value = 'me';
+  select.options[0].text = `Mijn naam (${myName})`;
+
+  // Toon de modal
+  new bootstrap.Modal(document.getElementById('announcementModal')).show();
+});
+
+// 2. Logica voor het 'Anders, namelijk...' veld
+document.getElementById('announcementAuthorSelect')?.addEventListener('change', (e) => {
+  const customDiv = document.getElementById('announcementCustomAuthorDiv');
+  if (e.target.value === 'custom') {
+    customDiv.classList.remove('d-none');
+    document.getElementById('announcementCustomAuthor').focus();
+  } else {
+    customDiv.classList.add('d-none');
   }
+});
 
-  // Start de live listener naar Firestore
-  loadAnnouncements();
-}
+// 3. Opslaan knop in de Modal
+document.getElementById('saveAnnouncementBtn')?.addEventListener('click', async () => {
+  const text = document.getElementById('announcementInputText').value.trim();
+  const selectVal = document.getElementById('announcementAuthorSelect').value;
+  let authorName = '';
 
-// 2. Data ophalen (Live)
-function loadAnnouncements() {
-  const list = document.getElementById('announcementList');
-  // Zorg dat je 'collection' en 'query' geïmporteerd hebt uit firebase/firestore
-  const q = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'), limit(3));
-  
-  onSnapshot(q, (snapshot) => {
-    if (snapshot.empty) {
-      list.innerHTML = '<small class="text-muted fst-italic">Geen mededelingen.</small>';
-      return;
-    }
+  if (!text) return toast('Typ eerst een bericht', 'warning');
 
-    list.innerHTML = '';
-    snapshot.forEach((docSnap) => {
-      const a = docSnap.data();
-      // Datum formatteren
-      let dateStr = '-';
-      if (a.timestamp) {
-        dateStr = new Date(a.timestamp).toLocaleDateString('nl-BE', { 
-           day: 'numeric', month: 'short' 
-        });
-      }
-      
-      const div = document.createElement('div');
-      div.className = 'alert alert-light border mb-2 p-2 d-flex justify-content-between align-items-start';
-      
-      // Admin mag verwijderen
-      const deleteBtn = (getCurrentUserData()?.role === 'admin') 
-        ? `<button class="btn btn-link text-danger p-0 ms-2" onclick="deleteAnnouncement('${docSnap.id}')" style="text-decoration:none;">&times;</button>` 
-        : '';
-
-      div.innerHTML = `
-        <div class="w-100">
-          <div class="fw-bold text-dark" style="font-size: 0.95rem;">${a.text}</div>
-          <div class="text-muted d-flex justify-content-between mt-1" style="font-size: 0.75rem;">
-            <span>${a.author}</span>
-            <span>${dateStr}</span>
-          </div>
-        </div>
-        ${deleteBtn}
-      `;
-      list.appendChild(div);
-    });
-  });
-}
-
-// 3. Knop actie: Nieuw bericht
-document.getElementById('addAnnouncementBtn')?.addEventListener('click', async () => {
-  const text = prompt("Nieuwe mededeling:");
-  if (!text) return;
-
-  const ud = getCurrentUserData();
-  const name = ud.name || ud.email;
+  // Bepaal de naam
+  if (selectVal === 'me') {
+    const ud = getCurrentUserData();
+    authorName = ud.name || ud.email || 'Admin';
+  } else if (selectVal === 'custom') {
+    authorName = document.getElementById('announcementCustomAuthor').value.trim();
+    if (!authorName) return toast('Vul een afzender in', 'warning');
+  } else {
+    // Shift Planner of Admin Team
+    authorName = selectVal;
+  }
 
   try {
     await addDoc(collection(db, 'announcements'), {
       text: text,
-      author: name,
+      author: authorName, // Hier gebruiken we nu de gekozen naam
       timestamp: new Date().toISOString()
     });
+    
+    // Sluit modal en geef melding
+    const modalEl = document.getElementById('announcementModal');
+    bootstrap.Modal.getInstance(modalEl).hide();
     toast('Mededeling geplaatst', 'success');
+
   } catch (e) {
     console.error(e);
     toast('Fout bij plaatsen (check permissies)', 'danger');
   }
 });
-
-// 4. Verwijder actie (Globaal beschikbaar maken)
-window.deleteAnnouncement = async (id) => {
-  if(!confirm("Verwijder dit bericht?")) return;
-  try {
-    await deleteDoc(doc(db, 'announcements', id));
-    toast('Verwijderd', 'success');
-  } catch(e) {
-    console.error(e);
-    toast('Kon niet verwijderen', 'danger');
-  }
-};
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
