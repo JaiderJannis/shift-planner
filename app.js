@@ -5586,7 +5586,11 @@ document.querySelector('a[href="#tab-nonbillable"]')?.addEventListener('shown.bs
 // 📢 PRIKBORD LOGICA
 // =============================================
 
-// A. Functie om het prikbord te starten
+// =============================================
+// 📢 PRIKBORD LOGICA
+// =============================================
+
+// 1. Functie om het prikbord te starten
 function initAnnouncements() {
   const btn = document.getElementById('addAnnouncementBtn');
   const list = document.getElementById('announcementList');
@@ -5603,9 +5607,10 @@ function initAnnouncements() {
   loadAnnouncements();
 }
 
-// B. Data ophalen (Live) en renderen
+// 2. Data ophalen (Live) en renderen
 function loadAnnouncements() {
   const list = document.getElementById('announcementList');
+  // Zorg dat collection, query, etc. geïmporteerd zijn bovenaan!
   const q = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'), limit(3));
   
   onSnapshot(q, (snapshot) => {
@@ -5617,7 +5622,6 @@ function loadAnnouncements() {
     list.innerHTML = '';
     snapshot.forEach((docSnap) => {
       const a = docSnap.data();
-      // Datum formatteren
       let dateStr = '-';
       if (a.timestamp) {
         dateStr = new Date(a.timestamp).toLocaleDateString('nl-BE', { 
@@ -5625,15 +5629,13 @@ function loadAnnouncements() {
         });
       }
       
-      const div = document.createElement('div');
-      // 👇 Bepaal de kleur class (default naar 'light' als er geen kleur is)
+      // Kleur bepalen (met fallback naar wit/light)
       const colorClass = a.color ? `alert-${a.color}` : 'alert-light';
-      
+
       const div = document.createElement('div');
-      // We gebruiken de dynamische colorClass hier
       div.className = `alert ${colorClass} border mb-2 p-2 d-flex justify-content-between align-items-start shadow-sm`;
       
-      // Admin mag verwijderen knopje
+      // Admin mag verwijderen
       const deleteBtn = (getCurrentUserData()?.role === 'admin') 
         ? `<button class="btn btn-link text-danger p-0 ms-2" onclick="deleteAnnouncement('${docSnap.id}')" style="text-decoration:none;">&times;</button>` 
         : '';
@@ -5653,7 +5655,7 @@ function loadAnnouncements() {
   });
 }
 
-// C. Verwijder actie (Globaal beschikbaar maken voor de onclick in HTML)
+// 3. Verwijder actie
 window.deleteAnnouncement = async (id) => {
   if(!confirm("Verwijder dit bericht?")) return;
   try {
@@ -5664,18 +5666,19 @@ window.deleteAnnouncement = async (id) => {
     toast('Kon niet verwijderen', 'danger');
   }
 };
-// 1. Open de Modal
+
+// 4. Knop: Open de Modal (reset kleur naar wit)
 document.getElementById('addAnnouncementBtn')?.addEventListener('click', () => {
   const ud = getCurrentUserData();
   const myName = ud.name || ud.email || 'Admin';
 
-  // Reset de velden
   document.getElementById('announcementInputText').value = '';
   document.getElementById('announcementCustomAuthor').value = '';
   document.getElementById('announcementCustomAuthorDiv').classList.add('d-none');
   
-  // 👇 Reset de kleur naar 'Wit' (light)
-  document.getElementById('colorLight').checked = true;
+  // Reset radio naar wit
+  const radioLight = document.getElementById('colorLight');
+  if(radioLight) radioLight.checked = true;
   
   const select = document.getElementById('announcementAuthorSelect');
   select.value = 'me';
@@ -5684,7 +5687,7 @@ document.getElementById('addAnnouncementBtn')?.addEventListener('click', () => {
   new bootstrap.Modal(document.getElementById('announcementModal')).show();
 });
 
-// (Dit stukje voor 'Anders' blijft hetzelfde, maar moet wel blijven staan)
+// 5. Dropdown 'Anders' logica
 document.getElementById('announcementAuthorSelect')?.addEventListener('change', (e) => {
   const customDiv = document.getElementById('announcementCustomAuthorDiv');
   if (e.target.value === 'custom') {
@@ -5695,12 +5698,12 @@ document.getElementById('announcementAuthorSelect')?.addEventListener('change', 
   }
 });
 
-// 3. Opslaan knop (Nu met kleur!)
+// 6. Opslaan knop (Inclusief kleur!)
 document.getElementById('saveAnnouncementBtn')?.addEventListener('click', async () => {
   const text = document.getElementById('announcementInputText').value.trim();
   const selectVal = document.getElementById('announcementAuthorSelect').value;
   
-  // 👇 Haal de geselecteerde kleur op
+  // Kleur ophalen
   const colorInput = document.querySelector('input[name="annColor"]:checked');
   const color = colorInput ? colorInput.value : 'light';
 
@@ -5722,7 +5725,7 @@ document.getElementById('saveAnnouncementBtn')?.addEventListener('click', async 
     await addDoc(collection(db, 'announcements'), {
       text: text,
       author: authorName,
-      color: color,  // 👈 DIT SLAAN WE NU OP
+      color: color, 
       timestamp: new Date().toISOString()
     });
     
@@ -5738,3 +5741,4 @@ document.getElementById('saveAnnouncementBtn')?.addEventListener('click', async 
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
+
