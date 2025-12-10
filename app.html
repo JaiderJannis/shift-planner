@@ -62,6 +62,9 @@
   <a class="nav-link" data-bs-toggle="tab" href="#tab-converter">
     <span class="material-icons-outlined">calculate</span> <span class="label">Converter</span>
   </a>
+  <a class="nav-link" data-bs-toggle="tab" href="#tab-nonbillable">
+  <span class="material-icons-outlined">timer_off</span> <span class="label">Non-Billable</span>
+</a>
  <a class="nav-link" data-bs-toggle="tab" href="#tab-mail">
   <span class="material-icons-outlined">mail</span>
   <span class="label">Mailbox</span>
@@ -540,6 +543,82 @@
           </div>
         </div>
       </section>
+<!-- Non Billable -->  
+<section id="tab-nonbillable" class="tab-pane fade">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Non-Billable Uren</h5>
+    <div class="d-flex gap-2">
+      <select id="nbMonthSelect" class="form-select form-select-sm" style="width:120px;">
+        <option value="0">Januari</option><option value="1">Februari</option><option value="2">Maart</option>
+        <option value="3">April</option><option value="4">Mei</option><option value="5">Juni</option>
+        <option value="6">Juli</option><option value="7">Augustus</option><option value="8">September</option>
+        <option value="9">Oktober</option><option value="10">November</option><option value="11">December</option>
+      </select>
+      <select id="nbYearSelect" class="form-select form-select-sm" style="width:100px;"></select>
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-body d-flex justify-content-between align-items-center">
+      <div>
+        <h6 class="mb-0 text-secondary">Totaal deze maand</h6>
+        <span class="fs-4 fw-bold" id="nbTotalDisplay">0u 0min</span>
+      </div>
+      <div class="text-end text-muted small">
+        Deze uren tellen <strong>niet</strong> mee<br>voor je billable maanddoel.
+      </div>
+    </div>
+  </div>
+
+  <div class="card p-3 mb-3 border-0 shadow-sm">
+    <h6 class="mb-3">Nieuwe invoer</h6>
+    <div class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label small">Categorie</label>
+        <div class="input-group input-group-sm">
+          <select id="nbCategorySelect" class="form-select"></select>
+          <button class="btn btn-outline-secondary" type="button" id="nbAddCategoryBtn" title="Nieuwe categorie toevoegen">+</button>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Datum</label>
+        <input type="date" id="nbDateInput" class="form-control form-control-sm">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Duur (u : min)</label>
+        <div class="input-group input-group-sm">
+          <input type="number" id="nbHoursInput" class="form-control" placeholder="U" min="0">
+          <span class="input-group-text">:</span>
+          <input type="number" id="nbMinutesInput" class="form-control" placeholder="M" min="0" max="59">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Omschrijving</label>
+        <input type="text" id="nbNoteInput" class="form-control form-control-sm" placeholder="Optioneel">
+      </div>
+      <div class="col-md-2">
+        <button id="nbAddBtn" class="btn btn-primary btn-sm w-100">Toevoegen</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-striped table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Datum</th>
+          <th>Categorie</th>
+          <th>Omschrijving</th>
+          <th>Duur</th>
+          <th class="text-end">Actie</th>
+        </tr>
+      </thead>
+      <tbody id="nbTableBody">
+        <tr><td colspan="5" class="text-center text-muted">Geen items gevonden.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
 <!-- Goedkeuring -->    
 <section id="tab-goedkeuring" class="tab-pane fade">
   <div class="d-flex align-items-center justify-content-between mb-3">
