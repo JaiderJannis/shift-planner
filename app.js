@@ -5581,7 +5581,83 @@ document.querySelector('a[href="#tab-nonbillable"]')?.addEventListener('shown.bs
   // Render de data
   renderNonBillable();
 });
+// =============================================
+// 📢 PRIKBORD (ANNOUNCEMENTS)
+// =============================================
 
+const addAnnouncementBtn = document.getElementById('addAnnouncementBtn');
+const announcementList = document.getElementById('announcementList');
+
+// 1. Initialiseren bij laden Home
+function initAnnouncements() {
+  loadAnnouncements();
+  
+  // Check of admin is voor de knop
+  const me = dataStore.users[currentUserId];
+  if (me?.role === 'admin') {
+    addAnnouncementBtn?.classList.remove('d-none');
+  }
+}
+
+// 2. Data ophalen (Realtime listener)
+function loadAnnouncements() {
+  // We gebruiken een aparte collectie 'announcements'
+  const q = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'), limit(3));
+  
+  onSnapshot(q, (snapshot) => {
+    if (snapshot.empty) {
+      announcementList.innerHTML = '<small class="text-muted fst-italic">Geen mededelingen.</small>';
+      return;
+    }
+
+    announcementList.innerHTML = '';
+    snapshot.forEach((docSnap) => {
+      const a = docSnap.data();
+      const dateStr = a.timestamp ? new Date(a.timestamp).toLocaleDateString('nl-BE') : '';
+      
+      const div = document.createElement('div');
+      div.className = 'alert alert-light border mb-2 p-2 d-flex justify-content-between align-items-start';
+      div.innerHTML = `
+        <div>
+          <div class="fw-bold text-dark" style="font-size: 0.9rem;">${a.text}</div>
+          <div class="text-muted" style="font-size: 0.75rem;">${dateStr} • door ${a.author}</div>
+        </div>
+        ${(dataStore.users[currentUserId]?.role === 'admin') ? 
+          `<button class="btn btn-link text-danger p-0 ms-2" onclick="deleteAnnouncement('${docSnap.id}')" style="text-decoration:none;">&times;</button>` 
+          : ''}
+      `;
+      announcementList.appendChild(div);
+    });
+  });
+}
+
+// 3. Nieuw bericht plaatsen (Alleen Admin)
+addAnnouncementBtn?.addEventListener('click', async () => {
+  const text = prompt("Nieuwe mededeling:");
+  if (!text) return;
+
+  const me = dataStore.users[currentUserId];
+  const name = me.name || me.email;
+
+  await addDoc(collection(db, 'announcements'), {
+    text: text,
+    author: name,
+    timestamp: new Date().toISOString()
+  });
+  
+  toast('Mededeling geplaatst', 'success');
+});
+
+// 4. Verwijderen (Global functie voor onclick)
+window.deleteAnnouncement = async (id) => {
+  if(!confirm("Verwijder dit bericht?")) return;
+  await deleteDoc(doc(db, 'announcements', id));
+  toast('Verwijderd', 'success');
+};
+
+// 5. Koppelen aan renderHome (zodat het laadt bij login)
+// Zoek je bestaande renderHome() functie en voeg deze regel toe:
+// initAnnouncements();
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
