@@ -1006,23 +1006,46 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <div class="mb-3">
-          <label class="form-label">Bericht</label>
-          <textarea id="announcementInputText" class="form-control" rows="3" placeholder="Typ je bericht..."></textarea>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Afzender</label>
-          <select id="announcementAuthorSelect" class="form-select">
-            <option value="me">Mijn naam (wordt ingevuld)</option>
-            <option value="Shift Planner">Shift Planner</option>
-            <option value="Admin Team">Admin Team</option>
-            <option value="custom">-- Anders, namelijk: --</option>
-          </select>
-        </div>
-        <div class="mb-3 d-none" id="announcementCustomAuthorDiv">
-          <input type="text" id="announcementCustomAuthor" class="form-control" placeholder="Typ naam afzender...">
-        </div>
-      </div>
+  <div class="mb-3">
+    <label class="form-label">Bericht</label>
+    <textarea id="announcementInputText" class="form-control" rows="3" placeholder="Typ je bericht..."></textarea>
+  </div>
+  
+  <div class="mb-3">
+    <label class="form-label">Kleur kaart</label>
+    <div class="d-flex flex-wrap gap-2">
+      
+      <input type="radio" class="btn-check" name="annColor" id="colorLight" value="light" checked>
+      <label class="btn btn-outline-secondary btn-sm" for="colorLight" title="Standaard">⚪ Wit</label>
+
+      <input type="radio" class="btn-check" name="annColor" id="colorInfo" value="info">
+      <label class="btn btn-outline-info btn-sm" for="colorInfo" title="Info">🔵 Blauw</label>
+
+      <input type="radio" class="btn-check" name="annColor" id="colorSuccess" value="success">
+      <label class="btn btn-outline-success btn-sm" for="colorSuccess" title="Positief">🟢 Groen</label>
+
+      <input type="radio" class="btn-check" name="annColor" id="colorWarning" value="warning">
+      <label class="btn btn-outline-warning btn-sm" for="colorWarning" title="Opvallend">🟠 Oranje</label>
+
+      <input type="radio" class="btn-check" name="annColor" id="colorDanger" value="danger">
+      <label class="btn btn-outline-danger btn-sm" for="colorDanger" title="Belangrijk">🔴 Rood</label>
+      
+    </div>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Afzender</label>
+    <select id="announcementAuthorSelect" class="form-select">
+      <option value="me">Mijn naam (wordt ingevuld)</option>
+      <option value="Shift Planner">Shift Planner</option>
+      <option value="Admin Team">Admin Team</option>
+      <option value="custom">-- Anders, namelijk: --</option>
+    </select>
+  </div>
+  
+  <div class="mb-3 d-none" id="announcementCustomAuthorDiv">
+    <input type="text" id="announcementCustomAuthor" class="form-control" placeholder="Typ naam afzender...">
+  </div>
+</div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
         <button type="button" id="saveAnnouncementBtn" class="btn btn-primary">Plaatsen</button>
