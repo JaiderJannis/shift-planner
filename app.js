@@ -5586,6 +5586,79 @@ document.querySelector('a[href="#tab-nonbillable"]')?.addEventListener('shown.bs
 // 📢 PRIKBORD LOGICA
 // =============================================
 
+// A. Functie om het prikbord te starten
+function initAnnouncements() {
+  const btn = document.getElementById('addAnnouncementBtn');
+  const list = document.getElementById('announcementList');
+  
+  if (!list) return; 
+
+  // Check of huidige gebruiker admin is -> Toon knop
+  const ud = getCurrentUserData();
+  if (ud?.role === 'admin') {
+    btn?.classList.remove('d-none'); 
+  }
+
+  // Start de live listener
+  loadAnnouncements();
+}
+
+// B. Data ophalen (Live) en renderen
+function loadAnnouncements() {
+  const list = document.getElementById('announcementList');
+  const q = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'), limit(3));
+  
+  onSnapshot(q, (snapshot) => {
+    if (snapshot.empty) {
+      list.innerHTML = '<small class="text-muted fst-italic">Geen mededelingen.</small>';
+      return;
+    }
+
+    list.innerHTML = '';
+    snapshot.forEach((docSnap) => {
+      const a = docSnap.data();
+      // Datum formatteren
+      let dateStr = '-';
+      if (a.timestamp) {
+        dateStr = new Date(a.timestamp).toLocaleDateString('nl-BE', { 
+           day: 'numeric', month: 'short' 
+        });
+      }
+      
+      const div = document.createElement('div');
+      div.className = 'alert alert-light border mb-2 p-2 d-flex justify-content-between align-items-start';
+      
+      // Admin mag verwijderen knopje
+      const deleteBtn = (getCurrentUserData()?.role === 'admin') 
+        ? `<button class="btn btn-link text-danger p-0 ms-2" onclick="deleteAnnouncement('${docSnap.id}')" style="text-decoration:none;">&times;</button>` 
+        : '';
+
+      div.innerHTML = `
+        <div class="w-100">
+          <div class="fw-bold text-dark" style="font-size: 0.95rem;">${a.text}</div>
+          <div class="text-muted d-flex justify-content-between mt-1" style="font-size: 0.75rem;">
+            <span>${a.author}</span>
+            <span>${dateStr}</span>
+          </div>
+        </div>
+        ${deleteBtn}
+      `;
+      list.appendChild(div);
+    });
+  });
+}
+
+// C. Verwijder actie (Globaal beschikbaar maken voor de onclick in HTML)
+window.deleteAnnouncement = async (id) => {
+  if(!confirm("Verwijder dit bericht?")) return;
+  try {
+    await deleteDoc(doc(db, 'announcements', id));
+    toast('Verwijderd', 'success');
+  } catch(e) {
+    console.error(e);
+    toast('Kon niet verwijderen', 'danger');
+  }
+};
 // 1. Open de Modal i.p.v. de prompt
 document.getElementById('addAnnouncementBtn')?.addEventListener('click', () => {
   const ud = getCurrentUserData();
