@@ -5445,18 +5445,19 @@ nbAddCategoryBtn?.addEventListener('click', async () => {
   toast(`Categorie '${newCat}' toegevoegd`, 'success');
 });
 
-// 3. Renderen van de lijst en totalen
+// 3. Renderen van de lijst en totalen (Maand + Jaar)
 function renderNonBillable() {
   const y = Number(nbYearSelect.value);
   const m = Number(nbMonthSelect.value);
   
   const ud = getCurrentUserData();
-  // Data structuur: monthData[y][m].nonBillable = [ {id, date, cat, minutes, note} ]
+  
+  // --- A. MAAND DATA ---
   const md = ud.monthData?.[y]?.[m];
   const items = md?.nonBillable || [];
 
   nbTableBody.innerHTML = '';
-  let totalMins = 0;
+  let monthMins = 0;
 
   if (items.length === 0) {
     nbTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Geen non-billable uren in deze maand.</td></tr>';
@@ -5465,7 +5466,7 @@ function renderNonBillable() {
     items.sort((a,b) => a.date.localeCompare(b.date));
 
     items.forEach((item, idx) => {
-      totalMins += (item.minutes || 0);
+      monthMins += (item.minutes || 0);
       
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -5483,17 +5484,39 @@ function renderNonBillable() {
     });
   }
 
-  // Update Totaal
-  nbTotalDisplay.textContent = `${Math.floor(totalMins/60)}u ${totalMins%60}min`;
+  // Update Maand Totaal
+  nbTotalDisplay.textContent = `${Math.floor(monthMins/60)}u ${monthMins%60}min`;
+
+  // --- B. JAAR TOTAAL BEREKENEN ---
+  let yearMins = 0;
+  // Haal data op van het hele jaar (als het bestaat)
+  const yearData = ud.monthData?.[y] || {};
+  
+  // Loop door maand 0 (januari) tot 11 (december)
+  for (let i = 0; i < 12; i++) {
+    const mData = yearData[i];
+    if (mData && mData.nonBillable) {
+      // Tel alle items in deze maand op
+      mData.nonBillable.forEach(itm => {
+        yearMins += (itm.minutes || 0);
+      });
+    }
+  }
+
+  // Update Jaar Totaal UI
+  if (nbYearTotalLabel) nbYearTotalLabel.textContent = y;
+  if (nbYearTotalDisplay) {
+    nbYearTotalDisplay.textContent = `${Math.floor(yearMins/60)}u ${yearMins%60}min`;
+  }
 
   // Delete events koppelen
   document.querySelectorAll('.nb-del-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       if(!confirm("Verwijderen?")) return;
       const idx = Number(e.currentTarget.dataset.idx);
-      items.splice(idx, 1);
+      items.splice(idx, 1); // Verwijder uit maandlijst
       await saveUserData();
-      renderNonBillable();
+      renderNonBillable(); // Herbereken alles (ook jaartotaal)
       toast('Item verwijderd', 'success');
     });
   });
