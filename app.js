@@ -2345,13 +2345,12 @@ document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
   const ud = getCurrentUserData();
   const md = ud.monthData?.[year]?.[monthIndex];
 
-  if (!md) {
+  if (!md || !md.rows || Object.keys(md.rows).length === 0) {
     return toast('Geen data voor deze maand', 'warning');
   }
-
-  // === 1. Header & Branding ===
+  // === Header met branding ===
   const pageWidth = doc.internal.pageSize.width;
-  doc.setFillColor(13, 110, 253); // Blauw
+  doc.setFillColor(13, 110, 253);
   doc.rect(0, 0, pageWidth, 25, 'F');
   doc.setFontSize(16);
   doc.setTextColor(255, 255, 255);
@@ -2365,11 +2364,10 @@ document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
   doc.text(`Gebruiker: ${ud.name || ud.email || '-'}`, 14, 32);
   doc.text(`Exportdatum: ${new Date().toLocaleDateString('nl-BE')}`, 14, 37);
 
-  // === 2. Tabel 1: SHIFTS (Billable) ===
-  const shiftBody = Object.entries(md.rows || {})
-    .sort(([a], [b]) => a.localeCompare(b))
+  // === Data voorbereiden ===
+  const body = Object.entries(md.rows)
+    .sort(([a], [b]) => a.localeCompare(b)) // chronologisch sorteren
     .map(([key, r]) => {
-      // Alleen goedgekeurde of normale shifts tonen? (Optioneel: filter op status)
       const date = key.split('-').reverse().join('-');
       const duration = `${Math.floor(r.minutes / 60)}u ${r.minutes % 60}m`;
       return [
@@ -2384,94 +2382,60 @@ document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
       ];
     });
 
-  doc.setFontSize(11);
-  doc.setTextColor(13, 110, 253);
-  doc.text('Gepresteerde Shifts (Billable)', 14, 45);
-
+  // === AutoTable met compacte styling ===
   doc.autoTable({
     head: [['Datum', 'Project', 'Shift', 'Start', 'Einde', 'Pauze', 'Duur', 'Omschrijving']],
-    body: shiftBody,
-    startY: 48,
+    body,
+    startY: 43,
     theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 1.5 },
+    styles: {
+      fontSize: 8,
+      cellPadding: 1.5,
+      lineWidth: 0.1
+    },
     headStyles: { fillColor: [13, 110, 253], textColor: 255 },
     alternateRowStyles: { fillColor: [248, 249, 252] },
-    margin: { left: 8, right: 8 }
+    margin: { left: 8, right: 8 },
+    tableWidth: 'auto',
+    columnStyles: {
+      0: { cellWidth: 20 }, // datum
+      1: { cellWidth: 30 }, // project
+      2: { cellWidth: 25 }, // shift
+      3: { cellWidth: 15 }, // start
+      4: { cellWidth: 15 }, // einde
+      5: { cellWidth: 12 }, // pauze
+      6: { cellWidth: 18 }, // duur
+      7: { cellWidth: 'auto' } // omschrijving
+    },
+    didDrawPage: (data) => {
+      const pageCount = doc.internal.getNumberOfPages();
+      const pageHeight = doc.internal.pageSize.height;
+      doc.setFontSize(8);
+      doc.setTextColor(120);
+      doc.text(`Pagina ${pageCount}`, pageWidth - 30, pageHeight - 8);
+    }
   });
 
-  let finalY = doc.lastAutoTable.finalY + 10; // Positie onthouden voor volgende tabel
-
-  // === 3. Tabel 2: NON-BILLABLE (Indien aanwezig) ===
-  const nbItems = md.nonBillable || [];
-  let totalNbMins = 0;
-
-  if (nbItems.length > 0) {
-    const nbBody = nbItems
-      .sort((a,b) => a.date.localeCompare(b.date))
-      .map(item => {
-        totalNbMins += (item.minutes || 0);
-        const duration = `${Math.floor(item.minutes / 60)}u ${item.minutes % 60}m`;
-        return [
-          item.date.split('-').reverse().join('-'),
-          item.cat || '-',
-          item.note || '-',
-          duration
-        ];
-      });
-
-    // Check of er nog plaats is op de pagina, anders nieuwe pagina
-    if (finalY > 250) { doc.addPage(); finalY = 20; }
-
-    doc.setFontSize(11);
-    doc.setTextColor(220, 53, 69); // Rood-achtig voor onderscheid
-    doc.text('Non-Billable Uren', 14, finalY);
-
-    doc.autoTable({
-      head: [['Datum', 'Categorie', 'Omschrijving', 'Duur']],
-      body: nbBody,
-      startY: finalY + 3,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 1.5 },
-      headStyles: { fillColor: [220, 53, 69], textColor: 255 }, // Rood header
-      margin: { left: 8, right: 8 }
-    });
-
-    finalY = doc.lastAutoTable.finalY + 10;
-  }
-
-  // === 4. SAMENVATTING ONDERAAN ===
-  // Totalen berekenen
-  const totalBillable = Object.values(md.rows || {}).reduce((s, r) => {
-     // Filter eventueel op status approved als je dat wilt
-     return s + (r.minutes || 0);
-  }, 0);
-  
+  // === Samenvatting onder tabel ===
+  const total = Object.values(md.rows).reduce((s, r) => s + (r.minutes || 0), 0);
   const doel = ((md.targetHours || 0) * 60) + (md.targetMinutes || 0);
-  const diff = totalBillable - doel;
+  const diff = total - doel;
   const fmt = v => `${Math.floor(v / 60)}u ${v % 60}m`;
-
-  // Check paginaruimte
-  if (finalY > 240) { doc.addPage(); finalY = 20; }
+  const endY = doc.lastAutoTable.finalY + 6;
 
   doc.setFontSize(11);
+  doc.setTextColor(13, 110, 253);
+  doc.text('Maandoverzicht', 14, endY);
   doc.setTextColor(0, 0, 0);
-  doc.text('Totaaloverzicht', 14, finalY);
-  
   doc.setFontSize(9);
-  doc.text(`Doelstelling: ${fmt(doel)}`, 20, finalY + 6);
-  doc.text(`Totaal Billable: ${fmt(totalBillable)}`, 20, finalY + 11);
-  doc.setTextColor(diff >= 0 ? 25 : 220, diff >= 0 ? 135 : 53, diff >= 0 ? 84 : 69); // Groen of Rood
-  doc.text(`Verschil: ${(diff >= 0 ? '+' : '-') + fmt(Math.abs(diff))}`, 20, finalY + 16);
-  
-  if (totalNbMins > 0) {
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Totaal Non-Billable: ${fmt(totalNbMins)}`, 20, finalY + 23);
-  }
+  doc.text(`Doel: ${fmt(doel)}`, 20, endY + 5);
+  doc.text(`Gepland: ${fmt(total)}`, 20, endY + 10);
+  doc.text(`Verschil: ${(diff >= 0 ? '+' : '-') + fmt(Math.abs(diff))}`, 20, endY + 15);
 
-  // Opslaan
-  const filename = `Shiftplanning_${ud.name || 'user'}_${monthName}_${year}.pdf`;
+  // === PDF genereren ===
+  const filename = `Shiftplanning_${ud.name || 'gebruiker'}_${monthName}_${year}.pdf`;
   doc.save(filename);
-  toast('PDF (met non-billable) geëxporteerd', 'success');
+  toast('PDF geëxporteerd', 'success');
 });
 // 🔁 Shift toepassen op meerdere dagen
 const multiShiftName = document.getElementById('multiShiftName');
