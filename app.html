@@ -558,14 +558,32 @@
     </div>
   </div>
 
-  <div class="card shadow-sm border-0 mb-3">
-    <div class="card-body d-flex justify-content-between align-items-center">
-      <div>
-        <h6 class="mb-0 text-secondary">Totaal deze maand</h6>
-        <span class="fs-4 fw-bold" id="nbTotalDisplay">0u 0min</span>
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-6">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="mb-0 text-secondary">Totaal deze maand</h6>
+            <span class="fs-4 fw-bold" id="nbTotalDisplay">0u 0min</span>
+          </div>
+          <div class="text-end text-muted small">
+            <span class="material-icons-outlined" style="font-size: 28px; opacity: 0.3;">calendar_view_month</span>
+          </div>
+        </div>
       </div>
-      <div class="text-end text-muted small">
-        Deze uren tellen <strong>niet</strong> mee<br>voor je billable maanddoel.
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="mb-0 text-secondary">Totaal in <span id="nbYearTotalLabel">-</span></h6>
+            <span class="fs-4 fw-bold text-primary" id="nbYearTotalDisplay">0u 0min</span>
+          </div>
+          <div class="text-end text-muted small">
+            <span class="material-icons-outlined" style="font-size: 28px; opacity: 0.3;">calendar_today</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
