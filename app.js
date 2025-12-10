@@ -341,6 +341,7 @@ if (schEl) {
 
   // laatste meldingen
   loadHomeNotifications();
+  initAnnouncements();
 }
 
 // Snelkoppelingen op Home
@@ -5582,82 +5583,104 @@ document.querySelector('a[href="#tab-nonbillable"]')?.addEventListener('shown.bs
   renderNonBillable();
 });
 // =============================================
-// 📢 PRIKBORD (ANNOUNCEMENTS)
+// 📢 PRIKBORD LOGICA
 // =============================================
 
-const addAnnouncementBtn = document.getElementById('addAnnouncementBtn');
-const announcementList = document.getElementById('announcementList');
-
-// 1. Initialiseren bij laden Home
+// 1. Functie om het prikbord te starten
 function initAnnouncements() {
-  loadAnnouncements();
+  const btn = document.getElementById('addAnnouncementBtn');
+  const list = document.getElementById('announcementList');
   
-  // Check of admin is voor de knop
-  const me = dataStore.users[currentUserId];
-  if (me?.role === 'admin') {
-    addAnnouncementBtn?.classList.remove('d-none');
+  if (!list) return; // Stop als element niet bestaat
+
+  // Check of huidige gebruiker admin is
+  const ud = getCurrentUserData();
+  if (ud?.role === 'admin') {
+    btn?.classList.remove('d-none'); // Toon knop
   }
+
+  // Start de live listener naar Firestore
+  loadAnnouncements();
 }
 
-// 2. Data ophalen (Realtime listener)
+// 2. Data ophalen (Live)
 function loadAnnouncements() {
-  // We gebruiken een aparte collectie 'announcements'
+  const list = document.getElementById('announcementList');
+  // Zorg dat je 'collection' en 'query' geïmporteerd hebt uit firebase/firestore
   const q = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'), limit(3));
   
   onSnapshot(q, (snapshot) => {
     if (snapshot.empty) {
-      announcementList.innerHTML = '<small class="text-muted fst-italic">Geen mededelingen.</small>';
+      list.innerHTML = '<small class="text-muted fst-italic">Geen mededelingen.</small>';
       return;
     }
 
-    announcementList.innerHTML = '';
+    list.innerHTML = '';
     snapshot.forEach((docSnap) => {
       const a = docSnap.data();
-      const dateStr = a.timestamp ? new Date(a.timestamp).toLocaleDateString('nl-BE') : '';
+      // Datum formatteren
+      let dateStr = '-';
+      if (a.timestamp) {
+        dateStr = new Date(a.timestamp).toLocaleDateString('nl-BE', { 
+           day: 'numeric', month: 'short' 
+        });
+      }
       
       const div = document.createElement('div');
       div.className = 'alert alert-light border mb-2 p-2 d-flex justify-content-between align-items-start';
+      
+      // Admin mag verwijderen
+      const deleteBtn = (getCurrentUserData()?.role === 'admin') 
+        ? `<button class="btn btn-link text-danger p-0 ms-2" onclick="deleteAnnouncement('${docSnap.id}')" style="text-decoration:none;">&times;</button>` 
+        : '';
+
       div.innerHTML = `
-        <div>
-          <div class="fw-bold text-dark" style="font-size: 0.9rem;">${a.text}</div>
-          <div class="text-muted" style="font-size: 0.75rem;">${dateStr} • door ${a.author}</div>
+        <div class="w-100">
+          <div class="fw-bold text-dark" style="font-size: 0.95rem;">${a.text}</div>
+          <div class="text-muted d-flex justify-content-between mt-1" style="font-size: 0.75rem;">
+            <span>${a.author}</span>
+            <span>${dateStr}</span>
+          </div>
         </div>
-        ${(dataStore.users[currentUserId]?.role === 'admin') ? 
-          `<button class="btn btn-link text-danger p-0 ms-2" onclick="deleteAnnouncement('${docSnap.id}')" style="text-decoration:none;">&times;</button>` 
-          : ''}
+        ${deleteBtn}
       `;
-      announcementList.appendChild(div);
+      list.appendChild(div);
     });
   });
 }
 
-// 3. Nieuw bericht plaatsen (Alleen Admin)
-addAnnouncementBtn?.addEventListener('click', async () => {
+// 3. Knop actie: Nieuw bericht
+document.getElementById('addAnnouncementBtn')?.addEventListener('click', async () => {
   const text = prompt("Nieuwe mededeling:");
   if (!text) return;
 
-  const me = dataStore.users[currentUserId];
-  const name = me.name || me.email;
+  const ud = getCurrentUserData();
+  const name = ud.name || ud.email;
 
-  await addDoc(collection(db, 'announcements'), {
-    text: text,
-    author: name,
-    timestamp: new Date().toISOString()
-  });
-  
-  toast('Mededeling geplaatst', 'success');
+  try {
+    await addDoc(collection(db, 'announcements'), {
+      text: text,
+      author: name,
+      timestamp: new Date().toISOString()
+    });
+    toast('Mededeling geplaatst', 'success');
+  } catch (e) {
+    console.error(e);
+    toast('Fout bij plaatsen (check permissies)', 'danger');
+  }
 });
 
-// 4. Verwijderen (Global functie voor onclick)
+// 4. Verwijder actie (Globaal beschikbaar maken)
 window.deleteAnnouncement = async (id) => {
   if(!confirm("Verwijder dit bericht?")) return;
-  await deleteDoc(doc(db, 'announcements', id));
-  toast('Verwijderd', 'success');
+  try {
+    await deleteDoc(doc(db, 'announcements', id));
+    toast('Verwijderd', 'success');
+  } catch(e) {
+    console.error(e);
+    toast('Kon niet verwijderen', 'danger');
+  }
 };
-
-// 5. Koppelen aan renderHome (zodat het laadt bij login)
-// Zoek je bestaande renderHome() functie en voeg deze regel toe:
-// initAnnouncements();
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
