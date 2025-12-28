@@ -3,6 +3,7 @@
   --sp-sidebar-w-collapsed: 78px;
 }
 body { background: #f5f7fb; }
+
 /* Sidebar */
 .sp-sidebar {
   position: fixed; inset: 0 auto 0 0;
@@ -26,521 +27,190 @@ body { background: #f5f7fb; }
 .sp-main { padding: 86px 20px 24px; margin-left: var(--sp-sidebar-w); transition: margin-left .25s ease; }
 .sp-main.collapsed { margin-left: var(--sp-sidebar-w-collapsed); }
 
-/* Mobile: sidebar overlay */
+/* Mobile */
 @media (max-width: 768px) {
   .sp-sidebar { left: -100%; }
   .sp-sidebar.show { left: 0; }
   .sp-main, .sp-main.collapsed { margin-left: 0; }
+  #exportPdfBtn, #multiDayShiftBtn, #submitMonthBtn{ display: block; width: 100%; margin: 0 auto 0.5rem auto; }
 }
 
+/* Helpers */
 .table-nowrap td, .table-nowrap th { white-space: nowrap; }
-.text-mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+.text-mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, monospace;}
 .chip {display:inline-flex;align-items:center;gap:6px;padding:.25rem .5rem;border-radius:999px;background:#eef4ff;color:#0d6efd;font-size:.8rem}
 .chip .dot{width:.5rem;height:.5rem;border-radius:50%;background:#0d6efd}
 .drag-handle:hover { color: #0d6efd; transform: scale(1.15); }
-.sortable-chosen { background-color: #f0f8ff !important; }
-.sortable-ghost { opacity: 0.6; }
-#quickTopBtn {
-  border-color: #fd7e14 !important;   /* zachter oranje */
-  color: #fd7e14 !important;
-  transition: all .15s ease;
+#quickTopBtn { border-color: #fd7e14 !important; color: #fd7e14 !important; transition: all .15s ease; }
+#quickTopBtn:hover { background-color: #fd7e14 !important; color: #fff !important; transform: scale(1.05); }
+
+/* Notifications & Dark Mode */
+#notifList li.unread { font-weight: 600; }
+#notifDropdown { position: absolute; top: 100%; right: 0; z-index: 1050; display: none; }
+#notifDropdown.show { display: block !important; }
+
+body.dark-mode { background-color: #1e1e1e !important; color: #eaeaea !important; }
+body.dark-mode .sp-topbar { background-color: #2b2b2b !important; border-bottom-color: #444 !important; }
+body.dark-mode .sp-sidebar { background-color: #111 !important; }
+body.dark-mode .sp-main { background-color: #1e1e1e !important; }
+body.dark-mode .modal-content { background-color: #2b2b2b !important; color: #eaeaea !important; }
+body.dark-mode .table { color: #ddd !important; }
+body.dark-mode .table thead { background-color: #333 !important; }
+body.dark-mode .form-control, body.dark-mode .form-select { background-color: #333; color: #eee; border-color: #555; }
+
+/* 🌊 Floating Hours Alert */
+#remainingHoursAlert { position: fixed !important; bottom: 1rem; left: 50%; transform: translateX(-50%); z-index: 2000; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); border-radius: 0.75rem; padding: 8px 16px; opacity: 0.95; }
+body.modal-open #remainingHoursAlert { opacity: 0; visibility: hidden; }
+
+/* Loading overlay */
+.loading-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: center; z-index: 2000; }
+body:not(.auth-checked) #sidebar, body:not(.auth-checked) .sp-topbar, body:not(.auth-checked) .sp-main { display: none !important; }
+body:not(.auth-checked) #loadingOverlay { display: flex !important; opacity: 1 !important; visibility: visible !important; background-color: #f5f7fb; z-index: 9999; }
+
+/* Project kaarten */
+#projectSummary { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .5rem; }
+.project-mini { background: #fff; border: 1px solid #e9edf5; border-radius: .5rem; padding: .5rem .75rem; }
+body.dark-mode #projectSummary .project-mini { background: #2b2b2b; border-color: #444; }
+
+/* Rooster */
+.rooster-wrapper { position: relative; border: 1px solid #dee2e6; border-radius: 0.375rem; }
+.rooster-table thead th { position: sticky; top: 0; z-index: 10; }
+.rooster-table tbody th, .rooster-table thead th:first-child { position: sticky; left: 0; background-color: #fff; z-index: 20; border-right: 2px solid #dee2e6; }
+.rooster-cell { min-width: 40px; height: 40px; padding: 0 !important; vertical-align: middle; }
+.rooster-content { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+
+/* Shift Kleuren */
+.bg-shift-school { background-color: #fd7e14 !important; color: #fff !important; font-weight: 600; }
+.bg-shift-sick { background-color: #ffc107 !important; color: #000 !important; font-weight: 600; }
+.bg-shift-leave { background-color: #0dcaf0 !important; color: #fff !important; font-weight: 600; }
+.bg-shift-vroege { background-color: #fff3cd !important; color: #856404 !important; font-weight: 600; }
+.bg-shift-late { background-color: #cfe2ff !important; color: #084298 !important; font-weight: 600; }
+.bg-shift-nacht { background-color: #e0cffc !important; color: #3700b3 !important; font-weight: 600; }
+.bg-shift-normal { background-color: #e9ecef; color: #495057; font-weight: 600; }
+
+/* =========================================
+   📄 CSS VOOR CV BOUWER
+   ========================================= */
+
+/* Het papier effect */
+.cv-paper {
+  width: 210mm;          /* Exact A4 breedte */
+  min-height: 297mm;     /* Exact A4 hoogte */
+  background: white;
+  color: #333;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0 auto;
+  transform-origin: top center;
 }
 
-#quickTopBtn:hover {
-  background-color: #fd7e14 !important;
-  color: #fff !important;
-  transform: scale(1.05);
-}
-@media (max-width: 768px) {
-  #exportPdfBtn {
-    font-size: 0.9rem;
-    padding: 6px 10px;
+@media (max-width: 900px) {
+  .cv-paper {
+    transform: scale(0.6); /* Kleiner maken op tablets */
+    margin-bottom: -40%;   /* Compenseer de witruimte onderaan door schalen */
   }
 }
-@media (max-width: 768px) {
-  #multiDayShiftBtn {
-    font-size: 0.9rem;
-    padding: 6px 10px;
+@media (max-width: 500px) {
+  .cv-paper {
+    transform: scale(0.4); /* Nog kleiner op mobiel */
+    margin-bottom: -120%;
+    margin-left: -20%;     /* Centreren */
   }
 }
-#notifList li.unread {
-  font-weight: 600;
-}
-.sp-topbar .ms-auto {
-  margin-left: auto !important;
-}
-#notifDropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  z-index: 1050; /* hoger dan navbar */
-  display: none;
+
+/* Header sectie */
+.cv-header {
+  background-color: var(--bs-primary); /* Gebruikt je app thema kleur! */
 }
 
-#notifDropdown.show {
-  display: block !important;
-}
-/* === 🌙 Donkere modus === */
-body.dark-mode {
-  background-color: #1e1e1e !important;
-  color: #eaeaea !important;
-}
-
-body.dark-mode .sp-topbar {
-  background-color: #2b2b2b !important;
-  border-bottom-color: #444 !important;
-}
-
-body.dark-mode .sp-sidebar {
-  background-color: #111 !important;
-}
-
-body.dark-mode .sp-main {
-  background-color: #1e1e1e !important;
-  color: #eaeaea !important;
-}
-
-body.dark-mode .table {
-  color: #ddd !important;
-}
-
-body.dark-mode .table thead {
-  background-color: #333 !important;
-  color: #fff !important;
-}
-
-body.dark-mode .modal-content {
-  background-color: #2b2b2b !important;
-  color: #eaeaea !important;
-}
-
-body.dark-mode .btn-outline-secondary {
-  color: #eaeaea !important;
-  border-color: #666 !important;
-}
-body.dark-mode .alert-info {
-  background-color: #2b3e50 !important;
-  color: #eaeaea !important;
-  border-color: #3d5065 !important;
-}
-body.dark-mode .alert-success {
-  background-color: #244c2c !important;
-  color: #a8f0a5 !important;
-}
-body.dark-mode .alert-warning {
-  background-color: #4d3a13 !important;
-  color: #ffe7a0 !important;
-}
-body.dark-mode .alert-danger {
-  background-color: #5b1b1b !important;
-  color: #ffbdbd !important;
-}
-/* 🌊 Altijd zwevende resterende uren-balk */
-#remainingHoursAlert {
-  position: fixed !important;
-  bottom: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2000;
-  width: auto;
-  max-width: 90%;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 0.75rem;
-  padding: 8px 16px;
-  font-size: 0.9rem;
-  text-align: center;
-  transition: all 0.3s ease-in-out;
-  opacity: 0.95; /* subtiel transparant */
-}
-/* Verberg de balk met een animatie als een modal open is */
-body.modal-open #remainingHoursAlert {
-  opacity: 0;
-  visibility: hidden;
-  transform: translateX(-50%) translateY(100%); /* Schuif naar beneden */
-}
-/* 📱 Mobiel — iets breder */
-@media (max-width: 768px){
-  #exportPdfBtn,
-  #multiDayShiftBtn,
-  #submitMonthBtn{
-    --bs-btn-padding-y: .375rem;   /* hoogte (≈ 6px) */
-    --bs-btn-padding-x: .75rem;    /* breedte */
-    --bs-btn-line-height: 1.2;
-    font-size: 1rem;
-    padding: var(--bs-btn-padding-y) var(--bs-btn-padding-x) !important;
-  }
-}
-/* === 🔄 Loading overlay === */
-.loading-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-}
-.main-content, .container {
-  overflow: visible !important;
-}
-/* 📱 Op mobiel: knoppen onder elkaar even breed maken */
-@media (max-width: 768px) {
-  #exportPdfBtn,
-  #multiDayShiftBtn,
-  #submitMonthBtn{
-    display: block;
-    width: 100%;
-    max-width: 320px;   /* optioneel: begrenst de breedte */
-    margin: 0 auto 0.5rem auto;
-  }
-}
-/* 🔶 Dagen met geplande shift */
-.flatpickr-day.planned-day {
-  background-color: #ffc107 !important; /* geel */
-  color: #000 !important;
-  border-radius: 50% !important;
-  font-weight: 600;
-  border: 2px solid #e0a800 !important;
-}
-.flatpickr-day.selected.planned-day {
-  background-color: #ff9800 !important; /* oranje */
-  color: white !important;
-}
-/* ── Maandstatus badges ─────────────────────────────── */
-.badge-status { font-weight: 600; }
-.badge-draft { background:#e9ecef; color:#495057; }
-.badge-submitted { background:#e7f1ff; color:#0d6efd; }
-.badge-approved { background:#e6f4ea; color:#1e7e34; }
-.badge-rejected { background:#fdecea; color:#842029; }
-/* mini actieknoppen in de invoertabel */
-.btn-line{
-  --bs-btn-padding-y: .15rem;
-  --bs-btn-padding-x: .35rem;
-  --bs-btn-font-size: .75rem;
-  line-height: 1;
-}
-/* Acties-kolom smal + niet afbreken */
-#thActions{ width:1%; white-space:nowrap; }
-td.actions-cell{ white-space:nowrap; }  
-.btn-success { font-weight: 600; }
-.badge.bg-secondary-subtle { background-color: #f1f3f5 !important; color: #495057 !important; }
-body.dark-mode .badge.bg-secondary-subtle { background-color: #2e2e2e !important; color: #ddd !important; }
-/* Compacte projectkaarten (Invoer) */
-#projectSummary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: .5rem;
-}
-
-.project-mini {
-  background: #fff;
-  border: 1px solid #e9edf5;
-  border-radius: .5rem;
-  padding: .5rem .75rem;          /* klein! */
-}
-
-.project-mini .meta { 
-  color: #6c757d; 
-  font-size: .75rem; 
-}
-.project-mini .title { 
-  font-weight: 600; 
-  font-size: .95rem; 
-}
-.project-mini .value { 
-  font-variant-numeric: tabular-nums; 
-  font-weight: 700; 
-}
-
-/* Donkere modus matchen */
-body.dark-mode #projectSummary .project-mini {
-  background: #2b2b2b;
-  border-color: #444;
-  color: #eaeaea;
-}
-body.dark-mode #projectSummary .meta { color: #aaa; }
-/* 🔸 Fade animaties */
-.fade-in {
-  animation: fadeIn 0.3s ease-in forwards;
-}
-
-.fade-out {
-  animation: fadeOut 0.3s ease-out forwards;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes fadeOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-
-/* 🔸 Volledig verbergen */
-.hidden-col {
-  display: none !important;
-}
-/* === Mailbox Mobile Fixes === */
-@media (max-width: 576px) {
-  /* Verberg datum-tekst in de lijst (is zichtbaar in detail) */
-  .mail-meta {
-    display: none;
-  }
-  /* Zorg dat actieknoppen niet te breed worden */
-  #mailListTable .btn {
-    padding: .15rem .3rem;
-    font-size: .8rem;
-  }
-}
-/* Accentkleur-kiezer bolletjes */
-.color-picker-wrap {
-  display: flex;
-  gap: 10px;
-  margin-top: 8px;
-  flex-wrap: wrap;
-}
-.color-dot {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  cursor: pointer;
-  border: 3px solid #fff;
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.2);
-  transition: all 0.15s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-body.dark-mode .color-dot {
-  border-color: #444;
-}
-.color-dot.selected {
-  border-color: #000;
-  box-shadow: 0 0 0 2px rgba(0,0,0,0.5);
-  transform: scale(1.1);
-}
-body.dark-mode .color-dot.selected {
-  border-color: #fff;
-}
-/* Fix voor Flatpickr in een Modal */
-.flatpickr-calendar {
-  z-index: 2051 !important;
-}
-/* === Donkere modus voor Goedkeuring-kaarten === */
-body.dark-mode #approvalYearlyOverview .card {
-  background-color: #2b2b2b !important;
-  border-color: #444 !important;
-  color: #eaeaea !important;
-}
-
-body.dark-mode #approvalYearlyOverview .btn-outline-secondary {
-  color: #eaeaea !important;
-  border-color: #666 !important;
-}
-
-body.dark-mode #approvalYearlyOverview .btn-outline-secondary:hover {
-  background-color: #666 !important;
-  color: #fff !important;
-}
-/* === Verlof Status Iconen === */
-.shift-status-icon {
-  font-size: 16px;
-  vertical-align: middle;
-  margin-left: 4px;
-}
-.status-pending {
-  color: #fd7e14; /* Oranje */
-}
-.status-approved {
-  color: #198754; /* Groen */
-}
-.status-rejected {
-  color: #dc3545; /* Rood */
-}
-/* === ADMIN DASHBOARD STATS === */
-.stat-card {
+/* Tijdlijn item (Werkgever of los project) */
+.cv-project-item {
   position: relative;
-  padding: 1.25rem;
-  border-radius: .75rem;
-  overflow: hidden;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  padding-left: 1rem;
+  margin-bottom: 1.5rem;
+  border-left: 2px solid #e9ecef;
 }
-.stat-card .stat-value {
-  font-size: 2.25rem;
-  font-weight: 700;
-  line-height: 1.1;
-}
-.stat-card .stat-label {
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-.stat-card .stat-icon {
+.cv-project-item::before {
+  content: '';
   position: absolute;
-  top: 1rem;
-  right: 1rem;
-  font-size: 3.5rem;
-  opacity: 0.2;
-  transform: rotate(-10deg);
-}
-.stat-card .btn-link {
-  color: inherit;
-  text-decoration-color: rgba(255,255,255,0.5);
-  font-size: 0.9rem;
-}
-.bg-warning { background-color: #ffc107 !important; }
-.bg-danger { background-color: #dc3545 !important; }
-.bg-info { background-color: #0dcaf0 !important; }
-/* === BIJLAGE ICOON === */
-.attachment-icon {
-  font-size: 16px;
-  vertical-align: middle;
-  cursor: pointer;
-  color: #6c757d; /* Standaard grijs */
-  transition: color 0.15s ease;
-}
-.attachment-icon:hover {
-  color: #0d6efd; /* Primair kleur bij hover */
-}
-.attachment-icon.has-attachment {
-  color: #0d6efd; /* Blauw als er een bijlage is */
-  transform: rotate(45deg);
-}
-/* === TEAM ROOSTER STYLES === */
-.rooster-wrapper {
-  position: relative;
-  border: 1px solid #dee2e6;
-  border-radius: 0.375rem;
-}
-
-/* Header sticky bovenaan */
-.rooster-table thead th {
-  position: sticky;
+  left: -5px;
   top: 0;
-  background-color: #f8f9fa; /* Lichte achtergrond */
-  z-index: 10; /* Boven de cellen */
-  box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--bs-primary);
 }
-
-/* Eerste kolom (Namen) sticky links */
-.rooster-table tbody th, 
-.rooster-table thead th:first-child {
-  position: sticky;
-  left: 0;
-  background-color: #fff;
-  z-index: 20; /* Boven de andere headers en cellen */
-  border-right: 2px solid #dee2e6;
-  min-width: 150px;
-  text-align: left;
-  padding-left: 10px;
-}
-.rooster-table thead th:first-child {
-  z-index: 30; /* Allerhoogste (linksboven hoek) */
-  background-color: #e9ecef;
-}
-
-/* Donkere modus fix voor sticky */
-body.dark-mode .rooster-table thead th { background-color: #333; color: #fff; border-color: #555; }
-body.dark-mode .rooster-table tbody th { background-color: #2b2b2b; color: #fff; border-color: #555; }
-body.dark-mode .rooster-table thead th:first-child { background-color: #444; }
-
-/* Cellen styling */
-.rooster-cell {
-  min-width: 40px;
-  height: 40px;
-  font-size: 0.75rem;
-  cursor: default;
-  padding: 0 !important; /* Zodat de hele cel gekleurd kan worden */
-  vertical-align: middle;
-}
-
-/* Inhoud van de cel */
-.rooster-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-/* Kleurtjes voor specifieke shifts */
-.bg-shift-sick { background-color: #ffeeba; color: #856404; } /* Geel/Oranje */
-.bg-shift-leave { background-color: #cff4fc; color: #055160; } /* Lichtblauw */
-.bg-shift-school { background-color: #d1e7dd; color: #0f5132; } /* Groen */
-.bg-shift-normal { background-color: #f8f9fa; color: #212529; } /* Grijs */
-
-body.dark-mode .bg-shift-normal { background-color: #343a40; color: #dee2e6; }
-/* === ROOSTER SHIFT KLEUREN === */
-
-/* 🟧 School = Oranje (zoals gevraagd) */
-.bg-shift-school { 
-  background-color: #fd7e14 !important; /* Bootstrap Orange */
-  color: #fff !important; 
+.cv-date {
+  font-size: 0.85rem;
+  color: var(--bs-primary);
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.cv-role {
+  font-weight: 700;
+  font-size: 1rem;
+}
+.cv-client {
+  font-style: italic;
+  color: #666;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
 }
 
-/* 🟨 Ziekte = Geel/Goud */
-.bg-shift-sick { 
-  background-color: #ffc107 !important; /* Warning Yellow */
-  color: #000 !important; 
+/* ✅ NIEUW: Geneste Projecten Stijl */
+.cv-nested-projects {
+  margin-top: 0.75rem;
+  padding-left: 1rem;
+  border-left: 2px solid #f1f3f5; /* Lichtere lijn */
+}
+
+.cv-nested-project-item {
+  margin-bottom: 0.75rem;
+  position: relative;
+}
+
+/* Bolletje voor geneste items */
+.cv-nested-project-item::before {
+  content: '';
+  position: absolute;
+  left: -1.35rem; /* Positie tov de border lijn */
+  top: 0.4rem;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #adb5bd; /* Grijs bolletje */
+}
+
+.cv-nested-role {
   font-weight: 600;
+  font-size: 0.9rem;
+  color: #495057;
 }
 
-/* 🟦 Verlof = Blauw/Cyaan */
-.bg-shift-leave { 
-  background-color: #0dcaf0 !important; 
-  color: #fff !important;
-  font-weight: 600;
+.cv-nested-meta {
+  font-size: 0.8rem;
+  color: #6c757d;
+  margin-bottom: 2px;
 }
 
-/* 🌅 Vroege = Zacht Geel */
-.bg-shift-vroege { 
-  background-color: #fff3cd !important; 
-  color: #856404 !important; 
-  font-weight: 600;
+.cv-nested-desc {
+  font-size: 0.85rem;
+  color: #6c757d;
+  font-style: italic;
+  margin-bottom: 0;
 }
 
-/* 🌇 Late = Zacht Blauw */
-.bg-shift-late { 
-  background-color: #cfe2ff !important; 
-  color: #084298 !important; 
-  font-weight: 600;
+
+/* Sidebar in CV */
+.cv-sidebar ul li {
+  margin-bottom: 4px;
 }
 
-/* 🌙 Nacht = Donker/Paars */
-.bg-shift-nacht { 
-  background-color: #e0cffc !important; 
-  color: #3700b3 !important; 
-  font-weight: 600;
-}
-
-/* ☁️ Default / Overige = Grijs */
-.bg-shift-normal { 
-  background-color: #e9ecef; 
-  color: #495057; 
-  font-weight: 600;
-}
-
-/* Donkere modus fix */
-body.dark-mode .bg-shift-normal { background-color: #343a40; color: #dee2e6; }
-/* === ANTI-FLASH: Verberg app tot login check klaar is === */
-
-/* 1. Zolang de body de class 'auth-checked' NIET heeft, verberg de interface */
-body:not(.auth-checked) #sidebar,
-body:not(.auth-checked) .sp-topbar,
-body:not(.auth-checked) .sp-main {
-  display: none !important;
-}
-
-/* 2. Zolang de body de class 'auth-checked' NIET heeft, FORCEER de loader */
-body:not(.auth-checked) #loadingOverlay {
-  display: flex !important; /* Overschrijft d-none */
-  opacity: 1 !important;
-  visibility: visible !important;
-  background-color: #f5f7fb; /* Zelfde kleur als achtergrond */
-  z-index: 9999;
+/* Voor de PDF generatie: zorg dat wit echt wit is en tekst zwart */
+@media print {
+  body * { visibility: hidden; }
+  #cvPreview, #cvPreview * { visibility: visible; }
+  #cvPreview {
+    position: absolute; left: 0; top: 0; width: 100%; margin: 0; box-shadow: none;
+  }
 }
