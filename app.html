@@ -4,24 +4,33 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Shift Planner</title>
-  <!-- ===== Favicons ===== -->
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="favicon-192x192.png">
-  <link rel="shortcut icon" href="favicon.ico">
-  
-  <!-- ===== Stylesheet ===== -->
-  <style id="accent-color-overrides"></style>
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0d6efd">
+<!-- ===== Favicons for all devices ===== -->
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="favicon-192x192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="favicon-512x512.png">
+<link rel="shortcut icon" href="favicon.ico">
+<!-- ===== Stylesheet ===== -->
+<style id="accent-color-overrides"></style>
 
+<!-- Apple (iPhone/iPad) -->
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
+<link rel="apple-touch-icon-precomposed" href="apple-touch-icon-180x180.png">
+
+<!-- Android/Chrome Web App -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d6efd">
+
+<!-- Windows -->
+<meta name="msapplication-TileImage" content="favicon-192x192.png">
+<meta name="msapplication-TileColor" content="#0d6efd">
   <!-- Bootstrap 5.3 -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <!-- Material Icons -->
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet" />
-  <!-- Flatpickr CSS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<!-- Flatpickr CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   
-  <!-- Jouw CSS -->
+  <!-- ✅ Vervangen: De inline style is verplaatst naar app-style.css -->
   <link rel="stylesheet" href="app.css">
 
 </head>
@@ -30,561 +39,1199 @@
   <!-- Sidebar -->
   <aside id="sidebar" class="sp-sidebar">
     <div class="px-3 mb-3">
-      <div class="d-flex align-items-center gap-2 ps-2">
-        <span class="material-icons-outlined">event_note</span>
-        <a class="label text-white text-decoration-none" data-bs-toggle="tab" href="#tab-home">
-          Shift Planner
-        </a>
-      </div>
-    </div>
-    <nav class="nav flex-column" id="navTabs">
-      <a class="nav-link active" data-bs-toggle="tab" href="#tab-home">
-        <span class="material-icons-outlined">home</span> <span class="label">Home</span>
-      </a>
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-shifts">
-        <span class="material-icons-outlined">schedule</span> <span class="label">Shifts</span>
-      </a>
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-invoer">
-        <span class="material-icons-outlined">list_alt</span> <span class="label">Invoer</span>
-      </a>
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-historiek">
-        <span class="material-icons-outlined">query_stats</span> <span class="label">Historiek</span>
-      </a>
-      <!-- NIEUW: CV Bouwer -->
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-cv">
-        <span class="material-icons-outlined">contact_page</span> <span class="label">Mijn CV</span>
-      </a>
-      
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-converter">
-        <span class="material-icons-outlined">calculate</span> <span class="label">Converter</span>
-      </a>
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-nonbillable">
-        <span class="material-icons-outlined">timer_off</span> <span class="label">Non-Billable</span>
-      </a>
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-mail">
-        <span class="material-icons-outlined">mail</span>
-        <span class="label">Mailbox</span>
-        <span id="mailSidebarBadge" class="badge bg-danger ms-1 d-none">0</span>
-      </a>
-      
-      <!-- Admin tabs (hidden by default) -->
-      <a class="nav-link d-none" id="adminApprovalTabBtn" data-bs-toggle="tab" href="#tab-goedkeuring">
-        <span class="material-icons-outlined">fact_check</span> <span class="label">Goedkeuring</span>
-      </a>
-      <a class="nav-link d-none" id="adminLeaveTabBtn" data-bs-toggle="tab" href="#tab-verlofbeheer">
-        <span class="material-icons-outlined">event_available</span> <span class="label">Verlofbeheer</span>
-      </a>
-      <a class="nav-link d-none" id="adminHomeTabBtn" data-bs-toggle="tab" href="#tab-admin-home">
-        <span class="material-icons-outlined">dashboard</span> <span class="label">Admin dashboard</span>
-      </a>
-      <a class="nav-link d-none" id="adminRoosterTabBtn" data-bs-toggle="tab" href="#tab-team-rooster">
-        <span class="material-icons-outlined">calendar_view_month</span> <span class="label">Team rooster</span>
-      </a>
-      <a class="nav-link d-none" id="adminTabBtn" data-bs-toggle="tab" href="#tab-admin">
-        <span class="material-icons-outlined">admin_panel_settings</span> <span class="label">Admin</span>
-      </a>
-    </nav>
+  <div class="d-flex align-items-center gap-2 ps-2">
+    <span class="material-icons-outlined">event_note</span>
+    <a class="label text-white text-decoration-none" data-bs-toggle="tab" href="#tab-home">
+      Shift Planner
+    </a>
+  </div>
+</div>
+<nav class="nav flex-column" id="navTabs">
+  <a class="nav-link active" data-bs-toggle="tab" href="#tab-home">
+    <span class="material-icons-outlined">home</span> <span class="label">Home</span>
+  </a>
+  <a class="nav-link" data-bs-toggle="tab" href="#tab-shifts">
+    <span class="material-icons-outlined">schedule</span> <span class="label">Shifts</span>
+  </a>
+  <a class="nav-link" data-bs-toggle="tab" href="#tab-invoer">
+    <span class="material-icons-outlined">list_alt</span> <span class="label">Invoer</span>
+  </a>
+  <a class="nav-link" data-bs-toggle="tab" href="#tab-historiek">
+    <span class="material-icons-outlined">query_stats</span> <span class="label">Historiek</span>
+  </a>
+  <a class="nav-link" data-bs-toggle="tab" href="#tab-converter">
+    <span class="material-icons-outlined">calculate</span> <span class="label">Converter</span>
+  </a>
+  <a class="nav-link" data-bs-toggle="tab" href="#tab-nonbillable">
+  <span class="material-icons-outlined">timer_off</span> <span class="label">Non-Billable</span>
+</a>
+ <a class="nav-link" data-bs-toggle="tab" href="#tab-mail">
+  <span class="material-icons-outlined">mail</span>
+  <span class="label">Mailbox</span>
+  <span id="mailSidebarBadge" class="badge bg-danger ms-1 d-none">0</span>
+</a>
+<a class="nav-link d-none" id="adminApprovalTabBtn" data-bs-toggle="tab" href="#tab-goedkeuring">
+    <span class="material-icons-outlined">fact_check</span> <span class="label">Goedkeuring</span>
+  </a>
+<a class="nav-link d-none" id="adminLeaveTabBtn" data-bs-toggle="tab" href="#tab-verlofbeheer">
+    <span class="material-icons-outlined">event_available</span> <span class="label">Verlofbeheer</span>
+  </a>
+<a class="nav-link d-none" id="adminHomeTabBtn" data-bs-toggle="tab" href="#tab-admin-home">
+    <span class="material-icons-outlined">dashboard</span> <span class="label">Admin dashboard</span>
+</a>
+<a class="nav-link d-none" id="adminRoosterTabBtn" data-bs-toggle="tab" href="#tab-team-rooster">
+  <span class="material-icons-outlined">calendar_view_month</span> <span class="label">Team rooster</span>
+</a>
+  <a class="nav-link d-none" id="adminTabBtn" data-bs-toggle="tab" href="#tab-admin">
+    <span class="material-icons-outlined">admin_panel_settings</span> <span class="label">Admin</span>
+  </a>
+</nav>
   </aside>
 
   <!-- Topbar -->
   <nav class="sp-topbar">
     <div class="container-fluid h-100 d-flex align-items-center justify-content-between">
       <div class="d-flex align-items-center gap-2">
-        <button id="sidebarToggle" class="btn btn-outline-primary btn-sm d-none d-md-inline-flex">
-          <span class="material-icons-outlined">menu_open</span>
-        </button>
-        <button id="sidebarMobile" class="btn btn-outline-primary btn-sm d-inline-flex d-md-none">
-          <span class="material-icons-outlined">menu</span>
-        </button>
-        <button id="quickTopBtn" class="btn btn-outline-warning btn-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#quickModal">
-          <span class="material-icons-outlined">event</span> 
-          <span class="d-none d-sm-inline">Snelle invoer</span>
-        </button>
-        <div class="chip d-none d-sm-inline-flex"><span class="dot"></span> <span id="envBadge">Online</span></div>
+  <button id="sidebarToggle" class="btn btn-outline-primary btn-sm d-none d-md-inline-flex">
+    <span class="material-icons-outlined">menu_open</span>
+  </button>
+  <button id="sidebarMobile" class="btn btn-outline-primary btn-sm d-inline-flex d-md-none">
+    <span class="material-icons-outlined">menu</span>
+  </button>
+
+  <!-- ✅ Nieuw: Snelle invoer-knop -->
+  <button id="quickTopBtn" class="btn btn-outline-warning btn-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#quickModal">
+    <span class="material-icons-outlined">event</span> 
+    <span class="d-none d-sm-inline">Snelle invoer</span>
+  </button>
+
+  <div class="chip d-none d-sm-inline-flex"><span class="dot"></span> <span id="envBadge">Online</span></div>
+</div>
+
+<div class="d-flex align-items-center gap-3 ms-auto">
+  <span class="text-secondary small">Ingelogd als <strong id="currentUserName">-</strong></span>
+  <!-- 🔔 Notificatieknop -->
+  <div class="position-relative">
+    <button id="notifBtn" class="btn btn-outline-secondary btn-sm position-relative">
+      <span class="material-icons-outlined">notifications</span>
+      <span id="notifBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">0</span>
+    </button>
+
+    <!-- Dropdown -->
+    <div id="notifDropdown" class="dropdown-menu dropdown-menu-end shadow p-2 d-none" style="min-width:300px;">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <strong>Meldingen</strong>
+        <button id="markAllReadBtn" class="btn btn-link btn-sm text-decoration-none">Alles gelezen</button>
       </div>
 
-      <div class="d-flex align-items-center gap-3 ms-auto">
-        <span class="text-secondary small">Ingelogd als <strong id="currentUserName">-</strong></span>
-        <div class="position-relative">
-          <button id="notifBtn" class="btn btn-outline-secondary btn-sm position-relative">
-            <span class="material-icons-outlined">notifications</span>
-            <span id="notifBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">0</span>
-          </button>
-          <div id="notifDropdown" class="dropdown-menu dropdown-menu-end shadow p-2 d-none" style="min-width:300px;">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <strong>Meldingen</strong>
-              <button id="markAllReadBtn" class="btn btn-link btn-sm text-decoration-none">Alles gelezen</button>
-            </div>
-            <ul id="notifList" class="list-unstyled mb-2" style="max-height: 300px; overflow-y: auto;"></ul>
-            <div class="text-center mt-2">
-              <button id="loadMoreNotifBtn" class="btn btn-outline-secondary btn-sm d-none">Toon meer</button>
-            </div>
-          </div>
-        </div>
-        <a id="topbarProfileBtn" data-bs-toggle="modal" data-bs-target="#profileModal" href="#" title="Mijn Profiel">
-          <img id="topbarProfilePhoto" src="" alt="Profiel" class="rounded-circle" style="width: 32px; height: 32px; object-fit: cover; cursor: pointer; border: 1px solid #dee2e6;">
-        </a>
+      <ul id="notifList" class="list-unstyled mb-2" style="max-height: 300px; overflow-y: auto;"></ul>
+
+      <div class="text-center mt-2">
+        <button id="loadMoreNotifBtn" class="btn btn-outline-secondary btn-sm d-none">Toon meer</button>
       </div>
+    </div>
+  </div>
+
+  <!-- 🚪 Mijn profiel -->
+  <a id="topbarProfileBtn" data-bs-toggle="modal" data-bs-target="#profileModal" href="#" title="Mijn Profiel">
+  <img id="topbarProfilePhoto" src="" alt="Profiel" class="rounded-circle" style="width: 32px; height: 32px; object-fit: cover; cursor: pointer; border: 1px solid #dee2e6;">
+</a>
+</div>
     </div>
   </nav>
 
   <!-- Main -->
   <main id="main" class="sp-main">
     <div class="tab-content">
-      
-      <!-- HOME -->
-      <section id="tab-home" class="tab-pane fade show active">
-        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
-          <h5 class="mb-0">Welkom, <span id="homeUserName">-</span></h5>
+<!-- HOME -->
+<section id="tab-home" class="tab-pane fade show active">
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Welkom, <span id="homeUserName">-</span></h5>
+    <div class="d-flex flex-wrap gap-2">
+      <button id="homeBtnQuickInput" class="btn btn-outline-warning btn-sm">
+        <span class="material-icons-outlined">event</span> Snelle invoer
+      </button>
+      <button id="homeBtnGoInvoer" class="btn btn-outline-primary btn-sm">
+        <span class="material-icons-outlined">table_view</span> Naar Invoer
+      </button>
+      <button id="homeBtnNewShift" class="btn btn-primary btn-sm">
+        <span class="material-icons-outlined">add</span> Nieuwe shift
+      </button>
+    </div>
+  </div>
+<!-- Prikbord -->
+<div class="card shadow-sm border-0 mb-3 bg-primary-subtle">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="mb-0 text-primary-emphasis">
+        <span class="material-icons-outlined align-middle me-1">campaign</span>
+        Team Mededelingen
+      </h6>
+      <button id="addAnnouncementBtn" class="btn btn-sm btn-primary d-none">
+        <span class="material-icons-outlined" style="font-size:16px">add</span>
+      </button>
+    </div>
+    
+    <div id="announcementList">
+      <small class="text-muted">Geen mededelingen.</small>
+    </div>
+  </div>
+</div>
+  <!-- Voortgang huidige maand -->
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div>
+          <div class="small text-muted">Voortgang — <span id="homeMonthName">-</span></div>
+          <div class="fw-semibold">
+            Gepland: <span id="homeMonthPlanned">0u 0min</span>
+            &nbsp;|&nbsp; Doel: <span id="homeMonthTarget">0u 0min</span>
+            &nbsp;|&nbsp; Verschil: <span id="homeMonthDiff">0u 0min</span>
+          </div>
+        </div>
+        <span class="badge bg-secondary-subtle text-dark" id="homeMonthStatus">Concept</span>
+      </div>
+      <div class="progress" style="height: 10px;">
+        <div id="homeMonthProgress" class="progress-bar" role="progressbar"
+             style="width:0%;" aria-valuemin="0" aria-valuemax="100">
+          <span class="visually-hidden" id="homeMonthProgressLabel">0%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Verlof badges -->
+  <div class="mb-3">
+    <span class="badge bg-secondary-subtle text-dark me-2" id="homeLeave">Verlof: —</span>
+    <span class="badge bg-secondary-subtle text-dark" id="homeSchoolLeave">Schoolverlof: —</span>
+  </div>
+
+  <div class="row g-3">
+    <!-- Actieve projecten -->
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">Actieve projecten (vandaag)</h6>
+          </div>
+          <div class="row g-2" id="homeProjects"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Laatste meldingen -->
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">Laatste meldingen</h6>
+            <span class="text-muted small">(max. 5)</span>
+          </div>
+          <ul class="mb-0" id="homeNotifList"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- tab-admin-home -->
+<section id="tab-admin-home" class="tab-pane fade">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Admin Dashboard</h5>
+    <button id="adminDashboardRefreshBtn" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1">
+      <span class="material-icons-outlined">refresh</span> Vernieuwen
+    </button>
+  </div>
+
+  <div class="row g-3 mb-3" id="adminStatsContainer">
+    <div class="col-md-4">
+      <div class="stat-card bg-warning text-dark">
+        <div class="stat-value" id="statPendingMonths">0</div>
+        <div class="stat-label">Maanden ter goedkeuring</div>
+        <div class="stat-icon"><span class="material-icons-outlined">hourglass_top</span></div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-card bg-danger text-white">
+        <div class="stat-value" id="statSickHours">0u 0m</div>
+        <div class="stat-label">Uren 'Ziek' (huidige maand)</div>
+        <div class="stat-icon"><span class="material-icons-outlined">sick</span></div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="stat-card bg-info text-white">
+        <div class="stat-value" id="statLeaveHours">0u 0m</div>
+        <div class="stat-label">Uren 'Verlof' (huidige maand)</div>
+        <div class="stat-icon"><span class="material-icons-outlined">beach_access</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <h6><span class="material-icons-outlined">fact_check</span> Maanden ter Goedkeuring</h6>
+      <div class="table-responsive">
+        <table class="table table-striped table-hover">
+          <thead class="table-light"><tr><th>Gebruiker</th><th>Maand</th><th>Actie</th></tr></thead>
+          <tbody id="adminPendingList"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <h6><span class="material-icons-outlined">event_busy</span> Gebruikers achter op planning</h6>
+      <p class="small text-muted">Overzicht van gebruikers die de vorige maand nog niet hebben ingediend.</p>
+      <div class="table-responsive">
+        <table class="table table-striped table-hover">
+          <thead class="table-light"><tr><th>Gebruiker</th><th>Status</th></tr></thead>
+          <tbody id="adminBehindList"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- team-rooster -->
+<section id="tab-team-rooster" class="tab-pane fade">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Team Planning</h5>
+    <div class="d-flex gap-2">
+      <select id="roosterMonth" class="form-select form-select-sm" style="width:120px;">
+        </select>
+      <select id="roosterYear" class="form-select form-select-sm" style="width:100px;">
+        </select>
+      <button id="refreshRoosterBtn" class="btn btn-outline-primary btn-sm">
+        <span class="material-icons-outlined">refresh</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive rooster-wrapper" style="max-height: 80vh;">
+        <table class="table table-bordered table-sm mb-0 text-center align-middle rooster-table">
+          <thead class="table-light text-secondary small">
+            <tr id="roosterHeaderRow">
+              </tr>
+          </thead>
+          <tbody id="roosterBody">
+            </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  
+  <div id="roosterLegendContainer" class="mt-3 pt-2 border-top">
+    </div>
+</section>
+      <!-- SHIFTS -->
+      <section id="tab-shifts" class="tab-pane fade">
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+          <h5 class="mb-0">Shifts</h5>
           <div class="d-flex flex-wrap gap-2">
-            <button id="homeBtnQuickInput" class="btn btn-outline-warning btn-sm">
-              <span class="material-icons-outlined">event</span> Snelle invoer
-            </button>
-            <button id="homeBtnGoInvoer" class="btn btn-outline-primary btn-sm">
-              <span class="material-icons-outlined">table_view</span> Naar Invoer
-            </button>
-            <button id="homeBtnNewShift" class="btn btn-primary btn-sm">
+            <select id="filterShiftYear" class="form-select form-select-sm"></select>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#shiftModal">
               <span class="material-icons-outlined">add</span> Nieuwe shift
             </button>
           </div>
         </div>
-        
-        <!-- Prikbord -->
-        <div class="card shadow-sm border-0 mb-3 bg-primary-subtle">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h6 class="mb-0 text-primary-emphasis">
-                <span class="material-icons-outlined align-middle me-1">campaign</span>
-                Team Mededelingen
-              </h6>
-              <button id="addAnnouncementBtn" class="btn btn-sm btn-primary d-none">
-                <span class="material-icons-outlined" style="font-size:16px">add</span>
-              </button>
-            </div>
-            <div id="announcementList">
-              <small class="text-muted">Geen mededelingen.</small>
-            </div>
+
+        <div class="table-responsive">
+          <table class="table table-striped table-hover align-middle table-nowrap">
+            <thead class="table-light">
+              <tr>
+                <th>Naam</th><th>Start</th><th>Einde</th><th>Pauze (min)</th><th>Project</th><th>Periode</th><th class="text-end">Acties</th>
+              </tr>
+            </thead>
+            <tbody id="shiftTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="alert alert-info small">
+          Tip: je kan de volgorde bewaren via de “volgorde opslaan”-knop (drag & drop is browser-afhankelijk in tabellen; alternatief: gebruik sorteerknoppen).
+        </div>
+      </section>
+
+      <!-- INVOER -->
+      <section id="tab-invoer" class="tab-pane fade">
+       <!-- Invoer-toolbar -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="row g-2 align-items-center mb-3 w-100">
+    <!-- 📅 Selects -->
+    <div class="col-12 col-md-auto d-flex flex-wrap gap-2">
+      <select id="monthSelectMain" class="form-select form-select-sm w-auto flex-fill flex-md-grow-0">
+        <option value="0">Januari</option><option value="1">Februari</option><option value="2">Maart</option>
+        <option value="3">April</option><option value="4">Mei</option><option value="5">Juni</option>
+        <option value="6">Juli</option><option value="7">Augustus</option><option value="8">September</option>
+        <option value="9">Oktober</option><option value="10">November</option><option value="11">December</option>
+      </select>
+
+      <select id="yearSelectMain" class="form-select form-select-sm w-auto flex-fill flex-md-grow-0"></select>
+      <select id="projectFilterSelect" class="form-select form-select-sm w-auto flex-fill flex-md-grow-0">
+        <option value="">Alle projecten</option>
+      </select>
+    </div>
+
+    <!-- ✅ Concept-badge: op mobiel BOVEN Export -->
+    <div class="col-12 col-md-auto mt-2 mt-md-0 order-1 order-md-0">
+      <span id="monthStatusBadge" class="badge badge-status badge-draft">Concept</span>
+      <span id="leaveBalanceBadge" class="badge bg-secondary-subtle text-dark ms-2">Verlof saldo: — (stel in)</span>
+      <span id="schoolLeaveBalanceBadge" class="badge bg-secondary-subtle text-dark ms-2">Schoolverlof saldo: — (stel in)</span>
+    </div>
+
+    <!-- Export PDF -->
+    <div class="col-12 col-md-auto mt-2 mt-md-0 order-2 order-md-0">
+      <button id="exportPdfBtn" class="btn btn-outline-danger btn-sm w-100 w-md-auto">
+        Export PDF
+      </button>
+    </div>
+
+    <!-- Invoer meerdere dagen -->
+    <div class="col-12 col-md-auto mt-2 mt-md-0 order-3 order-md-0">
+      <button id="multiDayShiftBtn" class="btn btn-outline-primary btn-sm w-100 w-md-auto">
+        Invoer meerdere dagen
+      </button>
+    </div>
+
+    <!-- ✅ Indienen: op mobiel ONDER “Invoer meerdere dagen” -->
+    <div class="col-12 col-md-auto mt-2 mt-md-0 order-3 order-md-0">
+      <button id="submitMonthBtn" class="btn btn-outline-success btn-sm w-100 w-md-auto">
+        Indienen
+      </button>
+    </div>
+  </div>
+<!-- 🎯 Sticky resterende uren-balk -->
+<div id="remainingHoursAlert" class="alert small d-none mb-3"></div>
+</div>
+        <div class="row g-3 mb-3">
+          <div class="col-6 col-md-2">
+            <label class="form-label">Doel uren</label>
+            <input id="monthTargetHours" type="number" min="0" value="0" class="form-control form-control-sm" />
+          </div>
+          <div class="col-6 col-md-2">
+            <label class="form-label">Doel min</label>
+            <input id="monthTargetMinutes" type="number" min="0" value="0" class="form-control form-control-sm" />
           </div>
         </div>
 
-        <!-- Voortgang -->
-        <div class="card shadow-sm border-0 mb-3">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <div>
-                <div class="small text-muted">Voortgang — <span id="homeMonthName">-</span></div>
-                <div class="fw-semibold">
-                  Gepland: <span id="homeMonthPlanned">0u 0min</span>
-                  &nbsp;|&nbsp; Doel: <span id="homeMonthTarget">0u 0min</span>
-                  &nbsp;|&nbsp; Verschil: <span id="homeMonthDiff">0u 0min</span>
-                </div>
-              </div>
-              <span class="badge bg-secondary-subtle text-dark" id="homeMonthStatus">Concept</span>
-            </div>
-            <div class="progress" style="height: 10px;">
-              <div id="homeMonthProgress" class="progress-bar" role="progressbar" style="width:0%;" aria-valuemin="0" aria-valuemax="100">
-                <span class="visually-hidden" id="homeMonthProgressLabel">0%</span>
-              </div>
-            </div>
-          </div>
+        <div class="table-responsive">
+          <table class="table table-striped table-hover align-middle table-nowrap">
+            <thead class="table-light">
+  <tr>
+    <th id="thActions">Acties</th>
+    <th>Dag</th><th>Datum</th><th>Project</th><th>Shift</th><th>Start</th><th>Einde</th><th>Pauze</th><th>Omschrijving</th><th>Duur</th>
+  </tr>
+</thead>
+            <tbody id="tbody"></tbody>
+        </div>
+          </table>
+     <!-- Project-samenvatting kaarten (zichtbare maand) -->
+<div id="projectSummary" class="mt-3"></div>
+        <div class="row g-3 mt-2">
+        </div>
+      </section>
+
+      <!-- HISTORIEK -->
+      <section id="tab-historiek" class="tab-pane fade">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Historiek — <span id="currentUserHistoriek">-</span> — Jaar: <span id="historiekJaar"></span></h5>
         </div>
 
-        <div class="mb-3">
-          <span class="badge bg-secondary-subtle text-dark me-2" id="homeLeave">Verlof: —</span>
-          <span class="badge bg-secondary-subtle text-dark" id="homeSchoolLeave">Schoolverlof: —</span>
+        <div class="table-responsive">
+          <table id="historyTable" class="table table-striped table-hover align-middle table-nowrap">
+            <thead class="table-light">
+              <tr>
+                <th>Maand</th><th>Doel uren</th><th>Gepland</th><th>Verschil</th>
+                <th>Verlof</th><th>Ziekte</th><th>Schoolverlof</th><th>Feestdag</th><th>Bench</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+            <tfoot class="table-light">
+              <tr>
+                <th>Totaal</th>
+                <th id="totDoel">0u 0min</th>
+                <th id="totGepland">0u 0min</th>
+                <th id="totVerschil">0u 0min</th>
+                <th id="totVerlof">0u 0min</th>
+                <th id="totZiekte">0u 0min</th>
+                <th id="totSchool">0u 0min</th>
+                <th id="totFeest">0u 0min</th>
+                <th id="totBench">0u 0min</th>
+              </tr>
+            </tfoot>
+          </table>
         </div>
+      </section>
 
+      <!-- CONVERTER -->
+      <section id="tab-converter" class="tab-pane fade">
+        <h5>Uren/minuten ↔ decimale uren</h5>
         <div class="row g-3">
-          <div class="col-12 col-lg-6">
-            <div class="card shadow-sm border-0 h-100">
-              <div class="card-body">
-                <h6 class="mb-0 mb-2">Actieve projecten (vandaag)</h6>
-                <div class="row g-2" id="homeProjects"></div>
-              </div>
+          <div class="col-6 col-md-2">
+            <label class="form-label">Uren</label>
+            <input id="convHours" type="number" min="0" value="0" class="form-control" />
+          </div>
+          <div class="col-6 col-md-2">
+            <label class="form-label">Minuten</label>
+            <input id="convMinutes" type="number" min="0" value="0" class="form-control" />
+          </div>
+          <div class="col-12 col-md-3">
+            <label class="form-label">Decimale uren</label>
+            <input id="decimalInput" type="number" step="0.01" min="0" value="0" class="form-control" />
+          </div>
+        </div>
+      </section>
+      <section id="tab-mail" class="tab-pane fade">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+          <h5 class="mb-0">Mailbox</h5>
+          
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <div id="mailFolderNav" class="btn-group btn-group-sm" role="group" aria-label="mail tabs">
+              <button id="mailTabInbox" type="button" class="btn btn-outline-primary active" data-folder="inbox">Inbox</button>
+              <button id="mailTabSent" type="button" class="btn btn-outline-secondary" data-folder="sent">Verzonden</button>
+            </div>
+            <button id="mailRefreshBtn" class="btn btn-outline-secondary btn-sm" type="button" title="Vernieuwen">
+              <span class="material-icons-outlined">refresh</span>
+            </button>
+            <button id="mailComposeBtn" class="btn btn-primary btn-sm d-flex align-items-center gap-1" type="button">
+              <span class="material-icons-outlined">edit</span>
+              <span class="d-none d-sm-inline">Nieuw bericht</span>
+            </button>
+          </div>
+        </div>
+      
+        <div id="mailComposeCard" class="card p-3 mb-3 d-none">
+          <div class="row g-2">
+            <div class="col-md-3">
+              <label class="form-label">Aan</label>
+              <select id="mailToSelect" class="form-select">
+                </select>
+            </div>
+            <div class="col-md-9">
+              <label class="form-label">Onderwerp</label>
+              <input id="mailSubjectInput" class="form-control" placeholder="Onderwerp">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Bericht</label>
+              <textarea id="mailBodyInput" rows="5" class="form-control" placeholder="Typ je bericht..."></textarea>
+            </div>
+            <div class="col-12 d-flex gap-2">
+              <button id="mailSendBtn" class="btn btn-success">Versturen</button>
+              <button id="mailCancelBtn" class="btn btn-outline-secondary">Annuleren</button>
             </div>
           </div>
-          <div class="col-12 col-lg-6">
-            <div class="card shadow-sm border-0 h-100">
+        </div>
+      
+        <div class="row g-3">
+          <div class="col-12 col-lg-5">
+            <div class="card border-0 shadow-sm">
               <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                  <h6 class="mb-0">Laatste meldingen</h6>
-                  <span class="text-muted small">(max. 5)</span>
+                  <h6 class="mb-0" id="mailListTitle">Inbox</h6>
+                  <div class="d-flex gap-2 align-items-center">
+                    <button id="mailMarkAllReadBtn" class="btn btn-outline-secondary btn-sm">Alles gelezen</button>
+                    <button id="mailDeleteAllBtn" class="btn btn-outline-danger btn-sm">Alles verwijderen</button>
+                    <span id="mailUnreadChip" class="badge bg-danger d-none">0</span>
+                  </div>
                 </div>
-                <ul class="mb-0" id="homeNotifList"></ul>
+                <div class="table-responsive" style="max-height:420px; overflow:auto;">
+                  <table class="table table-hover align-middle mb-0" id="mailListTable">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Van / Naar</th>
+                        <th>Onderwerp</th>
+                        <th class="text-end">Datum</th>
+                        <th class="text-end">Acties</th>
+                      </tr>
+                    </thead>
+                    <tbody id="mailListBody"></tbody>
+                  </table>
+                </div>
+                <div class="text-center mt-2">
+                  <button id="mailLoadMoreBtn" class="btn btn-outline-secondary btn-sm d-none">Meer laden</button>
+                </div>
+              </div>
+            </div>
+          </div>
+      
+          <div class="col-12 col-lg-7">
+            <div class="card border-0 shadow-sm">
+              <div class="card-body" id="mailDetail">
+                <div class="text-muted small">Selecteer een bericht…</div>
               </div>
             </div>
           </div>
         </div>
       </section>
+<!-- Non Billable -->  
+<section id="tab-nonbillable" class="tab-pane fade">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Non-Billable Uren</h5>
+    <div class="d-flex gap-2">
+      <select id="nbMonthSelect" class="form-select form-select-sm" style="width:120px;">
+        <option value="0">Januari</option><option value="1">Februari</option><option value="2">Maart</option>
+        <option value="3">April</option><option value="4">Mei</option><option value="5">Juni</option>
+        <option value="6">Juli</option><option value="7">Augustus</option><option value="8">September</option>
+        <option value="9">Oktober</option><option value="10">November</option><option value="11">December</option>
+      </select>
+      <select id="nbYearSelect" class="form-select form-select-sm" style="width:100px;"></select>
+    </div>
+  </div>
 
-      <!-- NIEUW: CV BOUWER -->
-      <section id="tab-cv" class="tab-pane fade">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0">Mijn CV Bouwer</h5>
-          <div class="d-flex gap-2">
-             <button id="cvSaveBtn" class="btn btn-outline-primary btn-sm">
-              <span class="material-icons-outlined">save</span> Opslaan
-            </button>
-            <button id="cvDownloadBtn" class="btn btn-primary btn-sm">
-              <span class="material-icons-outlined">picture_as_pdf</span> Download PDF
-            </button>
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-6">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="mb-0 text-secondary">Totaal deze maand</h6>
+            <span class="fs-4 fw-bold" id="nbTotalDisplay">0u 0min</span>
+          </div>
+          <div class="text-end text-muted small">
+            <span class="material-icons-outlined" style="font-size: 28px; opacity: 0.3;">calendar_view_month</span>
           </div>
         </div>
+      </div>
+    </div>
 
-        <div class="row g-3">
-          <!-- Linkerkolom: Invoer -->
-          <div class="col-12 col-lg-5">
-            <div class="accordion" id="cvAccordion">
-              
-              <!-- 1. Personalia -->
-              <div class="accordion-item">
-                <h2 class="accordion-header">
-                  <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePersonal">
-                    1. Personalia & Profiel
-                  </button>
-                </h2>
-                <div id="collapsePersonal" class="accordion-collapse collapse show" data-bs-parent="#cvAccordion">
-                  <div class="accordion-body">
-                    <div class="mb-2">
-                      <label class="form-label small">Functietitel (bv. Project Consultant)</label>
-                      <input type="text" id="cvJobTitle" class="form-control form-control-sm">
-                    </div>
-                    <div class="mb-2">
-                      <label class="form-label small">Profieltekst (korte introductie)</label>
-                      <textarea id="cvProfileText" class="form-control form-control-sm" rows="4" placeholder="Gedreven professional met ervaring in..."></textarea>
-                    </div>
-                    <div class="row g-2">
-                       <div class="col-6">
-                          <label class="form-label small">Telefoon</label>
-                          <input type="text" id="cvPhone" class="form-control form-control-sm">
-                       </div>
-                       <div class="col-6">
-                          <label class="form-label small">Woonplaats</label>
-                          <input type="text" id="cvCity" class="form-control form-control-sm">
-                       </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 2. Werkervaring (Werkgevers) -->
-              <div class="accordion-item">
-                <h2 class="accordion-header">
-                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEmployers">
-                    2. Werkervaring (Werkgevers)
-                  </button>
-                </h2>
-                <div id="collapseEmployers" class="accordion-collapse collapse" data-bs-parent="#cvAccordion">
-                  <div class="accordion-body">
-                    <div class="d-grid mb-3">
-                      <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#cvEmployerModal">
-                        + Werkgever toevoegen
-                      </button>
-                    </div>
-                    <div id="cvEmployersList" class="list-group list-group-flush small">
-                      <div class="text-muted fst-italic text-center">Nog geen werkgevers.</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 3. Projecten -->
-              <div class="accordion-item">
-                <h2 class="accordion-header">
-                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseProjects">
-                    3. Projecten
-                  </button>
-                </h2>
-                <div id="collapseProjects" class="accordion-collapse collapse" data-bs-parent="#cvAccordion">
-                  <div class="accordion-body">
-                    <div class="d-grid mb-3">
-                      <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#cvProjectModal">
-                        + Project toevoegen
-                      </button>
-                    </div>
-                    <div id="cvProjectsList" class="list-group list-group-flush small">
-                      <div class="text-muted fst-italic text-center">Nog geen projecten.</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 4. Opleidingen -->
-              <div class="accordion-item">
-                <h2 class="accordion-header">
-                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEdu">
-                    4. Opleidingen
-                  </button>
-                </h2>
-                <div id="collapseEdu" class="accordion-collapse collapse" data-bs-parent="#cvAccordion">
-                  <div class="accordion-body">
-                     <div class="mb-2">
-                      <label class="form-label small">Opleidingen (één per regel)</label>
-                      <textarea id="cvEducation" class="form-control form-control-sm" rows="4" placeholder="2018 - 2022: Bachelor Verpleegkunde, PXL..."></textarea>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-               <!-- 5. Vaardigheden -->
-              <div class="accordion-item">
-                <h2 class="accordion-header">
-                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSkills">
-                    5. Vaardigheden & Talen
-                  </button>
-                </h2>
-                <div id="collapseSkills" class="accordion-collapse collapse" data-bs-parent="#cvAccordion">
-                  <div class="accordion-body">
-                    <div class="mb-2">
-                      <label class="form-label small">Skills (gescheiden door komma's)</label>
-                      <input type="text" id="cvSkills" class="form-control form-control-sm" placeholder="Verzorging, Planning, EHBO...">
-                    </div>
-                    <div class="mb-2">
-                      <label class="form-label small">Talen (gescheiden door komma's)</label>
-                      <input type="text" id="cvLanguages" class="form-control form-control-sm" placeholder="Nederlands, Engels, Frans...">
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-            </div>
+    <div class="col-12 col-md-6">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="mb-0 text-secondary">Totaal in <span id="nbYearTotalLabel">-</span></h6>
+            <span class="fs-4 fw-bold text-primary" id="nbYearTotalDisplay">0u 0min</span>
           </div>
-
-          <!-- Rechterkolom: Live Preview -->
-          <div class="col-12 col-lg-7 bg-secondary-subtle p-3 rounded d-flex justify-content-center overflow-auto">
-            
-            <!-- Het A4 Papier -->
-            <div id="cvPreview" class="cv-paper bg-white shadow-sm position-relative">
-              
-              <!-- Header balk -->
-              <div class="cv-header text-white p-4">
-                <h1 id="prevName" class="fw-bold mb-0 text-uppercase">NAAM</h1>
-                <p id="prevJob" class="fs-5 mb-0 opacity-75">Functietitel</p>
-              </div>
-
-              <!-- Inhoud 2 kolommen -->
-              <div class="d-flex h-100">
-                
-                <!-- Linker smalle kolom (Info) -->
-                <div class="cv-sidebar p-4 bg-light" style="width: 30%;">
-                  <div class="mb-4">
-                    <h6 class="text-uppercase fw-bold text-primary mb-2">Contact</h6>
-                    <div class="small mb-1">📧 <span id="prevEmail">-</span></div>
-                    <div class="small mb-1">📱 <span id="prevPhone">-</span></div>
-                    <div class="small mb-1">🏠 <span id="prevCity">-</span></div>
-                  </div>
-
-                  <div class="mb-4">
-                    <h6 class="text-uppercase fw-bold text-primary mb-2">Skills</h6>
-                    <ul id="prevSkills" class="list-unstyled small"></ul>
-                  </div>
-
-                   <div class="mb-4">
-                    <h6 class="text-uppercase fw-bold text-primary mb-2">Talen</h6>
-                    <ul id="prevLanguages" class="list-unstyled small"></ul>
-                  </div>
-                </div>
-
-                <!-- Rechter brede kolom (Ervaring) -->
-                <div class="cv-content p-4" style="width: 70%;">
-                  
-                  <div class="mb-4">
-                    <h5 class="text-uppercase fw-bold border-bottom pb-1 mb-2">Profiel</h5>
-                    <p id="prevProfile" class="small text-muted">Vul je profieltekst in...</p>
-                  </div>
-
-                  <!-- NIEUW: Werkervaring sectie MET geneste projecten -->
-                  <div class="mb-4">
-                    <h5 class="text-uppercase fw-bold border-bottom pb-1 mb-2">Werkervaring</h5>
-                    <div id="prevEmployers"></div>
-                  </div>
-
-                  <!-- NIEUW: Overige Projecten sectie (alleen voor losse projecten) -->
-                  <div class="mb-4" id="prevProjectsSection" style="display:none;">
-                    <h5 class="text-uppercase fw-bold border-bottom pb-1 mb-2">Overige Projecten</h5>
-                    <div id="prevProjects"></div>
-                  </div>
-
-                  <div class="mb-4">
-                    <h5 class="text-uppercase fw-bold border-bottom pb-1 mb-2">Opleiding</h5>
-                    <div id="prevEducation" class="small text-muted" style="white-space: pre-line;"></div>
-                  </div>
-
-                </div>
-              </div>
-            </div>
-
+          <div class="text-end text-muted small">
+            <span class="material-icons-outlined" style="font-size: 28px; opacity: 0.3;">calendar_today</span>
           </div>
         </div>
-      </section>
+      </div>
+    </div>
+  </div>
 
-      <!-- De rest van je bestaande secties... -->
-      <section id="tab-invoer" class="tab-pane fade">
-        <!-- (Bestaande Invoer HTML...) -->
-         <div class="d-flex justify-content-between align-items-center mb-3">
-             <h5 class="mb-0">Invoer</h5>
-         </div>
-      </section>
-      <section id="tab-shifts" class="tab-pane fade"><h5 class="mb-0">Shifts</h5></section>
-      <section id="tab-historiek" class="tab-pane fade"><h5 class="mb-0">Historiek</h5></section>
-      <section id="tab-converter" class="tab-pane fade"><h5 class="mb-0">Converter</h5></section>
-      <section id="tab-mail" class="tab-pane fade"><h5 class="mb-0">Mail</h5></section>
-      <section id="tab-nonbillable" class="tab-pane fade"><h5 class="mb-0">Non-billable</h5></section>
-      <section id="tab-goedkeuring" class="tab-pane fade"><h5 class="mb-0">Goedkeuring</h5></section>
-      <section id="tab-verlofbeheer" class="tab-pane fade"><h5 class="mb-0">Verlofbeheer</h5></section>
-      <section id="tab-admin" class="tab-pane fade"><h5 class="mb-0">Admin</h5></section>
-      <section id="tab-admin-home" class="tab-pane fade"><h5 class="mb-0">Admin Home</h5></section>
-      <section id="tab-team-rooster" class="tab-pane fade"><h5 class="mb-0">Team Rooster</h5></section>
+  <div class="card p-3 mb-3 border-0 shadow-sm">
+    <h6 class="mb-3">Nieuwe invoer</h6>
+    <div class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label small">Categorie</label>
+        <div class="input-group input-group-sm">
+          <select id="nbCategorySelect" class="form-select"></select>
+          <button class="btn btn-outline-secondary" type="button" id="nbAddCategoryBtn" title="Nieuwe categorie toevoegen">+</button>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Datum</label>
+        <input type="date" id="nbDateInput" class="form-control form-control-sm">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Duur (u : min)</label>
+        <div class="input-group input-group-sm">
+          <input type="number" id="nbHoursInput" class="form-control" placeholder="U" min="0">
+          <span class="input-group-text">:</span>
+          <input type="number" id="nbMinutesInput" class="form-control" placeholder="M" min="0" max="59">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Omschrijving</label>
+        <input type="text" id="nbNoteInput" class="form-control form-control-sm" placeholder="Optioneel">
+      </div>
+      <div class="col-md-2">
+        <button id="nbAddBtn" class="btn btn-primary btn-sm w-100">Toevoegen</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-striped table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Datum</th>
+          <th>Categorie</th>
+          <th>Omschrijving</th>
+          <th>Duur</th>
+          <th class="text-end">Actie</th>
+        </tr>
+      </thead>
+      <tbody id="nbTableBody">
+        <tr><td colspan="5" class="text-center text-muted">Geen items gevonden.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+<!-- Goedkeuring -->    
+<section id="tab-goedkeuring" class="tab-pane fade">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h5 class="mb-0">Jaaroverzicht Goedkeuringen</h5>
+    <div class="text-secondary small">
+      Actief: <strong id="approvalActiveUserLabel">-</strong>
+    </div>
+  </div>
+
+  <div class="card p-3 mb-3">
+    <h6 class="mb-3">Gebruikersbeheer</h6>
+    <div class="row g-2 align-items-end">
+      <div class="col-md-6">
+        <label class="form-label">Gebruiker selecteren</label>
+        <select id="approvalUserSelect" class="form-select"></select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Huidig Jaar</label>
+        <input id="approvalYearSelect" type="number" class="form-control" readonly disabled>
+      </div>
+    </div>
+  </div>
+
+  <div id="approvalYearlyOverview" class="row g-3">
+    </div>
+
+</section>   
+<!-- Verlofbeheer -->
+<section id="tab-verlofbeheer" class="tab-pane fade">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h5 class="mb-0">Verlofbeheer</h5>
+    <button id="refreshLeaveRequestsBtn" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1">
+      <span class="material-icons-outlined">refresh</span> Vernieuwen
+    </button>
+  </div>
+
+  <div class="card p-3 mb-3">
+    <h6 class="mb-2">Openstaande aanvragen</h6>
+    <p class="text-muted small mb-0">
+      Overzicht van alle 'Verlof', 'Schoolverlof' en 'Ziekte' aanvragen met de status 'In aanvraag'.
+    </p>
+  </div>
+
+  <div class="table-responsive">
+    <table id="leaveRequestTable" class="table table-striped table-hover align-middle table-nowrap">
+      <thead class="table-light">
+        <tr>
+          <th>Gebruiker</th>
+          <th>Type</th>
+          <th>Datum</th>
+          <th>Notitie</th>
+          <th class="text-center">Bijlage</th> 
+          <th class="text-end">Acties</th>
+        </tr>
+      </thead>
+      <tbody id="leaveRequestTableBody">
+        </tbody>
+    </table>
+  </div>
+</section>
+<!-- ADMIN -->
+<section id="tab-admin" class="tab-pane fade">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h5 class="mb-0">Admin beheer</h5>
+    <div class="text-secondary small">
+      Actief: <strong id="activeUserLabel">-</strong>
+    </div>
+  </div>
+
+  <div class="card p-3 mb-3">
+    <h6 class="mb-3">Gebruikersbeheer</h6>
+    <div class="row g-2 align-items-end">
+      <div class="col-md-6">
+        <label class="form-label">Gebruiker selecteren</label>
+        <select id="adminUserSelect" class="form-select"></select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Rol</label>
+        <select id="roleSelect" class="form-select">
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="col-md-6 d-flex gap-2">
+        <button id="updateRoleBtn" class="btn btn-warning flex-fill">Rol opslaan</button>
+        <button id="removeUserBtn" class="btn btn-danger flex-fill">Verwijder</button>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+  <button id="saveSettingsBtn" class="btn btn-outline-secondary flex-grow-1">
+    Schoolverlof uitschakelen
+  </button>
+  <span id="schoolLeaveStatusBadge" class="badge bg-secondary px-3 py-2" style="font-size:0.9rem; min-width:95px; text-align:center;">
+    Onbekend
+  </span>
+</div>
+      </div>
+    </div>
+  </div>
+  <div class="card p-3 mb-3">
+    <h6 class="mb-3">Projectbeheer</h6>
+    <div class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">Projectnaam</label>
+        <input id="newProjectName" class="form-control" />
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Startdatum</label>
+        <input id="newProjectStart" type="date" class="form-control" />
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Einddatum</label>
+        <input id="newProjectEnd" type="date" class="form-control" />
+      </div>
+      <div class="col-md-2">
+        <button id="addProjectBtn" class="btn btn-success w-100">Toevoegen</button>
+      </div>
+    </div>
+
+    <div class="table-responsive mt-3">
+      <table class="table table-striped align-middle table-nowrap">
+        <thead class="table-light">
+          <tr><th>Project</th><th>Start</th><th>Eind</th><th>Acties</th></tr>
+        </thead>
+        <tbody id="projectTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+<div class="card p-3 mb-3">
+  <h6 class="mb-3">Verlof & Schoolverlof – jaarlijkse toekenning</h6>
+<div class="row g-3 align-items-end">
+  <!-- Kalendervoorjaar (ongewijzigd) -->
+  <div class="col-md-4">
+    <label class="form-label">Verlof (uren per kalenderjaar)</label>
+    <input id="adminLeaveHours" type="number" min="0" step="1" class="form-control" placeholder="bv. 160">
+  </div>
+
+  <!-- Schooljaar-select + uren -->
+  <div class="col-md-4">
+    <label class="form-label">Schooljaar</label>
+    <select id="adminSchoolYearSelect" class="form-select"></select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Schoolverlof (uren voor dit schooljaar)</label>
+    <input id="adminSchoolLeaveHours" type="number" min="0" step="1" class="form-control" placeholder="bv. 40">
+  </div>
+</div>
+
+<div class="row g-2 mt-3">
+  <div class="col-md-6 d-flex gap-2">
+    <button id="adminSaveLeaveBtn" class="btn btn-primary flex-fill">Opslaan kalenderjaar-verlof</button>
+    <button id="adminResetLeaveBtn" class="btn btn-outline-secondary flex-fill">Leegmaken</button>
+  </div>
+  <div class="col-md-6 d-flex gap-2">
+    <button id="adminSaveSchoolLeaveBtn" class="btn btn-success flex-fill">Opslaan schoolverlof (gekozen jaar)</button>
+    <button id="adminResetSchoolLeaveBtn" class="btn btn-outline-secondary flex-fill">Leegmaken schoolverlof (gekozen jaar)</button>
+  </div>
+</div>
+
+<small class="text-muted d-block mt-2">
+  Verlof = kalenderjaar. Schoolverlof = per schooljaar (1 september – 31 augustus).
+</small>
+</div>
+  <div class="card p-3 mb-3">
+  <h6 class="mb-3">Goedkeuring maand</h6>
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label">Maand</label>
+      <select id="adminApproveMonth" class="form-select">
+        <option value="0">Januari</option><option value="1">Februari</option><option value="2">Maart</option>
+        <option value="3">April</option><option value="4">Mei</option><option value="5">Juni</option>
+        <option value="6">Juli</option><option value="7">Augustus</option><option value="8">September</option>
+        <option value="9">Oktober</option><option value="10">November</option><option value="11">December</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Jaar</label>
+      <input id="adminApproveYear" type="number" class="form-control" min="2000" step="1">
+    </div>
+    <div class="col-md-6 d-flex gap-2">
+      <button id="adminApproveBtn" class="btn btn-success flex-fill">Keur goed</button>
+      <button id="adminRejectBtn" class="btn btn-danger flex-fill">Keur af</button>
+      <button id="adminReopenBtn" class="btn btn-outline-secondary flex-fill">Heropenen</button>
+    </div>
+  </div>
+  <small class="text-muted d-block mt-2">Kies bovenaan in “Gebruikersbeheer” eerst de gebruiker.</small>
+</div>
+<div class="card p-3 mb-3" id="adminMultiMonthlyCard">
+  <h6 class="mb-3">Extra lijnen per maand (per gebruiker)</h6>
+  <p class="text-muted mb-2">
+    Selecteer bovenaan een gebruiker. Zet aan om in de gekozen maand extra shiften (onderbrekingen) toe te staan.
+  </p>
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label">Maand</label>
+      <select id="adminMultiMonth" class="form-select">
+        <option value="0">Januari</option><option value="1">Februari</option><option value="2">Maart</option>
+        <option value="3">April</option><option value="4">Mei</option><option value="5">Juni</option>
+        <option value="6">Juli</option><option value="7">Augustus</option><option value="8">September</option>
+        <option value="9">Oktober</option><option value="10">November</option><option value="11">December</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Jaar</label>
+      <input id="adminMultiYear" type="number" class="form-control" min="2000" step="1">
+    </div>
+    <div class="col-md-6">
+      <div class="form-check form-switch mt-4">
+        <input id="adminMultiAllow" class="form-check-input" type="checkbox">
+        <label class="form-check-label" for="adminMultiAllow">
+          Sta extra lijnen toe in deze maand (voor deze gebruiker)
+        </label>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
     </div>
   </main>
 
   <!-- MODALS -->
-
-  <!-- Werkgever Toevoegen Modal -->
-  <div class="modal fade" id="cvEmployerModal" tabindex="-1">
+  <!-- Shift modal -->
+  <div class="modal fade" id="shiftModal" tabindex="-1">
     <div class="modal-dialog">
       <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Werkgever Toevoegen</h5>
-          <button class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
+        <div class="modal-header"><h5 class="modal-title">Nieuwe / bewerk shift</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
           <div class="row g-2">
-            <div class="col-6">
-              <label class="form-label small">Startdatum</label>
-              <input type="month" id="cvEmpStart" class="form-control">
-            </div>
-            <div class="col-6">
-              <label class="form-label small">Einddatum</label>
-              <input type="month" id="cvEmpEnd" class="form-control">
-              <div class="form-check mt-1">
-                <input class="form-check-input" type="checkbox" id="cvEmpCurrent">
-                <label class="form-check-label small" for="cvEmpCurrent">Heden</label>
-              </div>
-            </div>
-            <div class="col-12">
-              <label class="form-label small">Werkgever (bv. Eght Care)</label>
-              <input type="text" id="cvEmpName" class="form-control">
-            </div>
-            <div class="col-12">
-              <label class="form-label small">Functie (bv. Consultant)</label>
-              <input type="text" id="cvEmpRole" class="form-control">
-            </div>
-            <div class="col-12">
-              <label class="form-label small">Beschrijving</label>
-              <textarea id="cvEmpDesc" class="form-control" rows="3" placeholder="Wat was je verantwoordelijkheid?"></textarea>
-            </div>
+            <div class="col-md-6"><label class="form-label">Naam</label><input id="newShiftName" class="form-control" /></div>
+            <div class="col-md-2" id="divShiftShort"><label class="form-label">Afk.</label><input id="newShiftShort" class="form-control" maxlength="4" placeholder="Vr" title="Korte code voor in het rooster (max 4 letters)" /> </div>
+            <div class="col-6 col-md-2" id="divShiftColor"><label class="form-label">Kleur</label><input type="color" id="newShiftColor" class="form-control form-control-color w-100" value="#e9ecef" title="Kies een kleur voor het rooster"></div>
+            <div class="col-6 col-md-3"><label class="form-label">Start</label><input id="newShiftStart" type="time" value="08:00" class="form-control" /></div>
+            <div class="col-6 col-md-3"><label class="form-label">Einde</label><input id="newShiftEnd" type="time" value="16:00" class="form-control" /></div>
+            <div class="col-6 col-md-3"><label class="form-label">Pauze (min)</label><input id="newShiftBreak" type="number" min="0" value="0" class="form-control" /></div>
+            <div class="col-6 col-md-5"><label class="form-label">Project</label><select id="newShiftProjectSelect" class="form-select"><option value="">Geen project</option></select></div>
+            <div class="col-6 col-md-4"><label class="form-label">Vanaf</label><input id="newShiftStartDate" type="date" class="form-control" /></div>
+            <div class="col-6 col-md-4"><label class="form-label">Tot</label><input id="newShiftEndDate" type="date" class="form-control" /></div>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
-          <button type="button" id="saveCvEmployerBtn" class="btn btn-primary">Toevoegen</button>
+          <button id="addShiftBtn" class="btn btn-primary">Opslaan</button>
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuleren</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- NIEUW: Project Toevoegen Modal (Met Koppeling) -->
-  <div class="modal fade" id="cvProjectModal" tabindex="-1">
+  <!-- Quick input modal -->
+  <div class="modal fade" id="quickModal" tabindex="-1">
     <div class="modal-dialog">
       <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Project Toevoegen</h5>
-          <button class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
+        <div class="modal-header"><h5 class="modal-title">Snelle invoer</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
           <div class="row g-2">
-            <!-- NIEUW: Koppel aan werkgever -->
-            <div class="col-12 bg-light p-2 rounded mb-2 border">
-                <label class="form-label small fw-bold text-primary mb-1">Koppel aan werkgever (Optioneel)</label>
-                <select id="cvProjLinkEmp" class="form-select form-select-sm">
-                    <option value="">Geen (Los project)</option>
-                </select>
-                <div class="form-text small" style="font-size: 0.75rem;">Het project verschijnt direct onder deze werkgever op je CV.</div>
+            <div class="col-md-6">
+              <label class="form-label">Datum</label>
+              <input type="date" id="quickDate" class="form-control" />
             </div>
-
-            <div class="col-6">
-              <label class="form-label small">Startdatum</label>
-              <input type="month" id="cvProjStart" class="form-control">
-            </div>
-            <div class="col-6">
-              <label class="form-label small">Einddatum</label>
-              <input type="month" id="cvProjEnd" class="form-control">
-              <div class="form-check mt-1">
-                <input class="form-check-input" type="checkbox" id="cvProjCurrent">
-                <label class="form-check-label small" for="cvProjCurrent">Heden</label>
-              </div>
+            <div class="col-md-6">
+              <label class="form-label">Shift</label>
+              <select id="quickShift" class="form-select"></select>
             </div>
             <div class="col-12">
-              <label class="form-label small">Klant / Instelling</label>
-              <input type="text" id="cvProjClient" class="form-control" placeholder="bv. UZ Leuven - Spoed">
-            </div>
-            <div class="col-12">
-              <label class="form-label small">Rol</label>
-              <input type="text" id="cvProjRole" class="form-control" placeholder="bv. Verpleegkundige">
-            </div>
-            <div class="col-12">
-              <label class="form-label small">Beschrijving</label>
-              <textarea id="cvProjDesc" class="form-control" rows="3" placeholder="Wat waren je taken?"></textarea>
+              <label class="form-label">Omschrijving (optioneel)</label>
+              <input type="text" id="quickNote" class="form-control" />
             </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
-          <button type="button" id="saveCvProjectBtn" class="btn btn-primary">Toevoegen</button>
+          <button id="saveQuickBtn" class="btn btn-success">Opslaan</button>
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Sluiten</button>
         </div>
       </div>
     </div>
   </div>
+<!-- Meerdere dagen invoeren Modal -->
+<div class="modal fade" id="multiDayModal" tabindex="-1"
+     aria-labelledby="multiDayModalLabel" aria-hidden="true"
+     data-bs-scroll="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="multiDayModalLabel">Meerdere dagen invoeren</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Sluiten"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="multiShiftDays" class="form-label">Selecteer dagen</label>
+          <input id="multiShiftDays" type="text" class="form-control" placeholder="Klik om dagen te kiezen">
+        </div>
 
-  <!-- Bestaande modals (placeholders voor overzicht) -->
-  <div class="modal fade" id="shiftModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Shift</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">...</div></div></div></div>
-  <div class="modal fade" id="quickModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Quick</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">...</div></div></div></div>
-  <div class="modal fade" id="multiDayModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Multi</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">...</div></div></div></div>
-  <div class="modal fade" id="attachmentModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Bijlage</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">...</div></div></div></div>
-  <div class="modal fade" id="announcementModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Mededeling</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">...</div></div></div></div>
-  <div class="modal fade" id="profileModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Profiel</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
-     <div class="row g-3">
-          <div class="col-12 col-md-6">
-             <div class="mb-3"><label for="profileName" class="form-label">Jouw naam</label><input type="text" class="form-control" id="profileName"></div>
-             <div class="mb-3"><label for="profileEmail" class="form-label">E-mail</label><input type="email" class="form-control" id="profileEmail" readonly disabled></div>
-             <button id="profileSaveBtn" class="btn btn-primary w-100">Naam opslaan</button>
-             <hr>
-              <div class="form-check form-switch fs-5"><input class="form-check-input" type="checkbox" role="switch" id="profileDarkModeToggle"><label class="form-check-label" for="profileDarkModeToggle">Donkere modus</label></div>
-               <div class="form-check form-switch fs-5 mt-2"><input class="form-check-input" type="checkbox" role="switch" id="profileSidebarToggle"><label class="form-check-label" for="profileSidebarToggle">Sidebar collapsed</label></div>
-               <hr>
-               <div class="mb-3"><label for="profileDefaultTab" class="form-label small">Opstart-tabblad</label><select id="profileDefaultTab" class="form-select form-select-sm"><option value="#tab-home">Home</option><option value="#tab-shifts">Shifts</option><option value="#tab-invoer">Invoer</option></select></div>
-               <button id="enableNotifBtn" class="btn btn-outline-primary btn-sm w-100">Activeer Meldingen</button>
-               <div id="notifStatusText" class="small text-muted"></div>
-               <fieldset id="profileNotifPrefs">
-                  <div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" id="prefNotifyDailyEmpty"><label class="form-check-label small" for="prefNotifyDailyEmpty">Lege dagen</label></div>
-                  <div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" id="prefNotifyWeeklyEmpty"><label class="form-check-label small" for="prefNotifyWeeklyEmpty">Lege week</label></div>
-                  <div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" id="prefNotifyMonthlyGoal"><label class="form-check-label small" for="prefNotifyMonthlyGoal">Maanddoel</label></div>
-                  <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="prefNotifyProjectEnd"><label class="form-check-label small" for="prefNotifyProjectEnd">Project einde</label></div>
-               </fieldset>
+        <div class="mb-3">
+          <label for="multiShiftName" class="form-label">Shift</label>
+          <select id="multiShiftName" class="form-select">
+            <option value="">Kies shift</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+        <button type="button" id="saveMultiShift" class="btn btn-primary">Opslaan</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Ziekte modal -->
+<div class="modal fade" id="attachmentModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Shift Bijlage</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        
+        <div id="currentAttachmentBox" class="d-none">
+          <p>Huidige bijlage:</p>
+          <div class="alert alert-info d-flex justify-content-between align-items-center">
+            <span id="currentAttachmentName">-</span>
+            <div>
+              <a id="downloadAttachmentBtn" href="#" target="_blank" class="btn btn-sm btn-success">Download</a>
+              <button id="deleteAttachmentBtn" class_="btn btn-sm btn-danger">Verwijder</button>
+            </div>
           </div>
-          <div class="col-12 col-md-6">
-             <div id="profileColorPicker" class="color-picker-wrap"><span class="color-dot" data-color="#0d6efd" style="background-color: #0d6efd;"></span><span class="color-dot" data-color="#198754" style="background-color: #198754;"></span></div>
-             <button id="profileExportBtn" class="btn btn-outline-info w-100 mt-3">Download data</button>
-             <button id="logoutBtn" class="btn btn-outline-danger w-100 mt-3">Uitloggen</button>
+        </div>
+
+        <div id="uploadAttachmentBox">
+          <p id="uploadBoxLabel">Nog geen bijlage. Kies een bestand (max 5MB):</p>
+          <input type="file" id="attachmentUploadInput" class="form-control" accept=".pdf,.png,.jpg,.jpeg,.heic">
+          <div class="progress mt-2 d-none" id="attachmentUploadProgressContainer">
+             <div id="attachmentUploadProgress" class="progress-bar" role="progressbar" style="width: 0%"></div>
           </div>
-     </div>
-  </div></div></div></div>
+        </div>
 
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Sluiten</button>
+        <button id="uploadAttachmentBtn" class="btn btn-primary d-none">Upload en Opslaan</button>
+      </div>
+    </div>
+  </div>
+</div>
 
-  <!-- Bootstrap & Libraries -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-  <!-- html2canvas voor CV export -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/nl.js"></script>
+<!-- Announcement modal -->
+<div class="modal fade" id="announcementModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Nieuwe Mededeling</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+  <div class="mb-3">
+    <label class="form-label">Bericht</label>
+    <textarea id="announcementInputText" class="form-control" rows="3" placeholder="Typ je bericht..."></textarea>
+  </div>
   
+  <div class="mb-3">
+    <label class="form-label">Kleur kaart</label>
+    <div class="d-flex flex-wrap gap-2">
+      
+      <input type="radio" class="btn-check" name="annColor" id="colorLight" value="light" checked>
+      <label class="btn btn-outline-secondary btn-sm" for="colorLight" title="Standaard">⚪ Wit</label>
+
+      <input type="radio" class="btn-check" name="annColor" id="colorInfo" value="info">
+      <label class="btn btn-outline-info btn-sm" for="colorInfo" title="Info">🔵 Blauw</label>
+
+      <input type="radio" class="btn-check" name="annColor" id="colorSuccess" value="success">
+      <label class="btn btn-outline-success btn-sm" for="colorSuccess" title="Positief">🟢 Groen</label>
+
+      <input type="radio" class="btn-check" name="annColor" id="colorWarning" value="warning">
+      <label class="btn btn-outline-warning btn-sm" for="colorWarning" title="Opvallend">🟠 Oranje</label>
+
+      <input type="radio" class="btn-check" name="annColor" id="colorDanger" value="danger">
+      <label class="btn btn-outline-danger btn-sm" for="colorDanger" title="Belangrijk">🔴 Rood</label>
+      
+    </div>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Afzender</label>
+    <select id="announcementAuthorSelect" class="form-select">
+      <option value="me">Mijn naam (wordt ingevuld)</option>
+      <option value="Shift Planner">Shift Planner</option>
+      <option value="Admin Team">Admin Team</option>
+      <option value="custom">-- Anders, namelijk: --</option>
+    </select>
+  </div>
+  
+  <div class="mb-3 d-none" id="announcementCustomAuthorDiv">
+    <input type="text" id="announcementCustomAuthor" class="form-control" placeholder="Typ naam afzender...">
+  </div>
+</div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+        <button type="button" id="saveAnnouncementBtn" class="btn btn-primary">Plaatsen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Profile modal -->
+<div class="modal fade" id="profileModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Mijn Profiel</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          
+          <div class="col-12 col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-body">
+                
+                <div class="d-flex align-items-center mb-3">
+                  <img id="profilePhoto" src="" alt="Profiel" class="rounded-circle me-3" style="width: 64px; height: 64px; object-fit: cover; background-color: #eee;">
+                  <div>
+                    <h6 class="card-title mb-0">Gegevens</h6>
+                    <p class="small text-muted mb-0">Pas je weergavenaam aan.</p>
+                  </div>
+                </div>
+                
+                <div class="mb-3">
+                  <label for="profileName" class="form-label">Jouw naam</label>
+                  <input type="text" class="form-control" id="profileName" placeholder="Je volledige naam">
+                </div>
+                <div class="mb-3">
+                  <label for="profileEmail" class="form-label">E-mailadres</label>
+                  <input type="email" class="form-control" id="profileEmail" readonly disabled>
+                </div>
+                <button id="profileSaveBtn" class="btn btn-primary w-100">Naam opslaan</button>
+                
+                <hr class="my-4">
+
+                <h6 class="card-title">Thema</h6>
+                <div class="form-check form-switch fs-5">
+                  <input class="form-check-input" type="checkbox" role="switch" id="profileDarkModeToggle">
+                  <label class="form-check-label" for="profileDarkModeToggle">Donkere modus</label>
+                </div>
+
+                <div class="form-check form-switch fs-5 mt-2">
+                  <input class="form-check-input" type="checkbox" role="switch" id="profileSidebarToggle">
+                  <label class="form-check-label" for="profileSidebarToggle">Sidebar standaard ingeklapt</label>
+                </div>
+                
+                <hr class="my-4">
+                
+                <h6 class="card-title">Voorkeuren</h6>
+                
+                <div class="mb-3">
+                  <label for="profileDefaultTab" class="form-label small">Opstart-tabblad</label>
+                  <select id="profileDefaultTab" class="form-select form-select-sm">
+                    <option value="#tab-home">Home</option>
+                    <option value="#tab-shifts">Shifts</option>
+                    <option value="#tab-invoer">Invoer</option>
+                    <option value="#tab-historiek">Historiek</option>
+                    <option value="#tab-converter">Converter</option>
+                    <option value="#tab-mail">Mailbox</option>
+                  </select>
+                </div>
+
+                <div class="mb-3 p-2 border rounded bg-light-subtle">
+                  <label class="form-label small fw-bold mb-2">App Meldingen</label>
+                  <button id="enableNotifBtn" class="btn btn-outline-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-2">
+                    <span class="material-icons-outlined" style="font-size:18px">notifications_active</span>
+                    Activeer Meldingen
+                  </button>
+                  <div id="notifStatusText" class="text-muted fst-italic" style="font-size: 0.75rem; margin-top: 4px;">
+                    Op iPhone: Voeg eerst toe aan beginscherm.
+                  </div>
+                </div>
+                <fieldset id="profileNotifPrefs">
+                  <label class="form-label small fw-bold">Automatische herinneringen:</label>
+                  
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyDailyEmpty" data-key="notifyDailyEmpty">
+                    <label class="form-check-label small" for="prefNotifyDailyEmpty">Bij lege dagen (vergeten shift)</label>
+                  </div>
+                  
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyWeeklyEmpty" data-key="notifyWeeklyEmpty">
+                    <label class="form-check-label small" for="prefNotifyWeeklyEmpty">Bij een lege week</label>
+                  </div>
+
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyMonthlyGoal" data-key="notifyMonthlyGoal">
+                    <label class="form-check-label small" for="prefNotifyMonthlyGoal">Bij maanddoel niet behaald (&lt;80%)</label>
+                  </div>
+
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyProjectEnd" data-key="notifyProjectEnd">
+                    <label class="form-check-label small" for="prefNotifyProjectEnd">Bij aflopende projecten</label>
+                  </div>
+                </fieldset>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6">
+            
+            <div class="card shadow-sm border-0 mb-3">
+              <div class="card-body">
+                <h6 class="card-title">Accentkleur</h6>
+                <p class="small text-muted mb-2">Kies de hoofdkleur van de applicatie.</p>
+                
+                <div id="profileColorPicker" class="color-picker-wrap justify-content-center justify-content-md-start">
+                  <span class="color-dot" data-color="#0d6efd" style="background-color: #0d6efd;" title="Standaard Blauw"></span>
+                  <span class="color-dot" data-color="#198754" style="background-color: #198754;" title="Groen"></span>
+                  <span class="color-dot" data-color="#fd7e14" style="background-color: #fd7e14;" title="Oranje"></span>
+                  <span class="color-dot" data-color="#6f42c1" style="background-color: #6f42c1;" title="Paars"></span>
+                  <span class="color-dot" data-color="#dc3545" style="background-color: #dc3545;" title="Rood"></span>
+                  <span class="color-dot" data-color="#d63384" style="background-color: #d63384;" title="Roze (Pink)"></span>
+                  
+                  <span class="color-dot" data-color="#20c997" style="background-color: #20c997;" title="Turquoise (Teal)"></span>
+                  <span class="color-dot" data-color="#0dcaf0" style="background-color: #0dcaf0;" title="Cyaan (Cyan)"></span>
+                  <span class="color-dot" data-color="#6610f2" style="background-color: #6610f2;" title="Indigo"></span>
+                  <span class="color-dot" data-color="#ffc107" style="background-color: #ffc107;" title="Geel (Warning)"></span>
+                  <span class="color-dot" data-color="#0B5345" style="background-color: #0B5345;" title="Donkergroen"></span>
+                  <span class="color-dot" data-color="#495057" style="background-color: #495057;" title="Donkergrijs"></span>
+
+                  <span class="color-dot" data-color="#A93226" style="background-color: #A93226;" title="Kastanjebruin"></span>
+                  <span class="color-dot" data-color="#17202A" style="background-color: #17202A;" title="Zwartblauw"></span>
+                  <span class="color-dot" data-color="#5D6D7E" style="background-color: #5D6D7E;" title="Staalblauw"></span>
+                  <span class="color-dot" data-color="#7D3C98" style="background-color: #7D3C98;" title="Donkerpaars"></span>
+                  <span class="color-dot" data-color="#F39C12" style="background-color: #F39C12;" title="Goud"></span>
+                  <span class="color-dot" data-color="#0048BA" style="background-color: #0048BA;" title="Kobaltblauw"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mb-3">
+              <div class="card-body">
+                <h6 class="card-title">Exporteer Mijn Gegevens</h6>
+                <p class="small text-muted mb-2">
+                  Download een .json-bestand met al je persoonlijke app-gegevens.
+                </p>
+                <button id="profileExportBtn" class="btn btn-outline-info w-100">
+                  <span class="material-icons-outlined" style="vertical-align: middle;">download</span>
+                  Download mijn data
+                </button>
+              </div>
+            </div>
+
+            <div class="card shadow-sm border-0">
+              <div class="card-body">
+                <h6 class="card-title">Sessie</h6>
+                <p class="small text-muted">Sluit de applicatie af en keer terug naar login.</p>
+                <hr>
+                <button id="logoutBtn" class="btn btn-outline-danger w-100">
+                  <span class="material-icons-outlined" style="vertical-align: middle;">logout</span> Uitloggen
+                </button>
+              </div>
+            </div>
+
+          </div> 
+        </div> 
+      </div> 
+    </div>
+  </div>
+</div>
+
+  <!-- Bootstrap -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- JSPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <!-- ✅ SortableJS voor drag & drop -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<!-- Flatpickr JS -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<!-- Flatpickr NL taal -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/nl.js"></script>
+  
+  <!-- ✅ Vervangen: De inline script is verplaatst naar app-script.js -->
   <script type="module" src="app.js"></script>
 
-<!-- Loading overlay -->
+<!-- 🔄 Loading overlay -->
 <div id="loadingOverlay" class="loading-overlay d-none">
   <div class="spinner-border text-light" role="status">
     <span class="visually-hidden">Laden...</span>
