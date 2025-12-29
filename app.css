@@ -1,557 +1,546 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
-import { getAuth, onAuthStateChanged, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, getDocs, addDoc, deleteDoc, collection, query, orderBy, limit, onSnapshot, where, startAfter, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, uploadBytesResumable } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js';
+:root {
+  --sp-sidebar-w: 260px;
+  --sp-sidebar-w-collapsed: 78px;
+}
+body { background: #f5f7fb; }
+/* Sidebar */
+.sp-sidebar {
+  position: fixed; inset: 0 auto 0 0;
+  width: var(--sp-sidebar-w); background: #0d6efd; color: #fff;
+  padding-top: 64px; transition: width .25s ease, left .25s ease;
+  z-index: 1031;
+}
+.sp-sidebar.collapsed { width: var(--sp-sidebar-w-collapsed); }
+.sp-sidebar .nav-link {
+  color: #fff; display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+  border-radius: .375rem; margin: 2px 10px;
+}
+.sp-sidebar .nav-link.active, .sp-sidebar .nav-link:hover { background: rgba(255,255,255,.18); }
+.sp-sidebar .label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-sidebar.collapsed .label { display: none; }
 
-// ===== Firebase config =====
-const firebaseConfig = {
-  apiKey: "AIzaSyB8uHwRXCe1iV7z6T80YPxEbeB64qdMpNY",
-  authDomain: "shift-planner-dc7ad.firebaseapp.com",
-  projectId: "shift-planner-dc7ad",
-  storageBucket: "shift-planner-dc7ad.firebasestorage.app",
-  messagingSenderId: "719441527396",
-  appId: "1:719441527396:web:de87d6f950fe23702a5571"
-};
+/* Topbar */
+.sp-topbar { position: fixed; top: 0; left: 0; right: 0; height: 64px; background: #fff; border-bottom: 1px solid #e9edf5; z-index: 1032; }
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
+/* Main content */
+.sp-main { padding: 86px 20px 24px; margin-left: var(--sp-sidebar-w); transition: margin-left .25s ease; }
+.sp-main.collapsed { margin-left: var(--sp-sidebar-w-collapsed); }
 
-// ======= State =======
-let currentUserId = null;
-let notificationInterval = null;
-const dataStore = { 
-  users: {}, 
-  currentUser: null,
-  notifications: [],
-  cvData: { 
-    jobTitle: '',
-    profileText: '',
-    phone: '',
-    city: '',
-    skills: '',
-    languages: '',
-    education: '',
-    projects: [],
-    employers: [] 
-  }
-};
-let saveTimer = null; 
-const debouncedSave = () => {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => { saveUserData(); console.log("DB: Data opgeslagen."); }, 2000);
-};
+/* Mobile: sidebar overlay */
+@media (max-width: 768px) {
+  .sp-sidebar { left: -100%; }
+  .sp-sidebar.show { left: 0; }
+  .sp-main, .sp-main.collapsed { margin-left: 0; }
+}
 
-// ======= Elements =======
-const sidebar = document.getElementById('sidebar');
-const main = document.getElementById('main');
-const currentUserName = document.getElementById('currentUserName');
+.table-nowrap td, .table-nowrap th { white-space: nowrap; }
+.text-mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+.chip {display:inline-flex;align-items:center;gap:6px;padding:.25rem .5rem;border-radius:999px;background:#eef4ff;color:#0d6efd;font-size:.8rem}
+.chip .dot{width:.5rem;height:.5rem;border-radius:50%;background:#0d6efd}
+.drag-handle:hover { color: #0d6efd; transform: scale(1.15); }
+.sortable-chosen { background-color: #f0f8ff !important; }
+.sortable-ghost { opacity: 0.6; }
+#quickTopBtn {
+  border-color: #fd7e14 !important;   /* zachter oranje */
+  color: #fd7e14 !important;
+  transition: all .15s ease;
+}
 
-// CV Elements
-const cvJobTitle = document.getElementById('cvJobTitle');
-const cvProfileText = document.getElementById('cvProfileText');
-const cvPhone = document.getElementById('cvPhone');
-const cvCity = document.getElementById('cvCity');
-const cvSkills = document.getElementById('cvSkills');
-const cvLanguages = document.getElementById('cvLanguages');
-const cvEducation = document.getElementById('cvEducation');
-const cvProjectsList = document.getElementById('cvProjectsList');
-const cvEmployersList = document.getElementById('cvEmployersList'); 
-
-const prevName = document.getElementById('prevName');
-const prevJob = document.getElementById('prevJob');
-const prevEmail = document.getElementById('prevEmail');
-const prevPhone = document.getElementById('prevPhone');
-const prevCity = document.getElementById('prevCity');
-const prevProfile = document.getElementById('prevProfile');
-const prevSkills = document.getElementById('prevSkills');
-const prevLanguages = document.getElementById('prevLanguages');
-const prevEducation = document.getElementById('prevEducation');
-const prevProjects = document.getElementById('prevProjects');
-const prevEmployers = document.getElementById('prevEmployers'); 
-
-// ======= Auth & Init =======
-onAuthStateChanged(auth, async (user)=>{
-  if (notificationInterval) clearInterval(notificationInterval);
-  const savedColor = localStorage.getItem('accentColor');
-  if (savedColor) applyAccentColor(savedColor);
-
-  if (!user) { window.location.replace('index.html'); return; }
-
-  document.body.classList.add('auth-checked');
-  currentUserId = user.uid; 
-  currentUserName.textContent = user.displayName || user.email;
-
-  // Foto laden
-  const topPhotoEl = document.getElementById('topbarProfilePhoto');
-  if (topPhotoEl) topPhotoEl.src = user.photoURL || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0iI2NjYyIgY2xhc3M9ImJpIGJpLXBlcnNvbi1jaXJjbGUiIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTExIDZhMyAzIDAgMTEtNiAwIDMgMyAwIDAxNiAwIi8+PHBhdGggZmlsbC1ydWxlPSJldmVub2RkIiBkPSJNMDggYTEuNSAxLjUgMCAwMC0xLjUgMS41VjE0YWguNWExLjUgMS41IDAgMDAxLjUtMS41VjkuNWEzIDMgMCAwMS41NTYtMS45OTEuNDk5LjQ5OSAwIDAwLS40NzEtLjAwMkExLjUgMS41IDAgMDA4IDEzLjQ5NnYxLjAxOEM4IDE1Ni44ODQgMTYgNS41IDE2SDIuNUEEuNSAxLjUgMCAwMTQgMTQuNUgxdjEuNUMxIDE1LjYxMiAxLjA0IDE2IDEuMzU3IDE2aDExLjI4NkMxMy45NiAxNiAxNCAxNS42MTIgMTQgMTUuNXYtMS41aC0zYTEuNSAxLjUgMCAwMS0xLjUtMS41VjEyYTEuNSAxLjUgMCAwMS4yNy0uODQ0LjQ5OS40OTkgMCAwMC0uNDctLjAwNkExLjUgMS41IDAgMDAtOCAxMy41MXYxLjAxOGMwIDEuMzczIDEuMTI3IDIuNSA2LjUgMi41aDNBNy41IDcuNSAwIDAwOCAwdjNhMy41IDMuNSAwIDAwLTQgNC41djNBMi41IDIuNSAwIDAwLjUgMTN2LjVhMS41IDEuNSAwIDAwLTEuNSAxLjVaIi8+PC9zdmc+';
-
-  await ensureUserDoc(user);
-  await loadAllUsers();
-  
-  // Settings laden
-  const ud = getCurrentUserData();
-  if (ud?.settings?.accentColor) applyAccentColor(ud.settings.accentColor);
-  if (ud?.settings?.sidebarCollapsed) {
-      sidebar.classList.add('collapsed');
-      main.classList.add('collapsed');
-  }
-
-  // CV Data laden
-  if (ud.cvData) {
-    dataStore.cvData = { ...dataStore.cvData, ...ud.cvData };
-    if(!dataStore.cvData.employers) dataStore.cvData.employers = [];
-  } else {
-    ud.cvData = dataStore.cvData;
-  }
-  
-  initCV(); 
-
-  // Andere modules (uit je originele code)
-  // ... (laat ik hier weg voor brevity)
-  
-  updateCVPreview();
-  populateCVInputs();
-
-  // Tab switch logic
-  try {
-    if (ud?.settings?.defaultTab) {
-      const tabLink = document.querySelector(`a[href="${ud.settings.defaultTab}"]`);
-      if (tabLink) bootstrap.Tab.getOrCreateInstance(tabLink).show();
-    }
-  } catch (e) {}
-
-});
-
-async function ensureUserDoc(user){
-  const ref = doc(db, 'users', user.uid);
-  const snap = await getDoc(ref);
-  if(!snap.exists()){
-    await setDoc(ref, { 
-      email: user.email, 
-      name: user.displayName || user.email.split('@')[0], 
-      role:'user', shifts:{}, monthData:{}, projects:[], shiftOrder:[],
-      cvData: dataStore.cvData 
-    });
+#quickTopBtn:hover {
+  background-color: #fd7e14 !important;
+  color: #fff !important;
+  transform: scale(1.05);
+}
+@media (max-width: 768px) {
+  #exportPdfBtn {
+    font-size: 0.9rem;
+    padding: 6px 10px;
   }
 }
-
-function getCurrentUserData() {
-  const id = currentUserId; 
-  if (!id) return null;
-  if (!dataStore.users[id]) dataStore.users[id] = {};
-  return dataStore.users[id];
-}
-
-async function saveUserData(){
-  const id = currentUserId;
-  if (!id) return;
-  const ud = dataStore.users[id];
-  ud.cvData = dataStore.cvData;
-  const ref = doc(db,'users', id);
-  await setDoc(ref, ud, { merge: true });
-}
-
-// =============================================
-// 📄 CV MODULE
-// =============================================
-
-function initCV() {
-  // Listeners
-  const inputs = [
-    { el: cvJobTitle, key: 'jobTitle', prev: prevJob },
-    { el: cvProfileText, key: 'profileText', prev: prevProfile },
-    { el: cvPhone, key: 'phone', prev: prevPhone },
-    { el: cvCity, key: 'city', prev: prevCity },
-    { el: cvEducation, key: 'education', prev: prevEducation }
-  ];
-
-  inputs.forEach(item => {
-    if(!item.el) return;
-    item.el.addEventListener('input', () => {
-      dataStore.cvData[item.key] = item.el.value;
-      if(item.prev) item.prev.innerText = item.el.value || '-';
-      if(item.key === 'education') item.prev.innerText = item.el.value; 
-    });
-  });
-
-  const listInputs = [
-    { el: cvSkills, key: 'skills', prev: prevSkills },
-    { el: cvLanguages, key: 'languages', prev: prevLanguages }
-  ];
-
-  listInputs.forEach(item => {
-    if(!item.el) return;
-    item.el.addEventListener('input', () => {
-      dataStore.cvData[item.key] = item.el.value;
-      renderList(item.prev, item.el.value);
-    });
-  });
-
-  document.getElementById('cvSaveBtn')?.addEventListener('click', async () => {
-    await saveUserData();
-    alert('CV Gegevens opgeslagen!'); 
-  });
-
-  // Knoppen voor modals
-  document.getElementById('saveCvProjectBtn')?.addEventListener('click', addCVProject);
-  document.getElementById('saveCvEmployerBtn')?.addEventListener('click', addCVEmployer);
-  document.getElementById('cvDownloadBtn')?.addEventListener('click', downloadCVAsPDF);
-
-  // Wanneer Project modal opent, vul de werkgever dropdown
-  const projModal = document.getElementById('cvProjectModal');
-  projModal.addEventListener('show.bs.modal', updateEmployerDropdown);
-}
-
-function updateEmployerDropdown() {
-    const select = document.getElementById('cvProjLinkEmp');
-    if(!select) return;
-    
-    // Bewaar huidige selectie of reset
-    select.innerHTML = '<option value="">Geen (Los project)</option>';
-    
-    const employers = dataStore.cvData.employers || [];
-    employers.forEach(emp => {
-        const opt = document.createElement('option');
-        opt.value = emp.id;
-        opt.textContent = emp.name;
-        select.appendChild(opt);
-    });
-}
-
-function populateCVInputs() {
-  const data = dataStore.cvData;
-  if(cvJobTitle) cvJobTitle.value = data.jobTitle || '';
-  if(cvProfileText) cvProfileText.value = data.profileText || '';
-  if(cvPhone) cvPhone.value = data.phone || '';
-  if(cvCity) cvCity.value = data.city || '';
-  if(cvSkills) cvSkills.value = data.skills || '';
-  if(cvLanguages) cvLanguages.value = data.languages || '';
-  if(cvEducation) cvEducation.value = data.education || '';
-
-  renderProjectsListInput();
-  renderEmployersListInput();
-}
-
-function updateCVPreview() {
-  const data = dataStore.cvData;
-  const user = auth.currentUser;
-
-  if(prevName) prevName.textContent = user?.displayName || 'NAAM';
-  if(prevEmail) prevEmail.textContent = user?.email || '-';
-
-  if(prevJob) prevJob.textContent = data.jobTitle || 'Functietitel';
-  if(prevProfile) prevProfile.textContent = data.profileText || 'Vul je profiel in...';
-  if(prevPhone) prevPhone.textContent = data.phone || '-';
-  if(prevCity) prevCity.textContent = data.city || '-';
-  if(prevEducation) prevEducation.textContent = data.education || '';
-
-  renderList(prevSkills, data.skills);
-  renderList(prevLanguages, data.languages);
-
-  // Renders de tijdlijnen (inclusief geneste projecten!)
-  renderEmployersTimeline(); 
-  // Renders de 'losse' projecten
-  renderProjectsTimeline();
-}
-
-function renderList(ulElement, textStr) {
-  if(!ulElement) return;
-  ulElement.innerHTML = '';
-  if(!textStr) return;
-  const items = textStr.split(',').map(s => s.trim()).filter(s => s);
-  items.forEach(item => {
-    const li = document.createElement('li');
-    li.textContent = item;
-    ulElement.appendChild(li);
-  });
-}
-
-// --- ADD DATA ---
-
-function addCVProject() {
-  const start = document.getElementById('cvProjStart').value;
-  const endInput = document.getElementById('cvProjEnd').value;
-  const isCurrent = document.getElementById('cvProjCurrent').checked;
-  const client = document.getElementById('cvProjClient').value;
-  const role = document.getElementById('cvProjRole').value;
-  const desc = document.getElementById('cvProjDesc').value;
-  const employerId = document.getElementById('cvProjLinkEmp').value; // Link ID
-
-  if(!start || !client || !role) {
-    alert("Vul minstens startdatum, klant en rol in.");
-    return;
-  }
-
-  const newProj = {
-    id: Date.now(),
-    start,
-    end: isCurrent ? 'heden' : endInput,
-    client,
-    role,
-    desc,
-    employerId: employerId || null // Sla ID op
-  };
-
-  dataStore.cvData.projects.push(newProj);
-  dataStore.cvData.projects.sort((a,b) => b.start.localeCompare(a.start));
-
-  // Reset UI
-  document.getElementById('cvProjClient').value = '';
-  document.getElementById('cvProjRole').value = '';
-  document.getElementById('cvProjDesc').value = '';
-  document.getElementById('cvProjLinkEmp').value = ''; // Reset select
-  
-  bootstrap.Modal.getInstance(document.getElementById('cvProjectModal')).hide();
-
-  renderProjectsListInput();
-  updateCVPreview(); // Alles refreshen
-  saveUserData();
-}
-
-function addCVEmployer() {
-  const start = document.getElementById('cvEmpStart').value;
-  const endInput = document.getElementById('cvEmpEnd').value;
-  const isCurrent = document.getElementById('cvEmpCurrent').checked;
-  const name = document.getElementById('cvEmpName').value;
-  const role = document.getElementById('cvEmpRole').value;
-  const desc = document.getElementById('cvEmpDesc').value;
-
-  if(!start || !name || !role) {
-    alert("Vul minstens startdatum, werkgever en functie in.");
-    return;
-  }
-
-  const newEmp = {
-    id: Date.now(),
-    start,
-    end: isCurrent ? 'heden' : endInput,
-    name,
-    role,
-    desc
-  };
-
-  dataStore.cvData.employers.push(newEmp);
-  dataStore.cvData.employers.sort((a,b) => b.start.localeCompare(a.start));
-
-  document.getElementById('cvEmpName').value = '';
-  document.getElementById('cvEmpRole').value = '';
-  document.getElementById('cvEmpDesc').value = '';
-  
-  bootstrap.Modal.getInstance(document.getElementById('cvEmployerModal')).hide();
-
-  renderEmployersListInput();
-  updateCVPreview();
-  saveUserData();
-}
-
-// --- INPUT LISTS RENDERING ---
-
-function renderProjectsListInput() {
-  if(!cvProjectsList) return;
-  cvProjectsList.innerHTML = '';
-  const projects = dataStore.cvData.projects || [];
-  if(projects.length === 0) {
-    cvProjectsList.innerHTML = '<div class="text-muted fst-italic text-center">Nog geen projecten.</div>';
-    return;
-  }
-
-  projects.forEach((p, index) => {
-    // Zoek werkgever naam als die gekoppeld is
-    let empName = '';
-    if(p.employerId) {
-        const emp = dataStore.cvData.employers.find(e => e.id == p.employerId);
-        if(emp) empName = `<span class="badge bg-light text-dark border ms-1">@ ${emp.name}</span>`;
-    }
-
-    const div = document.createElement('div');
-    div.className = 'list-group-item d-flex justify-content-between align-items-center p-2';
-    div.innerHTML = `
-      <div>
-        <div class="fw-bold">${p.role} ${empName}</div>
-        <div class="small text-muted">${p.client}</div>
-      </div>
-      <button class="btn btn-sm btn-outline-danger del-proj-btn" data-idx="${index}">&times;</button>
-    `;
-    cvProjectsList.appendChild(div);
-  });
-
-  document.querySelectorAll('.del-proj-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      dataStore.cvData.projects.splice(e.target.dataset.idx, 1);
-      renderProjectsListInput();
-      updateCVPreview();
-      saveUserData();
-    });
-  });
-}
-
-function renderEmployersListInput() {
-  if(!cvEmployersList) return;
-  cvEmployersList.innerHTML = '';
-  const list = dataStore.cvData.employers || [];
-  if(list.length === 0) {
-    cvEmployersList.innerHTML = '<div class="text-muted fst-italic text-center">Nog geen werkgevers.</div>';
-    return;
-  }
-
-  list.forEach((p, index) => {
-    const div = document.createElement('div');
-    div.className = 'list-group-item d-flex justify-content-between align-items-center p-2';
-    div.innerHTML = `
-      <div>
-        <div class="fw-bold">${p.role}</div>
-        <div class="small text-muted">${p.name}</div>
-      </div>
-      <button class="btn btn-sm btn-outline-danger del-emp-btn" data-idx="${index}">&times;</button>
-    `;
-    cvEmployersList.appendChild(div);
-  });
-
-  document.querySelectorAll('.del-emp-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      dataStore.cvData.employers.splice(e.target.dataset.idx, 1);
-      renderEmployersListInput();
-      updateCVPreview(); // Refresh preview om projecten ook weg te halen uit de view indien nodig
-      saveUserData();
-    });
-  });
-}
-
-// --- PREVIEW RENDERING (MET NESTING) ---
-
-function formatD(dStr) {
-    if(!dStr || dStr === 'heden') return 'Heden';
-    const [y, m] = dStr.split('-');
-    const date = new Date(y, m-1);
-    return date.toLocaleDateString('nl-BE', { month: 'short', year: 'numeric' });
-};
-
-function renderEmployersTimeline() {
-  if(!prevEmployers) return;
-  prevEmployers.innerHTML = '';
-  
-  const employers = dataStore.cvData.employers || [];
-  const allProjects = dataStore.cvData.projects || [];
-
-  employers.forEach(emp => {
-    // 1. Render de Werkgever
-    const div = document.createElement('div');
-    div.className = 'cv-project-item';
-    const dateStr = `${formatD(emp.start)} - ${formatD(emp.end)}`;
-
-    div.innerHTML = `
-      <div class="cv-date">${dateStr}</div>
-      <div class="cv-role">${emp.role}</div>
-      <div class="cv-client">${emp.name}</div>
-      <p class="small text-muted mb-2" style="white-space: pre-wrap;">${emp.desc}</p>
-    `;
-
-    // 2. Zoek en Render GENESTE Projecten
-    const nestedProjects = allProjects.filter(p => p.employerId == emp.id); // Check ID (string/int loose match)
-    
-    if(nestedProjects.length > 0) {
-        const nestedContainer = document.createElement('div');
-        nestedContainer.className = 'cv-nested-projects';
-        
-        nestedProjects.forEach(proj => {
-            const pDiv = document.createElement('div');
-            pDiv.className = 'cv-nested-project-item';
-            const pDate = `${formatD(proj.start)} - ${formatD(proj.end)}`;
-            
-            pDiv.innerHTML = `
-                <div class="cv-nested-meta">${pDate} | ${proj.client}</div>
-                <div class="cv-nested-role">${proj.role}</div>
-                <p class="cv-nested-desc">${proj.desc}</p>
-            `;
-            nestedContainer.appendChild(pDiv);
-        });
-
-        div.appendChild(nestedContainer);
-    }
-
-    prevEmployers.appendChild(div);
-  });
-}
-
-function renderProjectsTimeline() {
-  const container = document.getElementById('prevProjects');
-  const section = document.getElementById('prevProjectsSection');
-  if(!container) return;
-  
-  container.innerHTML = '';
-  
-  // Toon alleen projecten die GEEN employerId hebben
-  const looseProjects = (dataStore.cvData.projects || []).filter(p => !p.employerId);
-
-  if(looseProjects.length === 0) {
-      if(section) section.style.display = 'none';
-      return;
-  }
-
-  if(section) section.style.display = 'block';
-
-  looseProjects.forEach(p => {
-    const dateStr = `${formatD(p.start)} - ${formatD(p.end)}`;
-    const div = document.createElement('div');
-    div.className = 'cv-project-item';
-    div.innerHTML = `
-      <div class="cv-date">${dateStr}</div>
-      <div class="cv-role">${p.role}</div>
-      <div class="cv-client">${p.client}</div>
-      <p class="small text-muted mb-0" style="white-space: pre-wrap;">${p.desc}</p>
-    `;
-    container.appendChild(div);
-  });
-}
-
-// PDF Download
-async function downloadCVAsPDF() {
-  const element = document.getElementById('cvPreview');
-  const btn = document.getElementById('cvDownloadBtn');
-  const oldText = btn.innerHTML;
-  btn.innerHTML = 'Even geduld...';
-  btn.disabled = true;
-
-  try {
-    const canvas = await html2canvas(element, { scale: 2, useCORS: true });
-    const imgData = canvas.toDataURL('image/png');
-    const { jsPDF } = window.jspdf;
-    
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    pdf.save('Mijn_CV.pdf');
-  } catch (err) {
-    console.error("PDF Error:", err);
-    alert("Er ging iets mis bij het maken van de PDF.");
-  } finally {
-    btn.innerHTML = oldText;
-    btn.disabled = false;
+@media (max-width: 768px) {
+  #multiDayShiftBtn {
+    font-size: 0.9rem;
+    padding: 6px 10px;
   }
 }
+#notifList li.unread {
+  font-weight: 600;
+}
+.sp-topbar .ms-auto {
+  margin-left: auto !important;
+}
+#notifDropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 1050; /* hoger dan navbar */
+  display: none;
+}
 
-// Accentkleur helper
-function applyAccentColor(hex) {
-    if (!hex) return;
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    const rgb = `${r}, ${g}, ${b}`;
-    const cssRules = `
-    :root { --bs-primary: ${hex}; --bs-primary-rgb: ${rgb}; }
-    .bg-primary { background-color: ${hex} !important; }
-    .text-primary { color: ${hex} !important; }
-    .btn-primary { background-color: ${hex} !important; border-color: ${hex} !important; }
-    .btn-outline-primary { color: ${hex} !important; border-color: ${hex} !important; }
-    .btn-outline-primary:hover { background-color: ${hex} !important; color: #fff !important; }
-    .sp-sidebar { background: ${hex} !important; }
-    .cv-header { background-color: ${hex} !important; }
-    .cv-project-item::before { background-color: ${hex} !important; }
-    .cv-date { color: ${hex} !important; }
-    `;
-    document.getElementById('accent-color-overrides').innerHTML = cssRules;
+#notifDropdown.show {
+  display: block !important;
+}
+/* === 🌙 Donkere modus === */
+body.dark-mode {
+  background-color: #1e1e1e !important;
+  color: #eaeaea !important;
+}
+
+body.dark-mode .sp-topbar {
+  background-color: #2b2b2b !important;
+  border-bottom-color: #444 !important;
+}
+
+body.dark-mode .sp-sidebar {
+  background-color: #111 !important;
+}
+
+body.dark-mode .sp-main {
+  background-color: #1e1e1e !important;
+  color: #eaeaea !important;
+}
+
+body.dark-mode .table {
+  color: #ddd !important;
+}
+
+body.dark-mode .table thead {
+  background-color: #333 !important;
+  color: #fff !important;
+}
+
+body.dark-mode .modal-content {
+  background-color: #2b2b2b !important;
+  color: #eaeaea !important;
+}
+
+body.dark-mode .btn-outline-secondary {
+  color: #eaeaea !important;
+  border-color: #666 !important;
+}
+body.dark-mode .alert-info {
+  background-color: #2b3e50 !important;
+  color: #eaeaea !important;
+  border-color: #3d5065 !important;
+}
+body.dark-mode .alert-success {
+  background-color: #244c2c !important;
+  color: #a8f0a5 !important;
+}
+body.dark-mode .alert-warning {
+  background-color: #4d3a13 !important;
+  color: #ffe7a0 !important;
+}
+body.dark-mode .alert-danger {
+  background-color: #5b1b1b !important;
+  color: #ffbdbd !important;
+}
+/* 🌊 Altijd zwevende resterende uren-balk */
+#remainingHoursAlert {
+  position: fixed !important;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  width: auto;
+  max-width: 90%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 0.75rem;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  text-align: center;
+  transition: all 0.3s ease-in-out;
+  opacity: 0.95; /* subtiel transparant */
+}
+/* Verberg de balk met een animatie als een modal open is */
+body.modal-open #remainingHoursAlert {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-50%) translateY(100%); /* Schuif naar beneden */
+}
+/* 📱 Mobiel — iets breder */
+@media (max-width: 768px){
+  #exportPdfBtn,
+  #multiDayShiftBtn,
+  #submitMonthBtn{
+    --bs-btn-padding-y: .375rem;   /* hoogte (≈ 6px) */
+    --bs-btn-padding-x: .75rem;    /* breedte */
+    --bs-btn-line-height: 1.2;
+    font-size: 1rem;
+    padding: var(--bs-btn-padding-y) var(--bs-btn-padding-x) !important;
+  }
+}
+/* === 🔄 Loading overlay === */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+.main-content, .container {
+  overflow: visible !important;
+}
+/* 📱 Op mobiel: knoppen onder elkaar even breed maken */
+@media (max-width: 768px) {
+  #exportPdfBtn,
+  #multiDayShiftBtn,
+  #submitMonthBtn{
+    display: block;
+    width: 100%;
+    max-width: 320px;   /* optioneel: begrenst de breedte */
+    margin: 0 auto 0.5rem auto;
+  }
+}
+/* 🔶 Dagen met geplande shift */
+.flatpickr-day.planned-day {
+  background-color: #ffc107 !important; /* geel */
+  color: #000 !important;
+  border-radius: 50% !important;
+  font-weight: 600;
+  border: 2px solid #e0a800 !important;
+}
+.flatpickr-day.selected.planned-day {
+  background-color: #ff9800 !important; /* oranje */
+  color: white !important;
+}
+/* ── Maandstatus badges ─────────────────────────────── */
+.badge-status { font-weight: 600; }
+.badge-draft { background:#e9ecef; color:#495057; }
+.badge-submitted { background:#e7f1ff; color:#0d6efd; }
+.badge-approved { background:#e6f4ea; color:#1e7e34; }
+.badge-rejected { background:#fdecea; color:#842029; }
+/* mini actieknoppen in de invoertabel */
+.btn-line{
+  --bs-btn-padding-y: .15rem;
+  --bs-btn-padding-x: .35rem;
+  --bs-btn-font-size: .75rem;
+  line-height: 1;
+}
+/* Acties-kolom smal + niet afbreken */
+#thActions{ width:1%; white-space:nowrap; }
+td.actions-cell{ white-space:nowrap; }  
+.btn-success { font-weight: 600; }
+.badge.bg-secondary-subtle { background-color: #f1f3f5 !important; color: #495057 !important; }
+body.dark-mode .badge.bg-secondary-subtle { background-color: #2e2e2e !important; color: #ddd !important; }
+/* Compacte projectkaarten (Invoer) */
+#projectSummary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: .5rem;
+}
+
+.project-mini {
+  background: #fff;
+  border: 1px solid #e9edf5;
+  border-radius: .5rem;
+  padding: .5rem .75rem;          /* klein! */
+}
+
+.project-mini .meta { 
+  color: #6c757d; 
+  font-size: .75rem; 
+}
+.project-mini .title { 
+  font-weight: 600; 
+  font-size: .95rem; 
+}
+.project-mini .value { 
+  font-variant-numeric: tabular-nums; 
+  font-weight: 700; 
+}
+
+/* Donkere modus matchen */
+body.dark-mode #projectSummary .project-mini {
+  background: #2b2b2b;
+  border-color: #444;
+  color: #eaeaea;
+}
+body.dark-mode #projectSummary .meta { color: #aaa; }
+/* 🔸 Fade animaties */
+.fade-in {
+  animation: fadeIn 0.3s ease-in forwards;
+}
+
+.fade-out {
+  animation: fadeOut 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* 🔸 Volledig verbergen */
+.hidden-col {
+  display: none !important;
+}
+/* === Mailbox Mobile Fixes === */
+@media (max-width: 576px) {
+  /* Verberg datum-tekst in de lijst (is zichtbaar in detail) */
+  .mail-meta {
+    display: none;
+  }
+  /* Zorg dat actieknoppen niet te breed worden */
+  #mailListTable .btn {
+    padding: .15rem .3rem;
+    font-size: .8rem;
+  }
+}
+/* Accentkleur-kiezer bolletjes */
+.color-picker-wrap {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.color-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.2);
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+body.dark-mode .color-dot {
+  border-color: #444;
+}
+.color-dot.selected {
+  border-color: #000;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.5);
+  transform: scale(1.1);
+}
+body.dark-mode .color-dot.selected {
+  border-color: #fff;
+}
+/* Fix voor Flatpickr in een Modal */
+.flatpickr-calendar {
+  z-index: 2051 !important;
+}
+/* === Donkere modus voor Goedkeuring-kaarten === */
+body.dark-mode #approvalYearlyOverview .card {
+  background-color: #2b2b2b !important;
+  border-color: #444 !important;
+  color: #eaeaea !important;
+}
+
+body.dark-mode #approvalYearlyOverview .btn-outline-secondary {
+  color: #eaeaea !important;
+  border-color: #666 !important;
+}
+
+body.dark-mode #approvalYearlyOverview .btn-outline-secondary:hover {
+  background-color: #666 !important;
+  color: #fff !important;
+}
+/* === Verlof Status Iconen === */
+.shift-status-icon {
+  font-size: 16px;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+.status-pending {
+  color: #fd7e14; /* Oranje */
+}
+.status-approved {
+  color: #198754; /* Groen */
+}
+.status-rejected {
+  color: #dc3545; /* Rood */
+}
+/* === ADMIN DASHBOARD STATS === */
+.stat-card {
+  position: relative;
+  padding: 1.25rem;
+  border-radius: .75rem;
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+.stat-card .stat-value {
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.stat-card .stat-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.stat-card .stat-icon {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  font-size: 3.5rem;
+  opacity: 0.2;
+  transform: rotate(-10deg);
+}
+.stat-card .btn-link {
+  color: inherit;
+  text-decoration-color: rgba(255,255,255,0.5);
+  font-size: 0.9rem;
+}
+.bg-warning { background-color: #ffc107 !important; }
+.bg-danger { background-color: #dc3545 !important; }
+.bg-info { background-color: #0dcaf0 !important; }
+/* === BIJLAGE ICOON === */
+.attachment-icon {
+  font-size: 16px;
+  vertical-align: middle;
+  cursor: pointer;
+  color: #6c757d; /* Standaard grijs */
+  transition: color 0.15s ease;
+}
+.attachment-icon:hover {
+  color: #0d6efd; /* Primair kleur bij hover */
+}
+.attachment-icon.has-attachment {
+  color: #0d6efd; /* Blauw als er een bijlage is */
+  transform: rotate(45deg);
+}
+/* === TEAM ROOSTER STYLES === */
+.rooster-wrapper {
+  position: relative;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+}
+
+/* Header sticky bovenaan */
+.rooster-table thead th {
+  position: sticky;
+  top: 0;
+  background-color: #f8f9fa; /* Lichte achtergrond */
+  z-index: 10; /* Boven de cellen */
+  box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+}
+
+/* Eerste kolom (Namen) sticky links */
+.rooster-table tbody th, 
+.rooster-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  background-color: #fff;
+  z-index: 20; /* Boven de andere headers en cellen */
+  border-right: 2px solid #dee2e6;
+  min-width: 150px;
+  text-align: left;
+  padding-left: 10px;
+}
+.rooster-table thead th:first-child {
+  z-index: 30; /* Allerhoogste (linksboven hoek) */
+  background-color: #e9ecef;
+}
+
+/* Donkere modus fix voor sticky */
+body.dark-mode .rooster-table thead th { background-color: #333; color: #fff; border-color: #555; }
+body.dark-mode .rooster-table tbody th { background-color: #2b2b2b; color: #fff; border-color: #555; }
+body.dark-mode .rooster-table thead th:first-child { background-color: #444; }
+
+/* Cellen styling */
+.rooster-cell {
+  min-width: 40px;
+  height: 40px;
+  font-size: 0.75rem;
+  cursor: default;
+  padding: 0 !important; /* Zodat de hele cel gekleurd kan worden */
+  vertical-align: middle;
+}
+
+/* Inhoud van de cel */
+.rooster-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Kleurtjes voor specifieke shifts */
+.bg-shift-sick { background-color: #ffeeba; color: #856404; } /* Geel/Oranje */
+.bg-shift-leave { background-color: #cff4fc; color: #055160; } /* Lichtblauw */
+.bg-shift-school { background-color: #d1e7dd; color: #0f5132; } /* Groen */
+.bg-shift-normal { background-color: #f8f9fa; color: #212529; } /* Grijs */
+
+body.dark-mode .bg-shift-normal { background-color: #343a40; color: #dee2e6; }
+/* === ROOSTER SHIFT KLEUREN === */
+
+/* 🟧 School = Oranje (zoals gevraagd) */
+.bg-shift-school { 
+  background-color: #fd7e14 !important; /* Bootstrap Orange */
+  color: #fff !important; 
+  font-weight: 600;
+}
+
+/* 🟨 Ziekte = Geel/Goud */
+.bg-shift-sick { 
+  background-color: #ffc107 !important; /* Warning Yellow */
+  color: #000 !important; 
+  font-weight: 600;
+}
+
+/* 🟦 Verlof = Blauw/Cyaan */
+.bg-shift-leave { 
+  background-color: #0dcaf0 !important; 
+  color: #fff !important;
+  font-weight: 600;
+}
+
+/* 🌅 Vroege = Zacht Geel */
+.bg-shift-vroege { 
+  background-color: #fff3cd !important; 
+  color: #856404 !important; 
+  font-weight: 600;
+}
+
+/* 🌇 Late = Zacht Blauw */
+.bg-shift-late { 
+  background-color: #cfe2ff !important; 
+  color: #084298 !important; 
+  font-weight: 600;
+}
+
+/* 🌙 Nacht = Donker/Paars */
+.bg-shift-nacht { 
+  background-color: #e0cffc !important; 
+  color: #3700b3 !important; 
+  font-weight: 600;
+}
+
+/* ☁️ Default / Overige = Grijs */
+.bg-shift-normal { 
+  background-color: #e9ecef; 
+  color: #495057; 
+  font-weight: 600;
+}
+
+/* Donkere modus fix */
+body.dark-mode .bg-shift-normal { background-color: #343a40; color: #dee2e6; }
+/* === ANTI-FLASH: Verberg app tot login check klaar is === */
+
+/* 1. Zolang de body de class 'auth-checked' NIET heeft, verberg de interface */
+body:not(.auth-checked) #sidebar,
+body:not(.auth-checked) .sp-topbar,
+body:not(.auth-checked) .sp-main {
+  display: none !important;
+}
+
+/* 2. Zolang de body de class 'auth-checked' NIET heeft, FORCEER de loader */
+body:not(.auth-checked) #loadingOverlay {
+  display: flex !important; /* Overschrijft d-none */
+  opacity: 1 !important;
+  visibility: visible !important;
+  background-color: #f5f7fb; /* Zelfde kleur als achtergrond */
+  z-index: 9999;
 }
