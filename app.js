@@ -5583,8 +5583,20 @@ document.querySelector('a[href="#tab-nonbillable"]')?.addEventListener('shown.bs
   renderNonBillable();
 });
 // =============================================
-// 📅 JAARPLANNER (KLADBLOK - GESCHEIDEN DATA)
+// 📅 JAARPLANNER (KLADBLOK - VASTE LEGENDE)
 // =============================================
+
+// 🛠️ CONFIGURATIE: Pas hier je kleuren en categorieën aan
+const PLANNER_LEGEND = [
+  { label: 'Schoolvakantie',   letter: 'SV', color: '#9bc985' }, // Groen
+  { label: 'Werkend weekend',  letter: 'WW', color: '#adb5bd' }, // Grijs
+  { label: 'Vrij weekend',     letter: 'VW', color: '#a6c8e8' }, // Lichtblauw
+  { label: 'Feestdag',         letter: 'FD', color: '#ffeeba' }, // Lichtgeel
+  { label: 'School',           letter: 'S',  color: '#ffcba4' }, // Zalm/Roze
+  { label: 'Weekend',          letter: 'W',  color: '#e0cffc' }, // Paars
+  { label: 'Opleidingsverlof', letter: 'OV', color: '#495057', textColor: '#fff' }, // Donkergrijs
+  { label: 'Verlof',           letter: 'V',  color: '#d4ac0d', textColor: '#fff' }  // Goud/Donkergeel
+];
 
 let visBrush = null; // null = wissen
 
@@ -5592,7 +5604,7 @@ function initYearPlanner() {
   const ySel = document.getElementById('visYear');
   if (!ySel) return;
 
-  // Vul jaren
+  // Vul jaren als ze leeg zijn
   if (ySel.options.length === 0) {
      const yNow = new Date().getFullYear();
      ySel.innerHTML = '';
@@ -5605,6 +5617,7 @@ function initYearPlanner() {
 
   ySel.addEventListener('change', renderYearGrid);
   
+  // Gum knop
   document.getElementById('visEraser')?.addEventListener('click', () => {
     visBrush = null; 
     updateLegendUI();
@@ -5614,42 +5627,39 @@ function initYearPlanner() {
   renderYearGrid();
 }
 
-// 1. Legende (Gebruikt wel jouw shift-kleuren, maar schrijft niet naar shifts)
+// 1. Legende Renderen (Gebruikt nu de vaste PLANNER_LEGEND lijst)
 function renderLegend() {
   const container = document.getElementById('visLegend');
   if(!container) return;
   container.innerHTML = '';
 
-  const ud = getCurrentUserData();
-  // We tonen alle mogelijke shiften
-  const userShifts = Object.keys(ud.shifts || {}).sort();
-  const systemShifts = ['Verlof', 'Ziekte', 'School', 'Schoolverlof', 'Feestdag', 'Weekend', 'Vrij weekend', 'Werkend weekend', 'Opleidingsverlof'];
-  const allShifts = Array.from(new Set([...userShifts, ...systemShifts]));
-
-  allShifts.forEach(shiftName => {
-    const style = getShiftStyle(shiftName, ud.shifts);
-    
+  PLANNER_LEGEND.forEach(item => {
     const div = document.createElement('div');
     div.className = 'vis-legend-item';
-    div.textContent = shiftName;
     
-    if (style.style) div.setAttribute('style', style.style);
-    else if (style.class) div.classList.add(...style.class.split(' '));
-    else div.style.backgroundColor = '#e9ecef';
-
+    // We tonen de volledige naam in de legende
+    div.textContent = item.label;
+    
+    // Styling
+    div.style.backgroundColor = item.color;
+    if (item.textColor) div.style.color = item.textColor;
+    
+    // Klik actie
     div.onclick = () => {
-      visBrush = shiftName;
+      visBrush = item.label; // We slaan de NAAM op
       updateLegendUI();
     };
     container.appendChild(div);
   });
 }
 
+// Update de selectie randjes
 function updateLegendUI() {
   document.querySelectorAll('.vis-legend-item').forEach(el => el.classList.remove('selected'));
   document.getElementById('visEraser')?.classList.remove('selected');
 
   if (visBrush) {
+    // Zoek op tekstinhoud
     const items = document.querySelectorAll('.vis-legend-item');
     for(let item of items) {
       if(item.textContent === visBrush) item.classList.add('selected');
@@ -5659,7 +5669,7 @@ function updateLegendUI() {
   }
 }
 
-// 2. Rooster Renderen (Leest uit ud.planning)
+// 2. Rooster Renderen
 function renderYearGrid() {
   const grid = document.getElementById('yearGrid');
   if(!grid) return;
@@ -5668,6 +5678,8 @@ function renderYearGrid() {
   grid.innerHTML = '';
 
   const ud = getCurrentUserData();
+  const planData = ud.planning?.[y] || {}; // Haal opgeslagen data op
+  
   const monthNames = ["Januari","Februari","Maart","April","Mei","Juni","Juli","Augustus","September","Oktober","November","December"];
 
   // HEADER (1-31)
@@ -5684,9 +5696,6 @@ function renderYearGrid() {
   }
 
   // DATA RIJEN
-  // We gebruiken hier ud.planning![Jaar]![DatumKey] = "ShiftNaam"
-  const planData = ud.planning?.[y] || {};
-
   for (let m = 0; m < 12; m++) {
     // Label
     const labelCell = document.createElement('div');
@@ -5709,47 +5718,55 @@ function renderYearGrid() {
 
         cell.className = `yg-cell yg-day ${isWeekend ? 'yg-weekend' : ''}`;
         
-        // KIJK IN PLANNING DATA (Niet in monthData!)
-        const plannedShift = planData[dateKey];
+        // KIJK IN PLANNING DATA
+        // Hier staat nu de NAAM van de categorie (bv. "Verlof")
+        const categoryName = planData[dateKey];
 
-        if (plannedShift) {
-           const style = getShiftStyle(plannedShift, ud.shifts);
-           if (style.style) cell.setAttribute('style', style.style);
-           else if (style.class) cell.classList.add(...style.class.split(' '));
+        if (categoryName) {
+           // Zoek de stijl op in onze vaste lijst
+           const legendItem = PLANNER_LEGEND.find(i => i.label === categoryName);
            
-           // Toon eerste letter als afkorting of volledige naam in tooltip
-           cell.title = plannedShift;
-           if(style.letter) cell.textContent = style.letter;
+           if (legendItem) {
+             cell.style.backgroundColor = legendItem.color;
+             if (legendItem.textColor) cell.style.color = legendItem.textColor;
+             
+             // Toon de afkorting in het vakje
+             cell.textContent = legendItem.letter;
+             cell.title = legendItem.label; // Tooltip met volledige naam
+             
+             // Maak tekst vetgedrukt
+             cell.style.fontWeight = 'bold';
+           } else {
+             // Fallback als de naam niet meer bestaat in de legende
+             cell.style.backgroundColor = '#ccc';
+           }
         }
 
-        // KLIK: Sla op in PLANNING
+        // KLIK: Sla op of Wis
         cell.onclick = async () => {
-            // Structuur initialiseren
             ud.planning = ud.planning || {};
             ud.planning[y] = ud.planning[y] || {};
 
             if (visBrush) {
-                // Opslaan: Alleen de naam van de shift
+                // Opslaan: We slaan enkel de NAAM op (bv "Schoolvakantie")
                 ud.planning[y][dateKey] = visBrush;
                 
-                // Visueel updaten
-                const newStyle = getShiftStyle(visBrush, ud.shifts);
-                cell.className = `yg-cell yg-day ${isWeekend ? 'yg-weekend' : ''}`;
-                cell.removeAttribute('style');
-                if (newStyle.style) cell.setAttribute('style', newStyle.style);
-                else cell.classList.add(...newStyle.class.split(' '));
-                if(newStyle.letter) cell.textContent = newStyle.letter;
+                // Direct updaten (zonder volledige reload)
+                const item = PLANNER_LEGEND.find(i => i.label === visBrush);
+                cell.style.backgroundColor = item.color;
+                cell.style.color = item.textColor || '#000';
+                cell.textContent = item.letter;
+                cell.style.fontWeight = 'bold';
             } else {
                 // Wissen
                 delete ud.planning[y][dateKey];
                 
-                // Visueel resetten
+                // Reset stijl
                 cell.removeAttribute('style');
                 cell.className = `yg-cell yg-day ${isWeekend ? 'yg-weekend' : ''}`;
                 cell.textContent = '';
             }
 
-            // Opslaan in database (maar dit raakt monthData niet!)
             await saveUserData();
         };
       }
@@ -5916,4 +5933,3 @@ document.getElementById('saveAnnouncementBtn')?.addEventListener('click', async 
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
-
