@@ -544,101 +544,85 @@ body:not(.auth-checked) #loadingOverlay {
   background-color: #f5f7fb; /* Zelfde kleur als achtergrond */
   z-index: 9999;
 }
-/* --- VISUELE PLANNER --- */
+/* --- JAAROVERZICHT EXCEL STIJL --- */
 
-/* Rooster Layout (7 kolommen) */
-.visual-grid, .visual-grid-header {
+/* Grid layout: 1 kolom voor maandnaam + 31 kolommen voor dagen */
+.year-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-}
-
-.visual-grid-header div {
-  text-align: center;
-  font-weight: bold;
-  color: #6c757d;
-  font-size: 0.85rem;
-  padding-bottom: 5px;
-  border-bottom: 1px solid #dee2e6;
-}
-
-/* Dag vakje */
-.vis-cell {
-  aspect-ratio: 1; /* Maakt vierkant */
-  background: #fff;
+  grid-template-columns: 80px repeat(31, minmax(28px, 1fr)); 
+  gap: 1px;
+  background-color: #dee2e6; /* Lijnen kleur */
   border: 1px solid #dee2e6;
-  border-radius: 6px;
-  position: relative;
-  cursor: pointer;
+  min-width: 900px; /* Zorgt dat het scrollbaar is op klein scherm */
+}
+
+/* Algemene cel stijl */
+.yg-cell {
+  background-color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-direction: column;
-  transition: transform 0.1s;
-}
-
-.vis-cell:hover {
-  transform: scale(1.05);
-  border-color: #adb5bd;
-  z-index: 5;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
-
-.vis-cell.empty {
-  background-color: #f8f9fa;
-  opacity: 0.3;
-  pointer-events: none;
-}
-
-/* Datum nummer */
-.vis-cell-date {
-  position: absolute;
-  top: 4px;
-  left: 6px;
   font-size: 0.75rem;
+  height: 32px; /* Hoogte van de rijen */
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Header cel (de nummers 1-31 bovenaan) */
+.yg-header {
   font-weight: bold;
-  color: #495057;
+  background-color: #f8f9fa;
+  border-bottom: 2px solid #ccc;
+}
+
+/* Maandnaam cel (eerste kolom) */
+.yg-month-label {
+  font-weight: bold;
+  justify-content: flex-start;
+  padding-left: 8px;
+  background-color: #fff;
+  border-right: 2px solid #ccc;
+  cursor: default;
+}
+
+/* Weekend (Zat/Zon) */
+.yg-weekend {
+  background-color: #f2f2f2; 
+}
+
+/* Ongeldige dagen (bv 30 feb) */
+.yg-invalid {
+  background-color: #e9ecef;
+  background-image: linear-gradient(45deg, #dee2e6 25%, transparent 25%, transparent 50%, #dee2e6 50%, #dee2e6 75%, transparent 75%, transparent);
+  background-size: 10px 10px;
   pointer-events: none;
 }
 
-/* Tekst in vakje */
-.vis-cell-content {
+/* Hover effect op dagen */
+.yg-day:hover {
+  border: 2px solid #000;
+  z-index: 5;
+}
+
+/* LEGENDE */
+.vis-legend-item {
+  padding: 4px 8px;
   font-size: 0.75rem;
   font-weight: 600;
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 4px;
   text-align: center;
-  padding: 0 2px;
-  pointer-events: none;
-  width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-/* Legende items */
-.vis-legend-item {
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 2px solid transparent;
-  text-align: center;
-  user-select: none;
-  transition: transform 0.1s;
-}
-
-.vis-legend-item:hover { opacity: 0.9; transform: scale(1.02); }
-
-/* Geselecteerde items */
 .vis-legend-item.selected {
   border-color: #000;
-  box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
+  transform: scale(1.05);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
 #visEraser.selected {
   background-color: #6c757d;
   color: #fff;
 }
-
-/* Donkere modus support */
-body.dark-mode .vis-cell { background-color: #2b2b2b; border-color: #444; }
-body.dark-mode .vis-cell-date { color: #aaa; }
