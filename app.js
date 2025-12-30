@@ -5583,13 +5583,217 @@ document.querySelector('a[href="#tab-nonbillable"]')?.addEventListener('shown.bs
   renderNonBillable();
 });
 // =============================================
-// 📢 PRIKBORD LOGICA
+// 📅 JAAROVERZICHT LOGICA (EXCEL STIJL)
 // =============================================
 
+let visBrush = null; // null = wissen
+
+// 1. Initialiseren
+function initYearPlanner() {
+  const ySel = document.getElementById('visYear');
+  if (!ySel) return;
+
+  // Vul jaar select als leeg
+  if (ySel.options.length === 0) {
+     const yNow = new Date().getFullYear();
+     ySel.innerHTML = '';
+     for(let y=yNow-1; y<=yNow+2; y++){
+       const opt = document.createElement('option'); opt.value = y; opt.textContent = y;
+       if(y===yNow) opt.selected = true;
+       ySel.appendChild(opt);
+     }
+  }
+
+  // Listeners
+  ySel.addEventListener('change', renderYearGrid);
+  
+  document.getElementById('visEraser')?.addEventListener('click', () => {
+    visBrush = null; 
+    updateLegendUI();
+  });
+
+  renderLegend();
+  renderYearGrid();
+}
+
+// 2. Legende (Rechts)
+function renderLegend() {
+  const container = document.getElementById('visLegend');
+  if(!container) return;
+  container.innerHTML = '';
+
+  const ud = getCurrentUserData();
+  // Mix van eigen shiften en standaard shiften
+  const userShifts = Object.keys(ud.shifts || {}).sort();
+  const systemShifts = ['Verlof', 'Ziekte', 'School', 'Schoolverlof', 'Feestdag', 'Weekend', 'Vrij weekend', 'Werkend weekend', 'Opleidingsverlof'];
+  const allShifts = Array.from(new Set([...userShifts, ...systemShifts]));
+
+  allShifts.forEach(shiftName => {
+    // Check eerst of het een shift is waar we een kleur voor hebben
+    const style = getShiftStyle(shiftName, ud.shifts);
+    
+    const div = document.createElement('div');
+    div.className = 'vis-legend-item';
+    div.textContent = shiftName;
+    
+    if (style.style) div.setAttribute('style', style.style);
+    else if (style.class) div.classList.add(...style.class.split(' '));
+    else div.style.backgroundColor = '#e9ecef';
+
+    div.onclick = () => {
+      visBrush = shiftName;
+      updateLegendUI();
+    };
+    container.appendChild(div);
+  });
+}
+
+function updateLegendUI() {
+  document.querySelectorAll('.vis-legend-item').forEach(el => el.classList.remove('selected'));
+  document.getElementById('visEraser')?.classList.remove('selected');
+
+  if (visBrush) {
+    const items = document.querySelectorAll('.vis-legend-item');
+    for(let item of items) {
+      if(item.textContent === visBrush) item.classList.add('selected');
+    }
+  } else {
+    document.getElementById('visEraser')?.classList.add('selected');
+  }
+}
+
+// 3. Het rooster tekenen (12 rijen x 31 kolommen)
+function renderYearGrid() {
+  const grid = document.getElementById('yearGrid');
+  if(!grid) return;
+  
+  const y = Number(document.getElementById('visYear').value);
+  grid.innerHTML = '';
+
+  const ud = getCurrentUserData();
+  const monthNames = ["Januari","Februari","Maart","April","Mei","Juni","Juli","Augustus","September","Oktober","November","December"];
+
+  // --- RIJ 1: HEADER (Nummers 1 t/m 31) ---
+  // Eerste cel is leeg (boven maandnamen)
+  const emptyCorner = document.createElement('div');
+  emptyCorner.className = 'yg-cell yg-header';
+  emptyCorner.textContent = 'Maand';
+  grid.appendChild(emptyCorner);
+
+  for(let i=1; i<=31; i++){
+    const headCell = document.createElement('div');
+    headCell.className = 'yg-cell yg-header';
+    headCell.textContent = i;
+    grid.appendChild(headCell);
+  }
+
+  // --- RIJEN 2-13: MAANDEN ---
+  for (let m = 0; m < 12; m++) {
+    // 1. Maand Label (Links)
+    const labelCell = document.createElement('div');
+    labelCell.className = 'yg-cell yg-month-label';
+    labelCell.textContent = monthNames[m];
+    grid.appendChild(labelCell);
+
+    // 2. Dagen 1 t/m 31
+    for (let d = 1; d <= 31; d++) {
+      const cell = document.createElement('div');
+      
+      // Check of datum geldig is (bv. 30 februari bestaat niet)
+      const dateObj = new Date(y, m, d);
+      const isValidDate = (dateObj.getMonth() === m);
+
+      if (!isValidDate) {
+        cell.className = 'yg-cell yg-invalid'; // Grijs/Gearceerd
+      } else {
+        const dateKey = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const dayOfWeek = dateObj.getDay(); // 0=Zo, 6=Za
+        const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+
+        cell.className = `yg-cell yg-day ${isWeekend ? 'yg-weekend' : ''}`;
+        
+        // Data ophalen
+        const rows = ud.monthData?.[y]?.[m]?.rows || {};
+        // Zoek shift (ook als er #2, #3 regels zijn, pak de eerste)
+        const existingKey = Object.keys(rows).find(k => k === dateKey || k.startsWith(dateKey + '#')) || dateKey;
+        const rowData = rows[existingKey] || {};
+        const currentShift = rowData.shift || '';
+
+        // Kleur toepassen
+        if (currentShift) {
+           const style = getShiftStyle(currentShift, ud.shifts);
+           if (style.style) cell.setAttribute('style', style.style);
+           else if (style.class) cell.classList.add(...style.class.split(' '));
+           
+           // Tip: toon eerste letter of tooltip
+           cell.title = currentShift;
+           // Optioneel: Toon afkorting in cel
+           if(style.letter) cell.textContent = style.letter; 
+        }
+
+        // KLIK EVENT
+        cell.onclick = async () => {
+            // Data structuur
+            ud.monthData = ud.monthData || {};
+            ud.monthData[y] = ud.monthData[y] || {};
+            ud.monthData[y][m] = ud.monthData[y][m] || { targetHours: 0, targetMinutes: 0, rows: {} };
+
+            // We schrijven altijd naar de basis key (geen multi-lines in dit overzicht)
+            const targetKey = dateKey; 
+
+            if (visBrush) {
+                // Toevoegen
+                const sh = ud.shifts[visBrush] || {};
+                let project = sh.project || '';
+                if (typeof autoProjectForShift === 'function') {
+                   const autoP = autoProjectForShift(visBrush);
+                   if(autoP) project = autoP;
+                }
+                const mins = (typeof minutesBetween === 'function') 
+                   ? minutesBetween(sh.start||'00:00', sh.end||'00:00', sh.break||0) : 0;
+
+                ud.monthData[y][m].rows[targetKey] = {
+                  project: project, shift: visBrush,
+                  start: sh.start || '00:00', end: sh.end || '00:00',
+                  break: sh.break || 0, minutes: mins,
+                  omschrijving: rowData.omschrijving || ''
+                };
+
+                // Update visueel
+                const newStyle = getShiftStyle(visBrush, ud.shifts);
+                cell.className = `yg-cell yg-day ${isWeekend ? 'yg-weekend' : ''}`; // reset class
+                cell.removeAttribute('style');
+                
+                if (newStyle.style) cell.setAttribute('style', newStyle.style);
+                else cell.classList.add(...newStyle.class.split(' '));
+                if(newStyle.letter) cell.textContent = newStyle.letter;
+
+            } else {
+                // Wissen
+                if (ud.monthData[y][m].rows[targetKey]) {
+                   delete ud.monthData[y][m].rows[targetKey];
+                }
+                cell.removeAttribute('style');
+                cell.className = `yg-cell yg-day ${isWeekend ? 'yg-weekend' : ''}`;
+                cell.textContent = '';
+            }
+
+            await saveUserData();
+            if(typeof updateInputTotals === 'function') updateInputTotals();
+        };
+      }
+      grid.appendChild(cell);
+    }
+  }
+}
+
+// Activeren bij tab wissel
+document.querySelector('a[href="#tab-visual"]')?.addEventListener('shown.bs.tab', () => {
+  initYearPlanner();
+});
 // =============================================
 // 📢 PRIKBORD LOGICA
 // =============================================
-
 // 1. Functie om het prikbord te starten
 function initAnnouncements() {
   const btn = document.getElementById('addAnnouncementBtn');
