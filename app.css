@@ -544,38 +544,39 @@ body:not(.auth-checked) #loadingOverlay {
   background-color: #f5f7fb; /* Zelfde kleur als achtergrond */
   z-index: 9999;
 }
-/* --- JAAROVERZICHT EXCEL STIJL --- */
+/* --- JAARPLANNER EXCEL STIJL --- */
 
-/* Grid layout: 1 kolom voor maandnaam + 31 kolommen voor dagen */
+/* Grid layout: Maandnaam + 31 dagen */
 .year-grid {
   display: grid;
   grid-template-columns: 80px repeat(31, minmax(28px, 1fr)); 
   gap: 1px;
-  background-color: #dee2e6; /* Lijnen kleur */
+  background-color: #dee2e6; /* Lijnen */
   border: 1px solid #dee2e6;
-  min-width: 900px; /* Zorgt dat het scrollbaar is op klein scherm */
+  min-width: 900px;
 }
 
-/* Algemene cel stijl */
+/* Cellen */
 .yg-cell {
   background-color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
-  height: 32px; /* Hoogte van de rijen */
+  font-size: 0.7rem; /* Iets kleiner font voor overzicht */
+  height: 30px; 
   cursor: pointer;
   user-select: none;
+  overflow: hidden;
 }
 
-/* Header cel (de nummers 1-31 bovenaan) */
+/* Header (1-31) */
 .yg-header {
   font-weight: bold;
   background-color: #f8f9fa;
   border-bottom: 2px solid #ccc;
 }
 
-/* Maandnaam cel (eerste kolom) */
+/* Maand Label */
 .yg-month-label {
   font-weight: bold;
   justify-content: flex-start;
@@ -585,26 +586,18 @@ body:not(.auth-checked) #loadingOverlay {
   cursor: default;
 }
 
-/* Weekend (Zat/Zon) */
-.yg-weekend {
-  background-color: #f2f2f2; 
+/* Weekend en ongeldige dagen */
+.yg-weekend { background-color: #f2f2f2; }
+.yg-invalid { 
+  background-color: #e9ecef; 
+  background-image: linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 50%, #ccc 50%, #ccc 75%, transparent 75%, transparent);
+  background-size: 4px 4px;
+  pointer-events: none; 
 }
 
-/* Ongeldige dagen (bv 30 feb) */
-.yg-invalid {
-  background-color: #e9ecef;
-  background-image: linear-gradient(45deg, #dee2e6 25%, transparent 25%, transparent 50%, #dee2e6 50%, #dee2e6 75%, transparent 75%, transparent);
-  background-size: 10px 10px;
-  pointer-events: none;
-}
+.yg-day:hover { border: 2px solid #000; z-index: 5; }
 
-/* Hover effect op dagen */
-.yg-day:hover {
-  border: 2px solid #000;
-  z-index: 5;
-}
-
-/* LEGENDE */
+/* Legende */
 .vis-legend-item {
   padding: 4px 8px;
   font-size: 0.75rem;
@@ -622,7 +615,4 @@ body:not(.auth-checked) #loadingOverlay {
   transform: scale(1.05);
   box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
-#visEraser.selected {
-  background-color: #6c757d;
-  color: #fff;
-}
+#visEraser.selected { background-color: #6c757d; color: #fff; }
