@@ -53,6 +53,9 @@
   <a class="nav-link" data-bs-toggle="tab" href="#tab-shifts">
     <span class="material-icons-outlined">schedule</span> <span class="label">Shifts</span>
   </a>
+  <a class="nav-link" data-bs-toggle="tab" href="#tab-visual">
+  <span class="material-icons-outlined">grid_view</span> <span class="label">Visuele Planner</span>
+  </a>
   <a class="nav-link" data-bs-toggle="tab" href="#tab-invoer">
     <span class="material-icons-outlined">list_alt</span> <span class="label">Invoer</span>
   </a>
@@ -348,7 +351,49 @@
           Tip: je kan de volgorde bewaren via de “volgorde opslaan”-knop (drag & drop is browser-afhankelijk in tabellen; alternatief: gebruik sorteerknoppen).
         </div>
       </section>
+    <!-- PLANNER -->
+      <section id="tab-visual" class="tab-pane fade">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Visuele Planner</h5>
+    <div class="d-flex gap-2">
+      <select id="visMonth" class="form-select form-select-sm" style="width:120px;"></select>
+      <select id="visYear" class="form-select form-select-sm" style="width:100px;"></select>
+    </div>
+  </div>
 
+  <div class="row g-3">
+    <div class="col-md-9">
+      <div class="card shadow-sm border-0">
+        <div class="card-body p-2">
+          <div class="visual-grid-header mb-2">
+            <div>Ma</div><div>Di</div><div>Wo</div><div>Do</div><div>Vr</div><div>Za</div><div>Zo</div>
+          </div>
+          <div id="visualGrid" class="visual-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-3">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-header bg-white fw-bold small">
+          Kies een shift
+        </div>
+        <div class="card-body p-2">
+          <p class="text-muted small fst-italic mb-2">
+            Klik op een kleur en daarna op de dagen in het rooster.
+          </p>
+          
+          <button id="visEraser" class="btn btn-outline-secondary btn-sm w-100 mb-3 d-flex align-items-center justify-content-center gap-2">
+            <span class="material-icons-outlined" style="font-size:16px">backspace</span> Wissen (Gum)
+          </button>
+
+          <div id="visLegend" class="d-flex flex-column gap-2 overflow-auto" style="max-height: 500px;">
+            </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
       <!-- INVOER -->
       <section id="tab-invoer" class="tab-pane fade">
        <!-- Invoer-toolbar -->
