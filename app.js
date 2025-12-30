@@ -5583,17 +5583,16 @@ document.querySelector('a[href="#tab-nonbillable"]')?.addEventListener('shown.bs
   renderNonBillable();
 });
 // =============================================
-// 📅 JAAROVERZICHT LOGICA (EXCEL STIJL)
+// 📅 JAARPLANNER (KLADBLOK - GESCHEIDEN DATA)
 // =============================================
 
 let visBrush = null; // null = wissen
 
-// 1. Initialiseren
 function initYearPlanner() {
   const ySel = document.getElementById('visYear');
   if (!ySel) return;
 
-  // Vul jaar select als leeg
+  // Vul jaren
   if (ySel.options.length === 0) {
      const yNow = new Date().getFullYear();
      ySel.innerHTML = '';
@@ -5604,7 +5603,6 @@ function initYearPlanner() {
      }
   }
 
-  // Listeners
   ySel.addEventListener('change', renderYearGrid);
   
   document.getElementById('visEraser')?.addEventListener('click', () => {
@@ -5616,20 +5614,19 @@ function initYearPlanner() {
   renderYearGrid();
 }
 
-// 2. Legende (Rechts)
+// 1. Legende (Gebruikt wel jouw shift-kleuren, maar schrijft niet naar shifts)
 function renderLegend() {
   const container = document.getElementById('visLegend');
   if(!container) return;
   container.innerHTML = '';
 
   const ud = getCurrentUserData();
-  // Mix van eigen shiften en standaard shiften
+  // We tonen alle mogelijke shiften
   const userShifts = Object.keys(ud.shifts || {}).sort();
   const systemShifts = ['Verlof', 'Ziekte', 'School', 'Schoolverlof', 'Feestdag', 'Weekend', 'Vrij weekend', 'Werkend weekend', 'Opleidingsverlof'];
   const allShifts = Array.from(new Set([...userShifts, ...systemShifts]));
 
   allShifts.forEach(shiftName => {
-    // Check eerst of het een shift is waar we een kleur voor hebben
     const style = getShiftStyle(shiftName, ud.shifts);
     
     const div = document.createElement('div');
@@ -5662,7 +5659,7 @@ function updateLegendUI() {
   }
 }
 
-// 3. Het rooster tekenen (12 rijen x 31 kolommen)
+// 2. Rooster Renderen (Leest uit ud.planning)
 function renderYearGrid() {
   const grid = document.getElementById('yearGrid');
   if(!grid) return;
@@ -5673,11 +5670,10 @@ function renderYearGrid() {
   const ud = getCurrentUserData();
   const monthNames = ["Januari","Februari","Maart","April","Mei","Juni","Juli","Augustus","September","Oktober","November","December"];
 
-  // --- RIJ 1: HEADER (Nummers 1 t/m 31) ---
-  // Eerste cel is leeg (boven maandnamen)
+  // HEADER (1-31)
   const emptyCorner = document.createElement('div');
   emptyCorner.className = 'yg-cell yg-header';
-  emptyCorner.textContent = 'Maand';
+  emptyCorner.textContent = 'MND';
   grid.appendChild(emptyCorner);
 
   for(let i=1; i<=31; i++){
@@ -5687,99 +5683,74 @@ function renderYearGrid() {
     grid.appendChild(headCell);
   }
 
-  // --- RIJEN 2-13: MAANDEN ---
+  // DATA RIJEN
+  // We gebruiken hier ud.planning![Jaar]![DatumKey] = "ShiftNaam"
+  const planData = ud.planning?.[y] || {};
+
   for (let m = 0; m < 12; m++) {
-    // 1. Maand Label (Links)
+    // Label
     const labelCell = document.createElement('div');
     labelCell.className = 'yg-cell yg-month-label';
     labelCell.textContent = monthNames[m];
     grid.appendChild(labelCell);
 
-    // 2. Dagen 1 t/m 31
+    // Dagen
     for (let d = 1; d <= 31; d++) {
       const cell = document.createElement('div');
-      
-      // Check of datum geldig is (bv. 30 februari bestaat niet)
       const dateObj = new Date(y, m, d);
-      const isValidDate = (dateObj.getMonth() === m);
-
-      if (!isValidDate) {
-        cell.className = 'yg-cell yg-invalid'; // Grijs/Gearceerd
+      
+      // Ongeldige datum (bv 31 feb)
+      if (dateObj.getMonth() !== m) {
+        cell.className = 'yg-cell yg-invalid';
       } else {
         const dateKey = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        const dayOfWeek = dateObj.getDay(); // 0=Zo, 6=Za
+        const dayOfWeek = dateObj.getDay();
         const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
 
         cell.className = `yg-cell yg-day ${isWeekend ? 'yg-weekend' : ''}`;
         
-        // Data ophalen
-        const rows = ud.monthData?.[y]?.[m]?.rows || {};
-        // Zoek shift (ook als er #2, #3 regels zijn, pak de eerste)
-        const existingKey = Object.keys(rows).find(k => k === dateKey || k.startsWith(dateKey + '#')) || dateKey;
-        const rowData = rows[existingKey] || {};
-        const currentShift = rowData.shift || '';
+        // KIJK IN PLANNING DATA (Niet in monthData!)
+        const plannedShift = planData[dateKey];
 
-        // Kleur toepassen
-        if (currentShift) {
-           const style = getShiftStyle(currentShift, ud.shifts);
+        if (plannedShift) {
+           const style = getShiftStyle(plannedShift, ud.shifts);
            if (style.style) cell.setAttribute('style', style.style);
            else if (style.class) cell.classList.add(...style.class.split(' '));
            
-           // Tip: toon eerste letter of tooltip
-           cell.title = currentShift;
-           // Optioneel: Toon afkorting in cel
-           if(style.letter) cell.textContent = style.letter; 
+           // Toon eerste letter als afkorting of volledige naam in tooltip
+           cell.title = plannedShift;
+           if(style.letter) cell.textContent = style.letter;
         }
 
-        // KLIK EVENT
+        // KLIK: Sla op in PLANNING
         cell.onclick = async () => {
-            // Data structuur
-            ud.monthData = ud.monthData || {};
-            ud.monthData[y] = ud.monthData[y] || {};
-            ud.monthData[y][m] = ud.monthData[y][m] || { targetHours: 0, targetMinutes: 0, rows: {} };
-
-            // We schrijven altijd naar de basis key (geen multi-lines in dit overzicht)
-            const targetKey = dateKey; 
+            // Structuur initialiseren
+            ud.planning = ud.planning || {};
+            ud.planning[y] = ud.planning[y] || {};
 
             if (visBrush) {
-                // Toevoegen
-                const sh = ud.shifts[visBrush] || {};
-                let project = sh.project || '';
-                if (typeof autoProjectForShift === 'function') {
-                   const autoP = autoProjectForShift(visBrush);
-                   if(autoP) project = autoP;
-                }
-                const mins = (typeof minutesBetween === 'function') 
-                   ? minutesBetween(sh.start||'00:00', sh.end||'00:00', sh.break||0) : 0;
-
-                ud.monthData[y][m].rows[targetKey] = {
-                  project: project, shift: visBrush,
-                  start: sh.start || '00:00', end: sh.end || '00:00',
-                  break: sh.break || 0, minutes: mins,
-                  omschrijving: rowData.omschrijving || ''
-                };
-
-                // Update visueel
-                const newStyle = getShiftStyle(visBrush, ud.shifts);
-                cell.className = `yg-cell yg-day ${isWeekend ? 'yg-weekend' : ''}`; // reset class
-                cell.removeAttribute('style');
+                // Opslaan: Alleen de naam van de shift
+                ud.planning[y][dateKey] = visBrush;
                 
+                // Visueel updaten
+                const newStyle = getShiftStyle(visBrush, ud.shifts);
+                cell.className = `yg-cell yg-day ${isWeekend ? 'yg-weekend' : ''}`;
+                cell.removeAttribute('style');
                 if (newStyle.style) cell.setAttribute('style', newStyle.style);
                 else cell.classList.add(...newStyle.class.split(' '));
                 if(newStyle.letter) cell.textContent = newStyle.letter;
-
             } else {
                 // Wissen
-                if (ud.monthData[y][m].rows[targetKey]) {
-                   delete ud.monthData[y][m].rows[targetKey];
-                }
+                delete ud.planning[y][dateKey];
+                
+                // Visueel resetten
                 cell.removeAttribute('style');
                 cell.className = `yg-cell yg-day ${isWeekend ? 'yg-weekend' : ''}`;
                 cell.textContent = '';
             }
 
+            // Opslaan in database (maar dit raakt monthData niet!)
             await saveUserData();
-            if(typeof updateInputTotals === 'function') updateInputTotals();
         };
       }
       grid.appendChild(cell);
@@ -5787,7 +5758,7 @@ function renderYearGrid() {
   }
 }
 
-// Activeren bij tab wissel
+// Activeer bij tab wissel
 document.querySelector('a[href="#tab-visual"]')?.addEventListener('shown.bs.tab', () => {
   initYearPlanner();
 });
