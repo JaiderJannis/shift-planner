@@ -5829,7 +5829,7 @@ document.getElementById('btnExportPlanPdf')?.addEventListener('click', () => {
     tableBody.push(row);
   }
 
-  const headRow = ['MND'];
+  const headRow = ['Maand'];
   for(let i=1; i<=31; i++) headRow.push(i);
 
   doc.autoTable({
@@ -5938,6 +5938,97 @@ document.getElementById('confirmSharePlanBtn')?.addEventListener('click', async 
 // Activeer bij tab wissel
 document.querySelector('a[href="#tab-visual"]')?.addEventListener('shown.bs.tab', () => {
   initYearPlanner();
+});
+// ==========================================
+// 🛡️ ADMIN TAB LOGICA (HERSTEL)
+// ==========================================
+
+// 1. Initialiseer Admin Tab (Lijst vullen met gebruikers)
+document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab', async () => {
+  const sel = document.getElementById('adminUserSelect');
+  if(!sel) return;
+  
+  sel.innerHTML = '<option>Laden...</option>';
+  
+  try {
+    // Haal alle users op uit de database
+    const snap = await getDocs(collection(db, 'users'));
+    sel.innerHTML = '<option value="">-- Kies gebruiker --</option>';
+    
+    snap.forEach(docSnap => {
+      const data = docSnap.data();
+      const opt = document.createElement('option');
+      opt.value = docSnap.id;
+      // Toon Naam + Email in de lijst
+      opt.textContent = `${data.name || 'Naamloos'} (${data.email || 'Geen email'})`;
+      sel.appendChild(opt);
+    });
+
+  } catch(err) {
+    console.error("Fout bij laden admin users:", err);
+    sel.innerHTML = '<option>Fout bij laden</option>';
+  }
+});
+
+// 2. Gebruiker Selecteren (Gegevens ophalen bij wisselen)
+document.getElementById('adminUserSelect')?.addEventListener('change', async (e) => {
+  const uid = e.target.value;
+  if(!uid) {
+      // Reset velden als geen gebruiker gekozen
+      const roleSel = document.getElementById('roleSelect');
+      if(roleSel) roleSel.value = 'user';
+      return;
+  }
+  
+  try {
+    const docRef = doc(db, 'users', uid);
+    const snap = await getDoc(docRef);
+    if(snap.exists()) {
+      const data = snap.data();
+      // Vul de rol in (user/admin)
+      const roleSel = document.getElementById('roleSelect');
+      if(roleSel) roleSel.value = data.role || 'user';
+    }
+  } catch(err) {
+    console.error(err);
+    toast('Kon gebruiker gegevens niet ophalen', 'danger');
+  }
+});
+
+// 3. Rol Opslaan Knop
+document.getElementById('updateRoleBtn')?.addEventListener('click', async () => {
+  const uid = document.getElementById('adminUserSelect').value;
+  const newRole = document.getElementById('roleSelect').value;
+  
+  if(!uid) return toast('Selecteer eerst een gebruiker', 'warning');
+  
+  try {
+    await updateDoc(doc(db, 'users', uid), { role: newRole });
+    toast('Rol succesvol aangepast', 'success');
+  } catch(err) {
+    console.error(err);
+    toast('Fout bij opslaan rol', 'danger');
+  }
+});
+
+// 4. Gebruiker Verwijderen Knop
+document.getElementById('removeUserBtn')?.addEventListener('click', async () => {
+   const uid = document.getElementById('adminUserSelect').value;
+   if(!uid) return toast('Selecteer eerst een gebruiker', 'warning');
+   
+   if(confirm('Weet je zeker dat je deze gebruiker wilt verwijderen? Dit kan niet ongedaan gemaakt worden!')) {
+       try {
+         await deleteDoc(doc(db, 'users', uid));
+         toast('Gebruiker verwijderd', 'success');
+         // Herlaad de lijst door even van tab te wisselen (simulatie) of handmatig:
+         document.getElementById('adminUserSelect').value = "";
+         const event = new Event('shown.bs.tab');
+         document.querySelector('a[href="#tab-admin"]').dispatchEvent(event);
+       } catch(err) {
+         console.error(err);
+         toast('Fout bij verwijderen', 'danger');
+       }
+   }
 });
 // =============================================
 // 📢 PRIKBORD LOGICA
@@ -6084,13 +6175,3 @@ document.getElementById('saveAnnouncementBtn')?.addEventListener('click', async 
     const modalEl = document.getElementById('announcementModal');
     bootstrap.Modal.getInstance(modalEl).hide();
     toast('Mededeling geplaatst', 'success');
-
-  } catch (e) {
-    console.error(e);
-    toast('Fout bij plaatsen (check permissies)', 'danger');
-  }
-});
-// Initialiseer bij laden pagina (voor de selectors)
-document.addEventListener('DOMContentLoaded', initNonBillable);
-    // De Wachtwoord Reset Knop-logica is nu verwijderd.
-
