@@ -5774,7 +5774,7 @@ function hexToRgbArr(hex) {
   return [255, 255, 255];
 }
 
-// 4. PDF EXPORT
+// 4. PDF EXPORT KNOP
 document.getElementById('btnExportPlanPdf')?.addEventListener('click', () => {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -5796,11 +5796,20 @@ document.getElementById('btnExportPlanPdf')?.addEventListener('click', () => {
   for (let m = 0; m < 12; m++) {
     const row = [months[m]];
     for (let d = 1; d <= 31; d++) {
+       const dateObj = new Date(y, m, d);
        const dateKey = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
        const shiftName = planData[dateKey];
        
        let cellText = '';
        let cellColor = null; 
+
+       // 1. Check eerst: is het weekend? Zo ja -> standaard grijs
+       const dayOfWeek = dateObj.getDay(); // 0 = Zondag, 6 = Zaterdag
+       if (dayOfWeek === 0 || dayOfWeek === 6) {
+          cellColor = [230, 230, 230]; // Lichtgrijs (RGB)
+       }
+
+       // 2. Check daarna: is er een shift ingevuld? Zo ja -> overschrijf kleur
        if (shiftName) {
          const legendItem = PLANNER_LEGEND.find(i => i.label === shiftName);
          if (legendItem) {
@@ -5808,6 +5817,13 @@ document.getElementById('btnExportPlanPdf')?.addEventListener('click', () => {
            cellColor = hexToRgbArr(legendItem.color);
          }
        }
+       
+       // Ongeldige data (bv 31 feb) maken we donkerder grijs of laten we leeg
+       if (dateObj.getMonth() !== m) {
+          cellColor = [200, 200, 200]; // Donkerder grijs voor onbestaande dagen
+          cellText = ''; 
+       }
+
        row.push({ content: cellText, styles: { fillColor: cellColor, halign: 'center', fontSize: 7, fontStyle: 'bold' } });
     }
     tableBody.push(row);
