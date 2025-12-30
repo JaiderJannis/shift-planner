@@ -353,13 +353,23 @@
       </section>
     <!-- PLANNER -->
    <section id="tab-visual" class="tab-pane fade">
-  <div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
     <div>
       <h5 class="mb-0">Jaarplanner (Kladblok)</h5>
-      <small class="text-muted">Dit is een visuele planning. Aanpassingen hier beïnvloeden je <strong>Invoer</strong> of uren niet.</small>
+      <small class="text-muted">Visuele planning. Beïnvloedt de uren-telling niet.</small>
     </div>
+    
     <div class="d-flex gap-2">
-      <select id="visYear" class="form-select form-select-sm" style="width:100px;"></select>
+      <select id="visYear" class="form-select form-select-sm" style="width:90px;"></select>
+      
+      <button id="btnExportPlanPdf" class="btn btn-outline-danger btn-sm" title="Download PDF">
+        <span class="material-icons-outlined" style="font-size:18px; vertical-align:middle;">picture_as_pdf</span>
+      </button>
+
+      <button id="btnSharePlan" class="btn btn-primary btn-sm d-flex align-items-center gap-1" title="Kopieer naar gebruiker">
+        <span class="material-icons-outlined" style="font-size:18px;">ios_share</span>
+        <span class="d-none d-sm-inline">Kopiëren naar...</span>
+      </button>
     </div>
   </div>
 
