@@ -5678,7 +5678,7 @@ function renderYearGrid() {
   // HEADER (1-31)
   const emptyCorner = document.createElement('div');
   emptyCorner.className = 'yg-cell yg-header';
-  emptyCorner.textContent = 'MND';
+  emptyCorner.textContent = 'Maand';
   grid.appendChild(emptyCorner);
 
   for(let i=1; i<=31; i++){
