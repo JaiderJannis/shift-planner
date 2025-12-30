@@ -5587,10 +5587,12 @@ document.querySelector('a[href="#tab-nonbillable"]')?.addEventListener('shown.bs
 // ==========================================
 
 // 1. Initialiseer Admin Tab (Lijst vullen met gebruikers)
+// Deze functie start zodra je op het tabblad "Admin" klikt
 document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab', async () => {
   const sel = document.getElementById('adminUserSelect');
   if(!sel) return;
   
+  // Toon even dat hij aan het laden is
   sel.innerHTML = '<option>Laden...</option>';
   
   try {
@@ -5609,7 +5611,7 @@ document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab',
 
   } catch(err) {
     console.error("Fout bij laden admin users:", err);
-    sel.innerHTML = '<option>Fout bij laden</option>';
+    sel.innerHTML = '<option>Fout bij laden (check console)</option>';
   }
 });
 
@@ -5624,11 +5626,13 @@ document.getElementById('adminUserSelect')?.addEventListener('change', async (e)
   }
   
   try {
+    // Haal de gegevens van de gekozen gebruiker op
     const docRef = doc(db, 'users', uid);
     const snap = await getDoc(docRef);
+    
     if(snap.exists()) {
       const data = snap.data();
-      // Vul de rol in (user/admin)
+      // Zet de dropdown op de juiste rol (admin of user)
       const roleSel = document.getElementById('roleSelect');
       if(roleSel) roleSel.value = data.role || 'user';
     }
@@ -5646,6 +5650,7 @@ document.getElementById('updateRoleBtn')?.addEventListener('click', async () => 
   if(!uid) return toast('Selecteer eerst een gebruiker', 'warning');
   
   try {
+    // Update de rol in de database
     await updateDoc(doc(db, 'users', uid), { role: newRole });
     toast('Rol succesvol aangepast', 'success');
   } catch(err) {
@@ -5663,10 +5668,13 @@ document.getElementById('removeUserBtn')?.addEventListener('click', async () => 
        try {
          await deleteDoc(doc(db, 'users', uid));
          toast('Gebruiker verwijderd', 'success');
-         // Herlaad de lijst door even van tab te wisselen (simulatie) of handmatig:
+         
+         // Reset de selectie
          document.getElementById('adminUserSelect').value = "";
+         // Herlaad de lijst door het tab-event opnieuw te triggeren
          const event = new Event('shown.bs.tab');
          document.querySelector('a[href="#tab-admin"]').dispatchEvent(event);
+         
        } catch(err) {
          console.error(err);
          toast('Fout bij verwijderen', 'danger');
@@ -6184,3 +6192,4 @@ document.getElementById('saveAnnouncementBtn')?.addEventListener('click', async 
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
+
