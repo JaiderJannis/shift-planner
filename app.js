@@ -5583,19 +5583,19 @@ document.querySelector('a[href="#tab-nonbillable"]')?.addEventListener('shown.bs
   renderNonBillable();
 });
 // =============================================
-// 📅 JAARPLANNER (KLADBLOK - VASTE LEGENDE)
+// 📅 JAARPLANNER (KLADBLOK - MET VASTE LEGENDE & EXPORT)
 // =============================================
 
 // 🛠️ CONFIGURATIE: Pas hier je kleuren en categorieën aan
 const PLANNER_LEGEND = [
-  { label: 'Schoolvakantie',   letter: 'SV', color: '#9bc985' }, // Groen
-  { label: 'Werkend weekend',  letter: 'WW', color: '#adb5bd' }, // Grijs
-  { label: 'Vrij weekend',     letter: 'VW', color: '#a6c8e8' }, // Lichtblauw
-  { label: 'Feestdag',         letter: 'FD', color: '#ffeeba' }, // Lichtgeel
-  { label: 'School',           letter: 'S',  color: '#ffcba4' }, // Zalm/Roze
-  { label: 'Weekend',          letter: 'W',  color: '#e0cffc' }, // Paars
-  { label: 'Opleidingsverlof', letter: 'OV', color: '#495057', textColor: '#fff' }, // Donkergrijs
-  { label: 'Verlof',           letter: 'V',  color: '#d4ac0d', textColor: '#fff' }  // Goud/Donkergeel
+  { label: 'Schoolvakantie',   letter: 'SV', color: '#9bc985' }, 
+  { label: 'Werkend weekend',  letter: 'WW', color: '#adb5bd' }, 
+  { label: 'Vrij weekend',     letter: 'VW', color: '#a6c8e8' }, 
+  { label: 'Feestdag',         letter: 'FD', color: '#ffeeba' }, 
+  { label: 'School',           letter: 'S',  color: '#ffcba4' }, 
+  { label: 'Weekend',          letter: 'W',  color: '#e0cffc' }, 
+  { label: 'Opleidingsverlof', letter: 'OV', color: '#495057', textColor: '#fff' }, 
+  { label: 'Verlof',           letter: 'V',  color: '#d4ac0d', textColor: '#fff' }
 ];
 
 let visBrush = null; // null = wissen
@@ -5627,7 +5627,7 @@ function initYearPlanner() {
   renderYearGrid();
 }
 
-// 1. Legende Renderen (Gebruikt nu de vaste PLANNER_LEGEND lijst)
+// 1. Legende Renderen
 function renderLegend() {
   const container = document.getElementById('visLegend');
   if(!container) return;
@@ -5636,30 +5636,23 @@ function renderLegend() {
   PLANNER_LEGEND.forEach(item => {
     const div = document.createElement('div');
     div.className = 'vis-legend-item';
-    
-    // We tonen de volledige naam in de legende
     div.textContent = item.label;
-    
-    // Styling
     div.style.backgroundColor = item.color;
     if (item.textColor) div.style.color = item.textColor;
     
-    // Klik actie
     div.onclick = () => {
-      visBrush = item.label; // We slaan de NAAM op
+      visBrush = item.label; 
       updateLegendUI();
     };
     container.appendChild(div);
   });
 }
 
-// Update de selectie randjes
 function updateLegendUI() {
   document.querySelectorAll('.vis-legend-item').forEach(el => el.classList.remove('selected'));
   document.getElementById('visEraser')?.classList.remove('selected');
 
   if (visBrush) {
-    // Zoek op tekstinhoud
     const items = document.querySelectorAll('.vis-legend-item');
     for(let item of items) {
       if(item.textContent === visBrush) item.classList.add('selected');
@@ -5678,7 +5671,7 @@ function renderYearGrid() {
   grid.innerHTML = '';
 
   const ud = getCurrentUserData();
-  const planData = ud.planning?.[y] || {}; // Haal opgeslagen data op
+  const planData = ud.planning?.[y] || {}; 
   
   const monthNames = ["Januari","Februari","Maart","April","Mei","Juni","Juli","Augustus","September","Oktober","November","December"];
 
@@ -5708,7 +5701,6 @@ function renderYearGrid() {
       const cell = document.createElement('div');
       const dateObj = new Date(y, m, d);
       
-      // Ongeldige datum (bv 31 feb)
       if (dateObj.getMonth() !== m) {
         cell.className = 'yg-cell yg-invalid';
       } else {
@@ -5718,40 +5710,34 @@ function renderYearGrid() {
 
         cell.className = `yg-cell yg-day ${isWeekend ? 'yg-weekend' : ''}`;
         
-        // KIJK IN PLANNING DATA
-        // Hier staat nu de NAAM van de categorie (bv. "Verlof")
+        // Data tonen
         const categoryName = planData[dateKey];
-
         if (categoryName) {
-           // Zoek de stijl op in onze vaste lijst
            const legendItem = PLANNER_LEGEND.find(i => i.label === categoryName);
-           
            if (legendItem) {
              cell.style.backgroundColor = legendItem.color;
              if (legendItem.textColor) cell.style.color = legendItem.textColor;
-             
-             // Toon de afkorting in het vakje
              cell.textContent = legendItem.letter;
-             cell.title = legendItem.label; // Tooltip met volledige naam
-             
-             // Maak tekst vetgedrukt
+             cell.title = legendItem.label;
              cell.style.fontWeight = 'bold';
            } else {
-             // Fallback als de naam niet meer bestaat in de legende
-             cell.style.backgroundColor = '#ccc';
+             cell.style.backgroundColor = '#ccc'; // Fallback
            }
         }
 
-        // KLIK: Sla op of Wis
+        // KLIK: OPSLAAN (HIER ZAT DE FIX)
         cell.onclick = async () => {
-            ud.planning = ud.planning || {};
-            ud.planning[y] = ud.planning[y] || {};
+            // 1. Haal ALTIJD de verse data op, anders overschrijven we met oude data
+            const freshUd = getCurrentUserData();
+            
+            freshUd.planning = freshUd.planning || {};
+            freshUd.planning[y] = freshUd.planning[y] || {};
 
             if (visBrush) {
-                // Opslaan: We slaan enkel de NAAM op (bv "Schoolvakantie")
-                ud.planning[y][dateKey] = visBrush;
+                // Opslaan
+                freshUd.planning[y][dateKey] = visBrush;
                 
-                // Direct updaten (zonder volledige reload)
+                // Visuele update
                 const item = PLANNER_LEGEND.find(i => i.label === visBrush);
                 cell.style.backgroundColor = item.color;
                 cell.style.color = item.textColor || '#000';
@@ -5759,15 +5745,16 @@ function renderYearGrid() {
                 cell.style.fontWeight = 'bold';
             } else {
                 // Wissen
-                delete ud.planning[y][dateKey];
+                delete freshUd.planning[y][dateKey];
                 
-                // Reset stijl
+                // Visuele reset
                 cell.removeAttribute('style');
                 cell.className = `yg-cell yg-day ${isWeekend ? 'yg-weekend' : ''}`;
                 cell.textContent = '';
             }
 
             await saveUserData();
+            // console.log("Planning opgeslagen voor", dateKey); 
         };
       }
       grid.appendChild(cell);
@@ -5775,15 +5762,7 @@ function renderYearGrid() {
   }
 }
 
-// Activeer bij tab wissel
-document.querySelector('a[href="#tab-visual"]')?.addEventListener('shown.bs.tab', () => {
-  initYearPlanner();
-});
-// =============================================
-// 🖨️ & 📤 JAARPLANNER EXTRAS (PDF & SHARE)
-// =============================================
-
-// Helper: Hex kleur naar RGB array voor PDF
+// 3. Helper voor PDF kleuren
 function hexToRgbArr(hex) {
   let c;
   if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
@@ -5792,13 +5771,12 @@ function hexToRgbArr(hex) {
       c= '0x'+c.join('');
       return [(c>>16)&255, (c>>8)&255, c&255];
   }
-  return [255, 255, 255]; // fallback wit
+  return [255, 255, 255];
 }
 
-// 1. PDF EXPORT FUNCTIE
+// 4. PDF EXPORT
 document.getElementById('btnExportPlanPdf')?.addEventListener('click', () => {
   const { jsPDF } = window.jspdf;
-  // Liggend formaat (landscape) voor maximale breedte
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   
   const y = Number(document.getElementById('visYear').value);
@@ -5806,28 +5784,23 @@ document.getElementById('btnExportPlanPdf')?.addEventListener('click', () => {
   const userName = ud.name || ud.email || 'Gebruiker';
   const planData = ud.planning?.[y] || {};
 
-  // Header
   doc.setFontSize(14);
   doc.text(`Jaarplanning ${y} - ${userName}`, 14, 15);
   doc.setFontSize(8);
   doc.setTextColor(100);
   doc.text(`Gegenereerd op ${new Date().toLocaleDateString('nl-BE')}`, 250, 15);
 
-  // Data voorbereiden voor AutoTable
   const months = ["Januari","Februari","Maart","April","Mei","Juni","Juli","Augustus","September","Oktober","November","December"];
   const tableBody = [];
 
   for (let m = 0; m < 12; m++) {
-    const row = [months[m]]; // Eerste kolom is de maandnaam
-    
+    const row = [months[m]];
     for (let d = 1; d <= 31; d++) {
        const dateKey = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
        const shiftName = planData[dateKey];
        
-       // Zoek de afkorting en kleur
        let cellText = '';
        let cellColor = null; 
-
        if (shiftName) {
          const legendItem = PLANNER_LEGEND.find(i => i.label === shiftName);
          if (legendItem) {
@@ -5835,18 +5808,14 @@ document.getElementById('btnExportPlanPdf')?.addEventListener('click', () => {
            cellColor = hexToRgbArr(legendItem.color);
          }
        }
-       
-       // We slaan de kleur en tekst op in een object voor de 'didParseCell' hook
        row.push({ content: cellText, styles: { fillColor: cellColor, halign: 'center', fontSize: 7, fontStyle: 'bold' } });
     }
     tableBody.push(row);
   }
 
-  // Header rij (1-31)
   const headRow = ['MND'];
   for(let i=1; i<=31; i++) headRow.push(i);
 
-  // Tabel tekenen
   doc.autoTable({
     head: [headRow],
     body: tableBody,
@@ -5854,10 +5823,9 @@ document.getElementById('btnExportPlanPdf')?.addEventListener('click', () => {
     theme: 'grid',
     styles: { lineWidth: 0.1, lineColor: [200, 200, 200] },
     headStyles: { fillColor: [240, 240, 240], textColor: 0, fontStyle: 'bold' },
-    columnStyles: { 0: { fontStyle: 'bold', cellWidth: 20 } }, // Maandkolom breder
+    columnStyles: { 0: { fontStyle: 'bold', cellWidth: 20 } },
   });
 
-  // Legende toevoegen onderaan
   let legendY = doc.lastAutoTable.finalY + 10;
   doc.setFontSize(9);
   doc.setTextColor(0);
@@ -5865,10 +5833,8 @@ document.getElementById('btnExportPlanPdf')?.addEventListener('click', () => {
   legendY += 5;
 
   PLANNER_LEGEND.forEach((item, index) => {
-    // Teken blokje
-    const xPos = 14 + (Math.floor(index / 2) * 45); // 2 items per rij-breedte, of pas aan
+    const xPos = 14 + (Math.floor(index / 2) * 45); 
     const yPos = legendY + ((index % 2) * 6);
-    
     const rgb = hexToRgbArr(item.color);
     doc.setFillColor(...rgb);
     doc.rect(xPos, yPos - 3, 4, 4, 'F');
@@ -5879,7 +5845,7 @@ document.getElementById('btnExportPlanPdf')?.addEventListener('click', () => {
   toast('PDF gedownload', 'success');
 });
 
-// 2. DELEN / KOPIËREN FUNCTIE
+// 5. DELEN / KOPIËREN
 document.getElementById('btnSharePlan')?.addEventListener('click', async () => {
   const modalEl = document.getElementById('sharePlanModal');
   const select = document.getElementById('sharePlanUserSelect');
@@ -5888,14 +5854,12 @@ document.getElementById('btnSharePlan')?.addEventListener('click', async () => {
 
   yearSpan.textContent = currentYear;
   
-  // Vul gebruikerslijst (opnieuw ophalen voor zekerheid)
   select.innerHTML = '<option value="">Laden...</option>';
   const qs = await getDocs(collection(db, 'users'));
   
   select.innerHTML = '<option value="">-- Kies gebruiker --</option>';
   qs.forEach(docSnap => {
     const u = docSnap.data();
-    // Toon iedereen behalve jezelf
     if (docSnap.id !== currentUserId) {
       const opt = document.createElement('option');
       opt.value = docSnap.id;
@@ -5914,27 +5878,26 @@ document.getElementById('confirmSharePlanBtn')?.addEventListener('click', async 
   if (!targetUid) return toast('Kies een gebruiker', 'warning');
 
   try {
+    // Haal data van huidige user op (de bron)
     const ud = getCurrentUserData();
     const planningToCopy = ud.planning?.[y] || {};
 
-    // We moeten eerst de data van de DOEL-gebruiker ophalen om niet alles te overschrijven
-    // (We willen alleen jaar X overschrijven in hun planning object)
+    // Haal data van doel-user op
     const targetRef = doc(db, 'users', targetUid);
     const targetSnap = await getDoc(targetRef);
     
     if (!targetSnap.exists()) return toast('Gebruiker bestaat niet meer', 'danger');
     
     const targetData = targetSnap.data();
-    // Maak deep copy of init
     const targetPlanning = targetData.planning || {}; 
     
     // Overschrijf ALLEEN het gekozen jaar
     targetPlanning[y] = planningToCopy;
 
-    // Sla op
+    // Opslaan bij de doel-user
     await updateDoc(targetRef, { planning: targetPlanning });
 
-    // Stuur ook een notificatie/mailtje dat er een nieuwe planning is
+    // Stuur notificatie
     await addDoc(collection(db, 'users', targetUid, 'mailbox'), {
         threadId: `plan-share-${Date.now()}`,
         system: true,
@@ -5954,6 +5917,11 @@ document.getElementById('confirmSharePlanBtn')?.addEventListener('click', async 
     console.error(err);
     toast('Fout bij kopiëren: ' + err.message, 'danger');
   }
+});
+
+// Activeer bij tab wissel
+document.querySelector('a[href="#tab-visual"]')?.addEventListener('shown.bs.tab', () => {
+  initYearPlanner();
 });
 // =============================================
 // 📢 PRIKBORD LOGICA
@@ -6109,3 +6077,4 @@ document.getElementById('saveAnnouncementBtn')?.addEventListener('click', async 
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
+
