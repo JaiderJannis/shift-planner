@@ -1254,44 +1254,60 @@ async function populateShiftSelectForRow(tr, rowKey){
   const entries = order.map(n=> [n, all[n]]).filter(([,sh])=> !!sh);
 
   for(const [name, sh] of entries){
+    // Filter: Is de shift geldig op deze datum?
     if(!isDateWithin(base, sh.startDate || null, sh.endDate || null)) continue;
+    
     const o = document.createElement('option');
-    o.value = name; o.textContent = name; if(r.shift===name) o.selected = true; sel.appendChild(o);
+    
+    // ✨ HIER IS DE AANPASSING:
+    // Value = de unieke ID (bv. "Vroege (Google)") -> Nodig voor de database
+    o.value = name; 
+    
+    // Text = de 'echte' korte naam (bv. "Vroege") -> Zichtbaar voor jou
+    o.textContent = sh.realName || name; 
+    
+    if(r.shift === name) o.selected = true; 
+    sel.appendChild(o);
   }
 
-sel.addEventListener('change', async ()=>{
-  const chosen = sel.value;
-  const all = ud.shifts || {};
-  if (!chosen) {
-    r.shift = ''; r.project = ''; projSel.value = '';
-    delete r.status; // ✅ Status verwijderen als shift leeg is
-    saveCell(year, month, rowKey, r, tr); debouncedSave(); updateInputTotals(); renderHistory();
-    return;
-  }
-
-  r.shift = chosen;
-  debouncedSave();
-
-  // ✅ Bepaal of dit een verloftype is
-  const isLeaveType = ['Verlof', 'Schoolverlof', 'Ziekte', 'Feestdag'].includes(chosen);
-  
-  // ✅ Status toevoegen (als admin: direct goedkeuren, anders: in aanvraag)
-  if (isLeaveType) {
-    if (isAdmin()) {
-      r.status = 'approved';
-    } else {
-      r.status = 'pending'; // 'pending' = in_aanvraag
-    // ✨ HIER WORDT DE LIVE NOTIFICATIE VERSTUURD ✨
-      try {
-        await notifyAdminOfPendingLeave(getActiveUserId(), year, month, rowKey, r);
-      } catch(e) {
-        console.warn("Kon admin niet live notificeren over verlof", e);
-      }
+  sel.addEventListener('change', async ()=>{
+    const chosen = sel.value; // Dit pakt de unieke ID (bv "Vroege (Google)")
+    const all = ud.shifts || {};
+    
+    if (!chosen) {
+      r.shift = ''; r.project = ''; projSel.value = '';
+      delete r.status; 
+      saveCell(year, month, rowKey, r, tr); debouncedSave(); updateInputTotals(); renderHistory();
+      return;
     }
-  } else {
-    delete r.status; // Geen verlof? Geen status nodig.
-  }
-    // ✅ Update het icoon direct
+
+    r.shift = chosen; // Sla de unieke ID op
+    debouncedSave();
+
+    // Verlof logica
+    const isLeaveType = ['Verlof', 'Schoolverlof', 'Ziekte', 'Feestdag'].includes(chosen); // Let op: dit checkt nu op ID
+    
+    // Checken of de 'realName' misschien een verloftype is (als de ID uniek is gemaakt)
+    const shObj = all[chosen];
+    const realName = shObj ? (shObj.realName || chosen) : chosen;
+    const isRealLeaveType = ['Verlof', 'Schoolverlof', 'Ziekte', 'Feestdag'].includes(realName);
+
+    if (isRealLeaveType) {
+      if (isAdmin()) {
+        r.status = 'approved';
+      } else {
+        r.status = 'pending';
+        try {
+          await notifyAdminOfPendingLeave(getActiveUserId(), year, month, rowKey, r);
+        } catch(e) {
+          console.warn("Kon admin niet live notificeren over verlof", e);
+        }
+      }
+    } else {
+      delete r.status;
+    }
+
+    // Icoon update
     const iconSpan = tr.querySelector('.shift-status-icon');
     if (iconSpan) {
       if (r.status === 'pending') {
@@ -1312,74 +1328,75 @@ sel.addEventListener('change', async ()=>{
         iconSpan.title = '';
       }
     }
-  // auto project (jouw bestaande logica)
-  if (['Bench'].includes(chosen)) {
-    r.project = '';
-    saveCell(year, month, rowKey, r, tr);
-    debouncedSave();
-  } 
-  else if (['Schoolverlof','School'].includes(chosen)) {
-    ensureProjectExists('PXL Verpleegkunde Hasselt');
-    r.project = 'PXL Verpleegkunde Hasselt';
-    saveCell(year, month, rowKey, r, tr);
-    debouncedSave();
-  } 
-  else if (['Verlof','Teammeeting','Ziekte'].includes(chosen)) {
-    ensureProjectExists('Eght Care');
-    r.project = 'Eght Care';
-    saveCell(year, month, rowKey, r, tr);
-    debouncedSave();
-  } 
-  else {
-    const sh = all[chosen];
-    if (sh && sh.project) {
-      const p = (ud.projects||[]).find(px => px.name===sh.project);
-      if (p && isDateWithin(base, p.start||null, p.end||null)) {
-        r.project = p.name;
+
+    // Auto project logica
+    // We checken zowel de unieke ID als de schone naam voor de zekerheid
+    if (['Bench'].includes(realName)) {
+      r.project = '';
+      saveCell(year, month, rowKey, r, tr);
+      debouncedSave();
+    } 
+    else if (['Schoolverlof','School'].includes(realName)) {
+      ensureProjectExists('PXL Verpleegkunde Hasselt');
+      r.project = 'PXL Verpleegkunde Hasselt';
+      saveCell(year, month, rowKey, r, tr);
+      debouncedSave();
+    } 
+    else if (['Verlof','Teammeeting','Ziekte'].includes(realName)) {
+      ensureProjectExists('Eght Care');
+      r.project = 'Eght Care';
+      saveCell(year, month, rowKey, r, tr);
+      debouncedSave();
+    } 
+    else {
+      // Normale projectkoppeling uit de shift settings
+      if (shObj && shObj.project) {
+        const p = (ud.projects||[]).find(px => px.name===shObj.project);
+        if (p && isDateWithin(base, p.start||null, p.end||null)) {
+          r.project = p.name;
+        }
       }
     }
-  }
 
-  // project dropdown herladen
-  projSel.innerHTML = '<option value="">--</option>';
-  (getCurrentUserData().projects || []).forEach(p=>{
-    if(isDateWithin(base, p.start || null, p.end || null)){
-      const o = document.createElement('option');
-      o.value = p.name; o.textContent = p.name; projSel.appendChild(o);
+    // Project dropdown herladen
+    projSel.innerHTML = '<option value="">--</option>';
+    (getCurrentUserData().projects || []).forEach(p=>{
+      if(isDateWithin(base, p.start || null, p.end || null)){
+        const o = document.createElement('option');
+        o.value = p.name; o.textContent = p.name; projSel.appendChild(o);
+      }
+    });
+    setTimeout(()=> { projSel.value = r.project || ''; }, 50);
+
+    // Tijden invullen
+    if (shObj) {
+      r.start = shObj.start || '00:00';
+      r.end   = shObj.end   || '00:00';
+      r.break = Number(shObj.break) || 0;
+    }
+    recalcRowMinutes(r);
+    
+    tr.querySelector('.startInput').value = r.start;
+    tr.querySelector('.endInput').value = r.end;
+    tr.querySelector('.breakInput').value = r.break;
+
+    const isPendingOrRejected = r.status && r.status !== 'approved';
+    tr.querySelector('.dur').textContent = isPendingOrRejected
+      ? '0u 0min'
+      : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+
+    saveCell(year, month, rowKey, r, tr);
+    debouncedSave();
+    updateInputTotals();
+    renderHistory();
+
+    const addBtn = tr.querySelector('.addLineBtn');
+    if (addBtn) {
+      const allowByMonth   = userAllowsMultiMonth(getCurrentUserData(), year, month);
+      const allowByProject = r.project ? canAddMultiForProject(r.project) : false;
+      addBtn.disabled = !(allowByMonth || allowByProject);
     }
   });
-  setTimeout(()=> { projSel.value = r.project || ''; }, 50);
-
-  // tijden/pauze invullen
-  const sh = all[chosen];
-  if (sh) {
-    r.start = sh.start || '00:00';
-    r.end   = sh.end   || '00:00';
-    r.break = Number(sh.break) || 0;
-  }
-  recalcRowMinutes(r);
-tr.querySelector('.startInput').value = r.start;
-tr.querySelector('.endInput').value = r.end;
-tr.querySelector('.breakInput').value = r.break;
-
-const isPendingOrRejected = r.status && r.status !== 'approved';
-tr.querySelector('.dur').textContent = isPendingOrRejected
-  ? '0u 0min'
-  : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-
-saveCell(year, month, rowKey, r, tr);
-  debouncedSave();
-  updateInputTotals();
-  renderHistory();
-
-  // + opnieuw (de)activeren
-  const addBtn = tr.querySelector('.addLineBtn');
-  if (addBtn) {
-    const allowByMonth   = userAllowsMultiMonth(getCurrentUserData(), year, month);
-    const allowByProject = r.project ? canAddMultiForProject(r.project) : false;
-    addBtn.disabled = !(allowByMonth || allowByProject);
-  }
-});
 }
 async function ensureProjectExists(name){
   const ud = getCurrentUserData();
