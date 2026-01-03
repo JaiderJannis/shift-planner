@@ -752,8 +752,7 @@ function renderShifts() {
 
   const selectedYear = filterShiftYear.value ? Number(filterShiftYear.value) : null;
 
-  // ✅ 1. ADMIN CHECK: Doe dit ÉÉN keer aan het begin
-  // Dit regelt de zichtbaarheid van de velden in de Modal
+  // 1. ADMIN CHECK
   const isAdminUser = (ud.role === 'admin');
   const divShort = document.getElementById('divShiftShort');
   const divColor = document.getElementById('divShiftColor');
@@ -761,26 +760,24 @@ function renderShifts() {
 
   if (divShort && divColor && divName) {
     if (isAdminUser) {
-      // Admin: Toon alles
       divShort.classList.remove('d-none');
       divColor.classList.remove('d-none');
       divName.className = 'col-md-5'; 
     } else {
-      // User: Verberg extra's
       divShort.classList.add('d-none');
       divColor.classList.add('d-none');
       divName.className = 'col-md-9'; 
     }
   }
 
-  // ✅ 2. Start de tabel opbouw
+  // 2. Start tabel
   shiftTableBody.innerHTML = '';
 
   order.forEach(name => {
     const sh = shifts[name];
     if (!sh) return;
 
-    // Jaar filter
+    // Filter op jaar
     if (selectedYear) {
       const startY = sh.startDate ? new Date(sh.startDate).getFullYear() : null;
       const endY = sh.endDate ? new Date(sh.endDate).getFullYear() : null;
@@ -793,18 +790,22 @@ function renderShifts() {
       }
     }
 
-    // 🎨 Kleurbolletje
+    // ✨ VISUELE NAAM BEPALEN (Zonder haakjes)
+    // We gebruiken sh.realName als die bestaat, anders de technische naam
+    const displayName = sh.realName || name; 
+
+    // Kleurbolletje
     const colorDot = sh.color 
       ? `<span class="d-inline-block rounded-circle border me-2" style="width:12px; height:12px; background-color:${sh.color};"></span>` 
       : '';
 
     const tr = document.createElement('tr');
-    tr.dataset.name = name;
+    tr.dataset.name = name; // We bewaren de technische ID in de achtergrond
     tr.setAttribute('draggable', true);
     tr.innerHTML = `
       <td class="fw-medium">
         <span class="material-icons-outlined drag-handle me-1" style="cursor:grab; font-size:18px; vertical-align:middle;">drag_indicator</span>
-        ${colorDot}${name}
+        ${colorDot}${displayName} 
       </td>
       <td class="text-mono">${sh.start || ''}</td>
       <td class="text-mono">${sh.end || ''}</td>
@@ -825,7 +826,7 @@ function renderShifts() {
     shiftTableBody.appendChild(tr);
   });
 
-  // Sortable init
+  // Sortable init (ongewijzigd)
   if (shiftTableBody.sortableInstance) shiftTableBody.sortableInstance.destroy();
   shiftTableBody.sortableInstance = new Sortable(shiftTableBody, {
     handle: '.drag-handle', animation: 150, fallbackOnBody: true, swapThreshold: 0.65, ghostClass: 'bg-light',
@@ -842,16 +843,15 @@ function renderShifts() {
       const sh = ud.shifts[name];
 
       if (act === 'delete') {
-        if (!confirm(`Shift ${name} verwijderen?`)) return;
+        if (!confirm(`Shift verwijderen?`)) return;
         delete ud.shifts[name];
         ud.shiftOrder = (ud.shiftOrder || []).filter(n => n !== name);
         await saveUserData(); renderShifts();
       } 
-      
-      // 📋 KOPIEER LOGICA
       else if (act === 'copy') {
         if (!sh) return;
-        newShiftName.value = `${name} (kopie)`;
+        // Bij kopiëren, gebruik de schone naam + (kopie)
+        newShiftName.value = `${sh.realName || name} (kopie)`;
         document.getElementById('newShiftShort').value = sh.shortName || '';
         document.getElementById('newShiftColor').value = sh.color || '#e9ecef';
         newShiftStart.value = sh.start || '00:00';
@@ -860,14 +860,13 @@ function renderShifts() {
         newShiftProjectSelect.value = sh.project || '';
         newShiftStartDate.value = sh.startDate || '';
         newShiftEndDate.value = sh.endDate || '';
-        
         new bootstrap.Modal(document.getElementById('shiftModal')).show();
       } 
-      
-      // ✏️ BEWERK LOGICA
       else if (act === 'edit') {
         if (!sh) return;
-        newShiftName.value = name;
+        // ✨ HIER ZIT DE TRUC: We laden de 'schone' naam in het invulveld
+        newShiftName.value = sh.realName || name;
+        
         document.getElementById('newShiftShort').value = sh.shortName || '';
         document.getElementById('newShiftColor').value = sh.color || '#e9ecef';
         newShiftStart.value = sh.start || '08:00';
@@ -877,6 +876,7 @@ function renderShifts() {
         newShiftStartDate.value = sh.startDate || '';
         newShiftEndDate.value = sh.endDate || '';
         
+        // We verwijderen de oude (technische) entry, want bij opslaan wordt hij opnieuw aangemaakt
         delete ud.shifts[name];
         await saveUserData();
         new bootstrap.Modal(document.getElementById('shiftModal')).show();
@@ -886,57 +886,52 @@ function renderShifts() {
 }
 
 addShiftBtn?.addEventListener('click', async () => {
-      // 1. Waarden ophalen
-      const nameVal = newShiftName.value.trim();
+      // 1. De naam zoals JIJ hem typt (bv. "Vroege")
+      const visibleName = newShiftName.value.trim();
       const projectVal = newShiftProjectSelect.value || '';
 
-      if (!nameVal) return toast('Vul shift naam in', 'warning');
+      if (!visibleName) return toast('Vul shift naam in', 'warning');
 
-      // 2. Unieke sleutel genereren
-      // Als er een project is, wordt de ID: "Naam (Project)"
-      // Als er geen project is, blijft de ID: "Naam"
-      let uniqueKey = nameVal;
-      
+      // 2. De unieke technische sleutel genereren
+      // Als er een project is, maken we er intern "Vroege (Google)" van
+      let uniqueKey = visibleName;
       if (projectVal) {
+        // We voegen altijd project toe aan de ID om uniek te zijn
+        // Maar we checken even of je niet per ongeluk zelf al haakjes typte
         const suffix = ` (${projectVal})`;
-        // Voorkom dubbele suffix als je een bestaande bewerkt die al zo heet
-        if (!nameVal.endsWith(suffix)) {
-          uniqueKey = `${nameVal}${suffix}`;
+        if (!visibleName.endsWith(suffix)) {
+          uniqueKey = `${visibleName}${suffix}`;
         }
       }
 
-      // 3. Overige data ophalen
       const shortName = document.getElementById('newShiftShort')?.value.trim() || '';
       const color = document.getElementById('newShiftColor')?.value || '#e9ecef';
 
       const ud = getCurrentUserData();
       ud.shifts = ud.shifts || {};
 
-      // 4. Opslaan onder de unieke sleutel
+      // 3. Opslaan met 'realName' eigenschap
       ud.shifts[uniqueKey] = {
+        realName: visibleName, // <--- DIT IS NIEUW: Dit tonen we in de lijst
         shortName: shortName,
         color: color,
         start: newShiftStart.value || '00:00',
         end: newShiftEnd.value || '00:00',
         break: Number(newShiftBreak.value) || 0,
-        project: projectVal, // Project wordt ook intern opgeslagen
+        project: projectVal,
         startDate: newShiftStartDate.value || null,
         endDate: newShiftEndDate.value || null
       };
 
-      // 5. Volgorde bijwerken
       ud.shiftOrder = ud.shiftOrder || [];
-      if (!ud.shiftOrder.includes(uniqueKey)) {
-        ud.shiftOrder.push(uniqueKey);
-      }
+      if (!ud.shiftOrder.includes(uniqueKey)) ud.shiftOrder.push(uniqueKey);
 
-      // 6. Opslaan naar database & UI verversen
       await saveUserData();
       renderShifts();
 
-      // 7. Modal sluiten en velden resetten
       bootstrap.Modal.getInstance(document.getElementById('shiftModal')).hide();
 
+      // Reset velden
       newShiftName.value = '';
       newShiftBreak.value = 0;
       newShiftStartDate.value = '';
