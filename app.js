@@ -885,43 +885,66 @@ function renderShifts() {
   });
 }
 
-    addShiftBtn?.addEventListener('click', async ()=>{
-      const name = newShiftName.value.trim(); 
-      if(!name) return toast('Vul shift naam in','warning');
+addShiftBtn?.addEventListener('click', async () => {
+      // 1. Waarden ophalen
+      const nameVal = newShiftName.value.trim();
+      const projectVal = newShiftProjectSelect.value || '';
+
+      if (!nameVal) return toast('Vul shift naam in', 'warning');
+
+      // 2. Unieke sleutel genereren
+      // Als er een project is, wordt de ID: "Naam (Project)"
+      // Als er geen project is, blijft de ID: "Naam"
+      let uniqueKey = nameVal;
       
+      if (projectVal) {
+        const suffix = ` (${projectVal})`;
+        // Voorkom dubbele suffix als je een bestaande bewerkt die al zo heet
+        if (!nameVal.endsWith(suffix)) {
+          uniqueKey = `${nameVal}${suffix}`;
+        }
+      }
+
+      // 3. Overige data ophalen
       const shortName = document.getElementById('newShiftShort')?.value.trim() || '';
-      const color = document.getElementById('newShiftColor')?.value || '#e9ecef'; // 👈 NIEUW: Kleur ophalen
+      const color = document.getElementById('newShiftColor')?.value || '#e9ecef';
 
       const ud = getCurrentUserData();
       ud.shifts = ud.shifts || {};
-      ud.shifts[name] = {
+
+      // 4. Opslaan onder de unieke sleutel
+      ud.shifts[uniqueKey] = {
         shortName: shortName,
-        color: color,       // 👈 NIEUW: Opslaan
+        color: color,
         start: newShiftStart.value || '00:00',
         end: newShiftEnd.value || '00:00',
         break: Number(newShiftBreak.value) || 0,
-        project: newShiftProjectSelect.value || null,
+        project: projectVal, // Project wordt ook intern opgeslagen
         startDate: newShiftStartDate.value || null,
         endDate: newShiftEndDate.value || null
       };
-      
+
+      // 5. Volgorde bijwerken
       ud.shiftOrder = ud.shiftOrder || [];
-      if(!ud.shiftOrder.includes(name)) ud.shiftOrder.push(name);
-      
-      await saveUserData(); 
+      if (!ud.shiftOrder.includes(uniqueKey)) {
+        ud.shiftOrder.push(uniqueKey);
+      }
+
+      // 6. Opslaan naar database & UI verversen
+      await saveUserData();
       renderShifts();
-      
+
+      // 7. Modal sluiten en velden resetten
       bootstrap.Modal.getInstance(document.getElementById('shiftModal')).hide();
-      
-      // Velden resetten
-      newShiftName.value=''; 
-      newShiftBreak.value=0; 
-      newShiftStartDate.value=''; 
-      newShiftEndDate.value='';
-      if(document.getElementById('newShiftShort')) document.getElementById('newShiftShort').value = '';
-      if(document.getElementById('newShiftColor')) document.getElementById('newShiftColor').value = '#e9ecef'; // Reset kleur
-      
-      toast('Shift opgeslagen','success');
+
+      newShiftName.value = '';
+      newShiftBreak.value = 0;
+      newShiftStartDate.value = '';
+      newShiftEndDate.value = '';
+      if (document.getElementById('newShiftShort')) document.getElementById('newShiftShort').value = '';
+      if (document.getElementById('newShiftColor')) document.getElementById('newShiftColor').value = '#e9ecef';
+
+      toast('Shift opgeslagen', 'success');
     });
 
     filterShiftYear.addEventListener('change', ()=> renderShifts());
