@@ -748,10 +748,34 @@ addProjectBtn?.addEventListener('click', async () => {
 function renderShifts() {
   const ud = getCurrentUserData();
   const shifts = ud.shifts || {};
-  const order = ud.shiftOrder && ud.shiftOrder.length ? ud.shiftOrder : Object.keys(shifts);
+  
+  // --- 🛠️ START AUTOMATISCHE REPARATIE ---
+  // 1. Haal de opgeslagen volgorde op
+  let order = ud.shiftOrder || [];
+
+  // 2. Verwijder namen uit de volgorde die niet meer bestaan in 'shifts'
+  // (Dit schoont oude, verwijderde shiften op)
+  const cleanedOrder = order.filter(key => shifts[key]);
+
+  // 3. Zoek shiften die WEL bestaan, maar NIET in de volgorde staan
+  // (Dit pakt nieuwe of hernoemde shiften op)
+  const realKeys = Object.keys(shifts);
+  const missingKeys = realKeys.filter(key => !cleanedOrder.includes(key));
+
+  // 4. Als er een verschil is, update de volgorde en sla op
+  if (order.length !== cleanedOrder.length || missingKeys.length > 0) {
+      order = [...cleanedOrder, ...missingKeys];
+      ud.shiftOrder = order;
+      
+      // We slaan dit stilletjes op op de achtergrond
+      saveUserData().then(() => console.log("Shift-volgorde automatisch hersteld."));
+  }
+  // --- ✅ EINDE AUTOMATISCHE REPARATIE ---
 
   const selectedYear = filterShiftYear.value ? Number(filterShiftYear.value) : null;
 
+  // ... (Hieronder gaat de rest van je functie verder zoals je die al had)
+  
   // 1. ADMIN CHECK
   const isAdminUser = (ud.role === 'admin');
   const divShort = document.getElementById('divShiftShort');
