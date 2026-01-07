@@ -606,8 +606,9 @@ async function revealAdminIfNeeded(){
     }
 
     // ======= Projects =======
-    function renderProjects(){
+function renderProjects(){
       const ud = getCurrentUserData();
+      // Sorteren
       const list = (ud.projects || []).slice().sort((a,b)=>{
         const as = a.start? new Date(a.start): new Date('1900-01-01');
         const bs = b.start? new Date(b.start): new Date('1900-01-01');
@@ -617,101 +618,107 @@ async function revealAdminIfNeeded(){
         return ae - be;
       });
 
-      // table
+      // Tabel en dropdowns resetten
       projectTableBody.innerHTML = '';
       newShiftProjectSelect.innerHTML = '<option value="">Geen project</option>';
       projectFilterSelect.innerHTML = '<option value="">Alle projecten</option>';
 
       list.forEach((p, idx)=>{
         const tr = document.createElement('tr');
-       // default-flag voor bestaande projecten
-if (p.allowMulti === undefined) p.allowMulti = false;
+        if (p.allowMulti === undefined) p.allowMulti = false;
 
-tr.innerHTML = `
-  <td>${p.name}</td>
-  <td>${toDisplayDate(p.start)}</td>
-  <td>${toDisplayDate(p.end)}</td>
-  <td class="text-end">
-    <button
-      class="btn btn-sm ${p.allowMulti ? 'btn-success' : 'btn-outline-secondary'} me-1"
-      data-idx="${idx}" data-act="toggle-multi-btn"
-      title="Sta extra lijnen toe voor dit project"
-    >
-      ${p.allowMulti ? 'Extra lijn: aan' : 'Extra lijn: uit'}
-    </button>
-    <button class="btn btn-sm btn-warning me-1" data-idx="${idx}" data-act="extend">Verleng</button>
-    <button class="btn btn-sm btn-danger" data-idx="${idx}" data-act="delete">Verwijder</button>
-  </td>`;
+        tr.innerHTML = `
+          <td>${p.name}</td>
+          <td>${toDisplayDate(p.start)}</td>
+          <td>${toDisplayDate(p.end)}</td>
+          <td class="text-end">
+            <button
+              class="btn btn-sm ${p.allowMulti ? 'btn-success' : 'btn-outline-secondary'} me-1"
+              data-idx="${idx}" data-act="toggle-multi-btn"
+              title="Sta extra lijnen toe voor dit project"
+            >
+              ${p.allowMulti ? 'Extra lijn: aan' : 'Extra lijn: uit'}
+            </button>
+            <button class="btn btn-sm btn-warning me-1" data-idx="${idx}" data-act="extend">Verleng</button>
+            <button class="btn btn-sm btn-danger" data-idx="${idx}" data-act="delete">Verwijder</button>
+          </td>`;
         projectTableBody.appendChild(tr);
 
         const o1 = document.createElement('option'); o1.value=p.name; o1.textContent=p.name; newShiftProjectSelect.appendChild(o1);
         const o2 = document.createElement('option'); o2.value=p.name; o2.textContent=p.name; projectFilterSelect.appendChild(o2);
       });
 
-      // actions
-// actions
-projectTableBody.querySelectorAll('button').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const ud = getCurrentUserData();
-    const idx = Number(btn.dataset.idx);
-    const p = ud.projects[idx];
-    if (!p) return;
+      // Button acties
+      projectTableBody.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const ud = getCurrentUserData();
+          const idx = Number(btn.dataset.idx);
+          const p = ud.projects[idx];
+          if (!p) return;
 
-    if (btn.dataset.act === 'toggle-multi-btn') {
-      // toggle
-      p.allowMulti = !p.allowMulti;
-      await saveUserData();
+          if (btn.dataset.act === 'toggle-multi-btn') {
+            p.allowMulti = !p.allowMulti;
+            await saveUserData();
+            try { writeAudit(getActiveUserId(), { action:'project.toggleMulti', context:{ name: p.name }, to: p.allowMulti }); } catch {}
+            renderProjects();
+            renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+            toast(`Extra lijn ${p.allowMulti ? 'ingeschakeld' : 'uitgeschakeld'} voor ${p.name}`, 'success');
+            return;
+          }
 
-      // (optioneel) audit
-      try { writeAudit(getActiveUserId(), { action:'project.toggleMulti', context:{ name: p.name }, to: p.allowMulti }); } catch {}
+          if (btn.dataset.act === 'extend') {
+            const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', toDisplayDate(p.end) || '');
+            if (!v) return;
+            p.end = fromDisplayDate(v);
+            await saveUserData();
+            renderProjects();
+            renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+            toast('Project verlengd', 'success');
+            
+            const qs = await getDocs(collection(db, 'users'));
+            for (const u of qs.docs) {
+              if (u.id !== currentUserId) await notifyProjectChange(u.id, 'extended', p.name, v);
+            }
+          } else if (btn.dataset.act === 'delete') {
+            if (!confirm('Project verwijderen?')) return;
+            ud.projects.splice(idx, 1);
+            await saveUserData();
+            renderProjects();
+            renderProjectFilterForMonth();
+            renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+            toast('Project verwijderd', 'danger');
+          }
+        });
+      });
 
-      // UI opnieuw tekenen (zowel projectenlijst als invoertabel, zodat de +-knoppen direct goed staan)
-      renderProjects();
-      renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-      toast(`Extra lijn ${p.allowMulti ? 'ingeschakeld' : 'uitgeschakeld'} voor ${p.name}`, 'success');
-      return;
-    }
+      // Toggle inputs
+      projectTableBody.querySelectorAll('input[data-act="toggle-multi"]').forEach(chk => {
+        chk.addEventListener('change', async () => {
+          const ud = getCurrentUserData();
+          const idx = Number(chk.dataset.idx);
+          const p = ud.projects[idx];
+          if (!p) return;
+          p.allowMulti = !!chk.checked;
+          await saveUserData();
+          toast(`Extra lijn ${p.allowMulti ? 'toegestaan' : 'uitgeschakeld'} voor ${p.name}`, 'success');
+        });
+      });
 
-    if (btn.dataset.act === 'extend') {
-      const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', toDisplayDate(p.end) || '');
-      if (!v) return;
-      p.end = fromDisplayDate(v);
-
-      await saveUserData();
-      renderProjects();
-      renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-      toast('Project verlengd', 'success');
-
-      // 🔔 Melding naar alle gebruikers (behalve admin zelf)
-      const qs = await getDocs(collection(db, 'users'));
-      for (const u of qs.docs) {
-        if (u.id !== currentUserId) {
-          await notifyProjectChange(u.id, 'extended', p.name, v);
+      // ✨ NIEUW: Auto-datum invullen bij kiezen project ✨
+      newShiftProjectSelect.onchange = () => {
+        const selectedName = newShiftProjectSelect.value;
+        const p = list.find(proj => proj.name === selectedName);
+        
+        if (p) {
+            // Als het project datums heeft, vul ze in
+            if (p.start) newShiftStartDate.value = p.start;
+            if (p.end) newShiftEndDate.value = p.end;
+        } else {
+            // Als "Geen project" is gekozen, velden leegmaken
+            newShiftStartDate.value = '';
+            newShiftEndDate.value = '';
         }
-      }
-    } else if (btn.dataset.act === 'delete') {
-      if (!confirm('Project verwijderen?')) return;
-      ud.projects.splice(idx, 1);
-      await saveUserData();
-      renderProjects();
-      renderProjectFilterForMonth();
-      renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-      toast('Project verwijderd', 'danger');
-    }
-  });
-});
-// toggle "extra lijn" per project
-projectTableBody.querySelectorAll('input[data-act="toggle-multi"]').forEach(chk => {
-  chk.addEventListener('change', async () => {
-    const ud = getCurrentUserData();
-    const idx = Number(chk.dataset.idx);
-    const p = ud.projects[idx];
-    if (!p) return;
-    p.allowMulti = !!chk.checked;
-    await saveUserData();
-    toast(`Extra lijn ${p.allowMulti ? 'toegestaan' : 'uitgeschakeld'} voor ${p.name}`, 'success');
-  });
-});
+      };
     }
 
 addProjectBtn?.addEventListener('click', async () => {
