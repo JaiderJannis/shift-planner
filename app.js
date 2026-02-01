@@ -1039,7 +1039,7 @@ function renderProjectFilterForMonth(){
       ud.monthData = ud.monthData || {};
       ud.monthData[y] = ud.monthData[y] || {};
       if(!ud.monthData[y][m]) ud.monthData[y][m] = { targetHours:0, targetMinutes:0, rows:{} };
-      await renderMonth(y,m); updateInputTotals(); renderHome(); renderHistory();
+      await renderMonth(y,m); updateInputTotals(); renderHome(); renderHistory(); renderVersionControls();
     }
 // ✅ Automatische koppeling van project aan shift bij herladen
 function autoAssignProjectIfNeeded(r) {
@@ -5841,6 +5841,129 @@ document.getElementById('saveAnnouncementBtn')?.addEventListener('click', async 
   } catch (e) {
     console.error(e);
     toast('Fout bij plaatsen (check permissies)', 'danger');
+  }
+});
+// ==========================================
+// 🔀 STAP 2: VERSIE BEHEER LOGICA
+// ==========================================
+
+const versionSelect = document.getElementById('versionSelect');
+const addVersionBtn = document.getElementById('addVersionBtn');
+const delVersionBtn = document.getElementById('delVersionBtn');
+
+// 1. Dropdown vullen met opgeslagen versies
+function renderVersionControls() {
+  if (!versionSelect) return;
+
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const ud = getCurrentUserData();
+  
+  // Controleer of er versies zijn opgeslagen voor deze maand
+  const md = ud.monthData?.[y]?.[m];
+  const versions = md?.versions || {}; 
+
+  // Huidige keuze onthouden
+  const currentVal = versionSelect.value;
+
+  // Dropdown resetten
+  versionSelect.innerHTML = '<option value="">-- Huidig (Actief) --</option>';
+  
+  // Versies toevoegen aan dropdown
+  Object.keys(versions).forEach(vName => {
+    const opt = document.createElement('option');
+    opt.value = vName;
+    opt.textContent = vName;
+    versionSelect.appendChild(opt);
+  });
+
+  // Als de geselecteerde versie nog bestaat, selecteer die weer
+  if (currentVal && versions[currentVal]) {
+    versionSelect.value = currentVal;
+  }
+}
+
+// 2. Nieuwe versie opslaan (Huidige staat -> Versie X)
+addVersionBtn?.addEventListener('click', async () => {
+  const name = prompt("Geef deze versie een naam (bv. 'Optie A'):");
+  if (!name) return;
+
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const ud = getCurrentUserData();
+  
+  // Zorg dat de map structuur bestaat
+  ud.monthData = ud.monthData || {};
+  ud.monthData[y] = ud.monthData[y] || {};
+  ud.monthData[y][m] = ud.monthData[y][m] || { rows: {} };
+  
+  const md = ud.monthData[y][m];
+  md.versions = md.versions || {};
+
+  // Waarschuwing als naam al bestaat
+  if (md.versions[name] && !confirm(`Versie '${name}' bestaat al. Overschrijven?`)) {
+    return;
+  }
+
+  // KOPIE MAKEN (Heel belangrijk: deep copy zodat ze losgekoppeld zijn)
+  const rowsSnapshot = JSON.parse(JSON.stringify(md.rows || {}));
+
+  md.versions[name] = {
+    timestamp: new Date().toISOString(),
+    rows: rowsSnapshot
+  };
+
+  await saveUserData();
+  renderVersionControls();
+  versionSelect.value = name; 
+  toast(`Versie '${name}' opgeslagen`, 'success');
+});
+
+// 3. Versie laden (Versie X -> Huidige staat)
+versionSelect?.addEventListener('change', async () => {
+  const selectedName = versionSelect.value;
+  if (!selectedName) return; // 'Huidig' gekozen, doe niets
+
+  if (!confirm(`Wil je het actieve rooster overschrijven met '${selectedName}'?\n(Niet-opgeslagen wijzigingen gaan verloren).`)) {
+    renderVersionControls(); // Reset dropdown
+    return;
+  }
+
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const ud = getCurrentUserData();
+  const savedVer = ud.monthData?.[y]?.[m]?.versions?.[selectedName];
+
+  if (savedVer && savedVer.rows) {
+    // Overschrijf de actieve data met de versie data
+    ud.monthData[y][m].rows = JSON.parse(JSON.stringify(savedVer.rows));
+    
+    await saveUserData();
+    
+    // Alles verversen
+    renderMonth(y, m);
+    updateInputTotals();
+    renderHistory();
+    toast(`Versie '${selectedName}' geladen`, 'info');
+  }
+});
+
+// 4. Versie verwijderen
+delVersionBtn?.addEventListener('click', async () => {
+  const selectedName = versionSelect.value;
+  if (!selectedName) return toast('Selecteer een versie om te verwijderen', 'warning');
+
+  if (!confirm(`Versie '${selectedName}' definitief verwijderen?`)) return;
+
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const ud = getCurrentUserData();
+
+  if (ud.monthData?.[y]?.[m]?.versions?.[selectedName]) {
+    delete ud.monthData[y][m].versions[selectedName];
+    await saveUserData();
+    renderVersionControls();
+    toast('Versie verwijderd', 'success');
   }
 });
 // Initialiseer bij laden pagina (voor de selectors)
