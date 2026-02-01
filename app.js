@@ -3365,6 +3365,45 @@ function updateCalendarDay(date, shiftName) {
     <div class="shift-date">${new Date(date).getDate()}</div>
   `;
 }
+// 🗑️ Maak leeg knop (Invoer tabblad)
+document.getElementById('clearMonthBtn')?.addEventListener('click', async () => {
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  
+  // 1. Check of de maand op slot zit (behalve voor admin)
+  const status = getMonthStatus(y, m);
+  const ud = getCurrentUserData();
+  const loggedInUser = dataStore.users[currentUserId];
+  const iAmAdmin = loggedInUser && loggedInUser.role === 'admin';
+  
+  // Als gebruiker geen admin is, en status is submitted of approved -> stop.
+  if (!iAmAdmin && (status === 'submitted' || status === 'approved')) {
+    return toast('Deze maand is vergrendeld en kan niet worden leeggemaakt.', 'warning');
+  }
+
+  // 2. Bevestiging vragen
+  if (!confirm(`Weet je zeker dat je ALLE shifts voor ${monthsFull[m]} ${y} wilt verwijderen? Dit kan niet ongedaan worden gemaakt.`)) {
+    return;
+  }
+
+  // 3. Data wissen
+  if (ud.monthData && ud.monthData[y] && ud.monthData[y][m]) {
+    ud.monthData[y][m].rows = {}; // Alle rijen wissen
+    ud.monthData[y][m].status = 'draft'; // Status terug naar concept
+  }
+
+  // 4. Opslaan en verversen
+  await saveUserData();
+  
+  // UI updates
+  renderMonth(y, m);
+  updateInputTotals();
+  renderHistory();
+  renderHome();
+  
+  toast(`Planning voor ${monthsFull[m]} ${y} is leeggemaakt.`, 'success');
+});
+
 // User: Indienen
 document.getElementById('submitMonthBtn')?.addEventListener('click', async () => {
   const y = Number(yearSelectMain.value);
