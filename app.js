@@ -1777,15 +1777,74 @@ async function ensureProjectExists(name){
       });
     }
 
-    saveQuickBtn.addEventListener('click', async ()=>{
-  const date = quickDate.value, shift = quickShift.value, note = quickNote.value;
+ saveQuickBtn.addEventListener('click', async ()=>{
+  const date = quickDate.value;
+  const shift = quickShift.value; // Pakt de waarde uit de dropdown
+  const note = quickNote.value;
+
   if(!date || !shift) return toast('Kies minstens een datum en shift','warning');
-  const y = Number(date.split('-')[0]), m = Number(date.split('-')[1]) - 1, key = date;
+
+  const y = Number(date.split('-')[0]);
+  const m = Number(date.split('-')[1]) - 1;
   const ud = getCurrentUserData();
-  ud.monthData = ud.monthData || {}; ud.monthData[y] = ud.monthData[y] || {};
+
+  // Zorg dat de structuur bestaat
+  ud.monthData = ud.monthData || {};
+  ud.monthData[y] = ud.monthData[y] || {};
   ud.monthData[y][m] = ud.monthData[y][m] || { targetHours:0, targetMinutes:0, rows:{} };
+
+  // --- 🔥 DE FIX: VOORKOM OVERSCHRIJVEN 🔥 ---
+  let key = date;
+  
+  // Als er al IETS staat op deze datum...
+  if (ud.monthData[y][m].rows[key]) {
+      // ...maak dan een unieke sleutel (bv: 2024-02-01_17123456)
+      // Hierdoor wordt het een EXTRA regel in plaats van een overschrijving
+      key = `${date}_${Date.now()}`;
+  }
+  // ---------------------------------------------
+
   const sh = ud.shifts[shift];
   const minutes = minutesBetween(sh.start, sh.end, sh.break);
+
+  // Automatische projecttoewijzing
+  let project = sh?.project || '';
+  const sp = autoProjectForShift(shift);
+  if (sp) {
+    ensureProjectExists(sp);
+    project = sp;
+  }
+
+  // Opslaan op de (nieuwe) sleutel
+  ud.monthData[y][m].rows[key] = {
+    project,
+    shift,
+    start: sh.start,
+    end: sh.end,
+    break: sh.break,
+    omschrijving: note,
+    minutes
+  };
+
+  await saveUserData();
+  
+  // Alles verversen
+  renderMonth(y, m);
+  updateInputTotals();
+  renderHistory();
+  updateRemainingHours();
+
+  // Als de dag-details popup open stond, ververs die ook direct
+  if (typeof openDayEditor === 'function') {
+      const dayEditor = document.getElementById('dayEditorModal');
+      if (dayEditor && dayEditor.classList.contains('show')) {
+          openDayEditor(date);
+      }
+  }
+
+  bootstrap.Modal.getInstance(document.getElementById('quickModal')).hide();
+  toast('Extra shift toegevoegd', 'success');
+});
 
   // ✅ Automatische projecttoewijzing
 let project = sh?.project || '';
@@ -6240,78 +6299,7 @@ delVersionBtn?.addEventListener('click', async () => {
     toast('Versie verwijderd', 'success');
   }
 });
-// ==========================================
-// AANGEPASTE VERSIE (Zonder 'const' foutmelding)
-// ==========================================
 
-// We spreken het element direct aan met getElementById
-document.getElementById('saveQuickBtn')?.addEventListener('click', async () => {
-    
-    // 1. Datum ophalen
-    const dateKey = document.getElementById('quickDate')?.value;
-    
-    // 2. Gekozen shift ophalen
-    const selectedRadio = document.querySelector('input[name="quickShiftOption"]:checked');
-    const shiftKey = selectedRadio ? selectedRadio.value : null;
-
-    if (!dateKey || !shiftKey) {
-      toast('Selecteer een datum en een shift', 'warning');
-      return;
-    }
-
-    const [y, mStr] = dateKey.split('-');
-    const m = Number(mStr) - 1;
-    const ud = getCurrentUserData();
-    const sh = ud.shifts[shiftKey];
-
-    // Zorg dat de map structuur bestaat
-    if (!ud.monthData[y]) ud.monthData[y] = {};
-    if (!ud.monthData[y][m]) ud.monthData[y][m] = { rows: {} };
-
-    // --- DE FIX: NIET OVERSCHRIJVEN ---
-    let targetKey = dateKey;
-    
-    // Check: Bestaat deze datum al? Plak er dan een tijdstempel achter
-    if (ud.monthData[y][m].rows[dateKey]) {
-       targetKey = `${dateKey}_${Date.now()}`;
-    }
-    // ----------------------------------
-
-    // 3. Opslaan in data object
-    ud.monthData[y][m].rows[targetKey] = {
-      project: sh.project || '',
-      shift: shiftKey,
-      start: sh.start,
-      end: sh.end,
-      break: sh.break,
-      description: ''
-    };
-
-    // 4. Opslaan naar database
-    await saveUserData();
-    
-    // 5. Scherm verversen
-    if (typeof renderCalendarGrid === 'function') renderCalendarGrid(y, m);
-    if (typeof updateInputTotals === 'function') updateInputTotals();
-    
-    // 6. Sluit de popup
-    const quickModal = document.getElementById('quickModal');
-    const modalInstance = bootstrap.Modal.getInstance(quickModal);
-    if (modalInstance) {
-        modalInstance.hide();
-    } else {
-        new bootstrap.Modal(quickModal).hide();
-    }
-
-    // 7. Als de Dag-detail popup open stond, ververs die dan ook
-    const dayEditor = document.getElementById('dayEditorModal');
-    if (dayEditor && dayEditor.classList.contains('show')) {
-        // We roepen de functie alleen aan als hij bestaat
-        if (typeof openDayEditor === 'function') openDayEditor(dateKey);
-    }
-    
-    toast('Extra shift toegevoegd!', 'success');
-});
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
