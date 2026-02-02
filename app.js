@@ -6365,38 +6365,29 @@ delVersionBtn?.addEventListener('click', async () => {
   }
 });
 // ==========================================
-// 5. UI FIXES (Desktop clean + Mobiel scrollbaar + Weekend + BEWEGENDE VANDAAG)
+// 5. UI FIXES (DEFINITIEVE MOBIELE SCROLL FIX + VANDAAG ANIMATIE)
 // ==========================================
 document.addEventListener("DOMContentLoaded", () => {
-  // 1. CSS Injecteren
   const style = document.createElement('style');
   style.innerHTML = `
-    /* --- A. Animatie voor VANDAAG (Pulse Effect) --- */
+    /* --- A. VANDAAG ANIMATIE & WEEKEND --- */
     @keyframes pulse-blue {
       0% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.7); }
       70% { box-shadow: 0 0 0 6px rgba(13, 110, 253, 0); }
       100% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0); }
     }
-
     .calendar-day.today {
-      border: 2px solid #0d6efd !important; /* Dikke blauwe rand */
-      animation: pulse-blue 2s infinite;    /* HET BEWEGENDE DEEL */
-      z-index: 10; /* Zorg dat hij bovenop ligt */
+      border: 2px solid #0d6efd !important;
+      animation: pulse-blue 2s infinite;
+      z-index: 10;
       background-color: #fff;
     }
+    .calendar-day.today .day-number { color: #0d6efd; font-weight: 900; font-size: 1.1em; }
     
-    /* Zorg dat de tekst ook blauw en dikgedrukt is */
-    .calendar-day.today .day-number {
-      color: #0d6efd;
-      font-weight: 900;
-      font-size: 1.1em;
-    }
-
-    /* --- B. Weekend kleuren --- */
     .calendar-day.weekend { background-color: #f2f4f8 !important; }
     body.dark-mode .calendar-day.weekend { background-color: #2b2d31 !important; }
 
-    /* --- C. Desktop (> 992px) --- */
+    /* --- B. DESKTOP (> 992px) --- */
     @media (min-width: 992px) {
       .table-responsive, #historyTable, .shift-container, .mobile-scroll-wrapper {
         overflow: visible !important;
@@ -6406,33 +6397,67 @@ document.addEventListener("DOMContentLoaded", () => {
       body { overflow-y: auto; }
     }
 
-    /* --- D. Mobiel (< 992px) --- */
+    /* --- C. MOBIEL (< 992px) - DE HARDE FIX --- */
     @media (max-width: 991px) {
-      .mobile-scroll-wrapper {
-        display: block; width: 100%; overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch; margin-bottom: 1rem; border: 1px solid #eee;
+      /* 1. Forceer de wrapper (het doosje om de tabel) om te scrollen */
+      .mobile-scroll-wrapper, .table-responsive {
+        display: block !important;
+        width: 100% !important;
+        overflow-x: auto !important; /* Dit activeert de scrollbalk */
+        -webkit-overflow-scrolling: touch !important; /* Voor iPhone soepelheid */
+        margin-bottom: 1rem;
+        padding-bottom: 5px; /* Ruimte voor scrollbalk */
       }
-      .mobile-scroll-wrapper table { min-width: 600px; }
+      
+      /* 2. Forceer de tabel om BREED te zijn (zodat hij NIET past en MOET scrollen) */
+      .mobile-scroll-wrapper table, 
+      .table-responsive table,
+      table.table {
+        min-width: 800px !important; /* Hierdoor valt hij buiten beeld -> Scrollen nodig */
+        width: auto !important;
+      }
+      
+      /* 3. Zorg dat tekst op 1 regel blijft (maakt de tabel breed) */
+      table td, table th {
+        white-space: nowrap !important;
+        font-size: 0.85rem !important;
+      }
+
+      /* Verberg kalender icoontjes op mobiel voor rust */
       .quick-icons-wrapper { display: none !important; }
       .calendar-day { min-height: 50px !important; }
-      table td, table th { font-size: 0.85rem !important; }
     }
   `;
   document.head.appendChild(style);
 
-  // 2. JS: Automatisch tabellen inpakken
-  const tables = document.querySelectorAll('table');
-  tables.forEach(table => {
-    if (!table.parentElement.classList.contains('mobile-scroll-wrapper') && 
-        !table.parentElement.classList.contains('table-responsive')) {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'mobile-scroll-wrapper';
-      table.parentNode.insertBefore(wrapper, table);
-      wrapper.appendChild(table);
-    } else {
-      table.parentElement.classList.add('mobile-scroll-wrapper');
-    }
-  });
+  // 2. JS: Pak alle tabellen in een scroll-doosje
+  const wrapTables = () => {
+      const tables = document.querySelectorAll('table');
+      tables.forEach(table => {
+        // Sla kalender over (die zijn geen tabellen, maar voor zekerheid)
+        if (table.closest('.calendar-grid')) return;
+
+        const parent = table.parentElement;
+        const hasWrapper = parent.classList.contains('mobile-scroll-wrapper') || 
+                           parent.classList.contains('table-responsive');
+        
+        if (!hasWrapper) {
+          // Maak een wrapper aan en stop de tabel erin
+          const wrapper = document.createElement('div');
+          wrapper.className = 'mobile-scroll-wrapper';
+          table.parentNode.insertBefore(wrapper, table);
+          wrapper.appendChild(table);
+        } else {
+          // Zorg dat de bestaande wrapper ook de class krijgt voor onze CSS
+          parent.classList.add('mobile-scroll-wrapper');
+        }
+      });
+  };
+
+  // Voer dit direct uit
+  wrapTables();
+  // En nog eens na 1 seconde (voor als tabellen traag laden)
+  setTimeout(wrapTables, 1000);
 });
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
