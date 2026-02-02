@@ -757,3 +757,29 @@ body:not(.auth-checked) #loadingOverlay {
     display: none;
   }
 }
+/* Tabel optimalisatie */
+.table-responsive {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+/* Verberg onnodige kolommen in de details tabel op mobiel */
+@media (max-width: 992px) {
+  /* Verberg Start, Einde, Pauze, Duur, Actie en Shift kolom in de tabel */
+  /* We houden alleen Datum, Project, Omschrijving en Bijlage over */
+  .table th:nth-child(1), .table td:nth-child(1), /* Actie */
+  .table th:nth-child(2), .table td:nth-child(2), /* Dag */
+  .table th:nth-child(5), .table td:nth-child(5), /* Shift */
+  .table th:nth-child(6), .table td:nth-child(6), /* Start */
+  .table th:nth-child(7), .table td:nth-child(7), /* Einde */
+  .table th:nth-child(8), .table td:nth-child(8), /* Pauze */
+  .table th:nth-child(11), .table td:nth-child(11) /* Duur */
+  {
+    display: none; 
+  }
+}
+
+/* Zorg dat de omschrijving kolom niet te breed wordt */
+.table input.form-control {
+  min-width: 80px;
+}
