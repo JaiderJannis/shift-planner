@@ -1277,79 +1277,176 @@ async function renderMonth(year, month){
   updateMonthStatusBadge();
 }
 // Functie om de kalender te tekenen met de gekozen iconen
+// Globale variabele om te weten welke dag we bewerken
+let currentEditingDateKey = null;
+
 function renderCalendarGrid(year, month) {
   const grid = document.getElementById('monthlyCalendarGrid');
   if (!grid) return;
   grid.innerHTML = '';
 
-  const ud = getCurrentUserData(); //
+  const ud = getCurrentUserData();
   const md = ud.monthData?.[year]?.[month] || { rows: {} };
   
-  // Zoek favorieten voor de snel-icoontjes
-  const favorites = Object.entries(ud.shifts || {}).filter(([k, v]) => v.isFavorite);
-
   // Headers
-  ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'].forEach(l => 
-    grid.insertAdjacentHTML('beforeend', `<div class="calendar-header">${l}</div>`)
+  ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'].forEach(d => 
+    grid.insertAdjacentHTML('beforeend', `<div class="calendar-header">${d}</div>`)
   );
 
   const firstDay = new Date(year, month, 1).getDay();
   const offset = (firstDay === 0) ? 6 : firstDay - 1;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
+  // Lege cellen
   for (let i = 0; i < offset; i++) grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
 
+  // Dagen
   for (let d = 1; d <= daysInMonth; d++) {
-    const baseKey = dateKey(year, month, d); //
+    const baseKey = dateKey(year, month, d);
     const dateObj = new Date(year, month, d);
     const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
     
-    const dayEl = document.createElement('div');
-    dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''}`;
+    // Verzamel shiften voor deze dag
+    const dayKeys = listDayKeys(md, baseKey);
     
-    // Genereer icoontjes met hun eigen kleur
-    const iconsHtml = favorites.map(([sKey, sh]) => {
-      const icon = sh.icon || 'star';
-      return `<span class="material-icons-outlined quick-icon" data-shift="${sKey}" title="${sKey}" style="color: ${sh.color}">${icon}</span>`;
-    }).join('');
+    // Genereer HTML voor iconen (voor mobiel en desktop)
+    let iconsHtml = '';
+    let shiftsHtml = '';
 
-    dayEl.innerHTML = `
-      <div class="day-number">${d}</div>
-      <div class="day-actions">
-        ${iconsHtml}
-        <span class="material-icons-outlined quick-icon text-primary" data-act="more" title="Andere shift">add_circle</span>
-      </div>
-      <div class="day-shifts-container"></div>
-    `;
-
-    // Snel-klik acties
-    dayEl.querySelectorAll('.quick-icon').forEach(btn => {
-      btn.onclick = (e) => {
-        e.stopPropagation();
-        if (btn.dataset.act === 'more') {
-          quickDate.value = baseKey;
-          populateQuickShifts();
-          new bootstrap.Modal(document.getElementById('quickModal')).show();
-        } else {
-          applyShiftOptimistic(baseKey, btn.dataset.shift);
+    dayKeys.forEach(k => {
+      const row = md.rows[k];
+      if (row && row.shift) {
+        const sh = ud.shifts[row.shift];
+        // 1. Icoon genereren
+        let iconName = sh?.icon;
+        if (!iconName) {
+           // Auto-detectie fallback
+           const n = (sh?.realName || row.shift).toLowerCase();
+           if(n.includes('vroeg')) iconName='light_mode';
+           else if(n.includes('laat')) iconName='wb_twilight';
+           else if(n.includes('nacht')) iconName='bedtime';
+           else iconName='star';
         }
-      };
-    });
-
-    const container = dayEl.querySelector('.day-shifts-container');
-    listDayKeys(md, baseKey).forEach(k => {
-      const r = md.rows[k];
-      if (r && r.shift) {
-        const div = document.createElement('div');
-        div.className = 'cal-shift-item';
-        div.style.backgroundColor = ud.shifts[r.shift]?.color || '#e9ecef';
-        div.textContent = ud.shifts[r.shift]?.realName || r.shift;
-        container.appendChild(div);
+        iconsHtml += `<span class="material-icons-outlined quick-icon" style="color:${sh?.color || '#333'}">${iconName}</span>`;
+        
+        // 2. Balkje genereren (alleen desktop via CSS)
+        shiftsHtml += `<div class="cal-shift-item" style="background:${sh?.color || '#eee'}">${sh?.realName || row.shift}</div>`;
       }
     });
+
+    const dayEl = document.createElement('div');
+    dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''}`;
+    dayEl.innerHTML = `
+      <span class="day-number">${d}</span>
+      <div class="day-icons-wrapper">${iconsHtml}</div>
+      <div class="mt-1">${shiftsHtml}</div>
+    `;
+
+    // KLIK EVENT: Open de Editor Modal
+    dayEl.onclick = () => openDayEditor(baseKey);
+
     grid.appendChild(dayEl);
   }
 }
+
+// --- Functie om de Modal te openen en vullen ---
+function openDayEditor(dateKey) {
+  currentEditingDateKey = dateKey;
+  const ud = getCurrentUserData();
+  const [y, mStr] = dateKey.split('-');
+  const m = Number(mStr) - 1;
+  const md = ud.monthData?.[y]?.[m] || { rows: {} };
+
+  // Titel instellen
+  document.getElementById('dayEditorTitle').textContent = `Bewerken: ${dateKey}`;
+  
+  // Lijst met shiften vullen
+  const listContainer = document.getElementById('dayEditorShifts');
+  listContainer.innerHTML = '';
+  
+  const dayKeys = listDayKeys(md, dateKey);
+  
+  if (dayKeys.length === 0) {
+    listContainer.innerHTML = '<span class="text-muted small fst-italic">Nog geen shiften gepland.</span>';
+  } else {
+    dayKeys.forEach(k => {
+      const r = md.rows[k];
+      const sh = ud.shifts[r.shift];
+      
+      const rowDiv = document.createElement('div');
+      rowDiv.className = 'd-flex align-items-center justify-content-between p-2 border rounded bg-light';
+      rowDiv.innerHTML = `
+        <div class="d-flex align-items-center gap-2">
+           <span class="dot" style="background:${sh?.color}; width:10px; height:10px; border-radius:50%;"></span>
+           <strong>${sh?.realName || r.shift}</strong>
+           <small class="text-muted">(${r.start}-${r.end})</small>
+        </div>
+        <button class="btn btn-outline-danger btn-sm p-0 px-1" title="Verwijder" onclick="removeShiftFromDay('${k}')">
+          <span class="material-icons-outlined" style="font-size:16px">delete</span>
+        </button>
+      `;
+      listContainer.appendChild(rowDiv);
+    });
+  }
+
+  // Notitie veld vullen (neem de notitie van de EERSTE shift als er meerdere zijn)
+  const firstKey = dayKeys[0];
+  const noteField = document.getElementById('dayEditorNote');
+  noteField.value = firstKey ? (md.rows[firstKey].description || '') : '';
+
+  // Modal tonen
+  new bootstrap.Modal(document.getElementById('dayEditorModal')).show();
+}
+
+// --- Extra Shift Toevoegen ---
+document.getElementById('btnAddExtraShift')?.addEventListener('click', () => {
+  // Sluit de editor modal en open de 'Quick Select' modal
+  // De Quick Select modal moet straks na kiezen terugkeren naar de data
+  bootstrap.Modal.getInstance(document.getElementById('dayEditorModal')).hide();
+  
+  quickDate.value = currentEditingDateKey; 
+  populateQuickShifts(); // Jouw bestaande functie
+  new bootstrap.Modal(document.getElementById('quickModal')).show();
+});
+
+// --- Shift Verwijderen ---
+window.removeShiftFromDay = async (uniqueKey) => {
+  const [y, mStr] = uniqueKey.split('-');
+  const m = Number(mStr) - 1;
+  const ud = getCurrentUserData();
+  
+  if (ud.monthData[y][m].rows[uniqueKey]) {
+    delete ud.monthData[y][m].rows[uniqueKey];
+    await saveUserData();
+    
+    // UI verversen
+    renderCalendarGrid(y, m);
+    updateInputTotals();
+    
+    // Heropen de modal om de update te tonen
+    openDayEditor(currentEditingDateKey); 
+  }
+};
+
+// --- Opslaan Knop in Modal (voor notities) ---
+document.getElementById('btnSaveDayEditor')?.addEventListener('click', async () => {
+  const note = document.getElementById('dayEditorNote').value;
+  const [y, mStr] = currentEditingDateKey.split('-');
+  const m = Number(mStr) - 1;
+  const ud = getCurrentUserData();
+  
+  // Update de notitie bij ALLE shiften van die dag (of alleen de eerste, keuze is aan jou)
+  const dayKeys = listDayKeys(ud.monthData[y][m], currentEditingDateKey);
+  dayKeys.forEach(k => {
+    if (ud.monthData[y][m].rows[k]) {
+      ud.monthData[y][m].rows[k].description = note;
+    }
+  });
+
+  await saveUserData();
+  bootstrap.Modal.getInstance(document.getElementById('dayEditorModal')).hide();
+  toast('Opgeslagen', 'success');
+});
 
 // 3. Flitssnelle toevoeging (Optimistisch)
 async function applyShiftOptimistic(baseKey, shiftName) {
