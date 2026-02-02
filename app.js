@@ -1112,9 +1112,6 @@ async function renderMonth(year, month){
         allKeys = [baseKey];
     }
 
-
-    const allKeys = listDayKeys(md, baseKey);
-
     // Filter per project (zichtbare lijst)
     const visibleKeys = allKeys.filter(k => {
       const r = md.rows[k];
