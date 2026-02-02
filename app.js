@@ -6370,58 +6370,71 @@ delVersionBtn?.addEventListener('click', async () => {
 // 5. UI FIXES (Desktop clean + Mobiel scrollbaar + Weekend kleur)
 // ==========================================
 document.addEventListener("DOMContentLoaded", () => {
+  // 1. CSS Injecteren
   const style = document.createElement('style');
   style.innerHTML = `
-    /* --- 1. ALGEMEEN: Weekend kleuren --- */
-    .calendar-day.weekend {
-      background-color: #f2f4f8 !important; /* Lichtblauw/grijs tintje */
-    }
-    body.dark-mode .calendar-day.weekend {
-      background-color: #2b2d31 !important; /* Donkergrijs in dark mode */
-    }
+    /* --- A. Weekend kleuren --- */
+    .calendar-day.weekend { background-color: #f2f4f8 !important; }
+    body.dark-mode .calendar-day.weekend { background-color: #2b2d31 !important; }
 
-    /* --- 2. DESKTOP (Grote schermen > 992px) --- */
-    /* Hier willen we GEEN scrollbalken IN de tabel, de pagina scrollt wel */
+    /* --- B. Desktop (> 992px) --- */
     @media (min-width: 992px) {
-      #historyTable, .table-responsive {
+      .table-responsive, #historyTable, .shift-container, .mobile-scroll-wrapper {
         overflow: visible !important;
         max-height: none !important;
         height: auto !important;
       }
-      #shiftTableBody, .shift-container {
-        max-height: none !important;
-        overflow-y: visible !important;
-      }
-      body {
-        overflow-y: auto;
-      }
+      body { overflow-y: auto; }
     }
 
-    /* --- 3. MOBIEL (Kleine schermen < 992px) --- */
-    /* Hier MOETEN we kunnen swipen (horizontaal scrollen) */
+    /* --- C. Mobiel (< 992px) --- */
     @media (max-width: 991px) {
-      .table-responsive, 
-      .shift-container,
-      #historyTableContainer { /* Zorg dat je container een ID of class heeft */
+      /* Forceer dat de wrapper kan scrollen */
+      .mobile-scroll-wrapper {
         display: block;
         width: 100%;
         overflow-x: auto !important; /* Horizontaal scrollen AAN */
         -webkit-overflow-scrolling: touch; /* Soepel scrollen op iPhone */
-        white-space: nowrap; /* Zorgt dat regels niet lelijk breken */
+        margin-bottom: 1rem;
+        border: 1px solid #eee; /* Licht randje om aan te geven dat het een vak is */
       }
       
-      /* Icoontjes verbergen in kalender op smartphone */
-      .quick-icons-wrapper {
-        display: none !important;
+      /* Zorg dat de tabel breed genoeg blijft zodat hij NIET plet */
+      .mobile-scroll-wrapper table {
+        min-width: 600px; /* Hierdoor MOET hij wel scrollen */
       }
+
+      /* Icoontjes in kalender verbergen voor rust */
+      .quick-icons-wrapper { display: none !important; }
       
-      /* Kalender dag iets compacter op mobiel */
-      .calendar-day {
-        min-height: 60px !important; 
-      }
+      /* Kalender dag iets compacter */
+      .calendar-day { min-height: 50px !important; }
+      
+      /* Lettertype in tabellen iets kleiner voor meer ruimte */
+      table td, table th { font-size: 0.85rem !important; }
     }
   `;
   document.head.appendChild(style);
+
+  // 2. JS: Automatisch tabellen inpakken (zodat scrollen altijd werkt)
+  // We zoeken alle tabellen die nog niet in een 'responsive' div zitten
+  const tables = document.querySelectorAll('table');
+  tables.forEach(table => {
+    // Check of hij al in een wrapper zit, zo niet: maak er een
+    if (!table.parentElement.classList.contains('mobile-scroll-wrapper') && 
+        !table.parentElement.classList.contains('table-responsive')) {
+      
+      const wrapper = document.createElement('div');
+      wrapper.className = 'mobile-scroll-wrapper';
+      
+      // Verplaats de tabel IN de nieuwe wrapper
+      table.parentNode.insertBefore(wrapper, table);
+      wrapper.appendChild(table);
+    } else {
+      // Als hij al een parent heeft, geef die de juiste class voor mobiel
+      table.parentElement.classList.add('mobile-scroll-wrapper');
+    }
+  });
 });
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
