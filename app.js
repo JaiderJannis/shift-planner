@@ -1595,6 +1595,7 @@ function renderProfileShiftSettings() {
           <option value="school" ${sh.icon === 'school' ? 'selected' : ''}>🎓 School</option>
           <option value="medical_services" ${sh.icon === 'medical_services' ? 'selected' : ''}>🏥 Ziekte</option>
           <option value="flight" ${sh.icon === 'flight' ? 'selected' : ''}>✈️ Verlof</option>
+          <option value="bench" ${sh.icon === 'bench' ? 'selected' : ''}>🪑 Bench</option>
           <option value="feestdag" ${sh.icon === 'feestdag' ? 'selected' : ''}>🎉 Feestdag</option>
           <option value="teammeeting" ${sh.icon === 'teammeeting' ? 'selected' : ''}>👥 Teammeeting</option>
           <option value="niet_ingepland" ${sh.icon === 'niet_ingepland' ? 'selected' : ''}>❌ Niet ingepland</option>
