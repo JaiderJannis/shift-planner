@@ -1296,7 +1296,7 @@ function renderCalendarGrid(year, month) {
   const ud = getCurrentUserData();
   const md = ud.monthData?.[year]?.[month] || { rows: {} };
   
-  // A. Haal favoriete shiften op (voor de knopjes)
+  // A. Haal favoriete shiften op
   const favorites = Object.entries(ud.shifts || {}).filter(([k, v]) => v.isFavorite);
 
   // Headers
@@ -1317,10 +1317,10 @@ function renderCalendarGrid(year, month) {
     const dateObj = new Date(year, month, d);
     const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
     
-    // B. Maak de klikbare icoontjes (van je favorieten)
+    // B. Maak de klikbare icoontjes
     const quickIconsHtml = favorites.map(([sKey, sh]) => {
       let icon = sh.icon || 'star';
-      if (!sh.icon) { // Fallback
+      if (!sh.icon) { 
          const n = (sh.realName || sKey).toLowerCase();
          if (n.includes('vroeg')) icon = 'light_mode';
          else if (n.includes('laat')) icon = 'wb_twilight';
@@ -1338,12 +1338,21 @@ function renderCalendarGrid(year, month) {
     
     dayKeys.slice(0, 3).forEach(k => {
       const r = md.rows[k];
+      
+      // --- DE FIX ZIT HIER ---
+      // Als er geen shift-naam is (dus leeg), teken dan NIETS.
+      if (!r.shift) return; 
+      // -----------------------
+
       const sh = ud.shifts[r.shift];
       shiftsHtml += `<div class="cal-shift-item" style="background:${sh?.color || '#eee'}; border-left:3px solid rgba(0,0,0,0.2)">
         ${sh?.realName || r.shift}
       </div>`;
     });
-    if (dayKeys.length > 3) shiftsHtml += `<div style="font-size:9px; text-align:center; color:#999;">+${dayKeys.length - 3}</div>`;
+    
+    // Alleen +1 tonen als er echt verborgen shiften zijn die NIET leeg zijn
+    const realCount = dayKeys.filter(k => md.rows[k].shift).length;
+    if (realCount > 3) shiftsHtml += `<div style="font-size:9px; text-align:center; color:#999;">+${realCount - 3}</div>`;
 
     const dayEl = document.createElement('div');
     dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''}`;
@@ -1356,13 +1365,11 @@ function renderCalendarGrid(year, month) {
       <div class="d-flex flex-column gap-1 mt-1">${shiftsHtml}</div>
     `;
 
-    // 1. KLIK OP DAG -> Open de Popup
     dayEl.onclick = () => openDayEditor(baseKey);
 
-    // 2. KLIK OP ICOONTJE -> Direct toevoegen
     dayEl.querySelectorAll('.quick-icon-btn').forEach(btn => {
       btn.onclick = (e) => {
-        e.stopPropagation(); // Stop popup
+        e.stopPropagation(); 
         const shiftKey = btn.dataset.shift;
         applyShiftDirectly(baseKey, shiftKey);
       };
@@ -6316,7 +6323,36 @@ delVersionBtn?.addEventListener('click', async () => {
     toast('Versie verwijderd', 'success');
   }
 });
+// ==========================================
+// 5. UI FIXES (Scrollbalken weg op Desktop)
+// ==========================================
+document.addEventListener("DOMContentLoaded", () => {
+  const style = document.createElement('style');
+  style.innerHTML = `
+    /* Alleen op PC/Laptop schermen (breder dan 992px) */
+    @media (min-width: 992px) {
+      
+      /* Historiek tabel volledig uitklappen */
+      #historyTable, .table-responsive {
+        overflow: visible !important;
+        max-height: none !important;
+        height: auto !important;
+      }
 
+      /* Shiften lijst volledig uitklappen */
+      #shiftTableBody, .shift-container {
+        max-height: none !important;
+        overflow-y: visible !important;
+      }
+      
+      /* Zorg dat de scrollbar van de hele pagina het werk doet */
+      body {
+        overflow-y: auto;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+});
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
