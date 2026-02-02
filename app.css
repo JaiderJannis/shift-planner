@@ -641,38 +641,82 @@ body:not(.auth-checked) #loadingOverlay {
   transform: scale(1.3);
 }
 /* Kalender Grid Layout */
+/* --- Desktop & Basis --- */
 .calendar-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, 1fr); /* 7 gelijke kolommen */
   background-color: #dee2e6;
   gap: 1px;
   border: 1px solid #dee2e6;
-  border-radius: 4px;
-  overflow: hidden;
+  width: 100%; /* Forceer dat het binnen de container blijft */
 }
 
 .calendar-header {
   background: #f8f9fa;
-  padding: 10px 5px;
   text-align: center;
   font-weight: bold;
-  font-size: 0.75rem;
-  text-transform: uppercase;
+  font-size: 0.8rem;
+  padding: 5px 0;
   color: #6c757d;
 }
 
 .calendar-day {
   background: #fff;
-  min-height: 110px;
-  padding: 8px;
+  min-height: 100px; /* Hoogte op PC */
+  padding: 5px;
   position: relative;
-  transition: background 0.1s;
+  cursor: pointer;
 }
 
+.calendar-day:hover { background-color: #f0f8ff; }
 .calendar-day.weekend { background-color: #fcfcfc; }
-.calendar-day.disabled { background-color: #f1f3f5; opacity: 0.5; }
-.calendar-day:hover { background-color: #f8f9fa; }
 
+/* Shift balkjes (Desktop) */
+.cal-shift-item {
+  font-size: 0.7rem;
+  padding: 1px 4px;
+  margin-bottom: 2px;
+  border-radius: 3px;
+  background: #eee;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- MOBIELE AANPASSINGEN (Zodat het past!) --- */
+@media (max-width: 768px) {
+  .calendar-day {
+    min-height: 60px; /* Minder hoog */
+    padding: 1px !important; /* Minimale padding */
+    overflow: hidden; /* Voorkom uitrekken */
+  }
+
+  .calendar-header {
+    font-size: 0.7rem; /* Kleinere letters */
+    padding: 2px 0;
+    overflow: hidden;
+  }
+  
+  .day-number {
+    font-size: 0.7rem;
+    font-weight: bold;
+    margin-left: 2px;
+  }
+
+  /* Shift balkjes op mobiel: Héél compact */
+  .cal-shift-item {
+    font-size: 8px; /* Kleinere tekst */
+    padding: 0 2px;
+    height: 14px;
+    line-height: 14px;
+  }
+  
+  /* Verberg icoontjes op mobiel als ze in de weg zitten, 
+     of maak ze heel klein */
+  .quick-icon {
+    font-size: 10px !important;
+  }
+}
 .day-number {
   font-weight: 800;
   font-size: 0.85rem;
