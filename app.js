@@ -6557,6 +6557,48 @@ document.addEventListener("DOMContentLoaded", () => {
   wrapTables();
   setTimeout(wrapTables, 1000);
 });
+// ==========================================
+// NIEUW: Uren aanpassen vanuit de popup (FIXED)
+// ==========================================
+window.updateShiftTime = async (rowKey, field, value) => {
+  const [yStr, mStr] = currentEditingDateKey.split('-');
+  const y = Number(yStr); // 🔥 FIX: Zorg dat dit een cijfer is!
+  const m = Number(mStr) - 1;
+  
+  const ud = getCurrentUserData();
+  const md = ud.monthData?.[y]?.[m];
+  
+  if (!md || !md.rows[rowKey]) return;
+
+  const r = md.rows[rowKey];
+  
+  // Update de waarde
+  if (field === 'break') {
+      r.break = Number(value) || 0;
+  } else {
+      r[field] = value;
+  }
+
+  // Herbereken minuten (veilig)
+  if (typeof minutesBetween === 'function') {
+      r.minutes = minutesBetween(r.start, r.end, r.break);
+  } else {
+      // Fallback
+      const [sh, sm] = (r.start||'00:00').split(':').map(Number);
+      const [eh, em] = (r.end||'00:00').split(':').map(Number);
+      let mins = (eh*60+em) - (sh*60+sm) - (Number(r.break)||0);
+      if (mins < 0) mins += 1440; 
+      r.minutes = mins;
+  }
+
+  // Opslaan
+  await saveUserData();
+  
+  // Verversen (Nu met de juiste y en m types, dus blauw licht blijft!)
+  renderCalendarGrid(y, m);
+  updateInputTotals();
+  renderHistory();
+};
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
