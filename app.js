@@ -1440,13 +1440,19 @@ function openDayEditor(dateKey) {
   } else {
     dayKeys.forEach(k => {
       const r = md.rows[k];
-      const sh = ud.shifts[r.shift];
+      
+      // --- DE FIX ZIT HIER ---
+      // Als de shift niet gevonden wordt (bv. verwijderd), gebruik een 'fallback' object
+      // Dit voorkomt de "ReferenceError: sh is not defined"
+      const sh = ud.shifts[r.shift] || { color: '#ccc', realName: r.shift, icon: 'help' };
+      // -----------------------
+
       const rowDiv = document.createElement('div');
       rowDiv.className = 'd-flex align-items-center justify-content-between p-2 border rounded bg-light';
       rowDiv.innerHTML = `
         <div class="d-flex align-items-center gap-2">
-           <span class="dot" style="background:${sh?.color || '#ccc'}; width:10px; height:10px; border-radius:50%;"></span>
-           <strong>${sh?.realName || r.shift}</strong>
+           <span class="dot" style="background:${sh.color || '#ccc'}; width:10px; height:10px; border-radius:50%;"></span>
+           <strong>${sh.realName || r.shift}</strong>
            <small class="text-muted">(${r.start}-${r.end})</small>
         </div>
         <button class="btn btn-outline-danger btn-sm p-0 px-1" title="Verwijder" onclick="removeShiftFromDay('${k}')">
@@ -1461,9 +1467,7 @@ function openDayEditor(dateKey) {
   const noteField = document.getElementById('dayEditorNote');
   if (noteField) noteField.value = firstKey ? (md.rows[firstKey].description || '') : '';
 
-  // --- HIER ZIT DE BELANGRIJKE FIX ---
   const modalEl = document.getElementById('dayEditorModal');
-  // Gebruik getOrCreateInstance zodat we geen dubbele backdrops krijgen!
   const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
   modal.show();
 }
@@ -2919,43 +2923,59 @@ let lastVisible = null; // houdt bij tot waar we geladen hebben
 
 // 🔁 Laad de eerste reeks meldingen
 function listenToNotifications(uid) {
-  // VEILIGHEIDS CHECK: Zoek het element NU pas op
   const notifList = document.getElementById('notifList');
   const notifBadge = document.getElementById('notifBadge');
   
-  if (!notifList) return; // Stop als het element er niet is
+  // Veiligheidscheck: bestaat de lijst wel?
+  if (!notifList) return;
 
   const colRef = collection(db, 'users', uid, 'notifications');
 
-  // 1. 🛑 Vlag om te voorkomen dat je bij het opstarten 20 meldingen krijgt
-  let isFirstRun = true; 
+  // --- DE FIX ZIT HIER ---
+  // Deze regel ontbrak, waardoor 'q' onbekend was
+  const q = query(colRef, orderBy('timestamp', 'desc'), limit(50));
+  // -----------------------
 
-  onSnapshot(q, (snapshot) => {
-    notifList.innerHTML = '';
-    let unread = 0;
-    
-    dataStore.notifications = []; 
+  // Luister naar de query 'q'
+  const unsub = onSnapshot(q, (snapshot) => {
+    const notifs = [];
+    snapshot.forEach(doc => {
+      notifs.push({ id: doc.id, ...doc.data() });
+    });
 
-    const docs = snapshot.docs;
-    if (docs.length > 0) {
-        lastVisible = docs[docs.length - 1]; 
+    // Update de badge (rode bolletje)
+    const unreadCount = notifs.filter(n => !n.read).length;
+    if (notifBadge) {
+      if (unreadCount > 0) {
+        notifBadge.classList.remove('d-none');
+        notifBadge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+      } else {
+        notifBadge.classList.add('d-none');
+      }
     }
 
-    // --- A. DE BESTAANDE UI-LUS (Lijst opbouwen) ---
-    snapshot.forEach((docSnap) => {
-      const n = docSnap.data();
-      dataStore.notifications.push(n); 
-      
-      const time = n.timestamp ? new Date(n.timestamp).toLocaleString('nl-BE') : '';
-      if (!n.read) unread++;
-      const li = document.createElement('li');
-      li.className = `mb-1 p-1 rounded ${n.read ? '' : 'bg-light unread'}`;
-      li.innerHTML = `
-        <div>${n.text}</div>
-        <div class="text-muted small">${time}</div>
-      `;
-      notifList.appendChild(li);
-    });
+    // Render de lijst
+    notifList.innerHTML = '';
+    if (notifs.length === 0) {
+      notifList.innerHTML = '<li><span class="dropdown-item-text small text-muted">Geen meldingen</span></li>';
+    } else {
+      notifs.forEach(n => {
+        const li = document.createElement('li');
+        const dateStr = n.timestamp ? new Date(n.timestamp.seconds * 1000).toLocaleDateString() : '';
+        li.innerHTML = `
+          <a class="dropdown-item" href="#" onclick="markNotifRead('${n.id}', event)">
+            <div class="d-flex justify-content-between">
+              <strong class="${n.read ? 'fw-normal text-muted' : 'fw-bold'}">${n.title || 'Melding'}</strong>
+              <small class="text-muted" style="font-size:0.7em;">${dateStr}</small>
+            </div>
+            <div class="small text-muted text-wrap" style="max-width: 250px;">${n.message || ''}</div>
+          </a>
+        `;
+        notifList.appendChild(li);
+      });
+    }
+  });
+}
 
     // --- B. NIEUW: DE BROWSER NOTIFICATIE LUS ---
     // We voeren dit alleen uit als het NIET de eerste keer laden is
