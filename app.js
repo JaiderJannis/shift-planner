@@ -1248,7 +1248,9 @@ async function renderMonth(year, month){
   }
 
   await saveUserData();
+  renderCalendarGrid(year, month);
   updateRemainingHours();
+  updateInputTotals();
   renderProjectSummary(); 
   updateLeaveBadges(); 
   renderHome();
@@ -1265,7 +1267,73 @@ async function renderMonth(year, month){
 
   updateMonthStatusBadge();
 }
+function renderCalendarGrid(year, month) {
+  const grid = document.getElementById('monthlyCalendarGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
 
+  const ud = getCurrentUserData();
+  const md = ud.monthData?.[year]?.[month] || { rows: {} };
+
+  // Headers (Ma t/m Zo)
+  const dayLabels = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'];
+  dayLabels.forEach(l => grid.insertAdjacentHTML('beforeend', `<div class="calendar-header">${l}</div>`));
+
+  // Bereken startpunt van de maand
+  const firstDay = new Date(year, month, 1).getDay();
+  const offset = (firstDay === 0) ? 6 : firstDay - 1;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // Lege cellen
+  for (let i = 0; i < offset; i++) grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
+
+  // Dagen vullen
+  for (let d = 1; d <= daysInMonth; d++) {
+    const baseKey = dateKey(year, month, d);
+    const dateObj = new Date(year, month, d);
+    const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
+    
+    const dayEl = document.createElement('div');
+    dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''}`;
+    dayEl.innerHTML = `
+      <div class="day-number">${d}</div>
+      <button class="btn btn-primary btn-sm day-add-btn" title="Shift toevoegen">
+        <span class="material-icons-outlined" style="font-size:16px">add</span>
+      </button>
+      <div class="day-shifts-container"></div>
+    `;
+
+    // Toon de shiften op de kalender
+    const dayKeys = listDayKeys(md, baseKey);
+    const container = dayEl.querySelector('.day-shifts-container');
+    
+    dayKeys.forEach(k => {
+      const r = md.rows[k];
+      if (r && r.shift) {
+        const shDef = ud.shifts[r.shift];
+        const div = document.createElement('div');
+        div.className = 'cal-shift-item';
+        div.style.backgroundColor = shDef?.color || '#e9ecef';
+        div.textContent = `${r.start} ${shDef?.realName || r.shift}`;
+        
+        // Klik op shift opent de details tabel onderaan
+        div.onclick = () => {
+          bootstrap.Collapse.getOrCreateInstance(document.getElementById('collapseTable')).show();
+        };
+        container.appendChild(div);
+      }
+    });
+
+    // Plus-knop opent de snelle invoer
+    dayEl.querySelector('.day-add-btn').onclick = () => {
+      quickDate.value = baseKey;
+      populateQuickShifts();
+      new bootstrap.Modal(document.getElementById('quickModal')).show();
+    };
+
+    grid.appendChild(dayEl);
+  }
+}
 
 async function populateShiftSelectForRow(tr, rowKey){
   const base = rowKey.split('#')[0];                   // YYYY-MM-DD
