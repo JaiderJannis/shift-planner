@@ -1361,7 +1361,7 @@ function openDayEditor(dateKey) {
   document.getElementById('dayEditorTitle').textContent = `Bewerken: ${dateKey}`;
   
   // Lijst met shiften vullen
-  const listContainer = document.getElementById('dayEditorShifts');
+  const listContainer = document.getElementById('dayEditorList');
   listContainer.innerHTML = '';
   
   const dayKeys = listDayKeys(md, dateKey);
