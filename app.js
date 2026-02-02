@@ -4968,6 +4968,7 @@ async function notifyUserOfLeaveStatus(uid, rowData, dateKey, status) {
       document.getElementById('prefNotifyMonthlyGoal').checked = prefs.notifyMonthlyGoal !== false;
       document.getElementById('prefNotifyProjectEnd').checked = prefs.notifyProjectEnd !== false;
       // EINDE TOEVOEGING
+      renderProfileShiftSettings();
     }
 
     // 2. Koppel de laad-functie aan het 'show' event van de modal
