@@ -2974,8 +2974,6 @@ function listenToNotifications(uid) {
         notifList.appendChild(li);
       });
     }
-  });
-}
 
     // --- B. NIEUW: DE BROWSER NOTIFICATIE LUS ---
     // We voeren dit alleen uit als het NIET de eerste keer laden is
