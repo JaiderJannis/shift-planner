@@ -192,11 +192,13 @@ function canAddMultiForProject(projectName) {
   const p = (ud.projects || []).find(px => px.name === projectName);
   return !!p?.allowMulti;
 }
-function listDayKeys(md, baseKey) {
-  const rows = md?.rows || {};
-  return Object.keys(rows)
-    .filter(k => k === baseKey || k.startsWith(baseKey + '#'))
-    .sort((a, b) => a.localeCompare(b, 'nl'));
+function listDayKeys(monthData, dateKey) {
+  if (!monthData || !monthData.rows) return [];
+  
+  // Filter alle keys die BEGINNEN met de datum string
+  return Object.keys(monthData.rows)
+    .filter(k => k === dateKey || k.startsWith(dateKey + '_'))
+    .sort(); // Sorteer zodat ze netjes op volgorde staan
 }
 function nextLineIndex(md, baseKey) {
   const keys = listDayKeys(md, baseKey);
@@ -1377,21 +1379,31 @@ async function applyShiftDirectly(dateKey, shiftKey) {
   const sh = ud.shifts[shiftKey];
   
   if (!sh) return;
+  
+  const md = ud.monthData[y][m];
 
-  // Overschrijf de hoofdshift (voor snelheid)
-  ud.monthData[y][m].rows[dateKey] = {
+  // 1. BEPAAL DE SLEUTEL
+  // Bestaat de basis datum al? Maak dan een unieke extra sleutel aan.
+  let targetKey = dateKey;
+  if (md.rows[dateKey]) {
+    targetKey = `${dateKey}_${Date.now()}`; // Bv: 2024-02-01_1715699...
+  }
+
+  // 2. OPSLAAN
+  md.rows[targetKey] = {
     project: sh.project || '',
     shift: shiftKey,
     start: sh.start,
     end: sh.end,
     break: sh.break,
-    description: ud.monthData[y][m].rows[dateKey]?.description || ''
+    description: ''
   };
 
+  // 3. UPDATEN
   renderCalendarGrid(y, m);
   updateInputTotals();
   await saveUserData();
-  toast(`${sh.realName || shiftKey} geplaatst`, 'success');
+  toast(`${sh.realName || shiftKey} toegevoegd`, 'success');
 }
 
 // ==========================================
