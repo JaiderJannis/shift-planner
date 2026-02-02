@@ -1876,32 +1876,6 @@ if (btnQuick) {
     toast('Extra shift toegevoegd', 'success');
   });
 }
-  // ✅ Automatische projecttoewijzing
-let project = sh?.project || '';
-const sp = autoProjectForShift(shift);
-if (sp) {
-  ensureProjectExists(sp);
-  project = sp;
-}
-
-  ud.monthData[y][m].rows[key] = {
-    project,
-    shift,
-    start: sh.start,
-    end: sh.end,
-    break: sh.break,
-    omschrijving: note,
-    minutes
-  };
-
-  await saveUserData();
-  renderMonth(y, m);
-  updateInputTotals();
-  renderHistory();
-  updateRemainingHours();
-  bootstrap.Modal.getInstance(document.getElementById('quickModal')).hide();
-  toast('Snelle invoer toegevoegd','success');
-
     // ======= Historiek =======
 function renderHistory() {
   // Bepaal welke gebruiker we tonen (admin kan een andere user kiezen)
@@ -2926,24 +2900,23 @@ function listenToNotifications(uid) {
   const notifList = document.getElementById('notifList');
   const notifBadge = document.getElementById('notifBadge');
   
-  // Veiligheidscheck: bestaat de lijst wel?
   if (!notifList) return;
 
   const colRef = collection(db, 'users', uid, 'notifications');
-
-  // --- DE FIX ZIT HIER ---
-  // Deze regel ontbrak, waardoor 'q' onbekend was
   const q = query(colRef, orderBy('timestamp', 'desc'), limit(50));
-  // -----------------------
 
-  // Luister naar de query 'q'
+  // ✅ HIER ONTBRAK DE REGEL:
+  let isFirstRun = true; 
+
   const unsub = onSnapshot(q, (snapshot) => {
     const notifs = [];
+    const docs = snapshot.docs; // Voor 'Toon meer' check
+
     snapshot.forEach(doc => {
       notifs.push({ id: doc.id, ...doc.data() });
     });
 
-    // Update de badge (rode bolletje)
+    // Update de badge
     const unreadCount = notifs.filter(n => !n.read).length;
     if (notifBadge) {
       if (unreadCount > 0) {
@@ -2975,22 +2948,21 @@ function listenToNotifications(uid) {
       });
     }
 
-    // --- B. NIEUW: DE BROWSER NOTIFICATIE LUS ---
-    // We voeren dit alleen uit als het NIET de eerste keer laden is
+    // Browser meldingen (alleen bij nieuwe inkomende, niet bij start)
     if (!isFirstRun) {
       snapshot.docChanges().forEach((change) => {
-        // Als er een nieuw bericht is binnengekomen (added)
         if (change.type === "added") {
           const n = change.doc.data();
-          // Stuur de browser melding (functie die we eerder maakten)
-          sendBrowserNotification("Nieuwe melding", n.text);
+          // Check of we sendBrowserNotification hebben
+          if (typeof sendBrowserNotification === 'function') {
+             sendBrowserNotification("Nieuwe melding", n.message || n.text || "Er is een nieuwe notificatie");
+          }
         }
       });
     }
 
-    // Update de badges
-    notifBadge.textContent = unread;
-    notifBadge.classList.toggle('d-none', unread === 0);
+    // Load home notifications (als die functie bestaat)
+    if (typeof loadHomeNotifications === 'function') loadHomeNotifications();
 
     // Toon 'Toon meer' knop logic
     const loadMoreBtn = document.getElementById('loadMoreNotifBtn');
@@ -2998,9 +2970,7 @@ function listenToNotifications(uid) {
         loadMoreBtn.classList.toggle('d-none', docs.length < 20);
     }
     
-    loadHomeNotifications(); 
-
-    // 2. 🛑 Zet de vlag op false na de eerste keer laden
+    // Zet vlag uit
     isFirstRun = false;
   });
 }
@@ -4883,17 +4853,22 @@ function openMail(m) {
 
 /* ---------- once-only UI binding ---------- */
 function bindMailboxUIOnce() {
-  if (typeof mailUIBound === 'undefined') window.mailUIBound = false; // Fallback
+  if (typeof mailUIBound === 'undefined') window.mailUIBound = false;
   if (mailUIBound) return;
   mailUIBound = true;
 
-  // Haal elementen hier lokaal op om crashes te voorkomen
-  const mailFolderNav = document.getElementById('mailFolderNav');
-  const mailComposeBtn = document.getElementById('mailComposeBtn');
-  const mailRefreshBtn = document.getElementById('mailRefreshBtn');
-
-// Folder switch
-mailFolderNav?.addEventListener('click', (e) => {
+  // ✅ FIX: Haal elementen hier lokaal op (voorkomt initialization errors)
+  const nav = document.getElementById('mailFolderNav');
+  const compBtn = document.getElementById('mailComposeBtn');
+  const refBtn = document.getElementById('mailRefreshBtn');
+  const cancBtn = document.getElementById('mailCancelBtn');
+  const sndBtn = document.getElementById('mailSendBtn');
+  const delAllBtn = document.getElementById('mailDeleteAllBtn');
+  const markAllBtn = document.getElementById('mailMarkAllReadBtn');
+  const compCard = document.getElementById('mailComposeCard');
+  
+  // Folder switch
+  nav?.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-folder]');
     if (!btn) return;
     mailFolder = btn.dataset.folder; // 'inbox' or 'sent'
@@ -4901,50 +4876,53 @@ mailFolderNav?.addEventListener('click', (e) => {
     const inboxBtn = document.getElementById('mailTabInbox');
     const sentBtn = document.getElementById('mailTabSent');
   
-    // 1. FIX: Update de knop-stijlen correct
     if (mailFolder === 'sent') {
       inboxBtn.classList.remove('active', 'btn-outline-primary');
       inboxBtn.classList.add('btn-outline-secondary');
-      
       sentBtn.classList.add('active', 'btn-outline-primary');
       sentBtn.classList.remove('btn-outline-secondary');
-    } else { // 'inbox'
+    } else { 
       inboxBtn.classList.add('active', 'btn-outline-primary');
       inboxBtn.classList.remove('btn-outline-secondary');
-      
       sentBtn.classList.remove('active', 'btn-outline-primary');
       sentBtn.classList.add('btn-outline-secondary');
     }
   
-    // 2. FIX: Update de titel
     const titleEl = document.getElementById('mailListTitle');
-    if (titleEl) {
-      titleEl.textContent = (mailFolder === 'sent') ? 'Verzonden' : 'Inbox';
-    }
+    if (titleEl) titleEl.textContent = (mailFolder === 'sent') ? 'Verzonden' : 'Inbox';
   
-    // 3. Herlaad de lijst en maak details leeg
     renderMailList();
-    mailDetail.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
+    const detailEl = document.getElementById('mailDetail');
+    if (detailEl) detailEl.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
   });
 
   // Compose
-  mailComposeBtn?.addEventListener('click', () => {
-    mailComposeCard.classList.toggle('d-none');
-    if (!mailComposeCard.classList.contains('d-none')) {
+  compBtn?.addEventListener('click', () => {
+    compCard?.classList.toggle('d-none');
+    if (!compCard?.classList.contains('d-none')) {
       prepareComposeOptions();
-      mailSubjectInput.value = '';
-      mailBodyInput.value    = '';
+      const subj = document.getElementById('mailSubjectInput');
+      const body = document.getElementById('mailBodyInput');
+      if (subj) subj.value = '';
+      if (body) body.value = '';
       composeThreadId = null;
     }
   });
-  mailCancelBtn?.addEventListener('click', () => {
-    mailComposeCard.classList.add('d-none');
+
+  cancBtn?.addEventListener('click', () => {
+    compCard?.classList.add('d-none');
     composeThreadId = null;
   });
-  mailSendBtn?.addEventListener('click', async () => {
-    const toVal   = mailToSelect.value;
-    const subject = (mailSubjectInput.value || '').trim();
-    const body    = (mailBodyInput.value || '').trim();
+
+  sndBtn?.addEventListener('click', async () => {
+    const toSelect = document.getElementById('mailToSelect');
+    const subjInput = document.getElementById('mailSubjectInput');
+    const bodyInput = document.getElementById('mailBodyInput');
+
+    const toVal   = toSelect?.value;
+    const subject = (subjInput?.value || '').trim();
+    const body    = (bodyInput?.value || '').trim();
+    
     if (!toVal || !subject || !body) return toast('Vul aan: geadresseerde, onderwerp en bericht', 'warning');
 
     const meUid = getActiveUserId();
@@ -4958,7 +4936,7 @@ mailFolderNav?.addEventListener('click', (e) => {
         await sendUserMessageToAdmins(subject, body, composeThreadId || `conv:${meUid}`);
         toast('Bericht verzonden aan admins', 'success');
       }
-      mailComposeCard.classList.add('d-none');
+      compCard?.classList.add('d-none');
       composeThreadId = null;
     } catch (e) {
       console.error(e);
@@ -4967,34 +4945,22 @@ mailFolderNav?.addEventListener('click', (e) => {
   });
 
   // Refresh
-  mailRefreshBtn?.addEventListener('click', () => {
+  refBtn?.addEventListener('click', () => {
     const uid = getActiveUserId();
     if (uid) listenMailbox(uid);
   });
-// 🆕 Alles verwijderen (in de huidige map)
-mailDeleteAllBtn?.addEventListener('click', async () => {
-    const uid = currentUserId; // 
+
+  // Delete All
+  delAllBtn?.addEventListener('click', async () => {
+    const uid = currentUserId; 
     if (!uid) return;
-
-    // 1. Bepaal welke map actief is
     const folderName = (mailFolder === 'sent') ? 'verzonden items' : 'inbox';
-
-    // 2. Haal de berichten op die *zichtbaar* zijn in die map
-    //    Deze helper bestaat al en respecteert de 'mailFolder' state
     const messagesToDelete = filteredMessages(); 
 
-    if (messagesToDelete.length === 0) {
-      return toast(`Er zijn geen berichten in je ${folderName}.`, 'info');
-    }
+    if (messagesToDelete.length === 0) return toast(`Er zijn geen berichten in je ${folderName}.`, 'info');
+    if (!confirm(`Weet je zeker dat je alle ${messagesToDelete.length} berichten in je ${folderName} permanent wilt verwijderen?`)) return;
 
-    // 3. Vraag bevestiging (BELANGRIJK!)
-    if (!confirm(`Weet je zeker dat je alle ${messagesToDelete.length} berichten in je ${folderName} permanent wilt verwijderen?`)) {
-      return;
-    }
-
-    // 4. Bouw de lijst van te verwijderen documenten
     try {
-      // ⬇️ HIER IS DE FIX ⬇️
       const deletions = messagesToDelete.map(m => {
         let docRef; 
         if (m._source === 'admin_mail') {
@@ -5004,108 +4970,93 @@ mailDeleteAllBtn?.addEventListener('click', async () => {
         }
         return deleteDoc(docRef);
       });
-
       await Promise.all(deletions);
-      toast(`Alle ${messagesToDelete.length} berichten zijn verwijderd.`, 'success');
-      
-      // Maak het detailpaneel leeg
-      mailDetail.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
-      delete mailDetail.dataset.openId;
-
+      toast(`Alle berichten verwijderd.`, 'success');
+      const detailEl = document.getElementById('mailDetail');
+      if (detailEl) {
+          detailEl.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
+          delete detailEl.dataset.openId;
+      }
     } catch (err) {
-      console.error("Fout bij alles verwijderen:", err);
-      toast('Er ging iets mis bij het verwijderen.', 'danger');
+      console.error("Fout:", err);
+      toast('Er ging iets mis.', 'danger');
     }
   });
-// 🆕 Markeer alles als gelezen
-  mailMarkAllReadBtn?.addEventListener('click', async () => {
-    const uid = currentUserId; // 👈 FIX: Altijd de ingelogde user gebruiken
-    if (!uid) return;
-    if (!confirm('Alle berichten in de inbox als gelezen markeren?')) return;
 
-    // We updaten alleen de items die we lokaal zien (uit de cache)
-    const unreadInbox = mailboxCache.filter(m =>
-      (m.from?.uid !== uid || m.system) && // Definitie van 'inbox'
-      m.read === false
-    );
+  // Mark All Read
+  markAllBtn?.addEventListener('click', async () => {
+    const uid = currentUserId; 
+    if (!uid) return;
+    if (!confirm('Alle berichten in de inbox als gelezen markeren?')) return;
 
-    if (unreadInbox.length === 0) {
-      return toast('Geen ongelezen berichten', 'info');
-    }
+    const unreadInbox = mailboxCache.filter(m => (m.from?.uid !== uid || m.system) && m.read === false);
+    if (unreadInbox.length === 0) return toast('Geen ongelezen berichten', 'info');
 
-    try {
-      // ⬇️ HIER IS DE FIX ⬇️
-      const updates = unreadInbox.map(m => {
-        let docRef; 
+    try {
+      const updates = unreadInbox.map(m => {
+        let docRef; 
         if (m._source === 'admin_mail') {
          docRef = doc(db, 'admin_mail', m._id);
         } else {
-          docRef = doc(db, 'users', uid, 'mailbox', m._id);
+          docRef = doc(db, 'users', uid, 'mailbox', m._id);
         }
-        return updateDoc(docRef, { read: true });
-      });
+        return updateDoc(docRef, { read: true });
+      });
+      await Promise.all(updates);
+      toast(`Gemarkeerd als gelezen`, 'success');
+    } catch (err) {
+      console.error("Fout:", err);
+      toast('Er ging iets mis.', 'danger');
+    }
+  });
 
-      await Promise.all(updates);
-      toast(`Alle ${unreadInbox.length} berichten als gelezen gemarkeerd`, 'success');
-
-    } catch (err) {
-      console.error("Fout bij alles gelezen:", err);
-      toast('Er ging iets mis.', 'danger');
-    }
-  });
-  // Lijst actions (delegation, één listener)
-  mailListBody?.addEventListener('click', async (e) => {
+  // Lijst en Detail click listeners (Delegation)
+  const listBody = document.getElementById('mailListBody');
+  listBody?.addEventListener('click', async (e) => {
     const aOpen = e.target.closest('a.js-open');
     const bTog  = e.target.closest('button.js-toggle');
     const bDel  = e.target.closest('button.js-del');
+    
     if (aOpen) {
       e.preventDefault();
-      const msg = filteredMessages().find(x => x._id === aOpen.dataset.id)
-               || mailboxCache.find(x => x._id === aOpen.dataset.id);
+      const msg = filteredMessages().find(x => x._id === aOpen.dataset.id) || mailboxCache.find(x => x._id === aOpen.dataset.id);
       if (msg) openMail(msg);
-      return;
     }
-    if (bTog) {
+    else if (bTog) {
       const id = bTog.dataset.id;
       const msg = mailboxCache.find(x => x._id === id);
       await markMailRead(id, !(msg?.read));
-      return;
     }
-    if (bDel) {
+    else if (bDel) {
       const id = bDel.dataset.id;
       if (!confirm('Dit bericht verwijderen?')) return;
       await deleteMail(id);
       toast('Bericht verwijderd', 'success');
-      return;
     }
   });
 
-  // Detail actions (delegation)
-  mailDetail?.addEventListener('click', (e) => {
+  const detailEl = document.getElementById('mailDetail');
+  detailEl?.addEventListener('click', (e) => {
     const markUn = e.target.closest('.js-mark-unread');
     const delBtn = e.target.closest('.js-del');
     const reply  = e.target.closest('.js-reply');
 
     if (markUn) {
-      const id = markUn.dataset.id;
-      markMailRead(id, false);
+      markMailRead(markUn.dataset.id, false);
       toast('Gemarkeerd als ongelezen', 'success');
-      return;
     }
-    if (delBtn) {
-      const id = delBtn.dataset.id;
+    else if (delBtn) {
       if (!confirm('Dit bericht verwijderen?')) return;
-      deleteMail(id).then(()=> toast('Bericht verwijderd', 'success'));
-      return;
+      deleteMail(delBtn.dataset.id).then(()=> toast('Bericht verwijderd', 'success'));
     }
-    if (reply) {
+    else if (reply) {
       const id = reply.dataset.id;
       const msg = mailboxCache.find(x => x._id === id);
       if (!msg) return;
-      mailComposeCard.classList.remove('d-none');
+      compCard?.classList.remove('d-none');
       prepareComposeToCounterparty(msg);
-      window.scrollTo({ top: mailComposeCard.offsetTop - 80, behavior: 'smooth' });
-      return;
+      // Scroll naar compose
+      if (compCard) window.scrollTo({ top: compCard.offsetTop - 80, behavior: 'smooth' });
     }
   });
 }
