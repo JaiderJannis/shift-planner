@@ -1522,19 +1522,72 @@ window.removeShiftFromDay = async (uniqueKey) => {
   }
 };
 
-document.getElementById('btnSaveDayEditor')?.addEventListener('click', async () => {
-  const note = document.getElementById('dayEditorNote').value;
-  const [y, mStr] = currentEditingDateKey.split('-');
-  const m = Number(mStr) - 1;
-  const ud = getCurrentUserData();
-  const dayKeys = listDayKeys(ud.monthData[y][m], currentEditingDateKey);
-  dayKeys.forEach(k => {
-    if (ud.monthData[y][m].rows[k]) ud.monthData[y][m].rows[k].description = note;
+// ==========================================
+// FIX: OPSLAAN KNOP (FILTERT 00:00 SPOOK-SHIFTEN ERUIT)
+// ==========================================
+// LET OP: De juiste ID is 'btnSaveDayEditor'
+const saveDayEditorBtn = document.getElementById('btnSaveDayEditor');
+
+if (saveDayEditorBtn) {
+  // 1. Oude listeners verwijderen door de knop te vervangen
+  const newBtn = saveDayEditorBtn.cloneNode(true);
+  saveDayEditorBtn.parentNode.replaceChild(newBtn, saveDayEditorBtn);
+
+  // 2. De nieuwe, strenge opslaan functie
+  newBtn.addEventListener('click', async () => {
+    const dateKey = currentEditingDateKey; 
+    if (!dateKey) return;
+
+    const [y, mStr] = dateKey.split('-');
+    const m = Number(mStr) - 1;
+    const ud = getCurrentUserData();
+    
+    // Zorg dat de data-structuur bestaat
+    if (!ud.monthData) ud.monthData = {};
+    if (!ud.monthData[y]) ud.monthData[y] = {};
+    if (!ud.monthData[y][m]) ud.monthData[y][m] = { rows: {} };
+
+    const md = ud.monthData[y][m];
+    
+    // Lees de notitie uit het tekstvak
+    const note = document.getElementById('dayEditorNote')?.value || '';
+
+    // Haal alle shiften van deze dag op
+    const dayKeys = listDayKeys(md, dateKey);
+    
+    // --- 🔥 HIER GEBEURT DE MAGIE 🔥 ---
+    // We lopen door alle shiften heen VOORDAT we opslaan.
+    dayKeys.forEach(k => {
+        const r = md.rows[k];
+        
+        // CHECK: Is de shift naam leeg? (Dit zijn die 00:00 spoken)
+        if (!r.shift || r.shift.trim() === '') {
+            // VERWIJDER HEM DIRECT!
+            delete md.rows[k]; 
+        } else {
+            // Het is een echte shift, dus we slaan de notitie op
+            r.description = note;
+        }
+    });
+    // -----------------------------------
+
+    // 3. Nu pas opslaan naar Firebase (zonder de spoken)
+    await saveUserData();
+    
+    // 4. Alles verversen
+    renderCalendarGrid(y, m);
+    updateInputTotals();
+    renderHistory();
+    
+    // Sluit de popup
+    const modalEl = document.getElementById('dayEditorModal');
+    // Gebruik de veilige manier om de modal te sluiten
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    modal.hide();
+
+    toast('Opgeslagen (lege regels verwijderd)', 'success');
   });
-  await saveUserData();
-  bootstrap.Modal.getInstance(document.getElementById('dayEditorModal')).hide();
-  toast('Opgeslagen', 'success');
-});
+}
 
 // ==========================================
 // 4. PROFIEL INSTELLINGEN (Icoontjes Kiezen)
