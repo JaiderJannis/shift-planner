@@ -1097,17 +1097,17 @@ async function renderMonth(year, month){
 
   const daysInMonth = new Date(year, month+1, 0).getDate();
   for(let d=1; d<=daysInMonth; d++){
-        const baseKey = dateKey(year, month, d);
+    const baseKey = dateKey(year, month, d);
     
-    // 🔥 FIX: We maken GEEN automatische 00:00 rij meer aan in de database!
-    // We kijken alleen of er al eentje is.
+    // 1. FIX: Geen automatische 00:00 aanmaak meer!
     if (md.rows[baseKey]) {
       autoAssignProjectIfNeeded(md.rows[baseKey]);
     }
 
+    // 2. Haal de sleutels op (gebruik 'let' zodat we kunnen aanpassen)
     let allKeys = listDayKeys(md, baseKey);
-    // Als er GEEN gegevens zijn, doen we alsof er 1 lege regel is (zodat je kan typen)
-    // Maar we slaan hem nog NIET op.
+
+    // 3. Als er GEEN gegevens zijn, doen we alsof er 1 lege regel is (zodat je kan typen)
     if (allKeys.length === 0) {
         allKeys = [baseKey];
     }
