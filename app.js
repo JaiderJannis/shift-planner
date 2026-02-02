@@ -1296,8 +1296,28 @@ function renderCalendarGrid(year, month) {
   const ud = getCurrentUserData();
   const md = ud.monthData?.[year]?.[month] || { rows: {} };
   
-  // A. Haal favoriete shiften op
-  const favorites = Object.entries(ud.shifts || {}).filter(([k, v]) => v.isFavorite);
+  // 1. HAAL SHIFTEN OP IN DE JUISTE VOLGORDE
+  // We gebruiken ud.shiftOrder om de volgorde te bepalen
+  const allShifts = ud.shifts || {};
+  const order = ud.shiftOrder || Object.keys(allShifts);
+  
+  // Filter alleen de favorieten eruit, maar behoud de volgorde!
+  const favorites = order
+    .filter(key => allShifts[key] && allShifts[key].isFavorite)
+    .map(key => ({ key, ...allShifts[key] }));
+
+  // 2. EMOJI MAPPING
+  // Vertaal de "oude" icoon-namen naar emojis
+  const ICON_MAP = {
+    'light_mode': '☀️',
+    'wb_twilight': '🌅',
+    'bedtime': '🌙',
+    'schedule': '🕒',
+    'star': '⭐',
+    'school': '🎓',
+    'medical_services': '🏥',
+    'flight': '✈️'
+  };
 
   // Headers
   ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'].forEach(d => 
@@ -1317,32 +1337,24 @@ function renderCalendarGrid(year, month) {
     const dateObj = new Date(year, month, d);
     const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
     
-    // B. Maak de klikbare icoontjes
-    const quickIconsHtml = favorites.map(([sKey, sh]) => {
-      let icon = sh.icon || 'star';
-      if (!sh.icon) { 
-         const n = (sh.realName || sKey).toLowerCase();
-         if (n.includes('vroeg')) icon = 'light_mode';
-         else if (n.includes('laat')) icon = 'wb_twilight';
-         else if (n.includes('nacht')) icon = 'bedtime';
-      }
-      return `<span class="material-icons-outlined quick-icon-btn" 
-        data-shift="${sKey}" 
-        style="color: ${sh.color || '#555'}"
-        title="Direct ${sh.realName || sKey} toevoegen">${icon}</span>`;
+    // 3. GENEREREN VAN EMOJI KNOPJES
+    const quickIconsHtml = favorites.map(sh => {
+      // Zoek de emoji op, of gebruik een sterretje als fallback
+      const emoji = ICON_MAP[sh.icon] || '⭐';
+      
+      // Let op: we gebruiken nu GEEN 'material-icons' class meer
+      return `<span class="quick-icon-btn" 
+        data-shift="${sh.key}" 
+        title="Direct ${sh.realName || sh.key} toevoegen">${emoji}</span>`;
     }).join('');
 
-    // C. Toon de balkjes (bestaande shiften)
+    // Toon de balkjes (bestaande shiften)
     const dayKeys = listDayKeys(md, baseKey);
     let shiftsHtml = '';
     
     dayKeys.slice(0, 3).forEach(k => {
       const r = md.rows[k];
-      
-      // --- DE FIX ZIT HIER ---
-      // Als er geen shift-naam is (dus leeg), teken dan NIETS.
-      if (!r.shift) return; 
-      // -----------------------
+      if (!r.shift) return; // Lege shift negeren
 
       const sh = ud.shifts[r.shift];
       shiftsHtml += `<div class="cal-shift-item" style="background:${sh?.color || '#eee'}; border-left:3px solid rgba(0,0,0,0.2)">
@@ -1350,7 +1362,6 @@ function renderCalendarGrid(year, month) {
       </div>`;
     });
     
-    // Alleen +1 tonen als er echt verborgen shiften zijn die NIET leeg zijn
     const realCount = dayKeys.filter(k => md.rows[k].shift).length;
     if (realCount > 3) shiftsHtml += `<div style="font-size:9px; text-align:center; color:#999;">+${realCount - 3}</div>`;
 
@@ -1367,6 +1378,7 @@ function renderCalendarGrid(year, month) {
 
     dayEl.onclick = () => openDayEditor(baseKey);
 
+    // Click handlers voor de emojis
     dayEl.querySelectorAll('.quick-icon-btn').forEach(btn => {
       btn.onclick = (e) => {
         e.stopPropagation(); 
@@ -1378,7 +1390,6 @@ function renderCalendarGrid(year, month) {
     grid.appendChild(dayEl);
   }
 }
-
 // ==========================================
 // 2. HELPER: DIRECT OPSLAAN (Voor icoontjes)
 // ==========================================
@@ -1531,7 +1542,14 @@ function renderProfileShiftSettings() {
   const ud = getCurrentUserData();
   container.innerHTML = '';
 
-  Object.entries(ud.shifts || {}).forEach(([key, sh]) => {
+  // Gebruik de opgeslagen volgorde
+  const allShifts = ud.shifts || {};
+  const order = ud.shiftOrder || Object.keys(allShifts);
+
+  order.forEach(key => {
+    const sh = allShifts[key];
+    if (!sh) return; // Skip als shift verwijderd is
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>
@@ -1561,11 +1579,14 @@ function renderProfileShiftSettings() {
     const target = e.target;
     const sKey = target.dataset.shift;
     if (!sKey) return;
+    
+    // Update data
     if (target.classList.contains('js-profile-icon')) ud.shifts[sKey].icon = target.value;
     if (target.classList.contains('js-profile-fav')) ud.shifts[sKey].isFavorite = target.checked;
+    
     await saveUserData();
     
-    // Ververs kalender
+    // Ververs kalender direct
     const y = Number(document.getElementById('yearSelectMain')?.value);
     const m = Number(document.getElementById('monthSelectMain')?.value);
     if (y && !isNaN(m)) renderCalendarGrid(y, m);
