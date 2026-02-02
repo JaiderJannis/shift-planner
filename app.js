@@ -1389,7 +1389,10 @@ async function applyShiftDirectly(dateKey, shiftKey) {
   const sh = ud.shifts[shiftKey];
   
   if (!sh) return;
-  
+  // Zorg dat de maandstructuur bestaat (voor de zekerheid)
+  ud.monthData = ud.monthData || {};
+  ud.monthData[y] = ud.monthData[y] || {};
+  ud.monthData[y][m] = ud.monthData[y][m] || { targetHours:0, targetMinutes:0, rows:{} };
   const md = ud.monthData[y][m];
 
   // 1. BEPAAL DE SLEUTEL
@@ -1398,6 +1401,8 @@ async function applyShiftDirectly(dateKey, shiftKey) {
   if (md.rows[dateKey]) {
     targetKey = `${dateKey}_${Date.now()}`; // Bv: 2024-02-01_1715699...
   }
+  // We moeten de minuten expliciet uitrekenen, anders snapt de balk het niet
+  const mins = minutesBetween(sh.start, sh.end, sh.break);
 
   // 2. OPSLAAN
   md.rows[targetKey] = {
