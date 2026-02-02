@@ -1871,7 +1871,7 @@ if (sp) {
   updateRemainingHours();
   bootstrap.Modal.getInstance(document.getElementById('quickModal')).hide();
   toast('Snelle invoer toegevoegd','success');
-};
+
     // ======= Historiek =======
 function renderHistory() {
   // Bepaal welke gebruiker we tonen (admin kan een andere user kiezen)
