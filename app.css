@@ -617,3 +617,26 @@ body:not(.auth-checked) #loadingOverlay {
   font-weight: 600;
   color: #000;
 }
+.day-actions {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: flex;
+  gap: 2px;
+  opacity: 0.3; /* Lichtjes zichtbaar */
+  transition: opacity 0.2s;
+}
+
+.calendar-day:hover .day-actions {
+  opacity: 1; /* Volledig zichtbaar bij hover */
+}
+
+.quick-icon {
+  font-size: 18px !important;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.quick-icon:hover {
+  transform: scale(1.3);
+}
