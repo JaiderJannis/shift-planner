@@ -563,20 +563,29 @@ async function saveUserData(){
 
     // ======= UI init =======
 function initSelectors(){
-  // years
+  const yearSelect = document.getElementById('yearSelectMain');
+  const monthSelect = document.getElementById('monthSelectMain');
+
+  // 🛑 VEILIGHEIDSCHECK: Als de elementen er niet zijn, stop direct.
+  if (!yearSelect || !monthSelect) {
+    console.warn("initSelectors: Kon yearSelectMain of monthSelectMain niet vinden.");
+    return;
+  }
+
+  // Jaren vullen
   const yNow = new Date().getFullYear();
-  yearSelectMain.innerHTML = '';
+  yearSelect.innerHTML = '';
   for (let y = yNow - 2; y <= yNow + 3; y++) {
     const opt = document.createElement('option');
     opt.value = y;
     opt.textContent = y;
     if (y === yNow) opt.selected = true;
-    yearSelectMain.appendChild(opt);
+    yearSelect.appendChild(opt);
   }
 
-  // ⇩ huidige maand selecteren (0..11)
+  // Huidige maand selecteren
   const mNow = new Date().getMonth();
-  monthSelectMain.value = String(mNow);
+  monthSelect.value = String(mNow);
 }
 async function revealAdminIfNeeded(){
       const meSnap = await getDoc(doc(db,'users', currentUserId));
