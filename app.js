@@ -1280,6 +1280,9 @@ async function renderMonth(year, month){
 // Globale variabele om te weten welke dag we bewerken
 let currentEditingDateKey = null;
 
+// ==========================================
+// 1. DE KALENDER (Met Favorieten Icoontjes)
+// ==========================================
 function renderCalendarGrid(year, month) {
   const grid = document.getElementById('monthlyCalendarGrid');
   if (!grid) return;
@@ -1288,6 +1291,9 @@ function renderCalendarGrid(year, month) {
   const ud = getCurrentUserData();
   const md = ud.monthData?.[year]?.[month] || { rows: {} };
   
+  // A. Haal favoriete shiften op (voor de knopjes)
+  const favorites = Object.entries(ud.shifts || {}).filter(([k, v]) => v.isFavorite);
+
   // Headers
   ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'].forEach(d => 
     grid.insertAdjacentHTML('beforeend', `<div class="calendar-header">${d}</div>`)
@@ -1300,56 +1306,97 @@ function renderCalendarGrid(year, month) {
   // Lege cellen
   for (let i = 0; i < offset; i++) grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
 
-  // Dagen
+  // Dagen loop
   for (let d = 1; d <= daysInMonth; d++) {
     const baseKey = dateKey(year, month, d);
     const dateObj = new Date(year, month, d);
     const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
     
-    // Verzamel shiften voor deze dag
-    const dayKeys = listDayKeys(md, baseKey);
-    
-    // Genereer HTML voor iconen (voor mobiel en desktop)
-    let iconsHtml = '';
-    let shiftsHtml = '';
-
-    dayKeys.forEach(k => {
-      const row = md.rows[k];
-      if (row && row.shift) {
-        const sh = ud.shifts[row.shift];
-        // 1. Icoon genereren
-        let iconName = sh?.icon;
-        if (!iconName) {
-           // Auto-detectie fallback
-           const n = (sh?.realName || row.shift).toLowerCase();
-           if(n.includes('vroeg')) iconName='light_mode';
-           else if(n.includes('laat')) iconName='wb_twilight';
-           else if(n.includes('nacht')) iconName='bedtime';
-           else iconName='star';
-        }
-        iconsHtml += `<span class="material-icons-outlined quick-icon" style="color:${sh?.color || '#333'}">${iconName}</span>`;
-        
-        // 2. Balkje genereren (alleen desktop via CSS)
-        shiftsHtml += `<div class="cal-shift-item" style="background:${sh?.color || '#eee'}">${sh?.realName || row.shift}</div>`;
+    // B. Maak de klikbare icoontjes (van je favorieten)
+    const quickIconsHtml = favorites.map(([sKey, sh]) => {
+      let icon = sh.icon || 'star';
+      if (!sh.icon) { // Fallback
+         const n = (sh.realName || sKey).toLowerCase();
+         if (n.includes('vroeg')) icon = 'light_mode';
+         else if (n.includes('laat')) icon = 'wb_twilight';
+         else if (n.includes('nacht')) icon = 'bedtime';
       }
+      return `<span class="material-icons-outlined quick-icon-btn" 
+        data-shift="${sKey}" 
+        style="color: ${sh.color || '#555'}"
+        title="Direct ${sh.realName || sKey} toevoegen">${icon}</span>`;
+    }).join('');
+
+    // C. Toon de balkjes (bestaande shiften)
+    const dayKeys = listDayKeys(md, baseKey);
+    let shiftsHtml = '';
+    
+    dayKeys.slice(0, 3).forEach(k => {
+      const r = md.rows[k];
+      const sh = ud.shifts[r.shift];
+      shiftsHtml += `<div class="cal-shift-item" style="background:${sh?.color || '#eee'}; border-left:3px solid rgba(0,0,0,0.2)">
+        ${sh?.realName || r.shift}
+      </div>`;
     });
+    if (dayKeys.length > 3) shiftsHtml += `<div style="font-size:9px; text-align:center; color:#999;">+${dayKeys.length - 3}</div>`;
 
     const dayEl = document.createElement('div');
     dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''}`;
+    
     dayEl.innerHTML = `
-      <span class="day-number">${d}</span>
-      <div class="day-icons-wrapper">${iconsHtml}</div>
-      <div class="mt-1">${shiftsHtml}</div>
+      <div class="d-flex justify-content-between align-items-start">
+        <span class="day-number">${d}</span>
+        <div class="quick-icons-wrapper">${quickIconsHtml}</div>
+      </div>
+      <div class="d-flex flex-column gap-1 mt-1">${shiftsHtml}</div>
     `;
 
-    // KLIK EVENT: Open de Editor Modal
+    // 1. KLIK OP DAG -> Open de Popup
     dayEl.onclick = () => openDayEditor(baseKey);
+
+    // 2. KLIK OP ICOONTJE -> Direct toevoegen
+    dayEl.querySelectorAll('.quick-icon-btn').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation(); // Stop popup
+        const shiftKey = btn.dataset.shift;
+        applyShiftDirectly(baseKey, shiftKey);
+      };
+    });
 
     grid.appendChild(dayEl);
   }
 }
 
-// --- Functie om de Modal te openen en vullen ---
+// ==========================================
+// 2. HELPER: DIRECT OPSLAAN (Voor icoontjes)
+// ==========================================
+async function applyShiftDirectly(dateKey, shiftKey) {
+  const [y, mStr] = dateKey.split('-');
+  const m = Number(mStr) - 1;
+  const ud = getCurrentUserData();
+  const sh = ud.shifts[shiftKey];
+  
+  if (!sh) return;
+
+  // Overschrijf de hoofdshift (voor snelheid)
+  ud.monthData[y][m].rows[dateKey] = {
+    project: sh.project || '',
+    shift: shiftKey,
+    start: sh.start,
+    end: sh.end,
+    break: sh.break,
+    description: ud.monthData[y][m].rows[dateKey]?.description || ''
+  };
+
+  renderCalendarGrid(y, m);
+  updateInputTotals();
+  await saveUserData();
+  toast(`${sh.realName || shiftKey} geplaatst`, 'success');
+}
+
+// ==========================================
+// 3. POPUP: DAG BEWERKEN (Notities & Extra Lijnen)
+// ==========================================
 function openDayEditor(dateKey) {
   currentEditingDateKey = dateKey;
   const ud = getCurrentUserData();
@@ -1357,27 +1404,26 @@ function openDayEditor(dateKey) {
   const m = Number(mStr) - 1;
   const md = ud.monthData?.[y]?.[m] || { rows: {} };
 
-  // Titel instellen
-  document.getElementById('dayEditorTitle').textContent = `Bewerken: ${dateKey}`;
+  const titleEl = document.getElementById('dayEditorTitle');
+  if (titleEl) titleEl.textContent = `Bewerken: ${dateKey}`;
   
-  // Lijst met shiften vullen
   const listContainer = document.getElementById('dayEditorList');
-  listContainer.innerHTML = '';
+  if (!listContainer) return; // Veiligheid
   
+  listContainer.innerHTML = '';
   const dayKeys = listDayKeys(md, dateKey);
   
   if (dayKeys.length === 0) {
-    listContainer.innerHTML = '<span class="text-muted small fst-italic">Nog geen shiften gepland.</span>';
+    listContainer.innerHTML = '<span class="text-muted small fst-italic">Nog geen shiften.</span>';
   } else {
     dayKeys.forEach(k => {
       const r = md.rows[k];
       const sh = ud.shifts[r.shift];
-      
       const rowDiv = document.createElement('div');
       rowDiv.className = 'd-flex align-items-center justify-content-between p-2 border rounded bg-light';
       rowDiv.innerHTML = `
         <div class="d-flex align-items-center gap-2">
-           <span class="dot" style="background:${sh?.color}; width:10px; height:10px; border-radius:50%;"></span>
+           <span class="dot" style="background:${sh?.color || '#ccc'}; width:10px; height:10px; border-radius:50%;"></span>
            <strong>${sh?.realName || r.shift}</strong>
            <small class="text-muted">(${r.start}-${r.end})</small>
         </div>
@@ -1389,95 +1435,57 @@ function openDayEditor(dateKey) {
     });
   }
 
-  // Notitie veld vullen (neem de notitie van de EERSTE shift als er meerdere zijn)
   const firstKey = dayKeys[0];
   const noteField = document.getElementById('dayEditorNote');
-  noteField.value = firstKey ? (md.rows[firstKey].description || '') : '';
+  if (noteField) noteField.value = firstKey ? (md.rows[firstKey].description || '') : '';
 
-  // Modal tonen
   new bootstrap.Modal(document.getElementById('dayEditorModal')).show();
 }
 
-// --- Extra Shift Toevoegen ---
+// Event Listeners voor de Popup
 document.getElementById('btnAddExtraShift')?.addEventListener('click', () => {
-  // Sluit de editor modal en open de 'Quick Select' modal
-  // De Quick Select modal moet straks na kiezen terugkeren naar de data
   bootstrap.Modal.getInstance(document.getElementById('dayEditorModal')).hide();
-  
   quickDate.value = currentEditingDateKey; 
-  populateQuickShifts(); // Jouw bestaande functie
+  populateQuickShifts();
   new bootstrap.Modal(document.getElementById('quickModal')).show();
 });
 
-// --- Shift Verwijderen ---
 window.removeShiftFromDay = async (uniqueKey) => {
   const [y, mStr] = uniqueKey.split('-');
   const m = Number(mStr) - 1;
   const ud = getCurrentUserData();
-  
   if (ud.monthData[y][m].rows[uniqueKey]) {
     delete ud.monthData[y][m].rows[uniqueKey];
     await saveUserData();
-    
-    // UI verversen
     renderCalendarGrid(y, m);
     updateInputTotals();
-    
-    // Heropen de modal om de update te tonen
     openDayEditor(currentEditingDateKey); 
   }
 };
 
-// --- Opslaan Knop in Modal (voor notities) ---
 document.getElementById('btnSaveDayEditor')?.addEventListener('click', async () => {
   const note = document.getElementById('dayEditorNote').value;
   const [y, mStr] = currentEditingDateKey.split('-');
   const m = Number(mStr) - 1;
   const ud = getCurrentUserData();
-  
-  // Update de notitie bij ALLE shiften van die dag (of alleen de eerste, keuze is aan jou)
   const dayKeys = listDayKeys(ud.monthData[y][m], currentEditingDateKey);
   dayKeys.forEach(k => {
-    if (ud.monthData[y][m].rows[k]) {
-      ud.monthData[y][m].rows[k].description = note;
-    }
+    if (ud.monthData[y][m].rows[k]) ud.monthData[y][m].rows[k].description = note;
   });
-
   await saveUserData();
   bootstrap.Modal.getInstance(document.getElementById('dayEditorModal')).hide();
   toast('Opgeslagen', 'success');
 });
 
-// 3. Flitssnelle toevoeging (Optimistisch)
-async function applyShiftOptimistic(baseKey, shiftName) {
-  const [y, mStr, d] = baseKey.split('-').map(Number);
-  const m = mStr - 1;
-  const ud = getCurrentUserData(); //
-  const sh = ud.shifts[shiftName];
-  if (!sh) return;
-
-  // Update lokaal geheugen direct voor directe visuele feedback
-  ud.monthData[y][m].rows[baseKey] = {
-    project: sh.project || autoProjectForShift(shiftName) || '', //
-    shift: shiftName,
-    start: sh.start, end: sh.end, break: sh.break,
-    minutes: minutesBetween(sh.start, sh.end, sh.break) //
-  };
-
-  renderCalendarGrid(y, m);
-  updateInputTotals(); //
-  debouncedSave(); // Sla op de achtergrond op
-}
-
-// 4. Profiel Instellingen beheren
+// ==========================================
+// 4. PROFIEL INSTELLINGEN (Icoontjes Kiezen)
+// ==========================================
 function renderProfileShiftSettings() {
   const container = document.getElementById('profileShiftSettingsBody');
   if (!container) return;
-  
   const ud = getCurrentUserData();
   container.innerHTML = '';
 
-  // 1. Lijst opbouwen
   Object.entries(ud.shifts || {}).forEach(([key, sh]) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -1504,30 +1512,19 @@ function renderProfileShiftSettings() {
     container.appendChild(tr);
   });
 
-  // 2. Event Listener voor wijzigingen (Sla direct op!)
   container.onchange = async (e) => {
     const target = e.target;
     const sKey = target.dataset.shift;
     if (!sKey) return;
-
-    // Update de lokale data
-    if (target.classList.contains('js-profile-icon')) {
-      ud.shifts[sKey].icon = target.value;
-    }
-    if (target.classList.contains('js-profile-fav')) {
-      ud.shifts[sKey].isFavorite = target.checked;
-    }
-
-    // Sla op in database
+    if (target.classList.contains('js-profile-icon')) ud.shifts[sKey].icon = target.value;
+    if (target.classList.contains('js-profile-fav')) ud.shifts[sKey].isFavorite = target.checked;
     await saveUserData();
     
-    // Ververs de kalender DIRECT op de achtergrond
+    // Ververs kalender
     const y = Number(document.getElementById('yearSelectMain')?.value);
     const m = Number(document.getElementById('monthSelectMain')?.value);
-    if (y && !isNaN(m)) {
-       renderCalendarGrid(y, m);
-    }
-
+    if (y && !isNaN(m)) renderCalendarGrid(y, m);
+    
     toast('Instelling opgeslagen', 'success');
   };
 }
