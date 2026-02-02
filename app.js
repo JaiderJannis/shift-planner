@@ -1312,7 +1312,7 @@ function renderCalendarGrid(year, month) {
   const ud = getCurrentUserData();
   const md = ud.monthData?.[year]?.[month] || { rows: {} };
   
-  // 1. Shiften & Favorieten
+  // 1. Shiften & Favorieten ophalen
   const allShifts = ud.shifts || {};
   const order = ud.shiftOrder || Object.keys(allShifts);
   const favorites = order
@@ -1337,7 +1337,7 @@ function renderCalendarGrid(year, month) {
     'vrij_weekend': '😎'
   };
 
- // Headers
+ // Headers (Ma, Di, Wo...)
   ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'].forEach(d => 
     grid.insertAdjacentHTML('beforeend', `<div class="calendar-header">${d}</div>`)
   );
@@ -1346,12 +1346,13 @@ function renderCalendarGrid(year, month) {
   const offset = (firstDay === 0) ? 6 : firstDay - 1;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  // Lege cellen
+  // Lege cellen voor de eerste dag
   for (let i = 0; i < offset; i++) grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
 
-  // --- BEPAAL VANDAAG ---
+  // Vandaag bepalen
   const todayDate = new Date();
-  const isCurrentMonth = (todayDate.getFullYear() === year && todayDate.getMonth() === month);
+  // 🔥 FIX: Zorg dat year/month nummers zijn voor de vergelijking
+  const isCurrentMonth = (todayDate.getFullYear() === Number(year) && todayDate.getMonth() === Number(month));
   const currentDayNum = todayDate.getDate();
 
   // Dagen loop
@@ -1363,29 +1364,47 @@ function renderCalendarGrid(year, month) {
     // Check: Is dit vandaag?
     const isToday = (isCurrentMonth && d === currentDayNum);
 
-    // Emoji knopjes (met datum check)
+    // Emoji knopjes
     const quickIconsHtml = favorites.map(sh => {
       if (!isDateWithin(baseKey, sh.startDate, sh.endDate)) return '';
       const emoji = ICON_MAP[sh.icon] || '⭐';
       return `<span class="quick-icon-btn" data-shift="${sh.key}" title="Toevoegen">${emoji}</span>`;
     }).join('');
 
-    // Balkjes
+    // --- SHIFT BALKJES GENEREREN ---
     const dayKeys = listDayKeys(md, baseKey);
     let shiftsHtml = '';
+    
     dayKeys.slice(0, 3).forEach(k => {
       const r = md.rows[k];
       if (!r.shift) return; 
-      const sh = ud.shifts[r.shift];
-      shiftsHtml += `<div class="cal-shift-item" style="background:${sh?.color || '#eee'}; border-left:3px solid rgba(0,0,0,0.2)">
-        ${sh?.realName || r.shift}
-      </div>`;
+      
+      const sh = ud.shifts[r.shift] || { color: '#ccc', realName: r.shift };
+      
+      // 🔥 NIEUW: Bereken de duur tekst (bv. "7u36")
+      let durationText = '';
+      if (r.minutes && r.minutes > 0) {
+          const h = Math.floor(r.minutes / 60);
+          const m = r.minutes % 60;
+          // Zorg dat minuten altijd 2 cijfers zijn (bv. 05 ipv 5)
+          const mStr = m < 10 ? `0${m}` : m;
+          durationText = `${h}u${mStr}`;
+      }
+      
+      shiftsHtml += `
+        <div class="cal-shift-item d-flex justify-content-between align-items-center" 
+             style="background:${sh.color || '#eee'}; border-left:3px solid rgba(0,0,0,0.2); padding-right:4px;">
+          <span style="overflow:hidden; text-overflow:ellipsis;">${sh.realName || r.shift}</span>
+          <span style="font-size:0.85em; opacity:0.75; font-weight:normal; margin-left:4px; white-space:nowrap;">
+            ${durationText}
+          </span>
+        </div>`;
     });
+
     const realCount = dayKeys.filter(k => md.rows[k].shift).length;
     if (realCount > 3) shiftsHtml += `<div style="font-size:9px; text-align:center; color:#999;">+${realCount - 3}</div>`;
 
     const dayEl = document.createElement('div');
-    // Voeg 'today' class toe als het vandaag is
     dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}`;
     
     dayEl.innerHTML = `
@@ -1393,7 +1412,7 @@ function renderCalendarGrid(year, month) {
         <span class="day-number">${d}</span>
         <div class="quick-icons-wrapper">${quickIconsHtml}</div>
       </div>
-      <div class="d-flex flex-column gap-1 mt-1">${shiftsHtml}</div>
+      <div class="d-flex flex-column gap-1 mt-1" style="overflow:hidden;">${shiftsHtml}</div>
     `;
 
     dayEl.onclick = () => openDayEditor(baseKey);
