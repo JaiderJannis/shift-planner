@@ -1316,7 +1316,12 @@ function renderCalendarGrid(year, month) {
     'star': '⭐',
     'school': '🎓',
     'medical_services': '🏥',
-    'flight': '✈️'
+    'flight': '✈️',
+    'bench': '🪑',
+    'feestdag': '🎉',
+    'teammeeting': '👥',
+    'niet_ingepland': '❌',
+    'vrij_weekend': '😎'
   };
 
   // Headers
