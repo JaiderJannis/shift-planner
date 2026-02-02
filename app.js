@@ -1430,7 +1430,7 @@ function openDayEditor(dateKey) {
   if (titleEl) titleEl.textContent = `Bewerken: ${dateKey}`;
   
   const listContainer = document.getElementById('dayEditorList');
-  if (!listContainer) return; // Veiligheid
+  if (!listContainer) return; 
   
   listContainer.innerHTML = '';
   const dayKeys = listDayKeys(md, dateKey);
@@ -1461,7 +1461,11 @@ function openDayEditor(dateKey) {
   const noteField = document.getElementById('dayEditorNote');
   if (noteField) noteField.value = firstKey ? (md.rows[firstKey].description || '') : '';
 
-  new bootstrap.Modal(document.getElementById('dayEditorModal')).show();
+  // --- HIER ZIT DE BELANGRIJKE FIX ---
+  const modalEl = document.getElementById('dayEditorModal');
+  // Gebruik getOrCreateInstance zodat we geen dubbele backdrops krijgen!
+  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  modal.show();
 }
 
 // Event Listeners voor de Popup
@@ -1473,14 +1477,23 @@ document.getElementById('btnAddExtraShift')?.addEventListener('click', () => {
 });
 
 window.removeShiftFromDay = async (uniqueKey) => {
+  if (!uniqueKey) return;
   const [y, mStr] = uniqueKey.split('-');
   const m = Number(mStr) - 1;
   const ud = getCurrentUserData();
-  if (ud.monthData[y][m].rows[uniqueKey]) {
+  
+  // Veilige check of de shift bestaat
+  if (ud.monthData?.[y]?.[m]?.rows?.[uniqueKey]) {
     delete ud.monthData[y][m].rows[uniqueKey];
+    
+    // Eerst opslaan
     await saveUserData();
+    
+    // Dan UI updaten
     renderCalendarGrid(y, m);
     updateInputTotals();
+    
+    // Herlaad de popup inhoud (zonder het scherm zwart te maken)
     openDayEditor(currentEditingDateKey); 
   }
 };
