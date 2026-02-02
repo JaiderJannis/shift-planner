@@ -1097,12 +1097,21 @@ async function renderMonth(year, month){
 
   const daysInMonth = new Date(year, month+1, 0).getDate();
   for(let d=1; d<=daysInMonth; d++){
-    const baseKey = dateKey(year, month, d);
-    if (!md.rows[baseKey]) {
-      md.rows[baseKey] = { project:'', shift:'', start:'00:00', end:'00:00', break:0, omschrijving:'', minutes:0 };
-    } else {
+        const baseKey = dateKey(year, month, d);
+    
+    // 🔥 FIX: We maken GEEN automatische 00:00 rij meer aan in de database!
+    // We kijken alleen of er al eentje is.
+    if (md.rows[baseKey]) {
       autoAssignProjectIfNeeded(md.rows[baseKey]);
     }
+
+    let allKeys = listDayKeys(md, baseKey);
+    // Als er GEEN gegevens zijn, doen we alsof er 1 lege regel is (zodat je kan typen)
+    // Maar we slaan hem nog NIET op.
+    if (allKeys.length === 0) {
+        allKeys = [baseKey];
+    }
+
 
     const allKeys = listDayKeys(md, baseKey);
 
@@ -1116,8 +1125,17 @@ async function renderMonth(year, month){
     const renderKeys = visibleKeys.length ? visibleKeys : (selectedProject ? [] : allKeys);
 
     for (let idx = 0; idx < renderKeys.length; idx++) {
-      const rowKey = renderKeys[idx];
-      const r = md.rows[rowKey];
+            const rowKey = renderKeys[idx];
+      
+      // 🔥 FIX: Als de rij niet bestaat, gebruik een LEEG sjabloon.
+      // We gebruiken lege strings '' i.p.v. '00:00' zodat het vakje écht leeg is.
+      let r = md.rows[rowKey];
+      if (!r) {
+          r = { project:'', shift:'', start:'', end:'', break:0, omschrijving:'', minutes:0 };
+          // Als we een project moeten voorstellen, doen we dat hier virtueel
+          if (typeof autoAssignProjectIfNeeded === 'function') autoAssignProjectIfNeeded(r);
+      }
+
       const dayName = daysFull[new Date(year, month, d).getDay()];
 
       // Rechten voor + op deze specifieke rij
@@ -1240,7 +1258,8 @@ async function renderMonth(year, month){
           e.preventDefault(); 
           const idxNew = nextLineIndex(md, baseKey);
           const newKey = `${baseKey}#${idxNew}`;
-          md.rows[newKey] = { project: r.project, shift:'', start:'00:00', end:'00:00', break:0, omschrijving:'', minutes:0 };
+          // 🔥 FIX: Maak een nieuwe regel aan, maar laat de tijden LEEG ('')
+md.rows[newKey] = { project: r.project, shift:'', start:'', end:'', break:0, omschrijving:'', minutes:0 };
           await saveUserData();
           renderMonth(year, month);
           updateInputTotals(); renderHistory();
