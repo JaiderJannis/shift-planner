@@ -1349,7 +1349,7 @@ function renderCalendarGrid(year, month) {
   // Lege cellen
   for (let i = 0; i < offset; i++) grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
 
-  // Vandaag bepalen (Veilig met Number() conversie)
+  // Vandaag bepalen
   const todayDate = new Date();
   const isCurrentMonth = (todayDate.getFullYear() === Number(year) && todayDate.getMonth() === Number(month));
   const currentDayNum = todayDate.getDate();
@@ -1361,17 +1361,13 @@ function renderCalendarGrid(year, month) {
     const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
     const isToday = (isCurrentMonth && d === currentDayNum);
 
-    // --- EMOJI KNOPJES (Met juiste naam bij hover!) ---
+    // Emoji knopjes
     const quickIconsHtml = favorites.map(sh => {
       if (!isDateWithin(baseKey, sh.startDate, sh.endDate)) return '';
       const emoji = ICON_MAP[sh.icon] || '⭐';
-      
-      // 🔥 FIX: Hier stond eerst 'Toevoegen', nu staat er de echte naam!
       const hoverText = sh.realName || sh.key;
-      
       return `<span class="quick-icon-btn" data-shift="${sh.key}" title="${hoverText}">${emoji}</span>`;
     }).join('');
-    // --------------------------------------------------
 
     // Shift balkjes
     const dayKeys = listDayKeys(md, baseKey);
@@ -1396,7 +1392,8 @@ function renderCalendarGrid(year, month) {
         <div class="cal-shift-item d-flex justify-content-between align-items-center" 
              style="background:${sh.color || '#eee'}; border-left:3px solid rgba(0,0,0,0.2); padding-right:4px;">
           <span style="overflow:hidden; text-overflow:ellipsis;">${sh.realName || r.shift}</span>
-          <span style="font-size:0.85em; opacity:0.75; font-weight:normal; margin-left:4px; white-space:nowrap;">
+          
+          <span style="font-size:1em; font-weight:bold; margin-left:6px; white-space:nowrap; color:#000;">
             ${durationText}
           </span>
         </div>`;
