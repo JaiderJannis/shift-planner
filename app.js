@@ -1725,11 +1725,19 @@ async function populateShiftSelectForRow(tr, rowKey){
   const year = Number(yStr), month = Number(mStr)-1;
 
   const ud = getCurrentUserData();
-  const md = ud.monthData[year][month];
-  const r = md.rows[rowKey];
+  // Veilige check of de maand bestaat
+  const md = ud.monthData?.[year]?.[month];
+  
+  // 🔥 DE BELANGRIJKE FIX: 
+  // Als de rij niet bestaat (omdat hij leeg is), gebruik een dummy object.
+  // Dit voorkomt de "Reading 'shift' of undefined" fout waardoor je vastliep.
+  const r = md?.rows?.[rowKey] || { shift: '' };
 
   const projSel = tr.querySelector('.projectSelect');
   const sel = tr.querySelector('.shiftSelect');
+  
+  if (!sel) return; // Veiligheid voor als het element niet gevonden wordt
+
   sel.innerHTML = '<option value=""></option>';
 
   const all = ud.shifts || {};
@@ -1737,22 +1745,19 @@ async function populateShiftSelectForRow(tr, rowKey){
   const entries = order.map(n=> [n, all[n]]).filter(([,sh])=> !!sh);
 
   for(const [name, sh] of entries){
-    // Filter: Is de shift geldig op deze datum?
+    // Check datum geldigheid
     if(!isDateWithin(base, sh.startDate || null, sh.endDate || null)) continue;
     
-    const o = document.createElement('option');
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = sh.realName || name;
     
-    // ✨ HIER IS DE AANPASSING:
-    // Value = de unieke ID (bv. "Vroege (Google)") -> Nodig voor de database
-    o.value = name; 
+    // Alleen selecteren als r.shift bestaat
+    if(r.shift === name) opt.selected = true;
     
-    // Text = de 'echte' korte naam (bv. "Vroege") -> Zichtbaar voor jou
-    o.textContent = sh.realName || name; 
-    
-    if(r.shift === name) o.selected = true; 
-    sel.appendChild(o);
+    sel.appendChild(opt);
   }
-
+}
   sel.addEventListener('change', async ()=>{
     const chosen = sel.value; // Dit pakt de unieke ID (bv "Vroege (Google)")
     const all = ud.shifts || {};
