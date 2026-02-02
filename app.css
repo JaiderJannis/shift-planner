@@ -189,6 +189,7 @@ body.modal-open #remainingHoursAlert {
 @media (max-width: 768px) {
   #exportPdfBtn,
   #multiDayShiftBtn,
+  #clearMonthBtn,
   #submitMonthBtn{
     display: block;
     width: 100%;
