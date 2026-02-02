@@ -1757,7 +1757,6 @@ async function populateShiftSelectForRow(tr, rowKey){
     
     sel.appendChild(opt);
   }
-}
   sel.addEventListener('change', async ()=>{
     const chosen = sel.value; // Dit pakt de unieke ID (bv "Vroege (Google)")
     const all = ud.shifts || {};
