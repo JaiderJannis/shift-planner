@@ -840,15 +840,44 @@ body:not(.auth-checked) #loadingOverlay {
 
   /* 2. Het icoontje zelf: Veel kleiner maken */
   .quick-icon-btn {
-    font-size: 10px !important; /* Van 16px naar 10px verkleind! */
-    padding: 2px !important;    /* Iets meer raakvlak voor je vinger, maar visueel klein */
-    background: transparent;    /* Geen wit bolletje op mobiel om ruimte te sparen (optioneel) */
-    width: 14px;                /* Forceer klein formaat */
-    height: 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif; /* Zorgt voor mooie emojis */
+  font-size: 14px !important; /* Iets groter voor leesbaarheid */
+  line-height: 1;
+  cursor: pointer;
+  background: rgba(255,255,255,0.85); /* Iets wittere achtergrond */
+  border-radius: 50%;
+  padding: 3px;
+  transition: transform 0.2s;
+  border: 1px solid rgba(0,0,0,0.05);
+  
+  /* Centtreren */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+}
+
+.quick-icon-btn:hover {
+  transform: scale(1.25);
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  z-index: 20;
+}
+
+/* Mobiele aanpassingen voor emojis */
+@media (max-width: 768px) {
+  .quick-icon-btn {
+    font-size: 12px !important; /* Iets kleiner op mobiel */
+    width: 18px;
+    height: 18px;
+    padding: 0;
   }
+  
+  .quick-icons-wrapper {
+    gap: 1px; /* Klein beetje ruimte tussen emojis */
+  }
+}
 
   /* Zorg dat het dag-cijfer klein blijft zodat het niet botst */
   .day-number {
