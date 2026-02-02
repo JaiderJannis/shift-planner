@@ -6367,11 +6367,21 @@ delVersionBtn?.addEventListener('click', async () => {
   }
 });
 // ==========================================
-// 5. UI FIXES (Scrollbalken weg op Desktop)
+// 5. UI FIXES (Scrollbalken weg + Weekend kleur)
 // ==========================================
 document.addEventListener("DOMContentLoaded", () => {
   const style = document.createElement('style');
   style.innerHTML = `
+    /* Weekend dagen een lichte achtergrond geven */
+    .calendar-day.weekend {
+      background-color: #f2f4f8 !important; /* Lichtblauw/grijs tintje */
+    }
+
+    /* Zorg dat het ook in Dark Mode duidelijk is */
+    body.dark-mode .calendar-day.weekend {
+      background-color: #2b2d31 !important; /* Iets lichter dan zwart */
+    }
+
     /* Alleen op PC/Laptop schermen (breder dan 992px) */
     @media (min-width: 992px) {
       
