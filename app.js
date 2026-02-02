@@ -1376,13 +1376,18 @@ async function applyShiftOptimistic(baseKey, shiftName) {
 function renderProfileShiftSettings() {
   const container = document.getElementById('profileShiftSettingsBody');
   if (!container) return;
-  const ud = getCurrentUserData(); //
+  
+  const ud = getCurrentUserData();
   container.innerHTML = '';
 
+  // 1. Lijst opbouwen
   Object.entries(ud.shifts || {}).forEach(([key, sh]) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><span class="dot" style="background:${sh.color}; width:8px; height:8px; display:inline-block; border-radius:50%; margin-right:5px;"></span>${sh.realName || key}</td>
+      <td>
+        <span class="dot" style="background:${sh.color || '#ccc'}; width:10px; height:10px; display:inline-block; border-radius:50%; margin-right:8px;"></span>
+        <strong>${sh.realName || key}</strong>
+      </td>
       <td>
         <select class="form-select form-select-sm js-profile-icon" data-shift="${key}">
           <option value="light_mode" ${sh.icon === 'light_mode' ? 'selected' : ''}>☀️ Zon</option>
@@ -1401,6 +1406,33 @@ function renderProfileShiftSettings() {
     `;
     container.appendChild(tr);
   });
+
+  // 2. Event Listener voor wijzigingen (Sla direct op!)
+  container.onchange = async (e) => {
+    const target = e.target;
+    const sKey = target.dataset.shift;
+    if (!sKey) return;
+
+    // Update de lokale data
+    if (target.classList.contains('js-profile-icon')) {
+      ud.shifts[sKey].icon = target.value;
+    }
+    if (target.classList.contains('js-profile-fav')) {
+      ud.shifts[sKey].isFavorite = target.checked;
+    }
+
+    // Sla op in database
+    await saveUserData();
+    
+    // Ververs de kalender DIRECT op de achtergrond
+    const y = Number(document.getElementById('yearSelectMain')?.value);
+    const m = Number(document.getElementById('monthSelectMain')?.value);
+    if (y && !isNaN(m)) {
+       renderCalendarGrid(y, m);
+    }
+
+    toast('Instelling opgeslagen', 'success');
+  };
 }
 async function populateShiftSelectForRow(tr, rowKey){
   const base = rowKey.split('#')[0];                   // YYYY-MM-DD
