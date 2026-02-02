@@ -1337,7 +1337,7 @@ function renderCalendarGrid(year, month) {
     'vrij_weekend': '😎'
   };
 
- // Headers (Ma, Di, Wo...)
+ // Headers
   ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'].forEach(d => 
     grid.insertAdjacentHTML('beforeend', `<div class="calendar-header">${d}</div>`)
   );
@@ -1346,12 +1346,11 @@ function renderCalendarGrid(year, month) {
   const offset = (firstDay === 0) ? 6 : firstDay - 1;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  // Lege cellen voor de eerste dag
+  // Lege cellen
   for (let i = 0; i < offset; i++) grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
 
-  // Vandaag bepalen
+  // Vandaag bepalen (Veilig met Number() conversie)
   const todayDate = new Date();
-  // 🔥 FIX: Zorg dat year/month nummers zijn voor de vergelijking
   const isCurrentMonth = (todayDate.getFullYear() === Number(year) && todayDate.getMonth() === Number(month));
   const currentDayNum = todayDate.getDate();
 
@@ -1360,18 +1359,21 @@ function renderCalendarGrid(year, month) {
     const baseKey = dateKey(year, month, d);
     const dateObj = new Date(year, month, d);
     const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
-    
-    // Check: Is dit vandaag?
     const isToday = (isCurrentMonth && d === currentDayNum);
 
-    // Emoji knopjes
+    // --- EMOJI KNOPJES (Met juiste naam bij hover!) ---
     const quickIconsHtml = favorites.map(sh => {
       if (!isDateWithin(baseKey, sh.startDate, sh.endDate)) return '';
       const emoji = ICON_MAP[sh.icon] || '⭐';
-      return `<span class="quick-icon-btn" data-shift="${sh.key}" title="Toevoegen">${emoji}</span>`;
+      
+      // 🔥 FIX: Hier stond eerst 'Toevoegen', nu staat er de echte naam!
+      const hoverText = sh.realName || sh.key;
+      
+      return `<span class="quick-icon-btn" data-shift="${sh.key}" title="${hoverText}">${emoji}</span>`;
     }).join('');
+    // --------------------------------------------------
 
-    // --- SHIFT BALKJES GENEREREN ---
+    // Shift balkjes
     const dayKeys = listDayKeys(md, baseKey);
     let shiftsHtml = '';
     
@@ -1381,12 +1383,11 @@ function renderCalendarGrid(year, month) {
       
       const sh = ud.shifts[r.shift] || { color: '#ccc', realName: r.shift };
       
-      // 🔥 NIEUW: Bereken de duur tekst (bv. "7u36")
+      // Bereken duur (bv. 7u36)
       let durationText = '';
       if (r.minutes && r.minutes > 0) {
           const h = Math.floor(r.minutes / 60);
           const m = r.minutes % 60;
-          // Zorg dat minuten altijd 2 cijfers zijn (bv. 05 ipv 5)
           const mStr = m < 10 ? `0${m}` : m;
           durationText = `${h}u${mStr}`;
       }
