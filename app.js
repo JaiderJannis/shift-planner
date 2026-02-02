@@ -6367,40 +6367,57 @@ delVersionBtn?.addEventListener('click', async () => {
   }
 });
 // ==========================================
-// 5. UI FIXES (Scrollbalken weg + Weekend kleur)
+// 5. UI FIXES (Desktop clean + Mobiel scrollbaar + Weekend kleur)
 // ==========================================
 document.addEventListener("DOMContentLoaded", () => {
   const style = document.createElement('style');
   style.innerHTML = `
-    /* Weekend dagen een lichte achtergrond geven */
+    /* --- 1. ALGEMEEN: Weekend kleuren --- */
     .calendar-day.weekend {
       background-color: #f2f4f8 !important; /* Lichtblauw/grijs tintje */
     }
-
-    /* Zorg dat het ook in Dark Mode duidelijk is */
     body.dark-mode .calendar-day.weekend {
-      background-color: #2b2d31 !important; /* Iets lichter dan zwart */
+      background-color: #2b2d31 !important; /* Donkergrijs in dark mode */
     }
 
-    /* Alleen op PC/Laptop schermen (breder dan 992px) */
+    /* --- 2. DESKTOP (Grote schermen > 992px) --- */
+    /* Hier willen we GEEN scrollbalken IN de tabel, de pagina scrollt wel */
     @media (min-width: 992px) {
-      
-      /* Historiek tabel volledig uitklappen */
       #historyTable, .table-responsive {
         overflow: visible !important;
         max-height: none !important;
         height: auto !important;
       }
-
-      /* Shiften lijst volledig uitklappen */
       #shiftTableBody, .shift-container {
         max-height: none !important;
         overflow-y: visible !important;
       }
-      
-      /* Zorg dat de scrollbar van de hele pagina het werk doet */
       body {
         overflow-y: auto;
+      }
+    }
+
+    /* --- 3. MOBIEL (Kleine schermen < 992px) --- */
+    /* Hier MOETEN we kunnen swipen (horizontaal scrollen) */
+    @media (max-width: 991px) {
+      .table-responsive, 
+      .shift-container,
+      #historyTableContainer { /* Zorg dat je container een ID of class heeft */
+        display: block;
+        width: 100%;
+        overflow-x: auto !important; /* Horizontaal scrollen AAN */
+        -webkit-overflow-scrolling: touch; /* Soepel scrollen op iPhone */
+        white-space: nowrap; /* Zorgt dat regels niet lelijk breken */
+      }
+      
+      /* Icoontjes verbergen in kalender op smartphone */
+      .quick-icons-wrapper {
+        display: none !important;
+      }
+      
+      /* Kalender dag iets compacter op mobiel */
+      .calendar-day {
+        min-height: 60px !important; 
       }
     }
   `;
