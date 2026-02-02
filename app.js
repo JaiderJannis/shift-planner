@@ -1350,7 +1350,7 @@ function renderCalendarGrid(year, month) {
       // Let op: we gebruiken nu GEEN 'material-icons' class meer
       return `<span class="quick-icon-btn" 
         data-shift="${sh.key}" 
-        title="Direct ${sh.realName || sh.key} toevoegen">${emoji}</span>`;
+        title="${sh.realName || sh.key} toevoegen">${emoji}</span>`;
     }).join('');
 
     // Toon de balkjes (bestaande shiften)
