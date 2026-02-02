@@ -1274,20 +1274,21 @@ function renderCalendarGrid(year, month) {
 
   const ud = getCurrentUserData();
   const md = ud.monthData?.[year]?.[month] || { rows: {} };
+  
+  // Favoriete shiften ophalen (bijv. de eerste 3 uit je instellingen)
+  const shiftKeys = ud.shiftOrder || Object.keys(ud.shifts || {});
+  const favorites = shiftKeys.slice(0, 3); 
 
   // Headers (Ma t/m Zo)
   const dayLabels = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'];
   dayLabels.forEach(l => grid.insertAdjacentHTML('beforeend', `<div class="calendar-header">${l}</div>`));
 
-  // Bereken startpunt van de maand
   const firstDay = new Date(year, month, 1).getDay();
   const offset = (firstDay === 0) ? 6 : firstDay - 1;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  // Lege cellen
   for (let i = 0; i < offset; i++) grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
 
-  // Dagen vullen
   for (let d = 1; d <= daysInMonth; d++) {
     const baseKey = dateKey(year, month, d);
     const dateObj = new Date(year, month, d);
@@ -1295,44 +1296,76 @@ function renderCalendarGrid(year, month) {
     
     const dayEl = document.createElement('div');
     dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''}`;
+    
+    // Maak de HTML voor de favoriete icoontjes
+    const iconsHtml = favorites.map(sKey => {
+      const sh = ud.shifts[sKey];
+      const icon = (sh.realName || sKey).toLowerCase().includes('vroege') ? 'light_mode' : 
+                   (sh.realName || sKey).toLowerCase().includes('late') ? 'wb_twilight' : 'star';
+      return `<span class="material-icons-outlined quick-icon" data-shift="${sKey}" title="${sKey}" style="color: ${sh.color}">${icon}</span>`;
+    }).join('');
+
     dayEl.innerHTML = `
       <div class="day-number">${d}</div>
-      <button class="btn btn-primary btn-sm day-add-btn" title="Shift toevoegen">
-        <span class="material-icons-outlined" style="font-size:16px">add</span>
-      </button>
+      <div class="day-actions">
+        ${iconsHtml}
+        <span class="material-icons-outlined quick-icon text-primary" data-act="more">add_circle</span>
+      </div>
       <div class="day-shifts-container"></div>
     `;
 
-    // Toon de shiften op de kalender
-    const dayKeys = listDayKeys(md, baseKey);
+    // Klik-events voor de icoontjes
+    dayEl.querySelectorAll('.quick-icon').forEach(iconBtn => {
+      iconBtn.onclick = (e) => {
+        e.stopPropagation();
+        const shiftToSet = iconBtn.dataset.shift;
+        if (shiftToSet) {
+          // SNELLE ACTIE: Direct toevoegen
+          applyShiftToDay(baseKey, shiftToSet);
+        } else {
+          // MEER-knop: Open modal
+          quickDate.value = baseKey;
+          populateQuickShifts();
+          new bootstrap.Modal(document.getElementById('quickModal')).show();
+        }
+      };
+    });
+
+    // Bestaande shiften tonen
     const container = dayEl.querySelector('.day-shifts-container');
-    
-    dayKeys.forEach(k => {
+    listDayKeys(md, baseKey).forEach(k => {
       const r = md.rows[k];
       if (r && r.shift) {
-        const shDef = ud.shifts[r.shift];
         const div = document.createElement('div');
         div.className = 'cal-shift-item';
-        div.style.backgroundColor = shDef?.color || '#e9ecef';
-        div.textContent = `${r.start} ${shDef?.realName || r.shift}`;
-        
-        // Klik op shift opent de details tabel onderaan
-        div.onclick = () => {
-          bootstrap.Collapse.getOrCreateInstance(document.getElementById('collapseTable')).show();
-        };
+        div.style.backgroundColor = ud.shifts[r.shift]?.color || '#e9ecef';
+        div.textContent = r.shift;
         container.appendChild(div);
       }
     });
 
-    // Plus-knop opent de snelle invoer
-    dayEl.querySelector('.day-add-btn').onclick = () => {
-      quickDate.value = baseKey;
-      populateQuickShifts();
-      new bootstrap.Modal(document.getElementById('quickModal')).show();
-    };
-
     grid.appendChild(dayEl);
   }
+}
+
+// Nieuwe helper functie voor de flitssnelle invoer
+async function applyShiftToDay(baseKey, shiftName) {
+  const ud = getCurrentUserData();
+  const sh = ud.shifts[shiftName];
+  const [y, m, d] = baseKey.split('-').map(Number);
+  
+  ud.monthData[y][m-1].rows[baseKey] = {
+    project: sh.project || autoProjectForShift(shiftName) || '',
+    shift: shiftName,
+    start: sh.start,
+    end: sh.end,
+    break: sh.break,
+    minutes: minutesBetween(sh.start, sh.end, sh.break)
+  };
+
+  renderCalendarGrid(y, m-1);
+  updateInputTotals();
+  debouncedSave();
 }
 
 async function populateShiftSelectForRow(tr, rowKey){
