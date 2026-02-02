@@ -4393,7 +4393,6 @@ let mailboxCacheSent = [];
 let mailboxCache = [];         // alle berichten (snapshot)
 let mailFolder   = 'inbox'; // 'inbox' | 'sent'
 let composeThreadId = null; // reply flow
-let mailUIBound = false;
 
 /* ---------- helpers ---------- */
 function normTs(ts){
