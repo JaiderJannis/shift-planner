@@ -1563,9 +1563,8 @@ window.removeShiftFromDay = async (uniqueKey) => {
 };
 
 // ==========================================
-// FIX: OPSLAAN KNOP (FILTERT 00:00 SPOOK-SHIFTEN ERUIT)
+// FIX: OPSLAAN KNOP (FILTERT 00:00 SPOOK-SHIFTEN ERUIT + BLAUW LICHT FIX)
 // ==========================================
-// LET OP: De juiste ID is 'btnSaveDayEditor'
 const saveDayEditorBtn = document.getElementById('btnSaveDayEditor');
 
 if (saveDayEditorBtn) {
@@ -1578,8 +1577,14 @@ if (saveDayEditorBtn) {
     const dateKey = currentEditingDateKey; 
     if (!dateKey) return;
 
-    const [y, mStr] = dateKey.split('-');
+    // --- 🔥 FIX VOOR HET BLAUWE LICHT ---
+    // We splitsen de datum, maar maken van het jaar direct een CIJFER (Number).
+    // Hierdoor weet de kalender straks dat 2026 = 2026 en blijft hij blauw pinken.
+    const [yStr, mStr] = dateKey.split('-');
+    const y = Number(yStr);     
     const m = Number(mStr) - 1;
+    // ------------------------------------
+
     const ud = getCurrentUserData();
     
     // Zorg dat de data-structuur bestaat
@@ -1615,6 +1620,7 @@ if (saveDayEditorBtn) {
     await saveUserData();
     
     // 4. Alles verversen
+    // Omdat 'y' nu een getal is, werkt de 'isVandaag' check in de kalender correct.
     renderCalendarGrid(y, m);
     updateInputTotals();
     renderHistory();
@@ -1625,7 +1631,7 @@ if (saveDayEditorBtn) {
     const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
     modal.hide();
 
-    toast('Opgeslagen (lege regels verwijderd)', 'success');
+    toast('Opgeslagen', 'success');
   });
 }
 
