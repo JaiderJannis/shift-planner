@@ -1776,77 +1776,16 @@ async function ensureProjectExists(name){
         const o = document.createElement('option'); o.value=n; o.textContent=n; quickShift.appendChild(o);
       });
     }
-// ==========================================
-// OPSLAAN KNOP VAN DE "EXTRA SHIFT" POPUP
-// ==========================================
-const saveQuickBtn = document.getElementById('saveQuickBtn');
 
-if (saveQuickBtn) {
-  saveQuickBtn.addEventListener('click', async () => {
-    // 1. Datum ophalen
-    const dateKey = document.getElementById('quickDate')?.value;
-    
-    // 2. Gekozen shift ophalen (Radio button)
-    const selectedRadio = document.querySelector('input[name="quickShiftOption"]:checked');
-    const shiftKey = selectedRadio ? selectedRadio.value : null;
-
-    if (!dateKey || !shiftKey) {
-      toast('Selecteer een datum en een shift', 'warning');
-      return;
-    }
-
-    const [y, mStr] = dateKey.split('-');
-    const m = Number(mStr) - 1;
-    const ud = getCurrentUserData();
-    const sh = ud.shifts[shiftKey];
-
-    // Zorg dat de map structuur bestaat
-    if (!ud.monthData[y]) ud.monthData[y] = {};
-    if (!ud.monthData[y][m]) ud.monthData[y][m] = { rows: {} };
-
-    // --- CRUCIALE FIX: NIET OVERSCHRIJVEN ---
-    let targetKey = dateKey;
-    
-    // Check: Bestaat deze datum al in de lijst?
-    // Zo ja, plak er een uniek nummer achter (bv. _1709823...)
-    if (ud.monthData[y][m].rows[dateKey]) {
-       targetKey = `${dateKey}_${Date.now()}`;
-    }
-    // ----------------------------------------
-
-    // 3. Opslaan in data object
-    ud.monthData[y][m].rows[targetKey] = {
-      project: sh.project || '',
-      shift: shiftKey,
-      start: sh.start,
-      end: sh.end,
-      break: sh.break,
-      description: ''
-    };
-
-    // 4. Opslaan naar database
-    await saveUserData();
-    
-    // 5. Scherm verversen
-    renderCalendarGrid(y, m);
-    updateInputTotals();
-    
-    // 6. Sluit de popup
-    const quickModal = document.getElementById('quickModal');
-    const modalInstance = bootstrap.Modal.getInstance(quickModal);
-    if (modalInstance) modalInstance.hide();
-    else new bootstrap.Modal(quickModal).hide(); // Fallback
-
-    // 7. Als de Dag-detail popup open stond, ververs die dan ook
-    // zodat je de nieuwe shift meteen in het lijstje ziet staan
-    const dayEditor = document.getElementById('dayEditorModal');
-    if (dayEditor && dayEditor.classList.contains('show')) {
-        openDayEditor(dateKey);
-    }
-    
-    toast('Extra shift toegevoegd!', 'success');
-  });
-}
+    saveQuickBtn.addEventListener('click', async ()=>{
+  const date = quickDate.value, shift = quickShift.value, note = quickNote.value;
+  if(!date || !shift) return toast('Kies minstens een datum en shift','warning');
+  const y = Number(date.split('-')[0]), m = Number(date.split('-')[1]) - 1, key = date;
+  const ud = getCurrentUserData();
+  ud.monthData = ud.monthData || {}; ud.monthData[y] = ud.monthData[y] || {};
+  ud.monthData[y][m] = ud.monthData[y][m] || { targetHours:0, targetMinutes:0, rows:{} };
+  const sh = ud.shifts[shift];
+  const minutes = minutesBetween(sh.start, sh.end, sh.break);
 
   // ✅ Automatische projecttoewijzing
 let project = sh?.project || '';
