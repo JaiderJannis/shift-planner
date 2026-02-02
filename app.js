@@ -1469,36 +1469,60 @@ function openDayEditor(dateKey) {
   if (!listContainer) return; 
   
   listContainer.innerHTML = '';
-  const dayKeys = listDayKeys(md, dateKey);
+  
+  // Haal shiften op en filter de spook-regels (lege shiften) eruit
+  let dayKeys = listDayKeys(md, dateKey).filter(k => md.rows[k].shift);
   
   if (dayKeys.length === 0) {
     listContainer.innerHTML = '<span class="text-muted small fst-italic">Nog geen shiften.</span>';
   } else {
     dayKeys.forEach(k => {
       const r = md.rows[k];
+      const sh = ud.shifts[r.shift] || { color: '#ccc', realName: r.shift };
       
-      // --- DE FIX ZIT HIER ---
-      // Als de shift niet gevonden wordt (bv. verwijderd), gebruik een 'fallback' object
-      // Dit voorkomt de "ReferenceError: sh is not defined"
-      const sh = ud.shifts[r.shift] || { color: '#ccc', realName: r.shift, icon: 'help' };
-      // -----------------------
-
       const rowDiv = document.createElement('div');
-      rowDiv.className = 'd-flex align-items-center justify-content-between p-2 border rounded bg-light';
+      rowDiv.className = 'p-2 border rounded bg-light mb-2'; // Iets ruimer kader
+      
+      // We bouwen een blokje met:
+      // Boven: Naam + Verwijder knop
+      // Onder: Start - Einde - Pauze inputs
       rowDiv.innerHTML = `
-        <div class="d-flex align-items-center gap-2">
-           <span class="dot" style="background:${sh.color || '#ccc'}; width:10px; height:10px; border-radius:50%;"></span>
-           <strong>${sh.realName || r.shift}</strong>
-           <small class="text-muted">(${r.start}-${r.end})</small>
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="d-flex align-items-center gap-2">
+               <span class="dot" style="background:${sh.color || '#ccc'}; width:10px; height:10px; border-radius:50%;"></span>
+               <strong>${sh.realName || r.shift}</strong>
+            </div>
+            <button class="btn btn-outline-danger btn-sm p-0 px-2" title="Verwijder" onclick="removeShiftFromDay('${k}')">
+              <span class="material-icons-outlined" style="font-size:16px; vertical-align: middle;">delete</span>
+            </button>
         </div>
-        <button class="btn btn-outline-danger btn-sm p-0 px-1" title="Verwijder" onclick="removeShiftFromDay('${k}')">
-          <span class="material-icons-outlined" style="font-size:16px">delete</span>
-        </button>
+        
+        <div class="d-flex gap-2 align-items-end">
+            <div style="flex:1;">
+                <label class="form-label mb-0" style="font-size:0.75rem; color:#666;">Start</label>
+                <input type="time" class="form-control form-control-sm" 
+                       value="${r.start || '00:00'}" 
+                       onchange="updateShiftTime('${k}', 'start', this.value)">
+            </div>
+            <div style="flex:1;">
+                <label class="form-label mb-0" style="font-size:0.75rem; color:#666;">Einde</label>
+                <input type="time" class="form-control form-control-sm" 
+                       value="${r.end || '00:00'}" 
+                       onchange="updateShiftTime('${k}', 'end', this.value)">
+            </div>
+            <div style="width: 60px;">
+                <label class="form-label mb-0" style="font-size:0.75rem; color:#666;">Pauze</label>
+                <input type="number" class="form-control form-control-sm" 
+                       value="${r.break || 0}" 
+                       onchange="updateShiftTime('${k}', 'break', this.value)">
+            </div>
+        </div>
       `;
       listContainer.appendChild(rowDiv);
     });
   }
 
+  // Notitie veld
   const firstKey = dayKeys[0];
   const noteField = document.getElementById('dayEditorNote');
   if (noteField) noteField.value = firstKey ? (md.rows[firstKey].description || '') : '';
