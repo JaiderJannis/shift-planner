@@ -163,6 +163,7 @@ body.modal-open #remainingHoursAlert {
 @media (max-width: 768px){
   #exportPdfBtn,
   #multiDayShiftBtn,
+  #clearMonthBtn,
   #submitMonthBtn{
     --bs-btn-padding-y: .375rem;   /* hoogte (≈ 6px) */
     --bs-btn-padding-x: .75rem;    /* breedte */
