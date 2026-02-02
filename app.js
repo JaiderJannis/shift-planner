@@ -1547,6 +1547,9 @@ function renderProfileShiftSettings() {
   const ud = getCurrentUserData();
   container.innerHTML = '';
 
+  // Bepaal het huidige jaar
+  const currentYear = new Date().getFullYear();
+
   // Gebruik de opgeslagen volgorde
   const allShifts = ud.shifts || {};
   const order = ud.shiftOrder || Object.keys(allShifts);
@@ -1554,6 +1557,28 @@ function renderProfileShiftSettings() {
   order.forEach(key => {
     const sh = allShifts[key];
     if (!sh) return; // Skip als shift verwijderd is
+
+    // --- FILTER: IS DEZE SHIFT RELEVANT? ---
+    // 1. Heeft hij GEEN start/einddatum? Dan altijd tonen (is een algemene shift)
+    const isAlwaysValid = !sh.startDate && !sh.endDate;
+    
+    // 2. Heeft hij WEL een datum? Check of het huidige jaar erin valt.
+    let isValidThisYear = false;
+    if (sh.startDate || sh.endDate) {
+        const startY = sh.startDate ? parseInt(sh.startDate.substring(0, 4)) : 0;
+        const endY = sh.endDate ? parseInt(sh.endDate.substring(0, 4)) : 9999;
+        
+        // Als het huidige jaar (bv. 2026) binnen de periode valt OF gelijk is
+        if (currentYear >= startY && currentYear <= endY) {
+            isValidThisYear = true;
+        }
+    }
+
+    // Als hij niet algemeen is EN niet voor dit jaar is -> overslaan
+    if (!isAlwaysValid && !isValidThisYear) {
+        return; 
+    }
+    // ----------------------------------------
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -1567,10 +1592,13 @@ function renderProfileShiftSettings() {
           <option value="wb_twilight" ${sh.icon === 'wb_twilight' ? 'selected' : ''}>🌅 Schemer</option>
           <option value="bedtime" ${sh.icon === 'bedtime' ? 'selected' : ''}>🌙 Maan</option>
           <option value="schedule" ${sh.icon === 'schedule' ? 'selected' : ''}>🕒 Klok</option>
-          <option value="star" ${sh.icon === 'star' ? 'selected' : ''}>⭐ Ster</option>
           <option value="school" ${sh.icon === 'school' ? 'selected' : ''}>🎓 School</option>
           <option value="medical_services" ${sh.icon === 'medical_services' ? 'selected' : ''}>🏥 Ziekte</option>
           <option value="flight" ${sh.icon === 'flight' ? 'selected' : ''}>✈️ Verlof</option>
+          <option value="flight" ${sh.icon === 'feestdag' ? 'selected' : ''}>🎉 Feestdag</option>
+          <option value="flight" ${sh.icon === 'teammeeting' ? 'selected' : ''}>👥 Teammeeting</option>
+          <option value="flight" ${sh.icon === 'niet_ingepland' ? 'selected' : ''}>❌ Niet ingepland</option>
+          <option value="flight" ${sh.icon === 'vrij_weekend' ? 'selected' : ''}>😎 Vrij weekend</option>  
         </select>
       </td>
       <td class="text-center">
