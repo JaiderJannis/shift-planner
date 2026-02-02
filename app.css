@@ -827,3 +827,39 @@ body:not(.auth-checked) #loadingOverlay {
 .table input.form-control {
   min-width: 80px;
 }
+/* --- MOBIELE AANPASSINGEN VOOR ICOONTJES --- */
+@media (max-width: 768px) {
+  
+  /* 1. De container van de icoontjes strak in de hoek */
+  .quick-icons-wrapper {
+    top: 0;
+    right: 0;
+    gap: 0; /* Geen ruimte tussen de icoontjes */
+    max-width: 100%; /* Voorkom dat ze buiten het vakje vallen */
+  }
+
+  /* 2. Het icoontje zelf: Veel kleiner maken */
+  .quick-icon-btn {
+    font-size: 10px !important; /* Van 16px naar 10px verkleind! */
+    padding: 2px !important;    /* Iets meer raakvlak voor je vinger, maar visueel klein */
+    background: transparent;    /* Geen wit bolletje op mobiel om ruimte te sparen (optioneel) */
+    width: 14px;                /* Forceer klein formaat */
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Zorg dat het dag-cijfer klein blijft zodat het niet botst */
+  .day-number {
+    font-size: 0.65rem;
+    margin: 1px;
+  }
+
+  /* De tekstbalkjes (shiften) eronder ook compact houden */
+  .cal-shift-item {
+    font-size: 8px;
+    padding: 0 2px;
+    line-height: 1.2;
+  }
+}
