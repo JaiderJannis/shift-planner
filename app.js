@@ -413,9 +413,11 @@ function updateMonthStatusBadge(){
   }
 
   // De knop "Invoer meerdere dagen"
-  if (typeof multiDayShiftBtn !== 'undefined' && multiDayShiftBtn){
-    multiDayShiftBtn.classList.toggle('d-none', hide);
-    multiDayShiftBtn.disabled = hide;
+const mBtn = document.getElementById('multiDayShiftBtn');
+  
+  if (mBtn){
+    mBtn.classList.toggle('d-none', hide);
+    mBtn.disabled = hide;
   }
 }
     // ======= Auth =======
