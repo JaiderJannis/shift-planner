@@ -6365,7 +6365,7 @@ delVersionBtn?.addEventListener('click', async () => {
   }
 });
 // ==========================================
-// 5. UI FIXES (DEFINITIEVE MOBIELE SCROLL FIX + VANDAAG ANIMATIE)
+// 5. UI FIXES (MOBIELE SCROLL + ALLE KOLOMMEN TONEN)
 // ==========================================
 document.addEventListener("DOMContentLoaded", () => {
   const style = document.createElement('style');
@@ -6399,31 +6399,37 @@ document.addEventListener("DOMContentLoaded", () => {
 
     /* --- C. MOBIEL (< 992px) - DE HARDE FIX --- */
     @media (max-width: 991px) {
-      /* 1. Forceer de wrapper (het doosje om de tabel) om te scrollen */
+      /* 1. Forceer scrollen */
       .mobile-scroll-wrapper, .table-responsive {
         display: block !important;
         width: 100% !important;
-        overflow-x: auto !important; /* Dit activeert de scrollbalk */
-        -webkit-overflow-scrolling: touch !important; /* Voor iPhone soepelheid */
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
         margin-bottom: 1rem;
-        padding-bottom: 5px; /* Ruimte voor scrollbalk */
+        padding-bottom: 5px;
       }
       
-      /* 2. Forceer de tabel om BREED te zijn (zodat hij NIET past en MOET scrollen) */
+      /* 2. Forceer tabel breedte */
       .mobile-scroll-wrapper table, 
       .table-responsive table,
       table.table {
-        min-width: 800px !important; /* Hierdoor valt hij buiten beeld -> Scrollen nodig */
+        min-width: 800px !important; 
         width: auto !important;
       }
       
-      /* 3. Zorg dat tekst op 1 regel blijft (maakt de tabel breed) */
+      /* 3. Zorg dat tekst op 1 regel blijft */
       table td, table th {
         white-space: nowrap !important;
         font-size: 0.85rem !important;
       }
 
-      /* Verberg kalender icoontjes op mobiel voor rust */
+      /* 4. 🔥 DEZE REGEL IS NIEUW: FORCEER ALLE KOLOMMEN TERUG 🔥 */
+      /* Dit overschrijft de code die kolommen verstopte */
+      .table th, .table td {
+        display: table-cell !important; 
+      }
+
+      /* Icoontjes in kalender weg */
       .quick-icons-wrapper { display: none !important; }
       .calendar-day { min-height: 50px !important; }
     }
@@ -6434,7 +6440,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const wrapTables = () => {
       const tables = document.querySelectorAll('table');
       tables.forEach(table => {
-        // Sla kalender over (die zijn geen tabellen, maar voor zekerheid)
         if (table.closest('.calendar-grid')) return;
 
         const parent = table.parentElement;
@@ -6442,21 +6447,17 @@ document.addEventListener("DOMContentLoaded", () => {
                            parent.classList.contains('table-responsive');
         
         if (!hasWrapper) {
-          // Maak een wrapper aan en stop de tabel erin
           const wrapper = document.createElement('div');
           wrapper.className = 'mobile-scroll-wrapper';
           table.parentNode.insertBefore(wrapper, table);
           wrapper.appendChild(table);
         } else {
-          // Zorg dat de bestaande wrapper ook de class krijgt voor onze CSS
           parent.classList.add('mobile-scroll-wrapper');
         }
       });
   };
 
-  // Voer dit direct uit
   wrapTables();
-  // En nog eens na 1 seconde (voor als tabellen traag laden)
   setTimeout(wrapTables, 1000);
 });
 // Initialiseer bij laden pagina (voor de selectors)
