@@ -1267,6 +1267,7 @@ async function renderMonth(year, month){
 
   updateMonthStatusBadge();
 }
+// Functie om de kalender te tekenen met de gekozen iconen
 function renderCalendarGrid(year, month) {
   const grid = document.getElementById('monthlyCalendarGrid');
   if (!grid) return;
@@ -1275,9 +1276,9 @@ function renderCalendarGrid(year, month) {
   const ud = getCurrentUserData();
   const md = ud.monthData?.[year]?.[month] || { rows: {} };
   
-  // Favoriete shiften ophalen (bijv. de eerste 3 uit je instellingen)
-  const shiftKeys = ud.shiftOrder || Object.keys(ud.shifts || {});
-  const favorites = shiftKeys.slice(0, 3); 
+  // Zoek alle shiften die als 'favoriet' zijn gemarkeerd
+  const shiftEntries = Object.entries(ud.shifts || {});
+  const favorites = shiftEntries.filter(([key, sh]) => sh.isFavorite);
 
   // Headers (Ma t/m Zo)
   const dayLabels = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'];
@@ -1297,33 +1298,32 @@ function renderCalendarGrid(year, month) {
     const dayEl = document.createElement('div');
     dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''}`;
     
-    // Maak de HTML voor de favoriete icoontjes
-    const iconsHtml = favorites.map(sKey => {
-      const sh = ud.shifts[sKey];
-      const icon = (sh.realName || sKey).toLowerCase().includes('vroege') ? 'light_mode' : 
-                   (sh.realName || sKey).toLowerCase().includes('late') ? 'wb_twilight' : 'star';
-      return `<span class="material-icons-outlined quick-icon" data-shift="${sKey}" title="${sKey}" style="color: ${sh.color}">${icon}</span>`;
+    // Genereer de icoontjes op basis van jouw instellingen
+    const iconsHtml = favorites.map(([sKey, sh]) => {
+      const iconName = sh.icon || 'star'; // Default naar ster als er niets is gekozen
+      return `<span class="material-icons-outlined quick-icon" 
+                    data-shift="${sKey}" 
+                    title="${sKey}" 
+                    style="color: ${sh.color}">${iconName}</span>`;
     }).join('');
 
     dayEl.innerHTML = `
       <div class="day-number">${d}</div>
       <div class="day-actions">
         ${iconsHtml}
-        <span class="material-icons-outlined quick-icon text-primary" data-act="more">add_circle</span>
+        <span class="material-icons-outlined quick-icon text-primary" data-act="more" title="Andere shift">add_circle</span>
       </div>
       <div class="day-shifts-container"></div>
     `;
 
-    // Klik-events voor de icoontjes
+    // Klik-events (blijft hetzelfde als voorheen)
     dayEl.querySelectorAll('.quick-icon').forEach(iconBtn => {
       iconBtn.onclick = (e) => {
         e.stopPropagation();
         const shiftToSet = iconBtn.dataset.shift;
         if (shiftToSet) {
-          // SNELLE ACTIE: Direct toevoegen
           applyShiftToDay(baseKey, shiftToSet);
         } else {
-          // MEER-knop: Open modal
           quickDate.value = baseKey;
           populateQuickShifts();
           new bootstrap.Modal(document.getElementById('quickModal')).show();
@@ -1331,7 +1331,6 @@ function renderCalendarGrid(year, month) {
       };
     });
 
-    // Bestaande shiften tonen
     const container = dayEl.querySelector('.day-shifts-container');
     listDayKeys(md, baseKey).forEach(k => {
       const r = md.rows[k];
@@ -1339,7 +1338,7 @@ function renderCalendarGrid(year, month) {
         const div = document.createElement('div');
         div.className = 'cal-shift-item';
         div.style.backgroundColor = ud.shifts[r.shift]?.color || '#e9ecef';
-        div.textContent = r.shift;
+        div.textContent = ud.shifts[r.shift]?.realName || r.shift;
         container.appendChild(div);
       }
     });
@@ -1367,7 +1366,51 @@ async function applyShiftToDay(baseKey, shiftName) {
   updateInputTotals();
   debouncedSave();
 }
+function renderProfileShiftSettings() {
+  const container = document.getElementById('profileShiftSettingsBody');
+  if (!container) return;
+  const ud = getCurrentUserData();
+  container.innerHTML = '';
 
+  Object.entries(ud.shifts || {}).forEach(([key, sh]) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${sh.realName || key}</td>
+      <td>
+        <select class="form-select form-select-sm js-shift-icon" data-shift="${key}">
+          <option value="light_mode" ${sh.icon === 'light_mode' ? 'selected' : ''}>☀️ Zon (Vroeg)</option>
+          <option value="wb_twilight" ${sh.icon === 'wb_twilight' ? 'selected' : ''}>🌅 Schemer (Late)</option>
+          <option value="bedtime" ${sh.icon === 'bedtime' ? 'selected' : ''}>🌙 Maan (Nacht)</option>
+          <option value="schedule" ${sh.icon === 'schedule' ? 'selected' : ''}>🕒 Klok (Dag)</option>
+          <option value="star" ${sh.icon === 'star' ? 'selected' : ''}>⭐ Ster</option>
+          <option value="school" ${sh.icon === 'school' ? 'selected' : ''}>🎓 School</option>
+          <option value="medical_services" ${sh.icon === 'medical_services' ? 'selected' : ''}>🏥 Ziekte</option>
+        </select>
+      </td>
+      <td class="text-center">
+        <input type="checkbox" class="form-check-input js-shift-fav" data-shift="${key}" ${sh.isFavorite ? 'checked' : ''}>
+      </td>
+    `;
+    container.appendChild(tr);
+  });
+
+  // Opslaan bij wijziging
+  container.addEventListener('change', async (e) => {
+    const sKey = e.target.dataset.shift;
+    if (!sKey) return;
+    
+    if (e.target.classList.contains('js-shift-icon')) {
+      ud.shifts[sKey].icon = e.target.value;
+    }
+    if (e.target.classList.contains('js-shift-fav')) {
+      ud.shifts[sKey].isFavorite = e.target.checked;
+    }
+    
+    await saveUserData();
+    renderCalendarGrid(Number(yearSelectMain.value), Number(monthSelectMain.value));
+    toast('Instellingen bijgewerkt', 'success');
+  });
+}
 async function populateShiftSelectForRow(tr, rowKey){
   const base = rowKey.split('#')[0];                   // YYYY-MM-DD
   const [yStr, mStr, dStr] = base.split('-');
