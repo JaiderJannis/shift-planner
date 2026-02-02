@@ -48,6 +48,7 @@ import {
 
         // ======= State =======
     let currentUserId = null;
+    let mailUIBound = false;
     let notificationInterval = null;
     const dataStore = { 
       users: {}, 
@@ -1779,75 +1780,78 @@ async function ensureProjectExists(name){
       });
     }
 
- saveQuickBtn.addEventListener('click', async ()=>{
-  const date = quickDate.value;
-  const shift = quickShift.value; // Pakt de waarde uit de dropdown
-  const note = quickNote.value;
+ // ==========================================
+// 1. FIX VOOR OPSLAAN KNOP (Met 'sh' hersteld)
+// ==========================================
+const btnQuick = document.getElementById('saveQuickBtn');
+if (btnQuick) {
+  btnQuick.addEventListener('click', async () => {
+    const date = document.getElementById('quickDate').value;
+    const shift = document.getElementById('quickShift').value;
+    const note = document.getElementById('quickNote').value;
 
-  if(!date || !shift) return toast('Kies minstens een datum en shift','warning');
+    if (!date || !shift) return toast('Kies minstens een datum en shift', 'warning');
 
-  const y = Number(date.split('-')[0]);
-  const m = Number(date.split('-')[1]) - 1;
-  const ud = getCurrentUserData();
+    const y = Number(date.split('-')[0]);
+    const m = Number(date.split('-')[1]) - 1;
+    const ud = getCurrentUserData();
 
-  // Zorg dat de structuur bestaat
-  ud.monthData = ud.monthData || {};
-  ud.monthData[y] = ud.monthData[y] || {};
-  ud.monthData[y][m] = ud.monthData[y][m] || { targetHours:0, targetMinutes:0, rows:{} };
+    ud.monthData = ud.monthData || {};
+    ud.monthData[y] = ud.monthData[y] || {};
+    ud.monthData[y][m] = ud.monthData[y][m] || { targetHours: 0, targetMinutes: 0, rows: {} };
 
-  // --- 🔥 DE FIX: VOORKOM OVERSCHRIJVEN 🔥 ---
-  let key = date;
-  
-  // Als er al IETS staat op deze datum...
-  if (ud.monthData[y][m].rows[key]) {
-      // ...maak dan een unieke sleutel (bv: 2024-02-01_17123456)
-      // Hierdoor wordt het een EXTRA regel in plaats van een overschrijving
+    // --- DE FIX VOOR OVERSCHRIJVEN ---
+    let key = date;
+    if (ud.monthData[y][m].rows[key]) {
       key = `${date}_${Date.now()}`;
-  }
-  // ---------------------------------------------
+    }
+    // ---------------------------------
 
-  const sh = ud.shifts[shift];
-  const minutes = minutesBetween(sh.start, sh.end, sh.break);
+    // --- DE FIX VOOR 'sh is not defined' ---
+    const sh = ud.shifts[shift]; // <--- DEZE REGEL WAS WEG!
+    
+    if (!sh) {
+        console.error("Shift niet gevonden:", shift);
+        return toast("Fout: Shift data niet gevonden", "danger");
+    }
+    // ---------------------------------------
 
-  // Automatische projecttoewijzing
-  let project = sh?.project || '';
-  const sp = autoProjectForShift(shift);
-  if (sp) {
-    ensureProjectExists(sp);
-    project = sp;
-  }
+    const minutes = minutesBetween(sh.start, sh.end, sh.break);
 
-  // Opslaan op de (nieuwe) sleutel
-  ud.monthData[y][m].rows[key] = {
-    project,
-    shift,
-    start: sh.start,
-    end: sh.end,
-    break: sh.break,
-    omschrijving: note,
-    minutes
-  };
+    let project = sh.project || '';
+    const sp = autoProjectForShift(shift);
+    if (sp) {
+      ensureProjectExists(sp);
+      project = sp;
+    }
 
-  await saveUserData();
-  
-  // Alles verversen
-  renderMonth(y, m);
-  updateInputTotals();
-  renderHistory();
-  updateRemainingHours();
+    ud.monthData[y][m].rows[key] = {
+      project,
+      shift,
+      start: sh.start,
+      end: sh.end,
+      break: sh.break,
+      omschrijving: note,
+      minutes
+    };
 
-  // Als de dag-details popup open stond, ververs die ook direct
-  if (typeof openDayEditor === 'function') {
-      const dayEditor = document.getElementById('dayEditorModal');
-      if (dayEditor && dayEditor.classList.contains('show')) {
-          openDayEditor(date);
-      }
-  }
+    await saveUserData();
+    renderMonth(y, m);
+    updateInputTotals();
+    renderHistory();
+    updateRemainingHours();
 
-  bootstrap.Modal.getInstance(document.getElementById('quickModal')).hide();
-  toast('Extra shift toegevoegd', 'success');
-});
+    bootstrap.Modal.getInstance(document.getElementById('quickModal')).hide();
+    
+    // Ververs dag-details als die open staat
+    if (typeof openDayEditor === 'function') {
+       const editor = document.getElementById('dayEditorModal');
+       if (editor && editor.classList.contains('show')) openDayEditor(date);
+    }
 
+    toast('Extra shift toegevoegd', 'success');
+  });
+}
   // ✅ Automatische projecttoewijzing
 let project = sh?.project || '';
 const sp = autoProjectForShift(shift);
@@ -2895,8 +2899,13 @@ let lastVisible = null; // houdt bij tot waar we geladen hebben
 
 // 🔁 Laad de eerste reeks meldingen
 function listenToNotifications(uid) {
+  // VEILIGHEIDS CHECK: Zoek het element NU pas op
+  const notifList = document.getElementById('notifList');
+  const notifBadge = document.getElementById('notifBadge');
+  
+  if (!notifList) return; // Stop als het element er niet is
+
   const colRef = collection(db, 'users', uid, 'notifications');
-  const q = query(colRef, orderBy('timestamp', 'desc'), limit(20));
 
   // 1. 🛑 Vlag om te voorkomen dat je bij het opstarten 20 meldingen krijgt
   let isFirstRun = true; 
@@ -4837,8 +4846,14 @@ function openMail(m) {
 
 /* ---------- once-only UI binding ---------- */
 function bindMailboxUIOnce() {
+  if (typeof mailUIBound === 'undefined') window.mailUIBound = false; // Fallback
   if (mailUIBound) return;
   mailUIBound = true;
+
+  // Haal elementen hier lokaal op om crashes te voorkomen
+  const mailFolderNav = document.getElementById('mailFolderNav');
+  const mailComposeBtn = document.getElementById('mailComposeBtn');
+  const mailRefreshBtn = document.getElementById('mailRefreshBtn');
 
 // Folder switch
 mailFolderNav?.addEventListener('click', (e) => {
@@ -6187,9 +6202,11 @@ const delVersionBtn = document.getElementById('delVersionBtn');
 
 // 1. Dropdown vullen met opgeslagen versies
 function renderVersionControls() {
+  // VEILIGHEIDS CHECK: Zoek het element NU pas op
+  const versionSelect = document.getElementById('versionSelect');
   if (!versionSelect) return;
 
-  const y = Number(yearSelectMain.value);
+  const y = Number(document.getElementById('yearSelectMain').value);
   const m = Number(monthSelectMain.value);
   const ud = getCurrentUserData();
   
