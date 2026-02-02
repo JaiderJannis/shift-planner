@@ -1411,7 +1411,7 @@ async function applyShiftDirectly(dateKey, shiftKey) {
     start: sh.start,
     end: sh.end,
     break: sh.break,
-    description: ''
+    description: '',
     minutes: mins
   };
 
