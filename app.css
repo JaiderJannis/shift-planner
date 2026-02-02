@@ -718,3 +718,42 @@ body:not(.auth-checked) #loadingOverlay {
   color: #000;
   box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
+/* --- MOBIELE AANPASSINGEN --- */
+@media (max-width: 768px) {
+  /* Maak de kalender cellen compacter */
+  .calendar-day {
+    min-height: 65px; /* Minder hoog */
+    padding: 2px;
+  }
+
+  /* Het nummer van de dag kleiner */
+  .day-number {
+    font-size: 0.75rem;
+  }
+
+  /* De icoontjes (zon/maan) iets dichter bij elkaar */
+  .day-actions {
+    position: static; /* Niet meer in de hoek vastgeplakt */
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 2px;
+  }
+  
+  .quick-icon {
+    font-size: 14px !important; /* Kleiner icoon */
+    padding: 2px;
+  }
+
+  /* De tekstbalkjes van de shiften */
+  .cal-shift-item {
+    font-size: 0.6rem; /* Kleinere tekst */
+    padding: 1px 3px;
+    margin-bottom: 1px;
+    height: auto;
+  }
+  
+  /* Verberg de "Maandoverzicht" titel op heel kleine schermen */
+  .card-header h6 {
+    display: none;
+  }
+}
