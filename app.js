@@ -1296,12 +1296,9 @@ function renderCalendarGrid(year, month) {
   const ud = getCurrentUserData();
   const md = ud.monthData?.[year]?.[month] || { rows: {} };
   
-  // 1. HAAL SHIFTEN OP IN DE JUISTE VOLGORDE
-  // We gebruiken ud.shiftOrder om de volgorde te bepalen
+  // 1. Shiften & Favorieten
   const allShifts = ud.shifts || {};
   const order = ud.shiftOrder || Object.keys(allShifts);
-  
-  // Filter alleen de favorieten eruit, maar behoud de volgorde!
   const favorites = order
     .filter(key => allShifts[key] && allShifts[key].isFavorite)
     .map(key => ({ key, ...allShifts[key] }));
@@ -1324,7 +1321,7 @@ function renderCalendarGrid(year, month) {
     'vrij_weekend': '😎'
   };
 
-  // Headers
+ // Headers
   ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'].forEach(d => 
     grid.insertAdjacentHTML('beforeend', `<div class="calendar-header">${d}</div>`)
   );
@@ -1336,42 +1333,44 @@ function renderCalendarGrid(year, month) {
   // Lege cellen
   for (let i = 0; i < offset; i++) grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
 
+  // --- BEPAAL VANDAAG ---
+  const todayDate = new Date();
+  const isCurrentMonth = (todayDate.getFullYear() === year && todayDate.getMonth() === month);
+  const currentDayNum = todayDate.getDate();
+
   // Dagen loop
   for (let d = 1; d <= daysInMonth; d++) {
     const baseKey = dateKey(year, month, d);
     const dateObj = new Date(year, month, d);
     const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
     
-    // 3. GENEREREN VAN EMOJI KNOPJES
+    // Check: Is dit vandaag?
+    const isToday = (isCurrentMonth && d === currentDayNum);
+
+    // Emoji knopjes (met datum check)
     const quickIconsHtml = favorites.map(sh => {
-      // Zoek de emoji op, of gebruik een sterretje als fallback
+      if (!isDateWithin(baseKey, sh.startDate, sh.endDate)) return '';
       const emoji = ICON_MAP[sh.icon] || '⭐';
-      
-      // Let op: we gebruiken nu GEEN 'material-icons' class meer
-      return `<span class="quick-icon-btn" 
-        data-shift="${sh.key}" 
-        title="${sh.realName || sh.key} toevoegen">${emoji}</span>`;
+      return `<span class="quick-icon-btn" data-shift="${sh.key}" title="Toevoegen">${emoji}</span>`;
     }).join('');
 
-    // Toon de balkjes (bestaande shiften)
+    // Balkjes
     const dayKeys = listDayKeys(md, baseKey);
     let shiftsHtml = '';
-    
     dayKeys.slice(0, 3).forEach(k => {
       const r = md.rows[k];
-      if (!r.shift) return; // Lege shift negeren
-
+      if (!r.shift) return; 
       const sh = ud.shifts[r.shift];
       shiftsHtml += `<div class="cal-shift-item" style="background:${sh?.color || '#eee'}; border-left:3px solid rgba(0,0,0,0.2)">
         ${sh?.realName || r.shift}
       </div>`;
     });
-    
     const realCount = dayKeys.filter(k => md.rows[k].shift).length;
     if (realCount > 3) shiftsHtml += `<div style="font-size:9px; text-align:center; color:#999;">+${realCount - 3}</div>`;
 
     const dayEl = document.createElement('div');
-    dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''}`;
+    // Voeg 'today' class toe als het vandaag is
+    dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}`;
     
     dayEl.innerHTML = `
       <div class="d-flex justify-content-between align-items-start">
@@ -1383,7 +1382,6 @@ function renderCalendarGrid(year, month) {
 
     dayEl.onclick = () => openDayEditor(baseKey);
 
-    // Click handlers voor de emojis
     dayEl.querySelectorAll('.quick-icon-btn').forEach(btn => {
       btn.onclick = (e) => {
         e.stopPropagation(); 
@@ -6367,17 +6365,38 @@ delVersionBtn?.addEventListener('click', async () => {
   }
 });
 // ==========================================
-// 5. UI FIXES (Desktop clean + Mobiel scrollbaar + Weekend kleur)
+// 5. UI FIXES (Desktop clean + Mobiel scrollbaar + Weekend + BEWEGENDE VANDAAG)
 // ==========================================
 document.addEventListener("DOMContentLoaded", () => {
   // 1. CSS Injecteren
   const style = document.createElement('style');
   style.innerHTML = `
-    /* --- A. Weekend kleuren --- */
+    /* --- A. Animatie voor VANDAAG (Pulse Effect) --- */
+    @keyframes pulse-blue {
+      0% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.7); }
+      70% { box-shadow: 0 0 0 6px rgba(13, 110, 253, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0); }
+    }
+
+    .calendar-day.today {
+      border: 2px solid #0d6efd !important; /* Dikke blauwe rand */
+      animation: pulse-blue 2s infinite;    /* HET BEWEGENDE DEEL */
+      z-index: 10; /* Zorg dat hij bovenop ligt */
+      background-color: #fff;
+    }
+    
+    /* Zorg dat de tekst ook blauw en dikgedrukt is */
+    .calendar-day.today .day-number {
+      color: #0d6efd;
+      font-weight: 900;
+      font-size: 1.1em;
+    }
+
+    /* --- B. Weekend kleuren --- */
     .calendar-day.weekend { background-color: #f2f4f8 !important; }
     body.dark-mode .calendar-day.weekend { background-color: #2b2d31 !important; }
 
-    /* --- B. Desktop (> 992px) --- */
+    /* --- C. Desktop (> 992px) --- */
     @media (min-width: 992px) {
       .table-responsive, #historyTable, .shift-container, .mobile-scroll-wrapper {
         overflow: visible !important;
@@ -6387,51 +6406,30 @@ document.addEventListener("DOMContentLoaded", () => {
       body { overflow-y: auto; }
     }
 
-    /* --- C. Mobiel (< 992px) --- */
+    /* --- D. Mobiel (< 992px) --- */
     @media (max-width: 991px) {
-      /* Forceer dat de wrapper kan scrollen */
       .mobile-scroll-wrapper {
-        display: block;
-        width: 100%;
-        overflow-x: auto !important; /* Horizontaal scrollen AAN */
-        -webkit-overflow-scrolling: touch; /* Soepel scrollen op iPhone */
-        margin-bottom: 1rem;
-        border: 1px solid #eee; /* Licht randje om aan te geven dat het een vak is */
+        display: block; width: 100%; overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch; margin-bottom: 1rem; border: 1px solid #eee;
       }
-      
-      /* Zorg dat de tabel breed genoeg blijft zodat hij NIET plet */
-      .mobile-scroll-wrapper table {
-        min-width: 600px; /* Hierdoor MOET hij wel scrollen */
-      }
-
-      /* Icoontjes in kalender verbergen voor rust */
+      .mobile-scroll-wrapper table { min-width: 600px; }
       .quick-icons-wrapper { display: none !important; }
-      
-      /* Kalender dag iets compacter */
       .calendar-day { min-height: 50px !important; }
-      
-      /* Lettertype in tabellen iets kleiner voor meer ruimte */
       table td, table th { font-size: 0.85rem !important; }
     }
   `;
   document.head.appendChild(style);
 
-  // 2. JS: Automatisch tabellen inpakken (zodat scrollen altijd werkt)
-  // We zoeken alle tabellen die nog niet in een 'responsive' div zitten
+  // 2. JS: Automatisch tabellen inpakken
   const tables = document.querySelectorAll('table');
   tables.forEach(table => {
-    // Check of hij al in een wrapper zit, zo niet: maak er een
     if (!table.parentElement.classList.contains('mobile-scroll-wrapper') && 
         !table.parentElement.classList.contains('table-responsive')) {
-      
       const wrapper = document.createElement('div');
       wrapper.className = 'mobile-scroll-wrapper';
-      
-      // Verplaats de tabel IN de nieuwe wrapper
       table.parentNode.insertBefore(wrapper, table);
       wrapper.appendChild(table);
     } else {
-      // Als hij al een parent heeft, geef die de juiste class voor mobiel
       table.parentElement.classList.add('mobile-scroll-wrapper');
     }
   });
