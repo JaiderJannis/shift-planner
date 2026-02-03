@@ -6756,25 +6756,30 @@ function initPaintModeUI() {
 
 // 2. Schakel Modus Aan/Uit
 function togglePaintMode() {
+  // Toggle de status
   isPaintMode = !isPaintMode;
+  
   const palette = document.getElementById('paintPalette');
   const btn = document.getElementById('togglePaintBtn');
+  const alertBar = document.getElementById('remainingHoursAlert'); // <--- DE BALK
   const ud = getCurrentUserData();
   
   if (isPaintMode) {
-    // AAN ZETTEN
+    // --- AAN ZETTEN ---
     palette.classList.add('active');
-    btn?.classList.add('active');
+    if(btn) btn.classList.add('active');
     
+    // VERBERG de uren-balk zodat hij niet in de weg zit
+    if(alertBar) alertBar.style.display = 'none';
+
     // Haal de huidige maand van het scherm op voor de filtering
     const ySel = document.getElementById('yearSelectMain');
     const mSel = document.getElementById('monthSelectMain');
     const viewYear = ySel ? Number(ySel.value) : new Date().getFullYear();
     const viewMonth = mSel ? Number(mSel.value) : new Date().getMonth();
     
-    // Bepaal start en eind van deze maand
     const monthStart = new Date(viewYear, viewMonth, 1);
-    const monthEnd = new Date(viewYear, viewMonth + 1, 0); // Laatste dag van de maand
+    const monthEnd = new Date(viewYear, viewMonth + 1, 0); 
 
     palette.innerHTML = '';
     const allShifts = ud.shifts || {};
@@ -6787,7 +6792,7 @@ function togglePaintMode() {
         'vrij_weekend': '😎'
     };
 
-    // 1. Gummetje (Wissen) altijd tonen
+    // 1. Gummetje
     const eraser = document.createElement('div');
     eraser.className = 'paint-option';
     eraser.style.background = '#f8f9fa';
@@ -6795,18 +6800,14 @@ function togglePaintMode() {
     eraser.onclick = () => selectPaintOption('eraser', eraser);
     palette.appendChild(eraser);
 
-    // 2. Favorieten (NU MET DATUM FILTER)
+    // 2. Favorieten (Gefilterd op datum)
     favs.forEach(k => {
         const sh = allShifts[k];
         if (!sh) return;
 
-        // --- 🔥 DE FIX: DATUM CHECK ---
-        // Als de shift een startdatum heeft die LATER is dan het einde van deze maand -> Niet tonen
+        // Datum Check
         if (sh.startDate && new Date(sh.startDate) > monthEnd) return;
-        
-        // Als de shift een einddatum heeft die EERDER is dan het begin van deze maand -> Niet tonen
         if (sh.endDate && new Date(sh.endDate) < monthStart) return;
-        // ------------------------------
 
         const el = document.createElement('div');
         el.className = 'paint-option';
@@ -6817,25 +6818,24 @@ function togglePaintMode() {
         palette.appendChild(el);
     });
     
-    // Selecteer de eerste shift standaard (als die er is)
+    // Selecteer standaard de eerste (of gum)
     if (palette.children.length > 1) {
-        selectPaintOption(favs.find(k => {
-             // Zoek de eerste die we net ook echt toegevoegd hebben aan de DOM
-             // (Een beetje hacky, maar zorgt dat we geen verborgen shift selecteren)
-             const sh = allShifts[k];
-             if (sh.startDate && new Date(sh.startDate) > monthEnd) return false;
-             if (sh.endDate && new Date(sh.endDate) < monthStart) return false;
-             return true;
-        }) || 'eraser', palette.children[1]);
+        // Simpele selectie van 2e element (eerste shift)
+        selectPaintOption(favs[0] || 'eraser', palette.children[1]);
+    } else {
+        selectPaintOption('eraser', eraser);
     }
 
     toast('Verf-modus AAN', 'info');
 
   } else {
-    // UIT ZETTEN
+    // --- UIT ZETTEN ---
     palette.classList.remove('active');
-    btn?.classList.remove('active');
+    if(btn) btn.classList.remove('active');
     selectedPaintShiftKey = null;
+
+    // TOON de uren-balk weer
+    if(alertBar) alertBar.style.display = ''; 
   }
 }
 
