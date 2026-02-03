@@ -6645,99 +6645,64 @@ let selectedPaintShiftKey = null;
 
 // 1. Initialiseer de Verf-knop en Balk (wordt autom. aangeroepen)
 function initPaintModeUI() {
-  // Check of de UI al bestaat
+  // Check of de UI al bestaat, zo ja, stop
   if (document.getElementById('paintPalette')) return;
 
-  // A. Styles toevoegen
+  // A. Styles toevoegen (ongewijzigd)
   const style = document.createElement('style');
   style.innerHTML = `
-    /* De zwevende balk onderaan */
     #paintPalette {
       position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%) translateY(150%); /* Verborgen */
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(10px);
-      padding: 10px 15px;
-      border-radius: 50px;
+      bottom: 20px; left: 50%; transform: translateX(-50%) translateY(150%);
+      background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);
+      padding: 10px 15px; border-radius: 50px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-      display: flex;
-      gap: 12px;
-      z-index: 9999;
+      display: flex; gap: 12px; z-index: 9999;
       transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      max-width: 95%;
-      overflow-x: auto;
-      border: 1px solid rgba(0,0,0,0.1);
+      max-width: 95%; overflow-x: auto; border: 1px solid rgba(0,0,0,0.1);
     }
-    #paintPalette.active {
-      transform: translateX(-50%) translateY(0); /* Zichtbaar */
-    }
-
-    /* De rondjes in de balk */
+    #paintPalette.active { transform: translateX(-50%) translateY(0); }
     .paint-option {
-      width: 45px;
-      height: 45px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      cursor: pointer;
-      border: 2px solid transparent;
-      transition: all 0.2s;
-      flex-shrink: 0;
-      position: relative;
+      width: 45px; height: 45px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; cursor: pointer; border: 2px solid transparent;
+      transition: all 0.2s; flex-shrink: 0; position: relative;
     }
     .paint-option:hover { transform: scale(1.1); }
-    
-    /* Geselecteerde staat */
     .paint-option.selected {
-      border-color: #000;
-      transform: scale(1.2);
-      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      border-color: #000; transform: scale(1.2); box-shadow: 0 4px 10px rgba(0,0,0,0.15);
     }
     .paint-option.selected::after {
-      content: '✔';
-      position: absolute;
-      top: -5px; right: -5px;
-      background: #000; color: #fff;
-      font-size: 10px; width: 16px; height: 16px;
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
+      content: '✔'; position: absolute; top: -5px; right: -5px;
+      background: #000; color: #fff; font-size: 10px; width: 16px; height: 16px;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
     }
-
-    /* De Toggle Knop (Rechtsboven of bij acties) */
-    #togglePaintBtn {
-      border-width: 2px;
-      font-weight: bold;
-    }
-    #togglePaintBtn.active {
-      background-color: #0d6efd;
-      color: white;
-      border-color: #0d6efd;
-      box-shadow: inset 0 3px 5px rgba(0,0,0,0.2);
-    }
+    /* Knop styling */
+    #togglePaintBtn { margin-left: 10px; font-weight: 600; white-space: nowrap; }
+    #togglePaintBtn.active { background-color: #0d6efd; color: white; border-color: #0d6efd; }
   `;
   document.head.appendChild(style);
 
-  // B. HTML Elementen maken
+  // B. HTML Palet (de balk onderaan)
   const palette = document.createElement('div');
   palette.id = 'paintPalette';
   document.body.appendChild(palette);
 
-  // C. Zoek een plek voor de knop (bijv. naast maand selectie of PDF knop)
-  // We voegen hem toe aan de actiebalk bovenaan
-  const actionContainer = document.querySelector('.d-flex.gap-2.flex-wrap');
-  if (actionContainer) {
+  // C. PLAATSING VAN DE KNOP (AANGEPAST)
+  // We zoeken de maand-selectie dropdown
+  const monthSelector = document.getElementById('monthSelectMain');
+  
+  if (monthSelector && monthSelector.parentNode) {
       const btn = document.createElement('button');
       btn.id = 'togglePaintBtn';
-      btn.className = 'btn btn-outline-primary d-flex align-items-center gap-2';
-      btn.innerHTML = '<span class="material-icons-outlined">brush</span> <span class="d-none d-sm-inline">Verf</span>';
+      btn.className = 'btn btn-outline-primary btn-sm d-flex align-items-center gap-2';
+      // Icoon + Tekst
+      btn.innerHTML = '<span class="material-icons-outlined" style="font-size:18px">brush</span> <span class="d-none d-sm-inline">Verf</span>';
       btn.onclick = togglePaintMode;
       
-      // Voeg toe als eerste knop voor makkelijke toegang
-      actionContainer.insertBefore(btn, actionContainer.firstChild);
+      // Plaats de knop DIRECT na de maand-selectie container
+      // Of als de maand-selectie in een div zit, ernaast.
+      monthSelector.parentNode.appendChild(btn);
   }
 }
 
