@@ -783,10 +783,8 @@ addProjectBtn?.addEventListener('click', async () => {
   }
 });
 // ==========================================
-// FIX: SHIFT BEWERKEN ZONDER DUPLICATEN
+// FIX: TABEL WEERGAVE HERSTELD + GEEN DUPLICATEN
 // ==========================================
-
-// 1. Vervang je hele functie renderShifts() door deze:
 function renderShifts() {
   const ud = getCurrentUserData();
   const shifts = ud.shifts || {};
@@ -799,7 +797,6 @@ function renderShifts() {
   if (order.length !== cleanedOrder.length || missingKeys.length > 0) {
       order = [...cleanedOrder, ...missingKeys];
       ud.shiftOrder = order;
-      // Stille save op achtergrond
       const id = getActiveUserId();
       if(id) updateDoc(doc(db,'users',id), { shiftOrder: order });
   }
@@ -812,17 +809,9 @@ function renderShifts() {
   const divShort = document.getElementById('divShiftShort');
   const divColor = document.getElementById('divShiftColor');
   const divName  = document.getElementById('divShiftName');
-  if (divShort && divColor && divName) {
-    if (isAdminUser) {
-      divShort.classList.remove('d-none');
-      divColor.classList.remove('d-none');
-      divName.className = 'col-md-5'; 
-    } else {
-      divShort.classList.add('d-none');
-      divColor.classList.add('d-none');
-      divName.className = 'col-md-9'; 
-    }
-  }
+  
+  // Zorg dat de tabelheaders kloppen voor de weergave
+  // (Optioneel: je kunt hier ook headers tonen/verbergen als je dat wilt)
 
   shiftTableBody.innerHTML = '';
 
@@ -840,12 +829,44 @@ function renderShifts() {
     }
 
     const tr = document.createElement('tr');
+    
+    // --- HERSTELD: Alle kolommen weer zichtbaar ---
+    // We bouwen de HTML voor Periode en Project
+    const periodText = (sh.startDate || sh.endDate) 
+        ? `<div class="small text-muted"><span class="material-icons-outlined" style="font-size:12px">calendar_today</span> ${sh.startDate || '...'} t/m ${sh.endDate || '...'}</div>` 
+        : '';
+        
+    const projectText = sh.project 
+        ? `<span class="badge bg-light text-dark border ms-1">${sh.project}</span>` 
+        : '';
+
+    const timeText = (sh.start && sh.end) 
+        ? `${sh.start} - ${sh.end}` 
+        : '<span class="text-muted">-</span>';
+        
+    const breakText = sh.break 
+        ? `<span class="text-muted ms-2"><span class="material-icons-outlined" style="font-size:12px">coffee</span> ${sh.break}m</span>` 
+        : '';
+
     tr.innerHTML = `
       <td>
-        <span class="dot" style="background:${sh.color || '#ccc'}; width:10px; height:10px; display:inline-block; border-radius:50%; margin-right:8px;"></span>
-        <strong>${sh.realName || name}</strong>
-        ${sh.shortName ? `<br><small class="text-muted">${sh.shortName}</small>` : ''}
+        <div class="d-flex align-items-center">
+            <span class="dot" style="background:${sh.color || '#ccc'}; width:12px; height:12px; display:inline-block; border-radius:50%; margin-right:10px;"></span>
+            <div>
+                <strong>${sh.realName || name}</strong> ${projectText}
+                ${sh.shortName ? `<br><small class="text-muted">${sh.shortName}</small>` : ''}
+                ${periodText}
+            </div>
+        </div>
       </td>
+      
+      <td>
+        <div class="d-flex flex-column" style="font-size:0.9em;">
+            <span>${timeText}</span>
+            ${breakText ? `<span>${breakText}</span>` : ''}
+        </div>
+      </td>
+
       <td class="text-end">
         <div class="btn-group">
           <button class="btn btn-sm btn-outline-secondary btn-edit" title="Bewerken"><span class="material-icons-outlined" style="font-size:16px">edit</span></button>
@@ -855,44 +876,34 @@ function renderShifts() {
       </td>
     `;
 
-    // VERWIJDEREN
+    // Events (Dezelfde logica als daarnet, die was wél goed)
     tr.querySelector('.btn-del').onclick = async () => {
       if(!confirm(`Shift "${sh.realName || name}" verwijderen?`)) return;
-      
       delete ud.shifts[name];
       ud.shiftOrder = ud.shiftOrder.filter(n => n !== name);
-      
-      // Forceer update zodat hij écht weg is
       const id = getActiveUserId();
       if(id) await updateDoc(doc(db,'users',id), { shifts: ud.shifts, shiftOrder: ud.shiftOrder });
-      
       renderShifts();
       toast('Verwijderd', 'success');
     };
 
-    // KOPIEREN
     tr.querySelector('.btn-copy').onclick = async () => {
         const copyName = name + " (Kopie)";
         ud.shifts[copyName] = { ...sh, realName: (sh.realName || name) + " (Kopie)" };
         ud.shiftOrder.push(copyName);
-        
         const id = getActiveUserId();
         if(id) await updateDoc(doc(db,'users',id), { shifts: ud.shifts, shiftOrder: ud.shiftOrder });
-        
         renderShifts();
         toast('Gekopieerd', 'success');
     };
 
-    // 🔥 BEWERKEN (DE FIX) 🔥
     tr.querySelector('.btn-edit').onclick = () => {
-        // 1. We onthouden welke shift we bewerken in een "verborgen notitieblokje" op de popup
         const modalEl = document.getElementById('shiftModal');
         modalEl.dataset.editingKey = name; 
 
-        // 2. Vul de velden
+        // Velden vullen
         const newShiftName = document.getElementById('newShiftName');
         newShiftName.value = sh.realName || name;
-        
         if(document.getElementById('newShiftShort')) document.getElementById('newShiftShort').value = sh.shortName || '';
         if(document.getElementById('newShiftColor')) document.getElementById('newShiftColor').value = sh.color || '#e9ecef';
         
@@ -903,14 +914,12 @@ function renderShifts() {
         document.getElementById('newShiftStartDate').value = sh.startDate || '';
         document.getElementById('newShiftEndDate').value = sh.endDate || '';
 
-        // 3. We verwijderen NIETS! We openen alleen de popup.
         new bootstrap.Modal(modalEl).show();
     };
 
     shiftTableBody.appendChild(tr);
   });
 }
-
 
 // ==========================================
 // FIX: OPSLAAN KNOP (Dubbele naam opgelost)
