@@ -765,44 +765,36 @@ addProjectBtn?.addEventListener('click', async () => {
     }
   }
 });
-    // ======= Shifts =======
+// ==========================================
+// FIX: SHIFT BEWERKEN ZONDER DUPLICATEN
+// ==========================================
+
+// 1. Vervang je hele functie renderShifts() door deze:
 function renderShifts() {
   const ud = getCurrentUserData();
   const shifts = ud.shifts || {};
   
-  // --- 🛠️ START AUTOMATISCHE REPARATIE ---
-  // 1. Haal de opgeslagen volgorde op
+  // -- Automatische reparatie volgorde --
   let order = ud.shiftOrder || [];
-
-  // 2. Verwijder namen uit de volgorde die niet meer bestaan in 'shifts'
-  // (Dit schoont oude, verwijderde shiften op)
   const cleanedOrder = order.filter(key => shifts[key]);
-
-  // 3. Zoek shiften die WEL bestaan, maar NIET in de volgorde staan
-  // (Dit pakt nieuwe of hernoemde shiften op)
   const realKeys = Object.keys(shifts);
   const missingKeys = realKeys.filter(key => !cleanedOrder.includes(key));
-
-  // 4. Als er een verschil is, update de volgorde en sla op
   if (order.length !== cleanedOrder.length || missingKeys.length > 0) {
       order = [...cleanedOrder, ...missingKeys];
       ud.shiftOrder = order;
-      
-      // We slaan dit stilletjes op op de achtergrond
-      saveUserData().then(() => console.log("Shift-volgorde automatisch hersteld."));
+      // Stille save op achtergrond
+      const id = getActiveUserId();
+      if(id) updateDoc(doc(db,'users',id), { shiftOrder: order });
   }
-  // --- ✅ EINDE AUTOMATISCHE REPARATIE ---
 
-  const selectedYear = filterShiftYear.value ? Number(filterShiftYear.value) : null;
-
-  // ... (Hieronder gaat de rest van je functie verder zoals je die al had)
-  
-  // 1. ADMIN CHECK
+  const filterShiftYear = document.getElementById('filterShiftYear');
+  const selectedYear = filterShiftYear?.value ? Number(filterShiftYear.value) : null;
   const isAdminUser = (ud.role === 'admin');
+
+  // UI Elementen (Admin check)
   const divShort = document.getElementById('divShiftShort');
   const divColor = document.getElementById('divShiftColor');
   const divName  = document.getElementById('divShiftName');
-
   if (divShort && divColor && divName) {
     if (isAdminUser) {
       divShort.classList.remove('d-none');
@@ -815,177 +807,171 @@ function renderShifts() {
     }
   }
 
-  // 2. Start tabel
   shiftTableBody.innerHTML = '';
 
   order.forEach(name => {
     const sh = shifts[name];
     if (!sh) return;
 
-    // Filter op jaar
+    // Jaar filter toepassen
     if (selectedYear) {
       const startY = sh.startDate ? new Date(sh.startDate).getFullYear() : null;
       const endY = sh.endDate ? new Date(sh.endDate).getFullYear() : null;
-      if (
-        (startY && endY && (selectedYear < startY || selectedYear > endY)) ||
-        (startY && !endY && selectedYear < startY) ||
-        (!startY && endY && selectedYear > endY)
-      ) {
-        return;
-      }
+      if ((startY && endY && (selectedYear < startY || selectedYear > endY)) ||
+          (startY && !endY && selectedYear < startY) ||
+          (!startY && endY && selectedYear > endY)) return;
     }
-
-    // ✨ VISUELE NAAM BEPALEN (Zonder haakjes)
-    // We gebruiken sh.realName als die bestaat, anders de technische naam
-    const displayName = sh.realName || name; 
-
-    // Kleurbolletje
-    const colorDot = sh.color 
-      ? `<span class="d-inline-block rounded-circle border me-2" style="width:12px; height:12px; background-color:${sh.color};"></span>` 
-      : '';
 
     const tr = document.createElement('tr');
-    tr.dataset.name = name; // We bewaren de technische ID in de achtergrond
-    tr.setAttribute('draggable', true);
     tr.innerHTML = `
-      <td class="fw-medium">
-        <span class="material-icons-outlined drag-handle me-1" style="cursor:grab; font-size:18px; vertical-align:middle;">drag_indicator</span>
-        ${colorDot}${displayName} 
+      <td>
+        <span class="dot" style="background:${sh.color || '#ccc'}; width:10px; height:10px; display:inline-block; border-radius:50%; margin-right:8px;"></span>
+        <strong>${sh.realName || name}</strong>
+        ${sh.shortName ? `<br><small class="text-muted">${sh.shortName}</small>` : ''}
       </td>
-      <td class="text-mono">${sh.start || ''}</td>
-      <td class="text-mono">${sh.end || ''}</td>
-      <td>${sh.break || 0}</td>
-      <td>${sh.project || ''}</td>
-      <td>${toDisplayDate(sh.startDate)} → ${toDisplayDate(sh.endDate)}</td>
       <td class="text-end">
-        <button class="btn btn-sm btn-outline-primary me-1" data-name="${name}" data-act="copy" title="Kopieer">
-          <span class="material-icons-outlined" style="font-size:16px">content_copy</span>
-        </button>
-        <button class="btn btn-sm btn-warning me-1" data-name="${name}" data-act="edit" title="Bewerk">
-           <span class="material-icons-outlined" style="font-size:16px">edit</span>
-        </button>
-        <button class="btn btn-sm btn-danger" data-name="${name}" data-act="delete" title="Verwijder">
-           <span class="material-icons-outlined" style="font-size:16px">delete</span>
-        </button>
-      </td>`;
-    shiftTableBody.appendChild(tr);
-  });
+        <div class="btn-group">
+          <button class="btn btn-sm btn-outline-secondary btn-edit" title="Bewerken"><span class="material-icons-outlined" style="font-size:16px">edit</span></button>
+          <button class="btn btn-sm btn-outline-danger btn-del" title="Verwijderen"><span class="material-icons-outlined" style="font-size:16px">delete</span></button>
+          <button class="btn btn-sm btn-outline-primary btn-copy" title="Kopiëren"><span class="material-icons-outlined" style="font-size:16px">content_copy</span></button>
+        </div>
+      </td>
+    `;
 
-  // Sortable init (ongewijzigd)
-  if (shiftTableBody.sortableInstance) shiftTableBody.sortableInstance.destroy();
-  shiftTableBody.sortableInstance = new Sortable(shiftTableBody, {
-    handle: '.drag-handle', animation: 150, fallbackOnBody: true, swapThreshold: 0.65, ghostClass: 'bg-light',
-    onEnd: async (evt) => {
-      const newOrder = Array.from(shiftTableBody.querySelectorAll('tr')).map(tr => tr.dataset.name);
-      ud.shiftOrder = newOrder; await saveUserData(); toast('Volgorde opgeslagen', 'success');
-    }
-  });
+    // VERWIJDEREN
+    tr.querySelector('.btn-del').onclick = async () => {
+      if(!confirm(`Shift "${sh.realName || name}" verwijderen?`)) return;
+      
+      delete ud.shifts[name];
+      ud.shiftOrder = ud.shiftOrder.filter(n => n !== name);
+      
+      // Forceer update zodat hij écht weg is
+      const id = getActiveUserId();
+      if(id) await updateDoc(doc(db,'users',id), { shifts: ud.shifts, shiftOrder: ud.shiftOrder });
+      
+      renderShifts();
+      toast('Verwijderd', 'success');
+    };
 
-  // BUTTON ACTIONS
-  shiftTableBody.querySelectorAll('button').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const act = btn.dataset.act, name = btn.dataset.name;
-      const sh = ud.shifts[name];
+    // KOPIEREN
+    tr.querySelector('.btn-copy').onclick = async () => {
+        const copyName = name + " (Kopie)";
+        ud.shifts[copyName] = { ...sh, realName: (sh.realName || name) + " (Kopie)" };
+        ud.shiftOrder.push(copyName);
+        
+        const id = getActiveUserId();
+        if(id) await updateDoc(doc(db,'users',id), { shifts: ud.shifts, shiftOrder: ud.shiftOrder });
+        
+        renderShifts();
+        toast('Gekopieerd', 'success');
+    };
 
-      if (act === 'delete') {
-        if (!confirm(`Shift verwijderen?`)) return;
-        delete ud.shifts[name];
-        ud.shiftOrder = (ud.shiftOrder || []).filter(n => n !== name);
-        await saveUserData(); renderShifts();
-      } 
-      else if (act === 'copy') {
-        if (!sh) return;
-        // Bij kopiëren, gebruik de schone naam + (kopie)
-        newShiftName.value = `${sh.realName || name} (kopie)`;
-        document.getElementById('newShiftShort').value = sh.shortName || '';
-        document.getElementById('newShiftColor').value = sh.color || '#e9ecef';
-        newShiftStart.value = sh.start || '00:00';
-        newShiftEnd.value = sh.end || '00:00';
-        newShiftBreak.value = sh.break || 0;
-        newShiftProjectSelect.value = sh.project || '';
-        newShiftStartDate.value = sh.startDate || '';
-        newShiftEndDate.value = sh.endDate || '';
-        new bootstrap.Modal(document.getElementById('shiftModal')).show();
-      } 
-      else if (act === 'edit') {
-        if (!sh) return;
-        // ✨ HIER ZIT DE TRUC: We laden de 'schone' naam in het invulveld
+    // 🔥 BEWERKEN (DE FIX) 🔥
+    tr.querySelector('.btn-edit').onclick = () => {
+        // 1. We onthouden welke shift we bewerken in een "verborgen notitieblokje" op de popup
+        const modalEl = document.getElementById('shiftModal');
+        modalEl.dataset.editingKey = name; 
+
+        // 2. Vul de velden
+        const newShiftName = document.getElementById('newShiftName');
         newShiftName.value = sh.realName || name;
         
-        document.getElementById('newShiftShort').value = sh.shortName || '';
-        document.getElementById('newShiftColor').value = sh.color || '#e9ecef';
-        newShiftStart.value = sh.start || '08:00';
-        newShiftEnd.value = sh.end || '16:00';
-        newShiftBreak.value = sh.break || 0;
-        newShiftProjectSelect.value = sh.project || '';
-        newShiftStartDate.value = sh.startDate || '';
-        newShiftEndDate.value = sh.endDate || '';
+        if(document.getElementById('newShiftShort')) document.getElementById('newShiftShort').value = sh.shortName || '';
+        if(document.getElementById('newShiftColor')) document.getElementById('newShiftColor').value = sh.color || '#e9ecef';
         
-        // We verwijderen de oude (technische) entry, want bij opslaan wordt hij opnieuw aangemaakt
-        delete ud.shifts[name];
-        await saveUserData();
-        new bootstrap.Modal(document.getElementById('shiftModal')).show();
-      }
-    });
+        document.getElementById('newShiftStart').value = sh.start || '00:00';
+        document.getElementById('newShiftEnd').value = sh.end || '00:00';
+        document.getElementById('newShiftBreak').value = sh.break || 0;
+        document.getElementById('newShiftProjectSelect').value = sh.project || '';
+        document.getElementById('newShiftStartDate').value = sh.startDate || '';
+        document.getElementById('newShiftEndDate').value = sh.endDate || '';
+
+        // 3. We verwijderen NIETS! We openen alleen de popup.
+        new bootstrap.Modal(modalEl).show();
+    };
+
+    shiftTableBody.appendChild(tr);
   });
 }
 
-addShiftBtn?.addEventListener('click', async () => {
-      // 1. De naam zoals JIJ hem typt (bv. "Vroege")
+
+// 2. Vervang je 'Opslaan' knop logica (addShiftBtn) door dit blok:
+const addShiftBtn = document.getElementById('addShiftBtn');
+if (addShiftBtn) {
+    // Trucje om oude listeners te wissen (zodat je niet 2x opslaat)
+    const newBtn = addShiftBtn.cloneNode(true);
+    addShiftBtn.parentNode.replaceChild(newBtn, addShiftBtn);
+
+    newBtn.addEventListener('click', async () => {
+      const newShiftName = document.getElementById('newShiftName');
       const visibleName = newShiftName.value.trim();
-      const projectVal = newShiftProjectSelect.value || '';
+      const projectVal = document.getElementById('newShiftProjectSelect').value || '';
 
-      if (!visibleName) return toast('Vul shift naam in', 'warning');
+      if (!visibleName) return toast('Naam verplicht', 'warning');
 
-      // 2. De unieke technische sleutel genereren
-      // Als er een project is, maken we er intern "Vroege (Google)" van
+      // A. Bepaal de NIEUWE sleutel
       let uniqueKey = visibleName;
       if (projectVal) {
-        // We voegen altijd project toe aan de ID om uniek te zijn
-        // Maar we checken even of je niet per ongeluk zelf al haakjes typte
         const suffix = ` (${projectVal})`;
-        if (!visibleName.endsWith(suffix)) {
-          uniqueKey = `${visibleName}${suffix}`;
-        }
+        if (!visibleName.endsWith(suffix)) uniqueKey = `${visibleName}${suffix}`;
       }
 
-      const shortName = document.getElementById('newShiftShort')?.value.trim() || '';
-      const color = document.getElementById('newShiftColor')?.value || '#e9ecef';
+      // B. Haal de OUDE sleutel op (die we bij het openen hebben opgeslagen)
+      const modalEl = document.getElementById('shiftModal');
+      const oldKey = modalEl.dataset.editingKey; 
 
       const ud = getCurrentUserData();
       ud.shifts = ud.shifts || {};
+      ud.shiftOrder = ud.shiftOrder || [];
 
-      // 3. Opslaan met 'realName' eigenschap
+      // C. Als de sleutel veranderd is (bv. naam gewijzigd), gooi de oude weg
+      if (oldKey && oldKey !== uniqueKey) {
+          delete ud.shifts[oldKey];
+          // Update ook de volgorde lijst
+          const idx = ud.shiftOrder.indexOf(oldKey);
+          if (idx !== -1) ud.shiftOrder[idx] = uniqueKey;
+      }
+
+      // D. Sla de nieuwe data op
       ud.shifts[uniqueKey] = {
-        realName: visibleName, // <--- DIT IS NIEUW: Dit tonen we in de lijst
-        shortName: shortName,
-        color: color,
-        start: newShiftStart.value || '00:00',
-        end: newShiftEnd.value || '00:00',
-        break: Number(newShiftBreak.value) || 0,
+        realName: visibleName,
+        shortName: document.getElementById('newShiftShort')?.value.trim() || '',
+        color: document.getElementById('newShiftColor')?.value || '#e9ecef',
+        start: document.getElementById('newShiftStart').value || '00:00',
+        end: document.getElementById('newShiftEnd').value || '00:00',
+        break: Number(document.getElementById('newShiftBreak').value) || 0,
         project: projectVal,
-        startDate: newShiftStartDate.value || null,
-        endDate: newShiftEndDate.value || null
+        startDate: document.getElementById('newShiftStartDate').value || null,
+        endDate: document.getElementById('newShiftEndDate').value || null
       };
 
-      ud.shiftOrder = ud.shiftOrder || [];
+      // Voeg toe aan volgorde als hij nieuw is
       if (!ud.shiftOrder.includes(uniqueKey)) ud.shiftOrder.push(uniqueKey);
 
-      await saveUserData();
+      // E. FORCEER UPDATE (Overschrijf de hele lijst om spoken te voorkomen)
+      const id = getActiveUserId();
+      if (id) {
+          await updateDoc(doc(db, 'users', id), { 
+              shifts: ud.shifts,
+              shiftOrder: ud.shiftOrder
+          });
+      }
+
+      // F. Opruimen
       renderShifts();
-
-      bootstrap.Modal.getInstance(document.getElementById('shiftModal')).hide();
-
-      // Reset velden
+      bootstrap.Modal.getInstance(modalEl).hide();
+      delete modalEl.dataset.editingKey; // Reset het "notitieblokje"
+      
+      // Velden wissen
       newShiftName.value = '';
-      newShiftBreak.value = 0;
-      newShiftStartDate.value = '';
-      newShiftEndDate.value = '';
-      if (document.getElementById('newShiftShort')) document.getElementById('newShiftShort').value = '';
-      if (document.getElementById('newShiftColor')) document.getElementById('newShiftColor').value = '#e9ecef';
+      document.getElementById('newShiftBreak').value = 0;
+      document.getElementById('newShiftStartDate').value = '';
+      document.getElementById('newShiftEndDate').value = '';
+      if(document.getElementById('newShiftShort')) document.getElementById('newShiftShort').value = '';
 
       toast('Shift opgeslagen', 'success');
     });
+};
 
     filterShiftYear.addEventListener('change', ()=> renderShifts());
 
