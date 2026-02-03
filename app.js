@@ -6860,7 +6860,9 @@ function initScreenshotButton() {
   }
 }
 
-// 2. Functie om de FOTO te maken (Met Titel!)
+// ==========================================
+// 2. Functie om de FOTO te maken (Met Titel & Zonder 'Vandaag' blauw)
+// ==========================================
 async function takeScreenshot() {
   if (typeof html2canvas === 'undefined') {
       alert('Even geduld, module laadt nog...');
@@ -6888,15 +6890,23 @@ async function takeScreenshot() {
           backgroundColor: '#ffffff',
           useCORS: true,
           
+          // 🔥 DE MAGIE: Foto bewerken voor het afdrukken 🔥
           onclone: (clonedDoc) => {
-              // Icoontjes weg
+              // A. Icoontjes verbergen (Dit hadden we al)
               const icons = clonedDoc.querySelectorAll('.quick-icons-wrapper');
               icons.forEach(el => el.style.display = 'none');
               
               const addButtons = clonedDoc.querySelectorAll('.addLineBtn, .delLineBtn');
               addButtons.forEach(btn => btn.style.display = 'none');
 
-              // TITEL TOEVOEGEN
+              // ✨ B. NIEUW: "Vandaag" blauwe rand weghalen ✨
+              // We zoeken het vakje dat 'today' is in de kopie en halen die klasse weg.
+              const todayCell = clonedDoc.querySelector('.calendar-day.today');
+              if (todayCell) {
+                  todayCell.classList.remove('today');
+              }
+
+              // C. TITEL TOEVOEGEN (Dit hadden we al)
               const clGrid = clonedDoc.getElementById('monthlyCalendarGrid');
               const titleDiv = clonedDoc.createElement('div');
               titleDiv.innerText = titleText;
