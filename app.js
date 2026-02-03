@@ -6831,6 +6831,74 @@ window.applyPaintShift = async (dateKey) => {
 
 // Start de UI op zodra het script laadt
 setTimeout(initPaintModeUI, 1000);
+// ==========================================
+// 7. SCREENSHOT & DEEL FUNCTIE 📸
+// ==========================================
+function initScreenshotButton() {
+  if (document.getElementById('btnScreenshot')) return;
+
+  // 1. Laad de html2canvas bibliotheek dynamisch in
+  const script = document.createElement('script');
+  script.src = "https://html2canvas.hertzen.com/dist/html2canvas.min.js";
+  script.onload = () => { console.log('Screenshot module geladen'); };
+  document.head.appendChild(script);
+
+  // 2. Maak de knop (naast de Verf knop)
+  const paintBtn = document.getElementById('togglePaintBtn');
+  if (paintBtn && paintBtn.parentNode) {
+      const btn = document.createElement('button');
+      btn.id = 'btnScreenshot';
+      btn.className = 'btn btn-outline-secondary btn-sm d-flex align-items-center gap-2 ms-1';
+      btn.innerHTML = '<span class="material-icons-outlined" style="font-size:18px">photo_camera</span>';
+      btn.title = "Download als afbeelding";
+      btn.onclick = takeScreenshot;
+      
+      // Plaats NA de verfknop
+      paintBtn.parentNode.insertBefore(btn, paintBtn.nextSibling);
+  }
+}
+
+async function takeScreenshot() {
+  if (typeof html2canvas === 'undefined') {
+      alert('Module is nog aan het laden, probeer over 2 seconden opnieuw.');
+      return;
+  }
+
+  const grid = document.getElementById('monthlyCalendarGrid');
+  if (!grid) return;
+
+  toast('Afbeelding maken...', 'info');
+
+  // Tijdelijk de scrollbalken en knoppen verbergen voor een schone foto
+  const originalOverflow = grid.style.overflow;
+  grid.style.overflow = 'visible'; // Zorg dat alles erop staat
+
+  try {
+      const canvas = await html2canvas(grid, {
+          scale: 2, // Hogere kwaliteit (scherp op mobiel)
+          backgroundColor: '#ffffff',
+          useCORS: true
+      });
+
+      // Download triggeren
+      const link = document.createElement('a');
+      link.download = `Rooster-${currentEditingDateKey || 'Export'}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      
+      toast('Afbeelding gedownload!', 'success');
+
+  } catch (err) {
+      console.error(err);
+      toast('Fout bij maken afbeelding', 'error');
+  } finally {
+      // Herstel de layout
+      grid.style.overflow = originalOverflow;
+  }
+}
+
+// Start de knop op (wacht even tot de verfknop er is)
+setTimeout(initScreenshotButton, 1500);
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
