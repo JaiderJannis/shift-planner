@@ -6981,6 +6981,33 @@ setTimeout(initScreenshotButton, 1500);
 
 // Start de knop op (wacht even tot de verfknop er is)
 setTimeout(initScreenshotButton, 1500);
+// ==========================================
+// HERSTEL: Admin Gebruikers Wissel (Uit app 21 teruggezet)
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+  // 1. Zoek de Admin knop (die nu verborgen is)
+  const adminBtn = document.getElementById('adminTabBtn');
+  
+  if (adminBtn) {
+    // 2. Maak de knop weer zichtbaar
+    adminBtn.classList.remove('d-none');
+    
+    // 3. Zorg dat de lijst met gebruikers vult als je op de tab klikt
+    adminBtn.addEventListener('shown.bs.tab', async () => {
+       console.log("Admin tab geopend - gebruikers laden...");
+       
+       // Roep de bestaande functie aan die in je bestand zit
+       if (typeof renderAdminUserSelect === 'function') {
+           await renderAdminUserSelect();
+       }
+       
+       // Zorg dat de admin weergave ververst
+       if (typeof renderAdminMonthlyMulti === 'function') {
+           renderAdminMonthlyMulti();
+       }
+    });
+  }
+});
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
