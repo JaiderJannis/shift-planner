@@ -1001,18 +1001,25 @@ function populateFilterShiftYears() {
 
   const sortedYears = [...years].sort((a, b) => a - b);
 
-  filterShiftYear.innerHTML = '<option value="">Alle jaren</option>';
-  sortedYears.forEach(y => {
-    const o = document.createElement('option');
-    o.value = y;
-    o.textContent = y;
-    filterShiftYear.appendChild(o);
-  });
+  // Vul de dropdown
+  const filterShiftYear = document.getElementById('filterShiftYear');
+  if (filterShiftYear) {
+      filterShiftYear.innerHTML = '<option value="">Alle jaren</option>';
+      sortedYears.forEach(y => {
+        const o = document.createElement('option');
+        o.value = y;
+        o.textContent = y;
+        filterShiftYear.appendChild(o);
+      });
 
-  // Automatisch huidig jaar selecteren (indien aanwezig)
-  const currentYear = new Date().getFullYear();
-  if (sortedYears.includes(currentYear)) {
-    filterShiftYear.value = currentYear;
+      // Automatisch huidig jaar selecteren (indien aanwezig in de lijst)
+      const currentYear = new Date().getFullYear();
+      if (sortedYears.includes(currentYear)) {
+        filterShiftYear.value = currentYear;
+      }
+      
+      // 🔥 FIX: Ververs de lijst direct, zodat de filtering (2026) werkt!
+      renderShifts();
   }
 }
 
