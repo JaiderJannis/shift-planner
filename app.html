@@ -70,15 +70,6 @@
   <span class="label">Mailbox</span>
   <span id="mailSidebarBadge" class="badge bg-danger ms-1 d-none">0</span>
 </a>
-<a class="nav-link d-none" id="adminApprovalTabBtn" data-bs-toggle="tab" href="#tab-goedkeuring">
-    <span class="material-icons-outlined">fact_check</span> <span class="label">Goedkeuring</span>
-  </a>
-<a class="nav-link d-none" id="adminLeaveTabBtn" data-bs-toggle="tab" href="#tab-verlofbeheer">
-    <span class="material-icons-outlined">event_available</span> <span class="label">Verlofbeheer</span>
-  </a>
-<a class="nav-link d-none" id="adminHomeTabBtn" data-bs-toggle="tab" href="#tab-admin-home">
-    <span class="material-icons-outlined">dashboard</span> <span class="label">Admin dashboard</span>
-</a>
 <a class="nav-link d-none" id="adminRoosterTabBtn" data-bs-toggle="tab" href="#tab-team-rooster">
   <span class="material-icons-outlined">calendar_view_month</span> <span class="label">Team rooster</span>
 </a>
@@ -233,61 +224,6 @@
     </div>
   </div>
 </section>
-<!-- tab-admin-home -->
-<section id="tab-admin-home" class="tab-pane fade">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h5 class="mb-0">Admin Dashboard</h5>
-    <button id="adminDashboardRefreshBtn" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1">
-      <span class="material-icons-outlined">refresh</span> Vernieuwen
-    </button>
-  </div>
-
-  <div class="row g-3 mb-3" id="adminStatsContainer">
-    <div class="col-md-4">
-      <div class="stat-card bg-warning text-dark">
-        <div class="stat-value" id="statPendingMonths">0</div>
-        <div class="stat-label">Maanden ter goedkeuring</div>
-        <div class="stat-icon"><span class="material-icons-outlined">hourglass_top</span></div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="stat-card bg-danger text-white">
-        <div class="stat-value" id="statSickHours">0u 0m</div>
-        <div class="stat-label">Uren 'Ziek' (huidige maand)</div>
-        <div class="stat-icon"><span class="material-icons-outlined">sick</span></div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="stat-card bg-info text-white">
-        <div class="stat-value" id="statLeaveHours">0u 0m</div>
-        <div class="stat-label">Uren 'Verlof' (huidige maand)</div>
-        <div class="stat-icon"><span class="material-icons-outlined">beach_access</span></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="row g-3">
-    <div class="col-lg-6">
-      <h6><span class="material-icons-outlined">fact_check</span> Maanden ter Goedkeuring</h6>
-      <div class="table-responsive">
-        <table class="table table-striped table-hover">
-          <thead class="table-light"><tr><th>Gebruiker</th><th>Maand</th><th>Actie</th></tr></thead>
-          <tbody id="adminPendingList"></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="col-lg-6">
-      <h6><span class="material-icons-outlined">event_busy</span> Gebruikers achter op planning</h6>
-      <p class="small text-muted">Overzicht van gebruikers die de vorige maand nog niet hebben ingediend.</p>
-      <div class="table-responsive">
-        <table class="table table-striped table-hover">
-          <thead class="table-light"><tr><th>Gebruiker</th><th>Status</th></tr></thead>
-          <tbody id="adminBehindList"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</section>
 <!-- team-rooster -->
 <section id="tab-team-rooster" class="tab-pane fade">
   <div class="d-flex justify-content-between align-items-center mb-3">
@@ -428,32 +364,6 @@
       <div id="monthlyCalendarGrid" class="calendar-grid"></div>
     </div>
   </div>
-  
-  <div class="collapse" id="collapseTable">
-    <div class="card card-body mb-3 p-0 border-0">
-      <div class="table-responsive">
-        <table class="table table-sm table-striped align-middle small mb-0">
-          <thead class="table-light">
-            <tr>
-              <th style="width:40px">Actie</th>
-              <th style="width:40px">Dag</th>
-              <th>Datum</th>
-              <th>Project</th>
-              <th>Shift</th>
-              <th>Start</th>
-              <th>Einde</th>
-              <th>Pauze</th>
-              <th>Omschrijving</th>
-              <th>Bijlage</th>
-              <th>Duur</th>
-            </tr>
-          </thead>
-          <tbody id="tbody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
   <div id="remainingHoursAlert" class="alert small d-none mb-3 sticky-bottom-alert shadow-sm border">
     </div>
   
@@ -685,66 +595,6 @@
       <tbody id="nbTableBody">
         <tr><td colspan="5" class="text-center text-muted">Geen items gevonden.</td></tr>
       </tbody>
-    </table>
-  </div>
-</section>
-<!-- Goedkeuring -->    
-<section id="tab-goedkeuring" class="tab-pane fade">
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <h5 class="mb-0">Jaaroverzicht Goedkeuringen</h5>
-    <div class="text-secondary small">
-      Actief: <strong id="approvalActiveUserLabel">-</strong>
-    </div>
-  </div>
-
-  <div class="card p-3 mb-3">
-    <h6 class="mb-3">Gebruikersbeheer</h6>
-    <div class="row g-2 align-items-end">
-      <div class="col-md-6">
-        <label class="form-label">Gebruiker selecteren</label>
-        <select id="approvalUserSelect" class="form-select"></select>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Huidig Jaar</label>
-        <input id="approvalYearSelect" type="number" class="form-control" readonly disabled>
-      </div>
-    </div>
-  </div>
-
-  <div id="approvalYearlyOverview" class="row g-3">
-    </div>
-
-</section>   
-<!-- Verlofbeheer -->
-<section id="tab-verlofbeheer" class="tab-pane fade">
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <h5 class="mb-0">Verlofbeheer</h5>
-    <button id="refreshLeaveRequestsBtn" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1">
-      <span class="material-icons-outlined">refresh</span> Vernieuwen
-    </button>
-  </div>
-
-  <div class="card p-3 mb-3">
-    <h6 class="mb-2">Openstaande aanvragen</h6>
-    <p class="text-muted small mb-0">
-      Overzicht van alle 'Verlof', 'Schoolverlof' en 'Ziekte' aanvragen met de status 'In aanvraag'.
-    </p>
-  </div>
-
-  <div class="table-responsive">
-    <table id="leaveRequestTable" class="table table-striped table-hover align-middle table-nowrap">
-      <thead class="table-light">
-        <tr>
-          <th>Gebruiker</th>
-          <th>Type</th>
-          <th>Datum</th>
-          <th>Notitie</th>
-          <th class="text-center">Bijlage</th> 
-          <th class="text-end">Acties</th>
-        </tr>
-      </thead>
-      <tbody id="leaveRequestTableBody">
-        </tbody>
     </table>
   </div>
 </section>
