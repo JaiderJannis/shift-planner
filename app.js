@@ -6832,36 +6832,8 @@ window.applyPaintShift = async (dateKey) => {
 // Start de UI op zodra het script laadt
 setTimeout(initPaintModeUI, 1000);
 // ==========================================
-// 7. SCREENSHOT & DEEL FUNCTIE 📸 (Compleet)
+// 7. SCREENSHOT (Met TITEL en Zonder Rommel)
 // ==========================================
-
-// 1. Functie om de knop te MAKEN (deze ontbrak bij jou)
-function initScreenshotButton() {
-  // Voorkom dubbele knoppen
-  if (document.getElementById('btnScreenshot')) return;
-
-  // Laad de bibliotheek
-  const script = document.createElement('script');
-  script.src = "https://html2canvas.hertzen.com/dist/html2canvas.min.js";
-  script.onload = () => { console.log('Screenshot module geladen'); };
-  document.head.appendChild(script);
-
-  // Zoek de verfknop om hem ernaast te zetten
-  const paintBtn = document.getElementById('togglePaintBtn');
-  if (paintBtn && paintBtn.parentNode) {
-      const btn = document.createElement('button');
-      btn.id = 'btnScreenshot';
-      btn.className = 'btn btn-outline-secondary btn-sm d-flex align-items-center gap-2 ms-1';
-      btn.innerHTML = '<span class="material-icons-outlined" style="font-size:18px">photo_camera</span>';
-      btn.title = "Download als afbeelding";
-      btn.onclick = takeScreenshot;
-      
-      // Plaats hem direct na de verfknop
-      paintBtn.parentNode.insertBefore(btn, paintBtn.nextSibling);
-  }
-}
-
-// 2. Functie om de FOTO te maken (zonder icoontjes)
 async function takeScreenshot() {
   if (typeof html2canvas === 'undefined') {
       alert('Even geduld, module laadt nog...');
@@ -6871,30 +6843,58 @@ async function takeScreenshot() {
   const grid = document.getElementById('monthlyCalendarGrid');
   if (!grid) return;
 
+  // 1. Haal de huidige maand en jaar op voor de titel
+  const mSel = document.getElementById('monthSelectMain');
+  const ySel = document.getElementById('yearSelectMain');
+  // Tekst samenstellen (bv. "Maart 2026")
+  const titleText = (mSel && ySel) 
+      ? `${mSel.options[mSel.selectedIndex].text} ${ySel.value}` 
+      : 'Mijn Rooster';
+
   toast('Afbeelding maken...', 'info');
 
   const originalOverflow = grid.style.overflow;
-  grid.style.overflow = 'visible'; // Alles zichtbaar maken
+  grid.style.overflow = 'visible'; 
 
   try {
       const canvas = await html2canvas(grid, {
-          scale: 2, // Scherpe kwaliteit
+          scale: 2, 
           backgroundColor: '#ffffff',
           useCORS: true,
           
-          // Hier halen we de icoontjes weg in de foto
+          // 🔥 DE MAGIE: Foto bewerken voor het afdrukken 🔥
           onclone: (clonedDoc) => {
+              // A. Icoontjes verbergen
               const icons = clonedDoc.querySelectorAll('.quick-icons-wrapper');
               icons.forEach(el => el.style.display = 'none');
               
               const addButtons = clonedDoc.querySelectorAll('.addLineBtn, .delLineBtn');
               addButtons.forEach(btn => btn.style.display = 'none');
+
+              // B. TITEL TOEVOEGEN
+              const clGrid = clonedDoc.getElementById('monthlyCalendarGrid');
+              const titleDiv = clonedDoc.createElement('div');
+              titleDiv.innerText = titleText;
+              
+              // Zorg dat de titel mooi boven de kalender staat (over de hele breedte)
+              titleDiv.style.gridColumn = "1 / -1"; 
+              titleDiv.style.textAlign = "center";
+              titleDiv.style.fontSize = "24px";
+              titleDiv.style.fontWeight = "bold";
+              titleDiv.style.marginBottom = "15px";
+              titleDiv.style.padding = "10px";
+              titleDiv.style.color = "#333";
+              titleDiv.style.fontFamily = "sans-serif";
+              
+              // Voeg de titel toe als allereerste element in de kalender
+              clGrid.insertBefore(titleDiv, clGrid.firstChild);
           }
       });
 
       // Downloaden
       const link = document.createElement('a');
-      link.download = `Rooster-Export.png`;
+      // Bestandsnaam met de maand erin (bv. "Rooster-Maart-2026.png")
+      link.download = `Rooster-${titleText.replace(/ /g, '-')}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
       
