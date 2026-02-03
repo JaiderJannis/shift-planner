@@ -6832,8 +6832,35 @@ window.applyPaintShift = async (dateKey) => {
 // Start de UI op zodra het script laadt
 setTimeout(initPaintModeUI, 1000);
 // ==========================================
-// 7. SCREENSHOT (Met TITEL en Zonder Rommel)
+// 7. SCREENSHOT & DEEL FUNCTIE 📸 (Compleet & Gecorrigeerd)
 // ==========================================
+
+// 1. Functie om de knop te MAKEN (Deze ontbrak!)
+function initScreenshotButton() {
+  if (document.getElementById('btnScreenshot')) return;
+
+  // Laad de bibliotheek
+  const script = document.createElement('script');
+  script.src = "https://html2canvas.hertzen.com/dist/html2canvas.min.js";
+  script.onload = () => { console.log('Screenshot module geladen'); };
+  document.head.appendChild(script);
+
+  // Zoek de verfknop
+  const paintBtn = document.getElementById('togglePaintBtn');
+  if (paintBtn && paintBtn.parentNode) {
+      const btn = document.createElement('button');
+      btn.id = 'btnScreenshot';
+      btn.className = 'btn btn-outline-secondary btn-sm d-flex align-items-center gap-2 ms-1';
+      btn.innerHTML = '<span class="material-icons-outlined" style="font-size:18px">photo_camera</span>';
+      btn.title = "Download als afbeelding";
+      btn.onclick = takeScreenshot;
+      
+      // Plaats hem direct na de verfknop
+      paintBtn.parentNode.insertBefore(btn, paintBtn.nextSibling);
+  }
+}
+
+// 2. Functie om de FOTO te maken (Met Titel!)
 async function takeScreenshot() {
   if (typeof html2canvas === 'undefined') {
       alert('Even geduld, module laadt nog...');
@@ -6843,10 +6870,9 @@ async function takeScreenshot() {
   const grid = document.getElementById('monthlyCalendarGrid');
   if (!grid) return;
 
-  // 1. Haal de huidige maand en jaar op voor de titel
+  // Haal maand en jaar op voor de titel
   const mSel = document.getElementById('monthSelectMain');
   const ySel = document.getElementById('yearSelectMain');
-  // Tekst samenstellen (bv. "Maart 2026")
   const titleText = (mSel && ySel) 
       ? `${mSel.options[mSel.selectedIndex].text} ${ySel.value}` 
       : 'Mijn Rooster';
@@ -6862,21 +6888,19 @@ async function takeScreenshot() {
           backgroundColor: '#ffffff',
           useCORS: true,
           
-          // 🔥 DE MAGIE: Foto bewerken voor het afdrukken 🔥
           onclone: (clonedDoc) => {
-              // A. Icoontjes verbergen
+              // Icoontjes weg
               const icons = clonedDoc.querySelectorAll('.quick-icons-wrapper');
               icons.forEach(el => el.style.display = 'none');
               
               const addButtons = clonedDoc.querySelectorAll('.addLineBtn, .delLineBtn');
               addButtons.forEach(btn => btn.style.display = 'none');
 
-              // B. TITEL TOEVOEGEN
+              // TITEL TOEVOEGEN
               const clGrid = clonedDoc.getElementById('monthlyCalendarGrid');
               const titleDiv = clonedDoc.createElement('div');
               titleDiv.innerText = titleText;
               
-              // Zorg dat de titel mooi boven de kalender staat (over de hele breedte)
               titleDiv.style.gridColumn = "1 / -1"; 
               titleDiv.style.textAlign = "center";
               titleDiv.style.fontSize = "24px";
@@ -6886,14 +6910,11 @@ async function takeScreenshot() {
               titleDiv.style.color = "#333";
               titleDiv.style.fontFamily = "sans-serif";
               
-              // Voeg de titel toe als allereerste element in de kalender
               clGrid.insertBefore(titleDiv, clGrid.firstChild);
           }
       });
 
-      // Downloaden
       const link = document.createElement('a');
-      // Bestandsnaam met de maand erin (bv. "Rooster-Maart-2026.png")
       link.download = `Rooster-${titleText.replace(/ /g, '-')}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
@@ -6908,7 +6929,7 @@ async function takeScreenshot() {
   }
 }
 
-// 3. Start de motor!
+// 3. Starten maar!
 setTimeout(initScreenshotButton, 1500);
 
 // Start de knop op (wacht even tot de verfknop er is)
