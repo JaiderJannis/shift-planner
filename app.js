@@ -1338,7 +1338,7 @@ function renderCalendarGrid(year, month) {
   };
 
  // Headers
-  ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'].forEach(d => 
+ ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'].forEach(d => 
     grid.insertAdjacentHTML('beforeend', `<div class="calendar-header">${d}</div>`)
   );
 
@@ -1346,15 +1346,12 @@ function renderCalendarGrid(year, month) {
   const offset = (firstDay === 0) ? 6 : firstDay - 1;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  // Lege cellen
   for (let i = 0; i < offset; i++) grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
 
-  // Vandaag bepalen
   const todayDate = new Date();
   const isCurrentMonth = (todayDate.getFullYear() === Number(year) && todayDate.getMonth() === Number(month));
   const currentDayNum = todayDate.getDate();
 
-  // Dagen loop
   for (let d = 1; d <= daysInMonth; d++) {
     const baseKey = dateKey(year, month, d);
     const dateObj = new Date(year, month, d);
@@ -1376,10 +1373,8 @@ function renderCalendarGrid(year, month) {
     dayKeys.slice(0, 3).forEach(k => {
       const r = md.rows[k];
       if (!r.shift) return; 
-      
       const sh = ud.shifts[r.shift] || { color: '#ccc', realName: r.shift };
       
-      // Bereken duur (bv. 7u36)
       let durationText = '';
       if (r.minutes && r.minutes > 0) {
           const h = Math.floor(r.minutes / 60);
@@ -1392,7 +1387,6 @@ function renderCalendarGrid(year, month) {
         <div class="cal-shift-item d-flex justify-content-between align-items-center" 
              style="background:${sh.color || '#eee'}; border-left:3px solid rgba(0,0,0,0.2); padding-right:4px;">
           <span style="overflow:hidden; text-overflow:ellipsis;">${sh.realName || r.shift}</span>
-          
           <span style="font-size:1em; font-weight:bold; margin-left:6px; white-space:nowrap; color:#000;">
             ${durationText}
           </span>
@@ -1405,6 +1399,11 @@ function renderCalendarGrid(year, month) {
     const dayEl = document.createElement('div');
     dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}`;
     
+    // Voeg 'paint-cursor' toe als mode aan staat voor visuele feedback
+    if (typeof isPaintMode !== 'undefined' && isPaintMode) {
+        dayEl.style.cursor = 'cell'; 
+    }
+
     dayEl.innerHTML = `
       <div class="d-flex justify-content-between align-items-start">
         <span class="day-number">${d}</span>
@@ -1413,8 +1412,18 @@ function renderCalendarGrid(year, month) {
       <div class="d-flex flex-column gap-1 mt-1" style="overflow:hidden;">${shiftsHtml}</div>
     `;
 
-    dayEl.onclick = () => openDayEditor(baseKey);
+    // 🔥 DE KLIK LOGICA 🔥
+    dayEl.onclick = () => {
+        // Als verf-modus aan staat -> VERVEN!
+        if (typeof isPaintMode !== 'undefined' && isPaintMode) {
+            applyPaintShift(baseKey);
+        } else {
+            // Anders -> Popup openen
+            openDayEditor(baseKey);
+        }
+    };
 
+    // Quick icons (sterretjes) blijven altijd werken
     dayEl.querySelectorAll('.quick-icon-btn').forEach(btn => {
       btn.onclick = (e) => {
         e.stopPropagation(); 
@@ -6628,6 +6637,235 @@ window.updateShiftTime = async (rowKey, field, value) => {
   updateInputTotals();
   renderHistory();
 };
+// ==========================================
+// 6. VERF MODUS (PAINT MODE) 🎨
+// ==========================================
+let isPaintMode = false;
+let selectedPaintShiftKey = null;
+
+// 1. Initialiseer de Verf-knop en Balk (wordt autom. aangeroepen)
+function initPaintModeUI() {
+  // Check of de UI al bestaat
+  if (document.getElementById('paintPalette')) return;
+
+  // A. Styles toevoegen
+  const style = document.createElement('style');
+  style.innerHTML = `
+    /* De zwevende balk onderaan */
+    #paintPalette {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(150%); /* Verborgen */
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      padding: 10px 15px;
+      border-radius: 50px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      display: flex;
+      gap: 12px;
+      z-index: 9999;
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      max-width: 95%;
+      overflow-x: auto;
+      border: 1px solid rgba(0,0,0,0.1);
+    }
+    #paintPalette.active {
+      transform: translateX(-50%) translateY(0); /* Zichtbaar */
+    }
+
+    /* De rondjes in de balk */
+    .paint-option {
+      width: 45px;
+      height: 45px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .paint-option:hover { transform: scale(1.1); }
+    
+    /* Geselecteerde staat */
+    .paint-option.selected {
+      border-color: #000;
+      transform: scale(1.2);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    }
+    .paint-option.selected::after {
+      content: '✔';
+      position: absolute;
+      top: -5px; right: -5px;
+      background: #000; color: #fff;
+      font-size: 10px; width: 16px; height: 16px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* De Toggle Knop (Rechtsboven of bij acties) */
+    #togglePaintBtn {
+      border-width: 2px;
+      font-weight: bold;
+    }
+    #togglePaintBtn.active {
+      background-color: #0d6efd;
+      color: white;
+      border-color: #0d6efd;
+      box-shadow: inset 0 3px 5px rgba(0,0,0,0.2);
+    }
+  `;
+  document.head.appendChild(style);
+
+  // B. HTML Elementen maken
+  const palette = document.createElement('div');
+  palette.id = 'paintPalette';
+  document.body.appendChild(palette);
+
+  // C. Zoek een plek voor de knop (bijv. naast maand selectie of PDF knop)
+  // We voegen hem toe aan de actiebalk bovenaan
+  const actionContainer = document.querySelector('.d-flex.gap-2.flex-wrap');
+  if (actionContainer) {
+      const btn = document.createElement('button');
+      btn.id = 'togglePaintBtn';
+      btn.className = 'btn btn-outline-primary d-flex align-items-center gap-2';
+      btn.innerHTML = '<span class="material-icons-outlined">brush</span> <span class="d-none d-sm-inline">Verf</span>';
+      btn.onclick = togglePaintMode;
+      
+      // Voeg toe als eerste knop voor makkelijke toegang
+      actionContainer.insertBefore(btn, actionContainer.firstChild);
+  }
+}
+
+// 2. Schakel Modus Aan/Uit
+function togglePaintMode() {
+  isPaintMode = !isPaintMode;
+  const palette = document.getElementById('paintPalette');
+  const btn = document.getElementById('togglePaintBtn');
+  const ud = getCurrentUserData();
+  
+  if (isPaintMode) {
+    // AAN ZETTEN
+    palette.classList.add('active');
+    btn?.classList.add('active');
+    
+    // Vul het palet met favorieten
+    palette.innerHTML = '';
+    const allShifts = ud.shifts || {};
+    const favs = (ud.shiftOrder || Object.keys(allShifts)).filter(k => allShifts[k].isFavorite);
+    
+    const ICON_MAP = {
+        'light_mode': '☀️', 'wb_twilight': '🌅', 'bedtime': '🌙', 'schedule': '🕒',
+        'star': '⭐', 'school': '🎓', 'medical_services': '🏥', 'flight': '✈️'
+    };
+
+    // Gummetje (Wissen)
+    const eraser = document.createElement('div');
+    eraser.className = 'paint-option';
+    eraser.style.background = '#f8f9fa';
+    eraser.innerHTML = '🗑️'; // Prullenbak icoon
+    eraser.onclick = () => selectPaintOption('eraser', eraser);
+    palette.appendChild(eraser);
+
+    // Favorieten
+    favs.forEach(k => {
+        const sh = allShifts[k];
+        const el = document.createElement('div');
+        el.className = 'paint-option';
+        el.style.backgroundColor = sh.color || '#eee';
+        el.innerHTML = ICON_MAP[sh.icon] || '⭐';
+        el.title = sh.realName;
+        el.onclick = () => selectPaintOption(k, el);
+        palette.appendChild(el);
+    });
+    
+    // Selecteer de eerste standaard
+    if (favs.length > 0) selectPaintOption(favs[0], palette.children[1]);
+
+    toast('Verf-modus AAN: Tik op dagen om te vullen', 'info');
+
+  } else {
+    // UIT ZETTEN
+    palette.classList.remove('active');
+    btn?.classList.remove('active');
+    selectedPaintShiftKey = null;
+  }
+}
+
+function selectPaintOption(key, element) {
+    selectedPaintShiftKey = key;
+    document.querySelectorAll('.paint-option').forEach(el => el.classList.remove('selected'));
+    element.classList.add('selected');
+}
+
+// 3. De actie: Kleur een dag in
+window.applyPaintShift = async (dateKey) => {
+    if (!selectedPaintShiftKey) return;
+
+    const [yStr, mStr] = dateKey.split('-');
+    const y = Number(yStr);
+    const m = Number(mStr) - 1;
+    const ud = getCurrentUserData();
+
+    // Data structuur check
+    if (!ud.monthData) ud.monthData = {};
+    if (!ud.monthData[y]) ud.monthData[y] = {};
+    if (!ud.monthData[y][m]) ud.monthData[y][m] = { rows: {} };
+    const md = ud.monthData[y][m];
+
+    // --- ACTIE: WISSEN of PLAATSEN ---
+    if (selectedPaintShiftKey === 'eraser') {
+        // Alles wissen op deze dag
+        const keys = listDayKeys(md, dateKey);
+        keys.forEach(k => delete md.rows[k]);
+        toast('Dag gewist', 'success');
+    } else {
+        // Shift ophalen
+        const newShift = ud.shifts[selectedPaintShiftKey];
+        if (!newShift) return;
+
+        // Kijk of er al een regel is voor deze dag
+        let keys = listDayKeys(md, dateKey);
+        let targetKey = keys.length > 0 ? keys[0] : dateKey; // Pak de eerste of maak nieuwe
+
+        // Overschrijf (update) de bestaande regel
+        md.rows[targetKey] = {
+            project: md.rows[targetKey]?.project || '',
+            shift: selectedPaintShiftKey,
+            start: newShift.start || '00:00',
+            end: newShift.end || '00:00',
+            break: newShift.break || 0,
+            minutes: 0, // wordt hieronder berekend
+            description: md.rows[targetKey]?.description || ''
+        };
+        
+        // Herbereken minuten
+        const r = md.rows[targetKey];
+        if (typeof minutesBetween === 'function') {
+             r.minutes = minutesBetween(r.start, r.end, r.break);
+        }
+    }
+
+    // --- OPSLAAN (Forceer updateDoc zoals eerder besproken) ---
+    const id = getActiveUserId();
+    if (id) {
+        const ref = doc(db, 'users', id);
+        await updateDoc(ref, {
+            [`monthData.${y}.${m}.rows`]: md.rows
+        });
+    }
+
+    // Update UI (alleen kalender is genoeg en snel)
+    renderCalendarGrid(y, m);
+    updateInputTotals();
+};
+
+// Start de UI op zodra het script laadt
+setTimeout(initPaintModeUI, 1000);
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
