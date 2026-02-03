@@ -6832,11 +6832,39 @@ window.applyPaintShift = async (dateKey) => {
 // Start de UI op zodra het script laadt
 setTimeout(initPaintModeUI, 1000);
 // ==========================================
-// 7. SCREENSHOT & DEEL FUNCTIE 📸 (Zonder Icoontjes)
+// 7. SCREENSHOT & DEEL FUNCTIE 📸 (Compleet)
 // ==========================================
+
+// 1. Functie om de knop te MAKEN (deze ontbrak bij jou)
+function initScreenshotButton() {
+  // Voorkom dubbele knoppen
+  if (document.getElementById('btnScreenshot')) return;
+
+  // Laad de bibliotheek
+  const script = document.createElement('script');
+  script.src = "https://html2canvas.hertzen.com/dist/html2canvas.min.js";
+  script.onload = () => { console.log('Screenshot module geladen'); };
+  document.head.appendChild(script);
+
+  // Zoek de verfknop om hem ernaast te zetten
+  const paintBtn = document.getElementById('togglePaintBtn');
+  if (paintBtn && paintBtn.parentNode) {
+      const btn = document.createElement('button');
+      btn.id = 'btnScreenshot';
+      btn.className = 'btn btn-outline-secondary btn-sm d-flex align-items-center gap-2 ms-1';
+      btn.innerHTML = '<span class="material-icons-outlined" style="font-size:18px">photo_camera</span>';
+      btn.title = "Download als afbeelding";
+      btn.onclick = takeScreenshot;
+      
+      // Plaats hem direct na de verfknop
+      paintBtn.parentNode.insertBefore(btn, paintBtn.nextSibling);
+  }
+}
+
+// 2. Functie om de FOTO te maken (zonder icoontjes)
 async function takeScreenshot() {
   if (typeof html2canvas === 'undefined') {
-      alert('Module is nog aan het laden, probeer over 2 seconden opnieuw.');
+      alert('Even geduld, module laadt nog...');
       return;
   }
 
@@ -6846,31 +6874,27 @@ async function takeScreenshot() {
   toast('Afbeelding maken...', 'info');
 
   const originalOverflow = grid.style.overflow;
-  grid.style.overflow = 'visible'; // Zorg dat alles erop staat
+  grid.style.overflow = 'visible'; // Alles zichtbaar maken
 
   try {
       const canvas = await html2canvas(grid, {
-          scale: 2, // Hoge kwaliteit
+          scale: 2, // Scherpe kwaliteit
           backgroundColor: '#ffffff',
           useCORS: true,
           
-          // 🔥 HIER GEBEURT DE MAGIE 🔥
-          // We passen de 'foto' aan voordat hij definitief wordt gemaakt.
+          // Hier halen we de icoontjes weg in de foto
           onclone: (clonedDoc) => {
-              // 1. Zoek alle 'Snel-toevoegen' icoontjes in de kopie
               const icons = clonedDoc.querySelectorAll('.quick-icons-wrapper');
-              // 2. Zet ze op onzichtbaar
               icons.forEach(el => el.style.display = 'none');
               
-              // 3. (Optioneel) Als je ook de "+ knopjes" weg wilt hebben:
               const addButtons = clonedDoc.querySelectorAll('.addLineBtn, .delLineBtn');
               addButtons.forEach(btn => btn.style.display = 'none');
           }
       });
 
-      // Download triggeren
+      // Downloaden
       const link = document.createElement('a');
-      link.download = `Rooster-${currentEditingDateKey || 'Export'}.png`;
+      link.download = `Rooster-Export.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
       
@@ -6878,12 +6902,14 @@ async function takeScreenshot() {
 
   } catch (err) {
       console.error(err);
-      toast('Fout bij maken afbeelding', 'error');
+      toast('Mislukt', 'error');
   } finally {
-      // Herstel de layout
       grid.style.overflow = originalOverflow;
   }
 }
+
+// 3. Start de motor!
+setTimeout(initScreenshotButton, 1500);
 
 // Start de knop op (wacht even tot de verfknop er is)
 setTimeout(initScreenshotButton, 1500);
