@@ -7049,6 +7049,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+// ==========================================
+// EXTRA: Verf-modus automatisch UIT bij wisselen maand
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+    const mSel = document.getElementById('monthSelectMain');
+    const ySel = document.getElementById('yearSelectMain');
+
+    const turnOffPaint = () => {
+        // Alleen uitzetten als hij AAN staat
+        if (typeof isPaintMode !== 'undefined' && isPaintMode) {
+            togglePaintMode(); 
+        }
+    };
+
+    if (mSel) mSel.addEventListener('change', turnOffPaint);
+    if (ySel) ySel.addEventListener('change', turnOffPaint);
+});
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
