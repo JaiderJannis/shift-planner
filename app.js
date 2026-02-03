@@ -1557,94 +1557,100 @@ document.getElementById('btnAddExtraShift')?.addEventListener('click', () => {
   new bootstrap.Modal(document.getElementById('quickModal')).show();
 });
 
+// ==========================================
+// FIX: VERWIJDEREN (Forceer update in database)
+// ==========================================
 window.removeShiftFromDay = async (uniqueKey) => {
   if (!uniqueKey) return;
-  const [y, mStr] = uniqueKey.split('-');
+  const [yStr, mStr] = uniqueKey.split('-');
+  const y = Number(yStr); // 2026 (Als getal!)
   const m = Number(mStr) - 1;
   const ud = getCurrentUserData();
   
-  // Veilige check of de shift bestaat
+  // Bestaat de shift nog?
   if (ud.monthData?.[y]?.[m]?.rows?.[uniqueKey]) {
+    
+    // 1. Verwijder hem lokaal uit het geheugen
     delete ud.monthData[y][m].rows[uniqueKey];
     
-    // Eerst opslaan
-    await saveUserData();
-    
-    // Dan UI updaten
+    // 2. FORCEER DE DATABASE UPDATE
+    // saveUserData() werkt niet goed voor verwijderen (door merge).
+    // updateDoc vervangt de hele lijst van deze maand en gooit het écht weg.
+    const id = getActiveUserId();
+    if (id) {
+       const ref = doc(db, 'users', id);
+       await updateDoc(ref, {
+           [`monthData.${y}.${m}.rows`]: ud.monthData[y][m].rows
+       });
+    }
+
+    // 3. UI Verversen
     renderCalendarGrid(y, m);
     updateInputTotals();
     
-    // Herlaad de popup inhoud (zonder het scherm zwart te maken)
-    openDayEditor(currentEditingDateKey); 
+    // Herlaad popup als die open staat
+    const popup = document.getElementById('dayEditorModal');
+    if (popup && popup.classList.contains('show')) {
+        openDayEditor(currentEditingDateKey);
+    }
+    
+    toast('Shift verwijderd', 'success');
   }
 };
 
 // ==========================================
-// FIX: OPSLAAN KNOP (FILTERT 00:00 SPOOK-SHIFTEN ERUIT + BLAUW LICHT FIX)
+// FIX: OPSLAAN KNOP (Met Database Forceer-functie)
 // ==========================================
 const saveDayEditorBtn = document.getElementById('btnSaveDayEditor');
 
 if (saveDayEditorBtn) {
-  // 1. Oude listeners verwijderen door de knop te vervangen
+  // Oude listeners verwijderen
   const newBtn = saveDayEditorBtn.cloneNode(true);
   saveDayEditorBtn.parentNode.replaceChild(newBtn, saveDayEditorBtn);
 
-  // 2. De nieuwe, strenge opslaan functie
   newBtn.addEventListener('click', async () => {
     const dateKey = currentEditingDateKey; 
     if (!dateKey) return;
 
-    // --- 🔥 FIX VOOR HET BLAUWE LICHT ---
-    // We splitsen de datum, maar maken van het jaar direct een CIJFER (Number).
-    // Hierdoor weet de kalender straks dat 2026 = 2026 en blijft hij blauw pinken.
     const [yStr, mStr] = dateKey.split('-');
-    const y = Number(yStr);     
+    const y = Number(yStr); // Belangrijk voor blauwe licht
     const m = Number(mStr) - 1;
-    // ------------------------------------
-
-    const ud = getCurrentUserData();
     
-    // Zorg dat de data-structuur bestaat
+    const ud = getCurrentUserData();
     if (!ud.monthData) ud.monthData = {};
     if (!ud.monthData[y]) ud.monthData[y] = {};
     if (!ud.monthData[y][m]) ud.monthData[y][m] = { rows: {} };
 
     const md = ud.monthData[y][m];
-    
-    // Lees de notitie uit het tekstvak
     const note = document.getElementById('dayEditorNote')?.value || '';
-
-    // Haal alle shiften van deze dag op
     const dayKeys = listDayKeys(md, dateKey);
     
-    // --- 🔥 HIER GEBEURT DE MAGIE 🔥 ---
-    // We lopen door alle shiften heen VOORDAT we opslaan.
+    // Schoonmaak: Verwijder lege spoken
     dayKeys.forEach(k => {
         const r = md.rows[k];
-        
-        // CHECK: Is de shift naam leeg? (Dit zijn die 00:00 spoken)
         if (!r.shift || r.shift.trim() === '') {
-            // VERWIJDER HEM DIRECT!
-            delete md.rows[k]; 
+            delete md.rows[k]; // Lokaal verwijderen
         } else {
-            // Het is een echte shift, dus we slaan de notitie op
             r.description = note;
         }
     });
-    // -----------------------------------
 
-    // 3. Nu pas opslaan naar Firebase (zonder de spoken)
-    await saveUserData();
+    // FORCEER DE UPDATE (zodat verwijderingen ook in Firebase gebeuren)
+    const id = getActiveUserId();
+    if (id) {
+        const ref = doc(db, 'users', id);
+        await updateDoc(ref, {
+            [`monthData.${y}.${m}.rows`]: md.rows
+        });
+    }
     
-    // 4. Alles verversen
-    // Omdat 'y' nu een getal is, werkt de 'isVandaag' check in de kalender correct.
+    // UI Verversen
     renderCalendarGrid(y, m);
     updateInputTotals();
     renderHistory();
     
-    // Sluit de popup
+    // Sluit popup
     const modalEl = document.getElementById('dayEditorModal');
-    // Gebruik de veilige manier om de modal te sluiten
     const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
     modal.hide();
 
