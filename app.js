@@ -783,12 +783,13 @@ addProjectBtn?.addEventListener('click', async () => {
   }
 });
 // ==========================================
-// FORCEER ZICHTBARE KOLOMMEN (Display Fix)
+// FIX: TABEL LAYOUT (Precies zoals in HTML: 7 kolommen)
 // ==========================================
 function renderShifts() {
   const ud = getCurrentUserData();
   const shifts = ud.shifts || {};
   
+  // -- Automatische reparatie volgorde --
   let order = ud.shiftOrder || [];
   const cleanedOrder = order.filter(key => shifts[key]);
   const realKeys = Object.keys(shifts);
@@ -804,7 +805,7 @@ function renderShifts() {
   const selectedYear = filterShiftYear?.value ? Number(filterShiftYear.value) : null;
   const isAdminUser = (ud.role === 'admin');
 
-  // UI Checks
+  // UI Elementen (Admin check)
   const divShort = document.getElementById('divShiftShort');
   const divColor = document.getElementById('divShiftColor');
   const divName  = document.getElementById('divShiftName');
@@ -820,6 +821,7 @@ function renderShifts() {
     }
   }
 
+  // Tabel leegmaken
   const shiftTableBody = document.getElementById('shiftTableBody');
   if(!shiftTableBody) return;
   shiftTableBody.innerHTML = '';
@@ -828,6 +830,7 @@ function renderShifts() {
     const sh = shifts[name];
     if (!sh) return;
 
+    // Jaar filter
     if (selectedYear) {
       const startY = sh.startDate ? new Date(sh.startDate).getFullYear() : null;
       const endY = sh.endDate ? new Date(sh.endDate).getFullYear() : null;
@@ -838,54 +841,47 @@ function renderShifts() {
 
     const tr = document.createElement('tr');
     
-    // Variabelen opbouwen
+    // Weergave helpers
+    const projectBadge = sh.project 
+        ? `<span class="badge bg-light text-dark border">${sh.project}</span>` 
+        : '<span class="text-muted small">-</span>';
+
     const periodText = (sh.startDate || sh.endDate) 
-        ? `<div class="small text-muted" style="font-size:0.8em; margin-top:2px;">📅 ${sh.startDate || '...'} t/m ${sh.endDate || '...'}</div>` 
-        : '';
-        
-    const projectText = sh.project 
-        ? `<span class="badge bg-light text-dark border ms-1" style="font-weight:normal;">${sh.project}</span>` 
-        : '';
+        ? `<small>${sh.startDate || '...'} <span class="text-muted">t/m</span> ${sh.endDate || '...'}</small>` 
+        : '<span class="text-muted small">-</span>';
 
-    // Zorg dat tijd altijd iets toont, ook als het 00:00 is (tenzij je dat leeg wilt)
-    const timeText = (sh.start && sh.end) 
-        ? `<span style="font-weight:600;">${sh.start} - ${sh.end}</span>` 
-        : '<span class="text-muted">-</span>';
-        
-    const breakText = (sh.break && Number(sh.break) > 0)
-        ? `<div class="text-muted small">☕ ${sh.break}m</div>` 
-        : '';
-
-    // 🔥 HIER ZIT DE FIX: style="display: table-cell !important"
+    // 🔥 DE 7 KOLOMMEN (Zoals in je HTML) 🔥
     tr.innerHTML = `
-      <td style="display: table-cell !important;">
+      <td>
         <div class="d-flex align-items-center">
             <span class="dot" style="background:${sh.color || '#ccc'}; width:12px; height:12px; display:inline-block; border-radius:50%; margin-right:10px;"></span>
             <div>
-                <strong>${sh.realName || name}</strong> ${projectText}
-                ${sh.shortName ? `<br><small class="text-muted">${sh.shortName}</small>` : ''}
-                ${periodText}
+                <strong class="text-dark">${sh.realName || name}</strong>
+                ${sh.shortName ? `<div class="small text-muted">${sh.shortName}</div>` : ''}
             </div>
         </div>
       </td>
-      
-      <td style="display: table-cell !important; min-width: 100px;">
-        <div class="d-flex flex-column" style="font-size:0.9em;">
-            ${timeText}
-            ${breakText}
-        </div>
-      </td>
 
-      <td class="text-end" style="display: table-cell !important;">
+      <td>${sh.start || '00:00'}</td>
+
+      <td>${sh.end || '00:00'}</td>
+
+      <td>${sh.break || 0}</td>
+
+      <td>${projectBadge}</td>
+
+      <td>${periodText}</td>
+
+      <td class="text-end">
         <div class="btn-group">
-          <button class="btn btn-sm btn-outline-secondary btn-edit"><span class="material-icons-outlined" style="font-size:16px">edit</span></button>
-          <button class="btn btn-sm btn-outline-danger btn-del"><span class="material-icons-outlined" style="font-size:16px">delete</span></button>
-          <button class="btn btn-sm btn-outline-primary btn-copy"><span class="material-icons-outlined" style="font-size:16px">content_copy</span></button>
+          <button class="btn btn-sm btn-outline-secondary btn-edit" title="Bewerken"><span class="material-icons-outlined" style="font-size:16px">edit</span></button>
+          <button class="btn btn-sm btn-outline-danger btn-del" title="Verwijderen"><span class="material-icons-outlined" style="font-size:16px">delete</span></button>
+          <button class="btn btn-sm btn-outline-primary btn-copy" title="Kopiëren"><span class="material-icons-outlined" style="font-size:16px">content_copy</span></button>
         </div>
       </td>
     `;
 
-    // Events (Dezelfde als eerst, die waren goed)
+    // VERWIJDEREN
     tr.querySelector('.btn-del').onclick = async () => {
       if(!confirm(`Shift "${sh.realName || name}" verwijderen?`)) return;
       delete ud.shifts[name];
@@ -896,6 +892,7 @@ function renderShifts() {
       toast('Verwijderd', 'success');
     };
 
+    // KOPIEREN
     tr.querySelector('.btn-copy').onclick = async () => {
         const copyName = name + " (Kopie)";
         ud.shifts[copyName] = { ...sh, realName: (sh.realName || name) + " (Kopie)" };
@@ -906,10 +903,12 @@ function renderShifts() {
         toast('Gekopieerd', 'success');
     };
 
+    // BEWERKEN
     tr.querySelector('.btn-edit').onclick = () => {
         const modalEl = document.getElementById('shiftModal');
         modalEl.dataset.editingKey = name; 
 
+        // Velden vullen
         const newShiftName = document.getElementById('newShiftName');
         newShiftName.value = sh.realName || name;
         if(document.getElementById('newShiftShort')) document.getElementById('newShiftShort').value = sh.shortName || '';
@@ -928,7 +927,6 @@ function renderShifts() {
     shiftTableBody.appendChild(tr);
   });
 }
-
 // 2. OPSLAAN KNOP (Veilige versie zonder 'const' conflict)
 const saveBtnUnique = document.getElementById('addShiftBtn');
 if (saveBtnUnique) {
