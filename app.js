@@ -783,8 +783,9 @@ addProjectBtn?.addEventListener('click', async () => {
   }
 });
 // ==========================================
-// FIX: TABEL LAYOUT (Precies zoals in HTML: 7 kolommen)
+// FIX: SLEPEN & SORTEREN (Drag & Drop hersteld)
 // ==========================================
+
 function renderShifts() {
   const ud = getCurrentUserData();
   const shifts = ud.shifts || {};
@@ -805,7 +806,7 @@ function renderShifts() {
   const selectedYear = filterShiftYear?.value ? Number(filterShiftYear.value) : null;
   const isAdminUser = (ud.role === 'admin');
 
-  // UI Elementen (Admin check)
+  // UI Checks
   const divShort = document.getElementById('divShiftShort');
   const divColor = document.getElementById('divShiftColor');
   const divName  = document.getElementById('divShiftName');
@@ -830,7 +831,6 @@ function renderShifts() {
     const sh = shifts[name];
     if (!sh) return;
 
-    // Jaar filter
     if (selectedYear) {
       const startY = sh.startDate ? new Date(sh.startDate).getFullYear() : null;
       const endY = sh.endDate ? new Date(sh.endDate).getFullYear() : null;
@@ -840,8 +840,9 @@ function renderShifts() {
     }
 
     const tr = document.createElement('tr');
+    tr.dataset.key = name; // Nodig voor het sorteren!
     
-    // Weergave helpers
+    // Variabelen
     const projectBadge = sh.project 
         ? `<span class="badge bg-light text-dark border">${sh.project}</span>` 
         : '<span class="text-muted small">-</span>';
@@ -850,10 +851,12 @@ function renderShifts() {
         ? `<small>${sh.startDate || '...'} <span class="text-muted">t/m</span> ${sh.endDate || '...'}</small>` 
         : '<span class="text-muted small">-</span>';
 
-    // 🔥 DE 7 KOLOMMEN (Zoals in je HTML) 🔥
+    // 7 Kolommen (Met sleep-icoon in de eerste kolom)
     tr.innerHTML = `
       <td>
         <div class="d-flex align-items-center">
+            <span class="handle material-icons-outlined text-muted me-2" style="cursor: grab; font-size: 18px;">drag_indicator</span>
+            
             <span class="dot" style="background:${sh.color || '#ccc'}; width:12px; height:12px; display:inline-block; border-radius:50%; margin-right:10px;"></span>
             <div>
                 <strong class="text-dark">${sh.realName || name}</strong>
@@ -863,13 +866,9 @@ function renderShifts() {
       </td>
 
       <td>${sh.start || '00:00'}</td>
-
       <td>${sh.end || '00:00'}</td>
-
       <td>${sh.break || 0}</td>
-
       <td>${projectBadge}</td>
-
       <td>${periodText}</td>
 
       <td class="text-end">
@@ -881,7 +880,7 @@ function renderShifts() {
       </td>
     `;
 
-    // VERWIJDEREN
+    // Events
     tr.querySelector('.btn-del').onclick = async () => {
       if(!confirm(`Shift "${sh.realName || name}" verwijderen?`)) return;
       delete ud.shifts[name];
@@ -892,7 +891,6 @@ function renderShifts() {
       toast('Verwijderd', 'success');
     };
 
-    // KOPIEREN
     tr.querySelector('.btn-copy').onclick = async () => {
         const copyName = name + " (Kopie)";
         ud.shifts[copyName] = { ...sh, realName: (sh.realName || name) + " (Kopie)" };
@@ -903,12 +901,10 @@ function renderShifts() {
         toast('Gekopieerd', 'success');
     };
 
-    // BEWERKEN
     tr.querySelector('.btn-edit').onclick = () => {
         const modalEl = document.getElementById('shiftModal');
         modalEl.dataset.editingKey = name; 
 
-        // Velden vullen
         const newShiftName = document.getElementById('newShiftName');
         newShiftName.value = sh.realName || name;
         if(document.getElementById('newShiftShort')) document.getElementById('newShiftShort').value = sh.shortName || '';
@@ -926,6 +922,41 @@ function renderShifts() {
 
     shiftTableBody.appendChild(tr);
   });
+
+  // START DE SORTEER FUNCTIE
+  initShiftSortable();
+}
+
+// Hulpfunctie om sorteren mogelijk te maken
+function initShiftSortable() {
+  const el = document.getElementById('shiftTableBody');
+  if (!el || el.dataset.sortableInitialized) return;
+  
+  if (typeof Sortable === 'undefined') return console.warn('SortableJS niet geladen');
+
+  Sortable.create(el, {
+    handle: '.handle', // Alleen slepen via de puntjes
+    animation: 150,
+    ghostClass: 'bg-light',
+    onEnd: async function () {
+      const ud = getCurrentUserData();
+      const newOrder = [];
+      el.querySelectorAll('tr').forEach(row => {
+          if (row.dataset.key) newOrder.push(row.dataset.key);
+      });
+      
+      ud.shiftOrder = newOrder;
+      
+      // Opslaan
+      const id = getActiveUserId();
+      if(id) {
+          await updateDoc(doc(db,'users',id), { shiftOrder: newOrder });
+          toast('Nieuwe volgorde opgeslagen', 'success');
+      }
+    }
+  });
+  
+  el.dataset.sortableInitialized = 'true';
 }
 // 2. OPSLAAN KNOP (Veilige versie zonder 'const' conflict)
 const saveBtnUnique = document.getElementById('addShiftBtn');
