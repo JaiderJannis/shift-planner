@@ -895,12 +895,16 @@ function renderShifts() {
 }
 
 
-// 2. Vervang je 'Opslaan' knop logica (addShiftBtn) door dit blok:
-const addShiftBtn = document.getElementById('addShiftBtn');
-if (addShiftBtn) {
-    // Trucje om oude listeners te wissen (zodat je niet 2x opslaat)
-    const newBtn = addShiftBtn.cloneNode(true);
-    addShiftBtn.parentNode.replaceChild(newBtn, addShiftBtn);
+// ==========================================
+// FIX: OPSLAAN KNOP (Dubbele naam opgelost)
+// ==========================================
+// We gebruiken een nieuwe naam 'saveBtn' om ruzie met de bovenste code te voorkomen
+const saveBtn = document.getElementById('addShiftBtn');
+
+if (saveBtn) {
+    // Trucje om oude listeners te wissen
+    const newBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newBtn, saveBtn);
 
     newBtn.addEventListener('click', async () => {
       const newShiftName = document.getElementById('newShiftName');
@@ -916,7 +920,7 @@ if (addShiftBtn) {
         if (!visibleName.endsWith(suffix)) uniqueKey = `${visibleName}${suffix}`;
       }
 
-      // B. Haal de OUDE sleutel op (die we bij het openen hebben opgeslagen)
+      // B. Haal de OUDE sleutel op
       const modalEl = document.getElementById('shiftModal');
       const oldKey = modalEl.dataset.editingKey; 
 
@@ -924,15 +928,14 @@ if (addShiftBtn) {
       ud.shifts = ud.shifts || {};
       ud.shiftOrder = ud.shiftOrder || [];
 
-      // C. Als de sleutel veranderd is (bv. naam gewijzigd), gooi de oude weg
+      // C. Oude verwijderen als de sleutel anders is
       if (oldKey && oldKey !== uniqueKey) {
           delete ud.shifts[oldKey];
-          // Update ook de volgorde lijst
           const idx = ud.shiftOrder.indexOf(oldKey);
           if (idx !== -1) ud.shiftOrder[idx] = uniqueKey;
       }
 
-      // D. Sla de nieuwe data op
+      // D. Nieuwe data opslaan
       ud.shifts[uniqueKey] = {
         realName: visibleName,
         shortName: document.getElementById('newShiftShort')?.value.trim() || '',
@@ -945,10 +948,9 @@ if (addShiftBtn) {
         endDate: document.getElementById('newShiftEndDate').value || null
       };
 
-      // Voeg toe aan volgorde als hij nieuw is
       if (!ud.shiftOrder.includes(uniqueKey)) ud.shiftOrder.push(uniqueKey);
 
-      // E. FORCEER UPDATE (Overschrijf de hele lijst om spoken te voorkomen)
+      // E. FORCEER UPDATE
       const id = getActiveUserId();
       if (id) {
           await updateDoc(doc(db, 'users', id), { 
@@ -957,12 +959,10 @@ if (addShiftBtn) {
           });
       }
 
-      // F. Opruimen
       renderShifts();
       bootstrap.Modal.getInstance(modalEl).hide();
-      delete modalEl.dataset.editingKey; // Reset het "notitieblokje"
+      delete modalEl.dataset.editingKey;
       
-      // Velden wissen
       newShiftName.value = '';
       document.getElementById('newShiftBreak').value = 0;
       document.getElementById('newShiftStartDate').value = '';
@@ -971,7 +971,7 @@ if (addShiftBtn) {
 
       toast('Shift opgeslagen', 'success');
     });
-};
+}
 
     filterShiftYear.addEventListener('change', ()=> renderShifts());
 
