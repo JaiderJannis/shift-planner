@@ -783,8 +783,9 @@ addProjectBtn?.addEventListener('click', async () => {
   }
 });
 // ==========================================
-// FIX: TABEL WEERGAVE HERSTELD + GEEN DUPLICATEN
+// DEFINITIEVE FIX: RenderShifts (Met kolommen) & Opslaan (Zonder duplicaten)
 // ==========================================
+
 function renderShifts() {
   const ud = getCurrentUserData();
   const shifts = ud.shifts || {};
@@ -809,17 +810,28 @@ function renderShifts() {
   const divShort = document.getElementById('divShiftShort');
   const divColor = document.getElementById('divShiftColor');
   const divName  = document.getElementById('divShiftName');
-  
-  // Zorg dat de tabelheaders kloppen voor de weergave
-  // (Optioneel: je kunt hier ook headers tonen/verbergen als je dat wilt)
+  if (divShort && divColor && divName) {
+    if (isAdminUser) {
+      divShort.classList.remove('d-none');
+      divColor.classList.remove('d-none');
+      divName.className = 'col-md-5'; 
+    } else {
+      divShort.classList.add('d-none');
+      divColor.classList.add('d-none');
+      divName.className = 'col-md-9'; 
+    }
+  }
 
+  // Tabel leegmaken
+  const shiftTableBody = document.getElementById('shiftTableBody');
+  if(!shiftTableBody) return;
   shiftTableBody.innerHTML = '';
 
   order.forEach(name => {
     const sh = shifts[name];
     if (!sh) return;
 
-    // Jaar filter toepassen
+    // Jaar filter
     if (selectedYear) {
       const startY = sh.startDate ? new Date(sh.startDate).getFullYear() : null;
       const endY = sh.endDate ? new Date(sh.endDate).getFullYear() : null;
@@ -830,8 +842,7 @@ function renderShifts() {
 
     const tr = document.createElement('tr');
     
-    // --- HERSTELD: Alle kolommen weer zichtbaar ---
-    // We bouwen de HTML voor Periode en Project
+    // --- WEERGAVE KOLOMMEN (Start, Eind, Pauze, Project) ---
     const periodText = (sh.startDate || sh.endDate) 
         ? `<div class="small text-muted"><span class="material-icons-outlined" style="font-size:12px">calendar_today</span> ${sh.startDate || '...'} t/m ${sh.endDate || '...'}</div>` 
         : '';
@@ -876,7 +887,7 @@ function renderShifts() {
       </td>
     `;
 
-    // Events (Dezelfde logica als daarnet, die was wél goed)
+    // VERWIJDEREN
     tr.querySelector('.btn-del').onclick = async () => {
       if(!confirm(`Shift "${sh.realName || name}" verwijderen?`)) return;
       delete ud.shifts[name];
@@ -887,6 +898,7 @@ function renderShifts() {
       toast('Verwijderd', 'success');
     };
 
+    // KOPIEREN
     tr.querySelector('.btn-copy').onclick = async () => {
         const copyName = name + " (Kopie)";
         ud.shifts[copyName] = { ...sh, realName: (sh.realName || name) + " (Kopie)" };
@@ -897,6 +909,7 @@ function renderShifts() {
         toast('Gekopieerd', 'success');
     };
 
+    // BEWERKEN
     tr.querySelector('.btn-edit').onclick = () => {
         const modalEl = document.getElementById('shiftModal');
         modalEl.dataset.editingKey = name; 
@@ -921,16 +934,11 @@ function renderShifts() {
   });
 }
 
-// ==========================================
-// FIX: OPSLAAN KNOP (Dubbele naam opgelost)
-// ==========================================
-// We gebruiken een nieuwe naam 'saveBtn' om ruzie met de bovenste code te voorkomen
-const saveBtn = document.getElementById('addShiftBtn');
-
-if (saveBtn) {
-    // Trucje om oude listeners te wissen
-    const newBtn = saveBtn.cloneNode(true);
-    saveBtn.parentNode.replaceChild(newBtn, saveBtn);
+// 2. OPSLAAN KNOP (Veilige versie zonder 'const' conflict)
+const saveBtnUnique = document.getElementById('addShiftBtn');
+if (saveBtnUnique) {
+    const newBtn = saveBtnUnique.cloneNode(true);
+    saveBtnUnique.parentNode.replaceChild(newBtn, saveBtnUnique);
 
     newBtn.addEventListener('click', async () => {
       const newShiftName = document.getElementById('newShiftName');
@@ -939,14 +947,12 @@ if (saveBtn) {
 
       if (!visibleName) return toast('Naam verplicht', 'warning');
 
-      // A. Bepaal de NIEUWE sleutel
       let uniqueKey = visibleName;
       if (projectVal) {
         const suffix = ` (${projectVal})`;
         if (!visibleName.endsWith(suffix)) uniqueKey = `${visibleName}${suffix}`;
       }
 
-      // B. Haal de OUDE sleutel op
       const modalEl = document.getElementById('shiftModal');
       const oldKey = modalEl.dataset.editingKey; 
 
@@ -954,14 +960,14 @@ if (saveBtn) {
       ud.shifts = ud.shifts || {};
       ud.shiftOrder = ud.shiftOrder || [];
 
-      // C. Oude verwijderen als de sleutel anders is
+      // Oude verwijderen bij naamwijziging
       if (oldKey && oldKey !== uniqueKey) {
           delete ud.shifts[oldKey];
           const idx = ud.shiftOrder.indexOf(oldKey);
           if (idx !== -1) ud.shiftOrder[idx] = uniqueKey;
       }
 
-      // D. Nieuwe data opslaan
+      // Nieuwe opslaan
       ud.shifts[uniqueKey] = {
         realName: visibleName,
         shortName: document.getElementById('newShiftShort')?.value.trim() || '',
@@ -976,7 +982,7 @@ if (saveBtn) {
 
       if (!ud.shiftOrder.includes(uniqueKey)) ud.shiftOrder.push(uniqueKey);
 
-      // E. FORCEER UPDATE
+      // FORCEER UPDATE
       const id = getActiveUserId();
       if (id) {
           await updateDoc(doc(db, 'users', id), { 
@@ -998,7 +1004,6 @@ if (saveBtn) {
       toast('Shift opgeslagen', 'success');
     });
 }
-
     filterShiftYear.addEventListener('change', ()=> renderShifts());
 
 function populateFilterShiftYears() {
