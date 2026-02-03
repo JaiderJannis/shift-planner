@@ -6725,27 +6725,48 @@ function togglePaintMode() {
     palette.classList.add('active');
     btn?.classList.add('active');
     
-    // Vul het palet met favorieten
+    // Haal de huidige maand van het scherm op voor de filtering
+    const ySel = document.getElementById('yearSelectMain');
+    const mSel = document.getElementById('monthSelectMain');
+    const viewYear = ySel ? Number(ySel.value) : new Date().getFullYear();
+    const viewMonth = mSel ? Number(mSel.value) : new Date().getMonth();
+    
+    // Bepaal start en eind van deze maand
+    const monthStart = new Date(viewYear, viewMonth, 1);
+    const monthEnd = new Date(viewYear, viewMonth + 1, 0); // Laatste dag van de maand
+
     palette.innerHTML = '';
     const allShifts = ud.shifts || {};
     const favs = (ud.shiftOrder || Object.keys(allShifts)).filter(k => allShifts[k].isFavorite);
     
     const ICON_MAP = {
         'light_mode': '☀️', 'wb_twilight': '🌅', 'bedtime': '🌙', 'schedule': '🕒',
-        'star': '⭐', 'school': '🎓', 'medical_services': '🏥', 'flight': '✈️'
+        'star': '⭐', 'school': '🎓', 'medical_services': '🏥', 'flight': '✈️', 
+        'bench': '🪑', 'feestdag': '🎉', 'teammeeting': '👥', 'niet_ingepland': '❌',
+        'vrij_weekend': '😎'
     };
 
-    // Gummetje (Wissen)
+    // 1. Gummetje (Wissen) altijd tonen
     const eraser = document.createElement('div');
     eraser.className = 'paint-option';
     eraser.style.background = '#f8f9fa';
-    eraser.innerHTML = '🗑️'; // Prullenbak icoon
+    eraser.innerHTML = '🗑️'; 
     eraser.onclick = () => selectPaintOption('eraser', eraser);
     palette.appendChild(eraser);
 
-    // Favorieten
+    // 2. Favorieten (NU MET DATUM FILTER)
     favs.forEach(k => {
         const sh = allShifts[k];
+        if (!sh) return;
+
+        // --- 🔥 DE FIX: DATUM CHECK ---
+        // Als de shift een startdatum heeft die LATER is dan het einde van deze maand -> Niet tonen
+        if (sh.startDate && new Date(sh.startDate) > monthEnd) return;
+        
+        // Als de shift een einddatum heeft die EERDER is dan het begin van deze maand -> Niet tonen
+        if (sh.endDate && new Date(sh.endDate) < monthStart) return;
+        // ------------------------------
+
         const el = document.createElement('div');
         el.className = 'paint-option';
         el.style.backgroundColor = sh.color || '#eee';
@@ -6755,10 +6776,19 @@ function togglePaintMode() {
         palette.appendChild(el);
     });
     
-    // Selecteer de eerste standaard
-    if (favs.length > 0) selectPaintOption(favs[0], palette.children[1]);
+    // Selecteer de eerste shift standaard (als die er is)
+    if (palette.children.length > 1) {
+        selectPaintOption(favs.find(k => {
+             // Zoek de eerste die we net ook echt toegevoegd hebben aan de DOM
+             // (Een beetje hacky, maar zorgt dat we geen verborgen shift selecteren)
+             const sh = allShifts[k];
+             if (sh.startDate && new Date(sh.startDate) > monthEnd) return false;
+             if (sh.endDate && new Date(sh.endDate) < monthStart) return false;
+             return true;
+        }) || 'eraser', palette.children[1]);
+    }
 
-    toast('Verf-modus AAN: Tik op dagen om te vullen', 'info');
+    toast('Verf-modus AAN', 'info');
 
   } else {
     // UIT ZETTEN
