@@ -592,32 +592,49 @@ function initSelectors(){
   const mNow = new Date().getMonth();
   monthSelect.value = String(mNow);
 }
+// ==========================================
+// FIX: FOUTMELDING NULL (Veilige check)
+// ==========================================
 async function revealAdminIfNeeded(){
-      const meSnap = await getDoc(doc(db,'users', currentUserId));
+      const id = getActiveUserId();
+      if(!id) return;
+
+      const meSnap = await getDoc(doc(db,'users', id));
       if (!meSnap.exists()) return;
       
       const role = meSnap.data().role;
+      
       if(role === 'admin'){ 
-        // Knoppen zichtbaar maken
-        adminTabBtn.classList.remove('d-none');
-        adminApprovalTabBtn.classList.remove('d-none');
-        adminLeaveTabBtn.classList.remove('d-none');
-        document.getElementById('adminHomeTabBtn').classList.remove('d-none');
-        document.getElementById('adminRoosterTabBtn').classList.remove('d-none');
+        // We gebruiken '?.list' (optional chaining) of een if-check
+        // zodat hij NIET crasht als je de knoppen hebt verwijderd.
         
-        // Admin functies initialiseren
-        renderAdminUserSelect(); 
-        renderAdminMonthlyMulti();
+        const btnAdmin = document.getElementById('adminTabBtn');
+        if (btnAdmin) btnAdmin.classList.remove('d-none');
 
-        // ✅ FIX: Team Rooster direct starten en data ophalen
-        // We gebruiken een korte timeout om zeker te zijn dat de DOM elementen gevonden worden
+        const btnAppr = document.getElementById('adminApprovalTabBtn');
+        if (btnAppr) btnAppr.classList.remove('d-none');
+
+        const btnLeave = document.getElementById('adminLeaveTabBtn');
+        if (btnLeave) btnLeave.classList.remove('d-none');
+
+        const btnHome = document.getElementById('adminHomeTabBtn');
+        if (btnHome) btnHome.classList.remove('d-none');
+        
+        const btnRooster = document.getElementById('adminRoosterTabBtn');
+        if (btnRooster) btnRooster.classList.remove('d-none');
+        
+        // Admin functies initialiseren (als de functies bestaan)
+        if (typeof renderAdminUserSelect === 'function') renderAdminUserSelect(); 
+        if (typeof renderAdminMonthlyMulti === 'function') renderAdminMonthlyMulti();
+
+        // Team rooster logica (veilig)
         setTimeout(async () => {
-            initRoosterSelectors();
-            await loadAllUsers(); // Zorg dat we de data van iedereen hebben
-            renderTeamRooster();
-        }, 100);
+            if (typeof initRoosterSelectors === 'function') initRoosterSelectors();
+            if (typeof loadAllUsers === 'function') await loadAllUsers();
+            if (typeof renderTeamRooster === 'function') renderTeamRooster();
+        }, 500);
       }
-    }
+}
 
     // ======= Projects =======
 function renderProjects(){
