@@ -6832,32 +6832,8 @@ window.applyPaintShift = async (dateKey) => {
 // Start de UI op zodra het script laadt
 setTimeout(initPaintModeUI, 1000);
 // ==========================================
-// 7. SCREENSHOT & DEEL FUNCTIE 📸
+// 7. SCREENSHOT & DEEL FUNCTIE 📸 (Zonder Icoontjes)
 // ==========================================
-function initScreenshotButton() {
-  if (document.getElementById('btnScreenshot')) return;
-
-  // 1. Laad de html2canvas bibliotheek dynamisch in
-  const script = document.createElement('script');
-  script.src = "https://html2canvas.hertzen.com/dist/html2canvas.min.js";
-  script.onload = () => { console.log('Screenshot module geladen'); };
-  document.head.appendChild(script);
-
-  // 2. Maak de knop (naast de Verf knop)
-  const paintBtn = document.getElementById('togglePaintBtn');
-  if (paintBtn && paintBtn.parentNode) {
-      const btn = document.createElement('button');
-      btn.id = 'btnScreenshot';
-      btn.className = 'btn btn-outline-secondary btn-sm d-flex align-items-center gap-2 ms-1';
-      btn.innerHTML = '<span class="material-icons-outlined" style="font-size:18px">photo_camera</span>';
-      btn.title = "Download als afbeelding";
-      btn.onclick = takeScreenshot;
-      
-      // Plaats NA de verfknop
-      paintBtn.parentNode.insertBefore(btn, paintBtn.nextSibling);
-  }
-}
-
 async function takeScreenshot() {
   if (typeof html2canvas === 'undefined') {
       alert('Module is nog aan het laden, probeer over 2 seconden opnieuw.');
@@ -6869,15 +6845,27 @@ async function takeScreenshot() {
 
   toast('Afbeelding maken...', 'info');
 
-  // Tijdelijk de scrollbalken en knoppen verbergen voor een schone foto
   const originalOverflow = grid.style.overflow;
   grid.style.overflow = 'visible'; // Zorg dat alles erop staat
 
   try {
       const canvas = await html2canvas(grid, {
-          scale: 2, // Hogere kwaliteit (scherp op mobiel)
+          scale: 2, // Hoge kwaliteit
           backgroundColor: '#ffffff',
-          useCORS: true
+          useCORS: true,
+          
+          // 🔥 HIER GEBEURT DE MAGIE 🔥
+          // We passen de 'foto' aan voordat hij definitief wordt gemaakt.
+          onclone: (clonedDoc) => {
+              // 1. Zoek alle 'Snel-toevoegen' icoontjes in de kopie
+              const icons = clonedDoc.querySelectorAll('.quick-icons-wrapper');
+              // 2. Zet ze op onzichtbaar
+              icons.forEach(el => el.style.display = 'none');
+              
+              // 3. (Optioneel) Als je ook de "+ knopjes" weg wilt hebben:
+              const addButtons = clonedDoc.querySelectorAll('.addLineBtn, .delLineBtn');
+              addButtons.forEach(btn => btn.style.display = 'none');
+          }
       });
 
       // Download triggeren
