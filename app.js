@@ -2053,8 +2053,8 @@ async function ensureProjectExists(name){
       const ud = getCurrentUserData();
       const md = ud.monthData?.[y]?.[m] || { targetHours:0, targetMinutes:0, rows:{} };
       const total = Object.values(md.rows || {}).reduce((s, r) => {
-  if (r.status && r.status !== 'approved') {
-    return s; // Tel niet mee (pending/rejected)
+  if (r.status && r.status !== 'rejected') {
+    return s; 
   }
   return s + (r.minutes || 0);
 }, 0);
