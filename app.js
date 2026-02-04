@@ -7085,6 +7085,38 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mSel) mSel.addEventListener('change', turnOffPaint);
     if (ySel) ySel.addEventListener('change', turnOffPaint);
 });
+document.getElementById('adminStatusMenu')?.addEventListener('click', async (e) => {
+  const newStatus = e.target.dataset.status;
+  if (!newStatus) return;
+  e.preventDefault();
+
+  const y = Number(document.getElementById('yearSelectMain').value);
+  const m = Number(document.getElementById('monthSelectMain').value);
+  const uid = getActiveUserId(); // De ID van de gebruiker die je nu bekijkt
+
+  // Controleer of de ingelogde persoon admin is
+  const iAmAdmin = dataStore.users[currentUserId]?.role === 'admin';
+  if (!iAmAdmin) {
+    toast('Alleen admins kunnen dit', 'warning');
+    return;
+  }
+
+  if (newStatus === 'approved') {
+    const comment = prompt('Optioneel bericht bij goedkeuring:', '');
+    await approveMonthLogic(uid, y, m, comment);
+  } 
+  else if (newStatus === 'rejected') {
+    const comment = prompt('Reden voor afkeuring:', '');
+    await rejectMonthLogic(uid, y, m, comment);
+  } 
+  else if (newStatus === 'draft') {
+    await reopenMonthLogic(uid, y, m);
+  }
+
+  // Ververs de tabel en de badge
+  await renderMonth(y, m);
+  updateMonthStatusBadge();
+});
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
