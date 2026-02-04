@@ -679,11 +679,6 @@ function renderProjects() {
       <td><span class="badge bg-light text-dark border">${toDisplayDate(p.end)}</span></td>
       <td class="text-end">
         <div class="btn-group">
-          <button class="btn btn-sm ${p.allowMulti ? 'btn-success' : 'btn-outline-secondary'}" 
-                  data-idx="${idx}" data-act="toggle-multi" 
-                  title="Extra lijnen aan/uit">
-            <span class="material-icons-outlined" style="font-size:16px">${p.allowMulti ? 'playlist_add_check' : 'playlist_add'}</span>
-          </button>
           <button class="btn btn-sm btn-outline-warning" data-idx="${idx}" data-act="extend" title="Verlengen">
             <span class="material-icons-outlined" style="font-size:16px">event_repeat</span>
           </button>
@@ -713,14 +708,6 @@ function renderProjects() {
       if (!p) return;
 
       const action = btn.dataset.act;
-
-      if (action === 'toggle-multi') {
-        p.allowMulti = !p.allowMulti;
-        await saveUserData();
-        renderProjects();
-        renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-        toast(`Extra lijnen voor ${p.name} nu ${p.allowMulti ? 'aan' : 'uit'}`, 'info');
-      } 
       else if (action === 'extend') {
         const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', toDisplayDate(p.end) || '');
         if (!v) return;
