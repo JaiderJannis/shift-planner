@@ -317,16 +317,22 @@
     </div>
 
     <div class="d-flex flex-wrap gap-2 align-items-center">
-      <div class="dropdown d-inline-block">
+    <div class="dropdown d-inline-block">
   <span id="monthStatusBadge" class="badge badge-status badge-draft dropdown-toggle" 
-        data-bs-toggle="dropdown" aria-expanded="false" style="cursor: pointer;">
+        data-bs-toggle="dropdown" aria-expanded="false" style="cursor: pointer; transition: all 0.3s ease;">
     Concept
   </span>
-  <ul id="adminStatusMenu" class="dropdown-menu shadow">
+  <ul id="adminStatusMenu" class="dropdown-menu shadow-lg border-0">
     <li><h6 class="dropdown-header">Status wijzigen (Admin)</h6></li>
-    <li><a class="dropdown-item" href="#" data-status="draft">Zet op Concept</a></li>
-    <li><a class="dropdown-item" href="#" data-status="approved">Goedkeuren</a></li>
-    <li><a class="dropdown-item" href="#" data-status="rejected">Afkeuren</a></li>
+    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" data-status="draft">
+      <span class="dot bg-secondary" style="width:8px; height:8px; border-radius:50%;"></span> Concept</a>
+    </li>
+    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" data-status="approved">
+      <span class="dot bg-success" style="width:8px; height:8px; border-radius:50%;"></span> Goedkeuren</a>
+    </li>
+    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" data-status="rejected">
+      <span class="dot bg-danger" style="width:8px; height:8px; border-radius:50%;"></span> Afkeuren</a>
+    </li>
   </ul>
 </div>
       <span id="leaveBalanceBadge" class="badge bg-secondary-subtle text-dark small">Verlof: —</span>
