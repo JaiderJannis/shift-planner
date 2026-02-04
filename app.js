@@ -2335,10 +2335,13 @@ function sumTakenMinutesFor(year, shiftNames) {
   const months = ud.monthData?.[year] || {};
   
   Object.values(months).forEach(md => {
+    // ✅ NIEUW: Als de hele maand is afgekeurd, tellen de uren NIET mee (teruggave)
+    if (md.status === 'rejected') return;
+
     Object.values(md?.rows || {}).forEach(r => {
       const s = (r?.shift || '').trim();
       if (s && shiftNames.includes(s)) {
-        // AANPASSING: Tel ALLES (ook concept), behalve 'rejected'
+        // En ook als de individuele shift is afgekeurd niet
         if (r.status !== 'rejected') {
           total += Number(r.minutes) || 0;
         }
@@ -2348,18 +2351,21 @@ function sumTakenMinutesFor(year, shiftNames) {
   return total;
 }
 
-// Vervang ook de functie direct daaronder (rond regel 1494):
+// Vervang de functie sumTakenMinutesForRange (rond regel 2385)
 function sumTakenMinutesForRange(startISO, endISO, shiftNames) {
   const ud = getCurrentUserData();
   let total = 0;
   for (const months of Object.values(ud.monthData || {})) {
     for (const md of Object.values(months || {})) {
+      
+      // ✅ NIEUW: Skip deze maand als hij volledig is afgekeurd
+      if (md.status === 'rejected') continue;
+
       for (const [key, r] of Object.entries(md?.rows || {})) {
         const sName = (r?.shift || '').trim();
         if (!sName || !shiftNames.includes(sName)) continue;
         
         if (isDateWithin(key, startISO, endISO)) {
-          // AANPASSING: Ook hier, tel alles mee tenzij 'rejected'
           if (r.status !== 'rejected') {
             total += Number(r.minutes) || 0;
           }
@@ -7108,36 +7114,39 @@ document.getElementById('adminStatusMenu')?.addEventListener('click', async (e) 
   const m = Number(document.getElementById('monthSelectMain').value);
   const uid = getActiveUserId(); 
 
-  // Alleen uitvoeren als de kijker admin is
   const iAmAdmin = dataStore.users[currentUserId]?.role === 'admin';
   if (!iAmAdmin) {
-    toast('Alleen een admin kan de status handmatig wijzigen.', 'warning');
+    toast('Alleen admin.', 'warning');
     return;
   }
 
   try {
     if (newStatus === 'approved') {
-      const comment = prompt('Optioneel bericht bij goedkeuring:', '');
+      const comment = prompt('Bericht bij goedkeuring:', '');
       await approveMonthLogic(uid, y, m, comment);
-      toast('Planning goedgekeurd!', 'success');
+      toast('Goedgekeurd', 'success');
     } 
     else if (newStatus === 'rejected') {
       const comment = prompt('Reden voor afkeuring:', '');
       await rejectMonthLogic(uid, y, m, comment);
-      toast('Planning afgekeurd.', 'danger');
+      toast('Afgekeurd (Uren teruggegeven)', 'warning');
     } 
     else if (newStatus === 'draft') {
-      await reopenMonthLogic(uid, y, m);
-      toast('Status heropend naar concept.', 'info');
+      // Zet maand status terug naar draft
+      await setMonthStatus(y, m, 'draft'); 
+      toast('Terug naar concept', 'info');
     }
 
-    // Direct de tabel en de badge-kleur verversen op het scherm
+    // Update de tabel
     await renderMonth(y, m);
     updateMonthStatusBadge();
     
+    // ✅ BELANGRIJK: Update nu direct de verlof-saldo badges!
+    updateLeaveBadges(); 
+    
   } catch (err) {
-    console.error("Fout bij badge-update:", err);
-    toast('Fout bij updaten status.', 'danger');
+    console.error(err);
+    toast('Fout bij status wijziging', 'danger');
   }
 });
 // ✅ 1. Initialiseer de dropdowns en laad de data
