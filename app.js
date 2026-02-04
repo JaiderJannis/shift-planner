@@ -1119,44 +1119,25 @@ async function renderMonth(year, month){
   monthTargetHours.value = md.targetHours || 0;
   monthTargetMinutes.value = md.targetMinutes || 0;
 
-  // 1. BEPAAL OF WE DE ACTIE-KNOPPEN (+) TONEN
   const statusNow = getMonthStatus(year, month);
-  
-  // Check of de INGELOGDE gebruiker admin is (niet de gebruiker die we bekijken)
   const loggedInUser = dataStore.users[currentUserId];
   const iAmAdmin = loggedInUser && loggedInUser.role === 'admin';
-
-  // Als je Admin bent, is de maand voor jou nooit 'op slot'
   const locked = !iAmAdmin && (statusNow==='approved' || statusNow==='submitted');
 
-  // Alleen acties tonen als de admin de maand-wijde instelling heeft aangezet
+  // Acties (+) enkel tonen als admin dit toestaat voor de maand
   const showActions = !locked && userAllowsMultiMonth(ud, year, month);
 
-  // In de loop voor de rijen:
-  const allowThisRow = showActions;
-
-  // Zorg dat de kolom-header ook zichtbaar wordt
   const th = document.getElementById('thActions');
   if (th) th.classList.toggle('d-none', !showActions);
 
   const daysInMonth = new Date(year, month+1, 0).getDate();
   for(let d=1; d<=daysInMonth; d++){
     const baseKey = dateKey(year, month, d);
-    
-    // 1. FIX: Geen automatische 00:00 aanmaak meer!
-    if (md.rows[baseKey]) {
-      autoAssignProjectIfNeeded(md.rows[baseKey]);
-    }
+    if (md.rows[baseKey]) autoAssignProjectIfNeeded(md.rows[baseKey]);
 
-    // 2. Haal de sleutels op (gebruik 'let' zodat we kunnen aanpassen)
     let allKeys = listDayKeys(md, baseKey);
+    if (allKeys.length === 0) allKeys = [baseKey];
 
-    // 3. Als er GEEN gegevens zijn, doen we alsof er 1 lege regel is (zodat je kan typen)
-    if (allKeys.length === 0) {
-        allKeys = [baseKey];
-    }
-
-    // Filter per project (zichtbare lijst)
     const visibleKeys = allKeys.filter(k => {
       const r = md.rows[k];
       if (!selectedProject) return true;
@@ -1166,40 +1147,26 @@ async function renderMonth(year, month){
     const renderKeys = visibleKeys.length ? visibleKeys : (selectedProject ? [] : allKeys);
 
     for (let idx = 0; idx < renderKeys.length; idx++) {
-            const rowKey = renderKeys[idx];
+      const rowKey = renderKeys[idx];
+      let r = md.rows[rowKey] || { project:'', shift:'', start:'', end:'', break:0, omschrijving:'', minutes:0 };
       
-      // 🔥 FIX: Als de rij niet bestaat, gebruik een LEEG sjabloon.
-      // We gebruiken lege strings '' i.p.v. '00:00' zodat het vakje écht leeg is.
-      let r = md.rows[rowKey];
-      if (!r) {
-          r = { project:'', shift:'', start:'', end:'', break:0, omschrijving:'', minutes:0 };
-          // Als we een project moeten voorstellen, doen we dat hier virtueel
-          if (typeof autoAssignProjectIfNeeded === 'function') autoAssignProjectIfNeeded(r);
-      }
-
       const dayName = daysFull[new Date(year, month, d).getDay()];
 
-      // Rechten voor + op deze specifieke rij
-      const allowByMonth   = userAllowsMultiMonth(ud, year, month);
-      const allowByProject = r.project ? canAddMultiForProject(r.project) : false;
-      const allowThisRow   = allowByMonth || allowByProject;
+      // DEFINITIE VAN ACTIONSCELL (Was verdwenen)
+      const actionsCell = showActions
+        ? (idx === 0
+            ? `<td class="actions-cell"><button type="button" class="btn btn-outline-success btn-line addLineBtn" title="Extra regel">+</button></td>`
+            : `<td class="actions-cell"><button type="button" class="btn btn-outline-danger btn-line delLineBtn" data-key="${rowKey}" title="Verwijderen">−</button></td>`)
+        : '';
+
+      let statusIconHtml = '<span class="shift-status-icon d-none"></span>'; 
+      if (r.status === 'pending') statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-pending" title="In aanvraag">hourglass_top</span>';
+      else if (r.status === 'approved') statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-approved" title="Goedgekeurd">check_circle</span>';
+      else if (r.status === 'rejected') statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-rejected" title="Afgekeurd">cancel</span>';
+      
+      const durationText = (r.status && r.status !== 'approved') ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
 
       const tr = document.createElement('tr');
-
-      // Status icoon logica
-      let statusIconHtml = '<span class="shift-status-icon d-none"></span>'; 
-      if (r.status === 'pending') {
-        statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-pending" title="In aanvraag">hourglass_top</span>';
-      } else if (r.status === 'approved') {
-        statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-approved" title="Goedgekeurd">check_circle</span>';
-      } else if (r.status === 'rejected') {
-        statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-rejected" title="Afgekeurd">cancel</span>';
-      }
-      const isPendingOrRejected = r.status && r.status !== 'approved';
-      const durationText = isPendingOrRejected 
-        ? '0u 0min' 
-        : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
-
       tr.innerHTML = `
         ${actionsCell}
         <td>${idx === 0 ? dayName : ''}</td>
@@ -1214,65 +1181,69 @@ async function renderMonth(year, month){
         <td><input class="form-control form-control-sm breakInput" type="number" min="0" value="${r.break}"></td>
         <td class="d-flex align-items-center gap-1">
             <input class="form-control form-control-sm omschrijvingInput" type="text" value="${r.omschrijving}">
-            <span 
-                class="material-icons-outlined attachment-icon ${r.attachmentURL ? 'has-attachment' : ''}" 
-                title="Bijlage beheren" 
-                data-key="${rowKey}" 
-                data-bs-toggle="modal" 
-                data-bs-target="#attachmentModal">
-                ${r.attachmentURL ? 'attach_file' : 'attachment'}
-            </span>
+            <span class="material-icons-outlined attachment-icon ${r.attachmentURL ? 'has-attachment' : ''}" data-key="${rowKey}" data-bs-toggle="modal" data-bs-target="#attachmentModal">${r.attachmentURL ? 'attach_file' : 'attachment'}</span>
         </td>
-        <td class="dur text-mono">${durationText}</td>`; 
+        <td class="dur text-mono">${durationText}</td>`;
       tbody.appendChild(tr);
 
-      // --- Project dropdown ---
       const projSel = tr.querySelector('.projectSelect');
       projSel.innerHTML = '<option value="">--</option>';
-      (ud.projects || []).forEach(p=>{
+      (ud.projects || []).forEach(p => {
         if (isDateWithin(baseKey, p.start || null, p.end || null)) {
           const o = document.createElement('option'); o.value=p.name; o.textContent=p.name; projSel.appendChild(o);
         }
       });
       if(r.project) projSel.value = r.project;
 
-      projSel.addEventListener('change', async ()=>{
+      projSel.addEventListener('change', async () => {
         r.project = projSel.value || '';
         saveCell(year, month, rowKey, r, tr);
         await populateShiftSelectForRow(tr, rowKey);
         updateInputTotals();
         debouncedSave();
+      }); // <--- SYNTAX FIX: Deze sluithaak ontbrak!
 
       await populateShiftSelectForRow(tr, rowKey);
 
-      // --- Event Listeners voor inputs ---
-      tr.querySelector('.startInput').addEventListener('change', e=>{
+      tr.querySelector('.startInput').addEventListener('change', e => {
         r.start = e.target.value; recalcRowMinutes(r);
         saveCell(year, month, rowKey, r, tr);
-        const isPendingOrRejected = r.status && r.status !== 'approved';
-        tr.querySelector('.dur').textContent = isPendingOrRejected ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+        tr.querySelector('.dur').textContent = (r.status && r.status !== 'approved') ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
         updateInputTotals(); debouncedSave(); renderHistory();
       });
-      tr.querySelector('.endInput').addEventListener('change', e=>{
+      tr.querySelector('.endInput').addEventListener('change', e => {
         r.end = e.target.value; recalcRowMinutes(r);
         saveCell(year, month, rowKey, r, tr);
-        const isPendingOrRejected = r.status && r.status !== 'approved';
-        tr.querySelector('.dur').textContent = isPendingOrRejected ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+        tr.querySelector('.dur').textContent = (r.status && r.status !== 'approved') ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
         updateInputTotals(); debouncedSave(); renderHistory();
       });
-      tr.querySelector('.breakInput').addEventListener('change', e=>{
+      tr.querySelector('.breakInput').addEventListener('change', e => {
         r.break = Number(e.target.value)||0; recalcRowMinutes(r);
         saveCell(year, month, rowKey, r, tr);
-        const isPendingOrRejected = r.status && r.status !== 'approved';
-        tr.querySelector('.dur').textContent = isPendingOrRejected ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+        tr.querySelector('.dur').textContent = (r.status && r.status !== 'approved') ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
         updateInputTotals(); debouncedSave(); renderHistory();
       });
-      tr.querySelector('.omschrijvingInput').addEventListener('change', e=>{
+      tr.querySelector('.omschrijvingInput').addEventListener('change', e => {
         r.omschrijving = e.target.value; saveCell(year, month, rowKey, r, tr); debouncedSave(); renderHistory();
       });
 
-
-
+      const addBtn = tr.querySelector('.addLineBtn');
+      if (addBtn) {
+        addBtn.addEventListener('click', async () => {
+          const idxNew = nextLineIndex(md, baseKey);
+          md.rows[`${baseKey}#${idxNew}`] = { project: r.project, shift:'', start:'', end:'', break:0, omschrijving:'', minutes:0 };
+          await saveUserData(); renderMonth(year, month);
+        });
+      }
+      const delBtn = tr.querySelector('.delLineBtn');
+      if (delBtn) {
+        delBtn.addEventListener('click', async () => {
+          delete md.rows[delBtn.dataset.key];
+          await saveUserData(); renderMonth(year, month);
+        });
+      }
+    } 
+  }
   await saveUserData();
   renderCalendarGrid(year, month);
   updateRemainingHours();
@@ -1280,6 +1251,9 @@ async function renderMonth(year, month){
   renderProjectSummary(); 
   updateLeaveBadges(); 
   renderHome();
+  tbody.querySelectorAll('select, input').forEach(el => { el.disabled = locked; });
+  updateMonthStatusBadge();
+}
 
   // Velden vergrendelen als het geen admin is EN de status is submitted/approved
   const statusLocked = (getMonthStatus(year, month)==='approved' || getMonthStatus(year, month)==='submitted');
