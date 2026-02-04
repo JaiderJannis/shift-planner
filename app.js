@@ -2048,33 +2048,30 @@ async function ensureProjectExists(name){
       ud.monthData[year][month] = ud.monthData[year][month] || { targetHours:0, targetMinutes:0, rows:{} };
       ud.monthData[year][month].rows[key] = { ...r, minutes: r.minutes || minutesBetween(r.start, r.end, r.break) };
     }
-   function updateInputTotals(){
+function updateInputTotals(){
   const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
   const ud = getCurrentUserData();
   const md = ud.monthData?.[y]?.[m] || { targetHours:0, targetMinutes:0, rows:{} };
 
-  // 1. Bereken totaal van DEZE maand (alles behalve rejected)
+  // 1. Totaal berekenen
   const total = Object.values(md.rows || {}).reduce((s, r) => {
-    if (r.status === 'rejected') return s; // Negeer afgekeurd
-    return s + (r.minutes || 0);           // Tel de rest (ook concept) mee
+    // ✅ Ook hier: Tel alles mee, tenzij EXPLICIET afgekeurd
+    if (r.status === 'rejected') {
+      return s; 
+    }
+    return s + (r.minutes || 0);
   }, 0);
 
   const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
   const diff = total - target;
   
-  updateRemainingHours(); // Update balk onderaan
+  // 2. Footer balk updaten
+  updateRemainingHours();
   
-  // 2. Update de badges bovenin
+  // 3. ✅ Badges updaten! (Dit zorgt dat het getal verspringt)
   if (typeof updateLeaveBadges === 'function') {
     updateLeaveBadges(); 
   }
-  
-  // 3. (Optioneel) Update ook meteen de historiek tabel als die zichtbaar is
-  // Dit zorgt dat tabblad 3 ook "live" mee verandert
-  /* if (typeof renderHistory === 'function') {
-     // renderHistory(); // Zet deze aan als je wilt dat de tabel ook tijdens typen update
-  }
-  */
 }
 
     // live target updates
@@ -2335,14 +2332,20 @@ function sumTakenMinutesFor(year, shiftNames) {
   const months = ud.monthData?.[year] || {};
   
   Object.values(months).forEach(md => {
-    // ✅ NIEUW: Als de hele maand is afgekeurd, tellen de uren NIET mee (teruggave)
+    // 1. Als de hele maand is afgekeurd: sla over
     if (md.status === 'rejected') return;
 
     Object.values(md?.rows || {}).forEach(r => {
       const s = (r?.shift || '').trim();
+      
+      // 2. Check of de shiftnaam klopt (bv. 'Verlof')
       if (s && shiftNames.includes(s)) {
-        // En ook als de individuele shift is afgekeurd niet
-        if (r.status !== 'rejected') {
+        
+        // ✅ DE OPLOSSING:
+        // We tellen de shift mee als:
+        // A. Hij GEEN status heeft (dus door admin/verfborstel gezet)
+        // B. OF hij WEL een status heeft, maar die is NIET 'rejected'
+        if (r.status !== 'rejected') { 
           total += Number(r.minutes) || 0;
         }
       }
@@ -2350,7 +2353,6 @@ function sumTakenMinutesFor(year, shiftNames) {
   });
   return total;
 }
-
 // Vervang de functie sumTakenMinutesForRange (rond regel 2385)
 function sumTakenMinutesForRange(startISO, endISO, shiftNames) {
   const ud = getCurrentUserData();
