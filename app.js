@@ -741,7 +741,6 @@ function renderProjects() {
       }
     });
   });
-}
       // Toggle inputs
       projectTableBody.querySelectorAll('input[data-act="toggle-multi"]').forEach(chk => {
         chk.addEventListener('change', async () => {
