@@ -7086,36 +7086,46 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ySel) ySel.addEventListener('change', turnOffPaint);
 });
 document.getElementById('adminStatusMenu')?.addEventListener('click', async (e) => {
-  const newStatus = e.target.dataset.status;
-  if (!newStatus) return;
+  const item = e.target.closest('.dropdown-item');
+  if (!item) return;
+  const newStatus = item.dataset.status;
   e.preventDefault();
 
   const y = Number(document.getElementById('yearSelectMain').value);
   const m = Number(document.getElementById('monthSelectMain').value);
-  const uid = getActiveUserId(); // De ID van de gebruiker die je nu bekijkt
+  const uid = getActiveUserId(); 
 
-  // Controleer of de ingelogde persoon admin is
+  // Alleen uitvoeren als de kijker admin is
   const iAmAdmin = dataStore.users[currentUserId]?.role === 'admin';
   if (!iAmAdmin) {
-    toast('Alleen admins kunnen dit', 'warning');
+    toast('Alleen een admin kan de status handmatig wijzigen.', 'warning');
     return;
   }
 
-  if (newStatus === 'approved') {
-    const comment = prompt('Optioneel bericht bij goedkeuring:', '');
-    await approveMonthLogic(uid, y, m, comment);
-  } 
-  else if (newStatus === 'rejected') {
-    const comment = prompt('Reden voor afkeuring:', '');
-    await rejectMonthLogic(uid, y, m, comment);
-  } 
-  else if (newStatus === 'draft') {
-    await reopenMonthLogic(uid, y, m);
-  }
+  try {
+    if (newStatus === 'approved') {
+      const comment = prompt('Optioneel bericht bij goedkeuring:', '');
+      await approveMonthLogic(uid, y, m, comment);
+      toast('Planning goedgekeurd!', 'success');
+    } 
+    else if (newStatus === 'rejected') {
+      const comment = prompt('Reden voor afkeuring:', '');
+      await rejectMonthLogic(uid, y, m, comment);
+      toast('Planning afgekeurd.', 'danger');
+    } 
+    else if (newStatus === 'draft') {
+      await reopenMonthLogic(uid, y, m);
+      toast('Status heropend naar concept.', 'info');
+    }
 
-  // Ververs de tabel en de badge
-  await renderMonth(y, m);
-  updateMonthStatusBadge();
+    // Direct de tabel en de badge-kleur verversen op het scherm
+    await renderMonth(y, m);
+    updateMonthStatusBadge();
+    
+  } catch (err) {
+    console.error("Fout bij badge-update:", err);
+    toast('Fout bij updaten status.', 'danger');
+  }
 });
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
