@@ -2333,17 +2333,22 @@ function sumTakenMinutesFor(year, shiftNames) {
   const months = ud.monthData?.[year] || {};
 
   Object.values(months).forEach(md => {
-    // 1. Als de HELE maandstatus rejected is, tellen we niks
     if (md.status === 'rejected') return;
 
     Object.values(md?.rows || {}).forEach(r => {
-      const s = (r?.shift || '').trim();
+      const sID = (r?.shift || '').trim(); // Dit is de ID (bv. "Verlof (Project)")
+      if (!sID) return;
+
+      // 1. Haal de shift-instellingen op
+      const shiftDef = ud.shifts?.[sID];
       
-      // Check of de shiftnaam in de lijst staat (bv. 'Verlof')
-      if (s && shiftNames.includes(s)) {
-        // Tellen als:
-        // - Er GEEN status is (undefined/null) -> wordt gezien als goedgekeurd/eigen invoer
-        // - OF de status NIET 'rejected' is (dus pending/approved/submitted mag allemaal)
+      // 2. Bepaal de 'schone' naam (realName). 
+      // Als die niet bestaat, val terug op de ID.
+      const realName = shiftDef ? (shiftDef.realName || sID) : sID;
+
+      // 3. Check of de REALNAME (of de ID) in de lijst met verlofnamen staat
+      if (shiftNames.includes(realName) || shiftNames.includes(sID)) {
+        // Tellen als niet afgekeurd
         if (!r.status || r.status !== 'rejected') {
           total += Number(r.minutes) || 0;
         }
@@ -2358,24 +2363,25 @@ function sumTakenMinutesForRange(startISO, endISO, shiftNames) {
   const ud = getCurrentUserData();
   let total = 0;
   
-  // Loop door alle jaren en maanden in de data
   for (const months of Object.values(ud.monthData || {})) {
     for (const md of Object.values(months || {})) {
-      
-      // Als de maand volledig is afgekeurd, overslaan
       if (md.status === 'rejected') continue;
 
       for (const [key, r] of Object.entries(md?.rows || {})) {
-        const sName = (r?.shift || '').trim();
+        const sID = (r?.shift || '').trim();
+        if (!sID) continue;
         
-        // Is dit een van de shifts die we zoeken? (bv. 'Schoolverlof')
-        if (!sName || !shiftNames.includes(sName)) continue;
-        
-        // Valt de datum binnen de periode?
-        if (isDateWithin(key, startISO, endISO)) {
-          // Zelfde logica: tel alles tenzij expliciet afgekeurd
-          if (!r.status || r.status !== 'rejected') {
-            total += Number(r.minutes) || 0;
+        // 1. Haal de 'schone' naam op
+        const shiftDef = ud.shifts?.[sID];
+        const realName = shiftDef ? (shiftDef.realName || sID) : sID;
+
+        // 2. Check naam
+        if (shiftNames.includes(realName) || shiftNames.includes(sID)) {
+          // 3. Check datum en status
+          if (isDateWithin(key, startISO, endISO)) {
+            if (!r.status || r.status !== 'rejected') {
+              total += Number(r.minutes) || 0;
+            }
           }
         }
       }
