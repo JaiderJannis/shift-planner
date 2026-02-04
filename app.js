@@ -636,9 +636,9 @@ async function revealAdminIfNeeded(){
       }
 }
 
-// --------------------------------------------------------------------
-// 4. PROJECTEN BEHEREN (Veilig bewerken & Opslaan)
-// --------------------------------------------------------------------
+// ==========================================
+// FIX: renderProjects (Met veilige check voor ontbrekende popup)
+// ==========================================
 function renderProjects() {
   const ud = getCurrentUserData();
   const projects = ud.projects || {};
@@ -668,6 +668,7 @@ function renderProjects() {
       </td>
     `;
 
+    // VERWIJDEREN
     tr.querySelector('.btn-del').onclick = async () => {
       if(!confirm(`Project "${key}" verwijderen?`)) return;
       delete ud.projects[key];
@@ -677,13 +678,29 @@ function renderProjects() {
       toast('Verwijderd', 'success');
     };
 
+    // BEWERKEN (Met Veiligheidscheck)
     tr.querySelector('.btn-edit').onclick = () => {
         const modalEl = document.getElementById('projectModal');
+        
+        // --- HIER ZIT DE FIX ---
+        if (!modalEl) {
+            console.error('FOUT: Kan "projectModal" niet vinden in de HTML.');
+            alert('Er is een technische fout: de popup voor projecten ontbreekt in de pagina.');
+            return;
+        }
+        // -----------------------
+
         modalEl.dataset.editingKey = key;
-        document.getElementById('newProjectName').value = key;
-        document.getElementById('newProjectColor').value = proj.color || '#0d6efd';
+        
+        const nameInput = document.getElementById('newProjectName');
+        if(nameInput) nameInput.value = key;
+
+        const colorInput = document.getElementById('newProjectColor');
+        if(colorInput) colorInput.value = proj.color || '#0d6efd';
+        
         const archiveBox = document.getElementById('newProjectArchived');
         if(archiveBox) archiveBox.checked = !!proj.archived;
+        
         new bootstrap.Modal(modalEl).show();
     };
     tbody.appendChild(tr);
