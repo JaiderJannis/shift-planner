@@ -637,7 +637,6 @@ async function revealAdminIfNeeded(){
 }
 
  // ======= Projects (Clean Look - Zonder Extra Lijn) =======
-// ======= Projects (Clean Look - Zonder Extra Lijn) =======
 function renderProjects() {
   const ud = getCurrentUserData();
   const projectTableBody = document.getElementById('projectTableBody');
@@ -658,7 +657,6 @@ function renderProjects() {
 
   list.forEach((p, idx) => {
     const tr = document.createElement('tr');
-
     tr.innerHTML = `
       <td>
         <div class="d-flex align-items-center">
@@ -719,6 +717,7 @@ function renderProjects() {
       }
     });
   });
+
       // Toggle inputs
       projectTableBody.querySelectorAll('input[data-act="toggle-multi"]').forEach(chk => {
         chk.addEventListener('change', async () => {
@@ -4863,27 +4862,24 @@ async function notifyAdminOfPendingLeave(uid, year, month, rowKey, row) {
   const meName = me?.name || me?.email || uid;
   const meEmail = me?.email || 'onbekend';
   
-  const threadId = `leave:${uid}:${rowKey}`; // Uniek voor deze aanvraag
+  const threadId = `leave:${uid}:${rowKey}`;
   const subject = `[Verlof] Nieuwe aanvraag: ${row.shift} op ${rowKey}`;
-const body = `${meName} heeft een nieuwe aanvraag ingediend:
+  const body = `${meName} heeft een nieuwe aanvraag ingediend:
 - Shift: ${row.shift}
 - Datum: ${rowKey.split('-').reverse().join('-')}
 - Omschrijving: ${row.omschrijving || '-'}
-${row.attachmentURL ? `\n- BIJLAGE: ${row.attachmentURL}` : ''}
-`; // 👈 De backtick sluit hier de variabele af
+${row.attachmentURL ? `\n- BIJLAGE: ${row.attachmentURL}` : ''}`;
 
-  // Schrijf naar de centrale 'admin_mail' collectie
   await addDoc(collection(db, "admin_mail"), {
       fromUserId: uid,
       fromName: meName,
       fromEmail: meEmail,
       subject: subject,
       body: body,
-      kind: 'leave_request', // 👈 Nieuw, belangrijk type!
+      kind: 'leave_request',
       timestamp: serverTimestamp(),
       read: false, 
       threadId: threadId,
-      // 👈 Extra data voor de admin (minder belangrijk, maar kan handig zijn)
       requestData: { uid: uid, year: Number(year), month: Number(month), rowKey: rowKey } 
   });
 }
