@@ -2362,6 +2362,25 @@ function getSchoolLeaveAllowanceMinutes(y, m) {
   const map = ud?.settings?.schoolLeaveByYear || {};
   return Number(map[label]) || 0;
 }
+function sumTakenMinutesFor(year, shiftNames) {
+  const ud = getCurrentUserData();
+  let total = 0;
+  const months = ud.monthData?.[year] || {};
+  Object.values(months).forEach(md => {
+    Object.values(md?.rows || {}).forEach(r => {
+      const s = (r?.shift || '').trim();
+      if (s && shiftNames.includes(s)) {
+        // AANPASSING: Tel alles mee, BEHALVE wat expliciet is afgekeurd.
+        // Dus: Concept, Ingediend en Goedgekeurd tellen mee voor het saldo.
+        if (r.status !== 'rejected') {
+          total += Number(r.minutes) || 0;
+        }
+      }
+    });
+  });
+  return total;
+}
+
 // Vervang ook de functie direct daaronder (rond regel 1494):
 function sumTakenMinutesForRange(startISO, endISO, shiftNames) {
   const ud = getCurrentUserData();
@@ -2396,26 +2415,6 @@ function getAcademicYearBounds(y, m /* 0..11 */) {
   const startISO  = `${startYear}-09-01`;
   const endISO    = `${endYear}-08-31`;
   return { startISO, endISO, label: `${startYear}-${endYear}` };
-}
-
-// Sommeer minuten voor opgegeven shifts binnen [startISO, endISO]
-function sumTakenMinutesForRange(startISO, endISO, shiftNames) {
-  const ud = getCurrentUserData();
-  let total = 0;
-  for (const months of Object.values(ud.monthData || {})) {
-    for (const md of Object.values(months || {})) {
-      for (const [key, r] of Object.entries(md?.rows || {})) {
-        const sName = (r?.shift || '').trim();
-        if (!sName || !shiftNames.includes(sName)) continue;
-        if (isDateWithin(key, startISO, endISO)) {
-  if (r.status === 'approved') {
-    total += Number(r.minutes) || 0;
-  }
-  }
-      }
-    }
-  }
-  return total;
 }
 function buildSchoolYearOptions(selectEl) {
   if (!selectEl) return;
