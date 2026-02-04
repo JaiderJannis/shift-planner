@@ -1149,10 +1149,8 @@ async function renderMonth(year, month){
     for (let idx = 0; idx < renderKeys.length; idx++) {
       const rowKey = renderKeys[idx];
       let r = md.rows[rowKey] || { project:'', shift:'', start:'', end:'', break:0, omschrijving:'', minutes:0 };
-      
       const dayName = daysFull[new Date(year, month, d).getDay()];
 
-      // DEFINITIE VAN ACTIONSCELL (Was verdwenen)
       const actionsCell = showActions
         ? (idx === 0
             ? `<td class="actions-cell"><button type="button" class="btn btn-outline-success btn-line addLineBtn" title="Extra regel">+</button></td>`
@@ -1201,7 +1199,7 @@ async function renderMonth(year, month){
         await populateShiftSelectForRow(tr, rowKey);
         updateInputTotals();
         debouncedSave();
-      }); // <--- SYNTAX FIX: Deze sluithaak ontbrak!
+      });
 
       await populateShiftSelectForRow(tr, rowKey);
 
