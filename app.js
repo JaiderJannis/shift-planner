@@ -2368,14 +2368,38 @@ function sumTakenMinutesFor(year, shiftNames) {
   const months = ud.monthData?.[year] || {};
   Object.values(months).forEach(md => {
     Object.values(md?.rows || {}).forEach(r => {
-  const s = (r?.shift || '').trim();
-  if (s && shiftNames.includes(s)) {
-    if (r.status === 'approved') {
-      total += Number(r.minutes) || 0;
+      const s = (r?.shift || '').trim();
+      if (s && shiftNames.includes(s)) {
+        // AANPASSING: Tel alles mee, BEHALVE wat expliciet is afgekeurd.
+        // Dus: Concept, Ingediend en Goedgekeurd tellen mee voor het saldo.
+        if (r.status !== 'rejected') {
+          total += Number(r.minutes) || 0;
+        }
+      }
+    });
+  });
+  return total;
+}
+
+// Vervang ook de functie direct daaronder (rond regel 1494):
+function sumTakenMinutesForRange(startISO, endISO, shiftNames) {
+  const ud = getCurrentUserData();
+  let total = 0;
+  for (const months of Object.values(ud.monthData || {})) {
+    for (const md of Object.values(months || {})) {
+      for (const [key, r] of Object.entries(md?.rows || {})) {
+        const sName = (r?.shift || '').trim();
+        if (!sName || !shiftNames.includes(sName)) continue;
+        
+        if (isDateWithin(key, startISO, endISO)) {
+          // AANPASSING: Ook hier, tel alles mee tenzij 'rejected'
+          if (r.status !== 'rejected') {
+            total += Number(r.minutes) || 0;
+          }
+        }
+      }
     }
   }
-});
-  });
   return total;
 }
 function fmtMins(mins) {
