@@ -637,6 +637,7 @@ async function revealAdminIfNeeded(){
 }
 
  // ======= Projects (Clean Look - Zonder Extra Lijn) =======
+// ======= Projects (Clean Look - Zonder Extra Lijn) =======
 function renderProjects() {
   const ud = getCurrentUserData();
   const projectTableBody = document.getElementById('projectTableBody');
