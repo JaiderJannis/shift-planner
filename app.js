@@ -636,7 +636,7 @@ async function revealAdminIfNeeded(){
       }
 }
 
- // ======= Projects (Clean Look - Zonder Extra Lijn) =======
+    // ======= Projects =======
 function renderProjects() {
   const ud = getCurrentUserData();
   const projectTableBody = document.getElementById('projectTableBody');
@@ -645,25 +645,33 @@ function renderProjects() {
 
   if (!projectTableBody) return;
 
+  // Sorteren op startdatum
   const list = (ud.projects || []).slice().sort((a, b) => {
     const as = a.start ? new Date(a.start) : new Date('1900-01-01');
     const bs = b.start ? new Date(b.start) : new Date('1900-01-01');
-    return as - bs;
+    if (as.getTime() !== bs.getTime()) return as - bs;
+    const ae = a.end ? new Date(a.end) : new Date('9999-12-31');
+    const be = b.end ? new Date(b.end) : new Date('9999-12-31');
+    return ae - be;
   });
 
+  // Tabel en dropdowns resetten
   projectTableBody.innerHTML = '';
   if (newShiftProjectSelect) newShiftProjectSelect.innerHTML = '<option value="">Geen project</option>';
   if (projectFilterSelect) projectFilterSelect.innerHTML = '<option value="">Alle projecten</option>';
 
   list.forEach((p, idx) => {
     const tr = document.createElement('tr');
+    if (p.allowMulti === undefined) p.allowMulti = false;
+
+    // We bouwen de rij op met de "Shift-look"
     tr.innerHTML = `
       <td>
         <div class="d-flex align-items-center">
             <span class="dot bg-primary" style="width:10px; height:10px; display:inline-block; border-radius:50%; margin-right:12px;"></span>
             <div>
                 <strong class="text-dark">${p.name}</strong>
-                <div class="small text-muted">Project</div>
+                <div class="small text-muted">${p.allowMulti ? 'Extra lijnen toegestaan' : 'Enkele lijn'}</div>
             </div>
         </div>
       </td>
@@ -671,6 +679,11 @@ function renderProjects() {
       <td><span class="badge bg-light text-dark border">${toDisplayDate(p.end)}</span></td>
       <td class="text-end">
         <div class="btn-group">
+          <button class="btn btn-sm ${p.allowMulti ? 'btn-success' : 'btn-outline-secondary'}" 
+                  data-idx="${idx}" data-act="toggle-multi" 
+                  title="Extra lijnen aan/uit">
+            <span class="material-icons-outlined" style="font-size:16px">${p.allowMulti ? 'playlist_add_check' : 'playlist_add'}</span>
+          </button>
           <button class="btn btn-sm btn-outline-warning" data-idx="${idx}" data-act="extend" title="Verlengen">
             <span class="material-icons-outlined" style="font-size:16px">event_repeat</span>
           </button>
@@ -682,6 +695,7 @@ function renderProjects() {
     
     projectTableBody.appendChild(tr);
 
+    // Dropdowns vullen
     if (newShiftProjectSelect) {
       const o1 = document.createElement('option'); o1.value = p.name; o1.textContent = p.name; newShiftProjectSelect.appendChild(o1);
     }
@@ -690,6 +704,7 @@ function renderProjects() {
     }
   });
 
+  // Button acties koppelen
   projectTableBody.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', async () => {
       const ud = getCurrentUserData();
@@ -697,7 +712,16 @@ function renderProjects() {
       const p = ud.projects[idx];
       if (!p) return;
 
-      if (btn.dataset.act === 'extend') {
+      const action = btn.dataset.act;
+
+      if (action === 'toggle-multi') {
+        p.allowMulti = !p.allowMulti;
+        await saveUserData();
+        renderProjects();
+        renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+        toast(`Extra lijnen voor ${p.name} nu ${p.allowMulti ? 'aan' : 'uit'}`, 'info');
+      } 
+      else if (action === 'extend') {
         const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', toDisplayDate(p.end) || '');
         if (!v) return;
         p.end = fromDisplayDate(v);
@@ -706,7 +730,7 @@ function renderProjects() {
         renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
         toast('Project verlengd', 'success');
       } 
-      else if (btn.dataset.act === 'delete') {
+      else if (action === 'delete') {
         if (!confirm(`Project "${p.name}" verwijderen?`)) return;
         ud.projects.splice(idx, 1);
         await saveUserData();
@@ -717,7 +741,6 @@ function renderProjects() {
       }
     });
   });
-
       // Toggle inputs
       projectTableBody.querySelectorAll('input[data-act="toggle-multi"]').forEach(chk => {
         chk.addEventListener('change', async () => {
@@ -1119,25 +1142,44 @@ async function renderMonth(year, month){
   monthTargetHours.value = md.targetHours || 0;
   monthTargetMinutes.value = md.targetMinutes || 0;
 
+  // 1. BEPAAL OF WE DE ACTIE-KNOPPEN (+) TONEN
   const statusNow = getMonthStatus(year, month);
+  
+  // Check of de INGELOGDE gebruiker admin is (niet de gebruiker die we bekijken)
   const loggedInUser = dataStore.users[currentUserId];
   const iAmAdmin = loggedInUser && loggedInUser.role === 'admin';
+
+  // Als je Admin bent, is de maand voor jou nooit 'op slot'
   const locked = !iAmAdmin && (statusNow==='approved' || statusNow==='submitted');
 
-  // Acties (+) enkel tonen als admin dit toestaat voor de maand
-  const showActions = !locked && userAllowsMultiMonth(ud, year, month);
+  // Toon acties als: (niet op slot) EN (instelling staat aan OF project staat het toe)
+  const showActions = !locked && ( 
+    userAllowsMultiMonth(ud, year, month) || 
+    (ud.projects||[]).some(p => p.allowMulti) 
+  );
 
+  // Zorg dat de kolom-header ook zichtbaar wordt
   const th = document.getElementById('thActions');
   if (th) th.classList.toggle('d-none', !showActions);
 
   const daysInMonth = new Date(year, month+1, 0).getDate();
   for(let d=1; d<=daysInMonth; d++){
     const baseKey = dateKey(year, month, d);
-    if (md.rows[baseKey]) autoAssignProjectIfNeeded(md.rows[baseKey]);
+    
+    // 1. FIX: Geen automatische 00:00 aanmaak meer!
+    if (md.rows[baseKey]) {
+      autoAssignProjectIfNeeded(md.rows[baseKey]);
+    }
 
+    // 2. Haal de sleutels op (gebruik 'let' zodat we kunnen aanpassen)
     let allKeys = listDayKeys(md, baseKey);
-    if (allKeys.length === 0) allKeys = [baseKey];
 
+    // 3. Als er GEEN gegevens zijn, doen we alsof er 1 lege regel is (zodat je kan typen)
+    if (allKeys.length === 0) {
+        allKeys = [baseKey];
+    }
+
+    // Filter per project (zichtbare lijst)
     const visibleKeys = allKeys.filter(k => {
       const r = md.rows[k];
       if (!selectedProject) return true;
@@ -1147,24 +1189,52 @@ async function renderMonth(year, month){
     const renderKeys = visibleKeys.length ? visibleKeys : (selectedProject ? [] : allKeys);
 
     for (let idx = 0; idx < renderKeys.length; idx++) {
-      const rowKey = renderKeys[idx];
-      let r = md.rows[rowKey] || { project:'', shift:'', start:'', end:'', break:0, omschrijving:'', minutes:0 };
+            const rowKey = renderKeys[idx];
+      
+      // 🔥 FIX: Als de rij niet bestaat, gebruik een LEEG sjabloon.
+      // We gebruiken lege strings '' i.p.v. '00:00' zodat het vakje écht leeg is.
+      let r = md.rows[rowKey];
+      if (!r) {
+          r = { project:'', shift:'', start:'', end:'', break:0, omschrijving:'', minutes:0 };
+          // Als we een project moeten voorstellen, doen we dat hier virtueel
+          if (typeof autoAssignProjectIfNeeded === 'function') autoAssignProjectIfNeeded(r);
+      }
+
       const dayName = daysFull[new Date(year, month, d).getDay()];
 
-      const actionsCell = showActions
-        ? (idx === 0
-            ? `<td class="actions-cell"><button type="button" class="btn btn-outline-success btn-line addLineBtn" title="Extra regel">+</button></td>`
-            : `<td class="actions-cell"><button type="button" class="btn btn-outline-danger btn-line delLineBtn" data-key="${rowKey}" title="Verwijderen">−</button></td>`)
-        : '';
-
-      let statusIconHtml = '<span class="shift-status-icon d-none"></span>'; 
-      if (r.status === 'pending') statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-pending" title="In aanvraag">hourglass_top</span>';
-      else if (r.status === 'approved') statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-approved" title="Goedgekeurd">check_circle</span>';
-      else if (r.status === 'rejected') statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-rejected" title="Afgekeurd">cancel</span>';
-      
-      const durationText = (r.status && r.status !== 'approved') ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+      // Rechten voor + op deze specifieke rij
+      const allowByMonth   = userAllowsMultiMonth(ud, year, month);
+      const allowByProject = r.project ? canAddMultiForProject(r.project) : false;
+      const allowThisRow   = allowByMonth || allowByProject;
 
       const tr = document.createElement('tr');
+
+      // HTML voor de knoppen (+ of -)
+      const actionsCell = showActions
+        ? (idx === 0
+            ? `<td class="actions-cell">
+                 <button type="button" class="btn btn-outline-success btn-line addLineBtn" ${allowThisRow ? '' : 'disabled'} title="Extra regel toevoegen">+</button>
+               </td>`
+            : `<td class="actions-cell">
+                 <button type="button" class="btn btn-outline-danger btn-line delLineBtn" data-key="${rowKey}" title="Deze regel verwijderen">−</button>
+               </td>`
+          )
+        : '';
+      
+      // Status icoon logica
+      let statusIconHtml = '<span class="shift-status-icon d-none"></span>'; 
+      if (r.status === 'pending') {
+        statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-pending" title="In aanvraag">hourglass_top</span>';
+      } else if (r.status === 'approved') {
+        statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-approved" title="Goedgekeurd">check_circle</span>';
+      } else if (r.status === 'rejected') {
+        statusIconHtml = '<span class="material-icons-outlined shift-status-icon status-rejected" title="Afgekeurd">cancel</span>';
+      }
+      const isPendingOrRejected = r.status && r.status !== 'approved';
+      const durationText = isPendingOrRejected 
+        ? '0u 0min' 
+        : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+
       tr.innerHTML = `
         ${actionsCell}
         <td>${idx === 0 ? dayName : ''}</td>
@@ -1179,69 +1249,101 @@ async function renderMonth(year, month){
         <td><input class="form-control form-control-sm breakInput" type="number" min="0" value="${r.break}"></td>
         <td class="d-flex align-items-center gap-1">
             <input class="form-control form-control-sm omschrijvingInput" type="text" value="${r.omschrijving}">
-            <span class="material-icons-outlined attachment-icon ${r.attachmentURL ? 'has-attachment' : ''}" data-key="${rowKey}" data-bs-toggle="modal" data-bs-target="#attachmentModal">${r.attachmentURL ? 'attach_file' : 'attachment'}</span>
+            <span 
+                class="material-icons-outlined attachment-icon ${r.attachmentURL ? 'has-attachment' : ''}" 
+                title="Bijlage beheren" 
+                data-key="${rowKey}" 
+                data-bs-toggle="modal" 
+                data-bs-target="#attachmentModal">
+                ${r.attachmentURL ? 'attach_file' : 'attachment'}
+            </span>
         </td>
-        <td class="dur text-mono">${durationText}</td>`;
+        <td class="dur text-mono">${durationText}</td>`; 
       tbody.appendChild(tr);
 
+      // --- Project dropdown ---
       const projSel = tr.querySelector('.projectSelect');
       projSel.innerHTML = '<option value="">--</option>';
-      (ud.projects || []).forEach(p => {
+      (ud.projects || []).forEach(p=>{
         if (isDateWithin(baseKey, p.start || null, p.end || null)) {
           const o = document.createElement('option'); o.value=p.name; o.textContent=p.name; projSel.appendChild(o);
         }
       });
       if(r.project) projSel.value = r.project;
 
-      projSel.addEventListener('change', async () => {
+      projSel.addEventListener('change', async ()=>{
         r.project = projSel.value || '';
         saveCell(year, month, rowKey, r, tr);
         await populateShiftSelectForRow(tr, rowKey);
         updateInputTotals();
         debouncedSave();
+
+        // Check of de + knop nu aan/uit moet (afhankelijk van projectrechten)
+        const addBtn = tr.querySelector('.addLineBtn');
+        if (addBtn) {
+          const allowByMonth   = userAllowsMultiMonth(getCurrentUserData(), year, month);
+          const allowByProject = r.project ? canAddMultiForProject(r.project) : false;
+          addBtn.disabled = !(allowByMonth || allowByProject);
+        }
       });
 
       await populateShiftSelectForRow(tr, rowKey);
 
-      tr.querySelector('.startInput').addEventListener('change', e => {
+      // --- Event Listeners voor inputs ---
+      tr.querySelector('.startInput').addEventListener('change', e=>{
         r.start = e.target.value; recalcRowMinutes(r);
         saveCell(year, month, rowKey, r, tr);
-        tr.querySelector('.dur').textContent = (r.status && r.status !== 'approved') ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+        const isPendingOrRejected = r.status && r.status !== 'approved';
+        tr.querySelector('.dur').textContent = isPendingOrRejected ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
         updateInputTotals(); debouncedSave(); renderHistory();
       });
-      tr.querySelector('.endInput').addEventListener('change', e => {
+      tr.querySelector('.endInput').addEventListener('change', e=>{
         r.end = e.target.value; recalcRowMinutes(r);
         saveCell(year, month, rowKey, r, tr);
-        tr.querySelector('.dur').textContent = (r.status && r.status !== 'approved') ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+        const isPendingOrRejected = r.status && r.status !== 'approved';
+        tr.querySelector('.dur').textContent = isPendingOrRejected ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
         updateInputTotals(); debouncedSave(); renderHistory();
       });
-      tr.querySelector('.breakInput').addEventListener('change', e => {
+      tr.querySelector('.breakInput').addEventListener('change', e=>{
         r.break = Number(e.target.value)||0; recalcRowMinutes(r);
         saveCell(year, month, rowKey, r, tr);
-        tr.querySelector('.dur').textContent = (r.status && r.status !== 'approved') ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
+        const isPendingOrRejected = r.status && r.status !== 'approved';
+        tr.querySelector('.dur').textContent = isPendingOrRejected ? '0u 0min' : `${Math.floor(r.minutes/60)}u ${r.minutes%60}min`;
         updateInputTotals(); debouncedSave(); renderHistory();
       });
-      tr.querySelector('.omschrijvingInput').addEventListener('change', e => {
+      tr.querySelector('.omschrijvingInput').addEventListener('change', e=>{
         r.omschrijving = e.target.value; saveCell(year, month, rowKey, r, tr); debouncedSave(); renderHistory();
       });
 
+      // --- Knoppen acties ---
       const addBtn = tr.querySelector('.addLineBtn');
       if (addBtn) {
-        addBtn.addEventListener('click', async () => {
+        addBtn.addEventListener('click', async (e) => {
+          e.preventDefault(); 
           const idxNew = nextLineIndex(md, baseKey);
-          md.rows[`${baseKey}#${idxNew}`] = { project: r.project, shift:'', start:'', end:'', break:0, omschrijving:'', minutes:0 };
-          await saveUserData(); renderMonth(year, month);
+          const newKey = `${baseKey}#${idxNew}`;
+          // 🔥 FIX: Maak een nieuwe regel aan, maar laat de tijden LEEG ('')
+md.rows[newKey] = { project: r.project, shift:'', start:'', end:'', break:0, omschrijving:'', minutes:0 };
+          await saveUserData();
+          renderMonth(year, month);
+          updateInputTotals(); renderHistory();
         });
       }
+      
       const delBtn = tr.querySelector('.delLineBtn');
       if (delBtn) {
-        delBtn.addEventListener('click', async () => {
-          delete md.rows[delBtn.dataset.key];
-          await saveUserData(); renderMonth(year, month);
+        delBtn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          const k = delBtn.dataset.key;
+          delete md.rows[k];
+          await saveUserData();
+          renderMonth(year, month);
+          updateInputTotals(); renderHistory();
         });
       }
     } 
   }
+
   await saveUserData();
   renderCalendarGrid(year, month);
   updateRemainingHours();
@@ -1249,9 +1351,6 @@ async function renderMonth(year, month){
   renderProjectSummary(); 
   updateLeaveBadges(); 
   renderHome();
-  tbody.querySelectorAll('select, input').forEach(el => { el.disabled = locked; });
-  updateMonthStatusBadge();
-}
 
   // Velden vergrendelen als het geen admin is EN de status is submitted/approved
   const statusLocked = (getMonthStatus(year, month)==='approved' || getMonthStatus(year, month)==='submitted');
@@ -1883,7 +1982,14 @@ async function populateShiftSelectForRow(tr, rowKey){
     updateInputTotals();
     renderHistory();
 
-   
+    const addBtn = tr.querySelector('.addLineBtn');
+    if (addBtn) {
+      const allowByMonth   = userAllowsMultiMonth(getCurrentUserData(), year, month);
+      const allowByProject = r.project ? canAddMultiForProject(r.project) : false;
+      addBtn.disabled = !(allowByMonth || allowByProject);
+    }
+  });
+}
 async function ensureProjectExists(name){
   const ud = getCurrentUserData();
   ud.projects = ud.projects || [];
@@ -4834,24 +4940,27 @@ async function notifyAdminOfPendingLeave(uid, year, month, rowKey, row) {
   const meName = me?.name || me?.email || uid;
   const meEmail = me?.email || 'onbekend';
   
-  const threadId = `leave:${uid}:${rowKey}`;
+  const threadId = `leave:${uid}:${rowKey}`; // Uniek voor deze aanvraag
   const subject = `[Verlof] Nieuwe aanvraag: ${row.shift} op ${rowKey}`;
-  const body = `${meName} heeft een nieuwe aanvraag ingediend:
+const body = `${meName} heeft een nieuwe aanvraag ingediend:
 - Shift: ${row.shift}
 - Datum: ${rowKey.split('-').reverse().join('-')}
 - Omschrijving: ${row.omschrijving || '-'}
-${row.attachmentURL ? `\n- BIJLAGE: ${row.attachmentURL}` : ''}`;
+${row.attachmentURL ? `\n- BIJLAGE: ${row.attachmentURL}` : ''}
+`; // 👈 De backtick sluit hier de variabele af
 
+  // Schrijf naar de centrale 'admin_mail' collectie
   await addDoc(collection(db, "admin_mail"), {
       fromUserId: uid,
       fromName: meName,
       fromEmail: meEmail,
       subject: subject,
       body: body,
-      kind: 'leave_request',
+      kind: 'leave_request', // 👈 Nieuw, belangrijk type!
       timestamp: serverTimestamp(),
       read: false, 
       threadId: threadId,
+      // 👈 Extra data voor de admin (minder belangrijk, maar kan handig zijn)
       requestData: { uid: uid, year: Number(year), month: Number(month), rowKey: rowKey } 
   });
 }
