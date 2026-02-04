@@ -622,29 +622,27 @@ async function revealAdminIfNeeded(){
         
         const btnRooster = document.getElementById('adminRoosterTabBtn');
         if (btnRooster) btnRooster.classList.remove('d-none');
-        // ✅ Activeer de Topbar Switcher
+        // Activeer de wisselaar naast de bel
     initTopbarAdminSwitcher();
-    
-    if (typeof renderAdminUserSelect === 'function') renderAdminUserSelect(); 
   }
 }
 
-// ✅ Nieuwe functie voor de Topbar Switcher
-async function initTopbarAdminSwitcher() {
+// ✅ 2. De nieuwe functie voor de topbar-wisselaar
+function initTopbarAdminSwitcher() {
   const container = document.getElementById('topbarAdminSwitch');
   const select = document.getElementById('topbarUserSelect');
-  if (!select) return;
+  if (!select || !container) return;
 
   container.classList.remove('d-none');
 
-  // Vul de lijst (we gebruiken de dataStore die al geladen is)
+  // Gebruik de data uit de cache (dataStore.users)
   const users = Object.entries(dataStore.users).sort((a, b) => 
     (a[1].name || '').localeCompare(b[1].name || '')
   );
 
   select.innerHTML = '<option value="">-- Beheer: Mijzelf --</option>';
   users.forEach(([uid, u]) => {
-    if (uid === currentUserId) return; // Jezelf staat al bovenaan
+    if (uid === currentUserId) return; 
     const opt = document.createElement('option');
     opt.value = uid;
     opt.textContent = u.name || u.email || uid;
@@ -652,19 +650,17 @@ async function initTopbarAdminSwitcher() {
     select.appendChild(opt);
   });
 
-  // Event listener voor het wisselen
   select.onchange = async () => {
     const targetUid = select.value;
-    
+    dataStore.viewUserId = targetUid || null;
+
     if (!targetUid) {
-      dataStore.viewUserId = null;
       toast('Beheer teruggezet naar jezelf', 'info');
     } else {
-      dataStore.viewUserId = targetUid;
       toast(`Beheer actief voor ${dataStore.users[targetUid]?.name || 'gebruiker'}`, 'primary');
     }
 
-    // Update alle schermen
+    // Herlaad de data voor de geselecteerde gebruiker
     await renderUserDataAsAdmin(targetUid || currentUserId);
   };
 }
