@@ -7169,65 +7169,89 @@ document.getElementById('adminStatusMenu')?.addEventListener('click', async (e) 
     toast('Fout bij updaten status.', 'danger');
   }
 });
-// ✅ 1. Logica voor Verlof & Schoolverlof via Badges
+// ✅ 1. Initialiseer de dropdowns en laad de data
 document.addEventListener('click', (e) => {
   const badge = e.target.closest('#leaveBalanceBadge, #schoolLeaveBalanceBadge');
   if (!badge) return;
 
   const iAmAdmin = dataStore.users[currentUserId]?.role === 'admin';
-  if (!iAmAdmin) return; // Alleen voor admins interactief
+  if (!iAmAdmin) return;
 
   const uid = getActiveUserId();
   const ud = dataStore.users[uid];
-  const y = Number(yearSelectMain.value);
-  const m = Number(monthSelectMain.value);
 
   if (badge.id === 'leaveBalanceBadge') {
-    // Laad huidige jaarwaarde
-    const mins = ud?.settings?.leaveAllowanceMinutes || 0;
-    document.getElementById('quickAdminLeaveHours').value = Math.floor(mins / 60) || '';
+    const yrSelect = document.getElementById('quickLeaveYearSelect');
+    // Vul jaren in (huidig jaar +/- 2)
+    if (yrSelect.options.length === 0) {
+      const curY = new Date().getFullYear();
+      for(let y = curY-2; y <= curY+2; y++) {
+        yrSelect.insertAdjacentHTML('beforeend', `<option value="${y}">${y}</option>`);
+      }
+      yrSelect.value = yearSelectMain.value; // zet op actieve jaar van de planner
+    }
+    loadQuickLeaveValue();
   } 
   else if (badge.id === 'schoolLeaveBalanceBadge') {
-    // Bepaal schooljaar label en laad waarde
-    const { label } = getAcademicYearBounds(y, m);
-    document.getElementById('quickSchoolYearLabel').textContent = `Schooljaar ${label}`;
-    const map = ud?.settings?.schoolLeaveByYear || {};
-    const mins = map[label] || 0;
-    document.getElementById('quickAdminSchoolHours').value = Math.floor(mins / 60) || '';
+    const schYrSelect = document.getElementById('quickSchoolYearSelect');
+    if (schYrSelect.options.length === 0) {
+      buildSchoolYearOptions(schYrSelect);
+      const { label } = getAcademicYearBounds(Number(yearSelectMain.value), Number(monthSelectMain.value));
+      schYrSelect.value = label;
+    }
+    loadQuickSchoolValue();
   }
 });
 
-// ✅ 2. Opslaan via de badge-menu's
+// Helpers om waarden te laden bij wissel van jaar in de dropdown
+function loadQuickLeaveValue() {
+  const uid = getActiveUserId();
+  const year = document.getElementById('quickLeaveYearSelect').value;
+  // Let op: Verlof wordt momenteel globaal opgeslagen in settings. 
+  // Als je dit per jaar wilt, moet je de data-structuur in Firebase aanpassen.
+  const mins = dataStore.users[uid]?.settings?.leaveAllowanceMinutes || 0;
+  document.getElementById('quickAdminLeaveHours').value = Math.floor(mins / 60) || '';
+}
+
+function loadQuickSchoolValue() {
+  const uid = getActiveUserId();
+  const label = document.getElementById('quickSchoolYearSelect').value;
+  const map = dataStore.users[uid]?.settings?.schoolLeaveByYear || {};
+  const mins = map[label] || 0;
+  document.getElementById('quickAdminSchoolHours').value = Math.floor(mins / 60) || '';
+}
+
+// Event listeners voor jaar-wissels binnen de dropdowns
+document.getElementById('quickLeaveYearSelect')?.addEventListener('change', loadQuickLeaveValue);
+document.getElementById('quickSchoolYearSelect')?.addEventListener('change', loadQuickSchoolValue);
+
+// ✅ 2. Opslaan knoppen
 document.getElementById('btnSaveQuickLeave')?.addEventListener('click', async () => {
   const hours = Number(document.getElementById('quickAdminLeaveHours').value);
   const uid = getActiveUserId();
-  
   const ud = dataStore.users[uid];
+  
   ud.settings = ud.settings || {};
   ud.settings.leaveAllowanceMinutes = hours * 60;
 
   await saveUserData();
   updateLeaveBadges();
-  renderHome();
-  toast('Verlof saldo bijgewerkt', 'success');
+  toast('Verlof saldo opgeslagen', 'success');
 });
 
 document.getElementById('btnSaveQuickSchoolLeave')?.addEventListener('click', async () => {
   const hours = Number(document.getElementById('quickAdminSchoolHours').value);
+  const label = document.getElementById('quickSchoolYearSelect').value;
   const uid = getActiveUserId();
-  const y = Number(yearSelectMain.value);
-  const m = Number(monthSelectMain.value);
-  const { label } = getAcademicYearBounds(y, m);
-
   const ud = dataStore.users[uid];
+
   ud.settings = ud.settings || {};
   ud.settings.schoolLeaveByYear = ud.settings.schoolLeaveByYear || {};
   ud.settings.schoolLeaveByYear[label] = hours * 60;
 
   await saveUserData();
   updateLeaveBadges();
-  renderHome();
-  toast(`Schoolverlof ${label} bijgewerkt`, 'success');
+  toast(`Schoolverlof voor ${label} opgeslagen`, 'success');
 });
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
