@@ -637,91 +637,111 @@ async function revealAdminIfNeeded(){
 }
 
     // ======= Projects =======
-function renderProjects(){
+function renderProjects() {
+  const ud = getCurrentUserData();
+  const projectTableBody = document.getElementById('projectTableBody');
+  const newShiftProjectSelect = document.getElementById('newShiftProjectSelect');
+  const projectFilterSelect = document.getElementById('projectFilterSelect');
+
+  if (!projectTableBody) return;
+
+  // Sorteren op startdatum
+  const list = (ud.projects || []).slice().sort((a, b) => {
+    const as = a.start ? new Date(a.start) : new Date('1900-01-01');
+    const bs = b.start ? new Date(b.start) : new Date('1900-01-01');
+    if (as.getTime() !== bs.getTime()) return as - bs;
+    const ae = a.end ? new Date(a.end) : new Date('9999-12-31');
+    const be = b.end ? new Date(b.end) : new Date('9999-12-31');
+    return ae - be;
+  });
+
+  // Tabel en dropdowns resetten
+  projectTableBody.innerHTML = '';
+  if (newShiftProjectSelect) newShiftProjectSelect.innerHTML = '<option value="">Geen project</option>';
+  if (projectFilterSelect) projectFilterSelect.innerHTML = '<option value="">Alle projecten</option>';
+
+  list.forEach((p, idx) => {
+    const tr = document.createElement('tr');
+    if (p.allowMulti === undefined) p.allowMulti = false;
+
+    // We bouwen de rij op met de "Shift-look"
+    tr.innerHTML = `
+      <td>
+        <div class="d-flex align-items-center">
+            <span class="dot bg-primary" style="width:10px; height:10px; display:inline-block; border-radius:50%; margin-right:12px;"></span>
+            <div>
+                <strong class="text-dark">${p.name}</strong>
+                <div class="small text-muted">${p.allowMulti ? 'Extra lijnen toegestaan' : 'Enkele lijn'}</div>
+            </div>
+        </div>
+      </td>
+      <td><span class="badge bg-light text-dark border">${toDisplayDate(p.start)}</span></td>
+      <td><span class="badge bg-light text-dark border">${toDisplayDate(p.end)}</span></td>
+      <td class="text-end">
+        <div class="btn-group">
+          <button class="btn btn-sm ${p.allowMulti ? 'btn-success' : 'btn-outline-secondary'}" 
+                  data-idx="${idx}" data-act="toggle-multi" 
+                  title="Extra lijnen aan/uit">
+            <span class="material-icons-outlined" style="font-size:16px">${p.allowMulti ? 'playlist_add_check' : 'playlist_add'}</span>
+          </button>
+          <button class="btn btn-sm btn-outline-warning" data-idx="${idx}" data-act="extend" title="Verlengen">
+            <span class="material-icons-outlined" style="font-size:16px">event_repeat</span>
+          </button>
+          <button class="btn btn-sm btn-outline-danger" data-idx="${idx}" data-act="delete" title="Verwijderen">
+            <span class="material-icons-outlined" style="font-size:16px">delete</span>
+          </button>
+        </div>
+      </td>`;
+    
+    projectTableBody.appendChild(tr);
+
+    // Dropdowns vullen
+    if (newShiftProjectSelect) {
+      const o1 = document.createElement('option'); o1.value = p.name; o1.textContent = p.name; newShiftProjectSelect.appendChild(o1);
+    }
+    if (projectFilterSelect) {
+      const o2 = document.createElement('option'); o2.value = p.name; o2.textContent = p.name; projectFilterSelect.appendChild(o2);
+    }
+  });
+
+  // Button acties koppelen
+  projectTableBody.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', async () => {
       const ud = getCurrentUserData();
-      // Sorteren
-      const list = (ud.projects || []).slice().sort((a,b)=>{
-        const as = a.start? new Date(a.start): new Date('1900-01-01');
-        const bs = b.start? new Date(b.start): new Date('1900-01-01');
-        if(as.getTime() !== bs.getTime()) return as - bs;
-        const ae = a.end? new Date(a.end): new Date('9999-12-31');
-        const be = b.end? new Date(b.end): new Date('9999-12-31');
-        return ae - be;
-      });
+      const idx = Number(btn.dataset.idx);
+      const p = ud.projects[idx];
+      if (!p) return;
 
-      // Tabel en dropdowns resetten
-      projectTableBody.innerHTML = '';
-      newShiftProjectSelect.innerHTML = '<option value="">Geen project</option>';
-      projectFilterSelect.innerHTML = '<option value="">Alle projecten</option>';
+      const action = btn.dataset.act;
 
-      list.forEach((p, idx)=>{
-        const tr = document.createElement('tr');
-        if (p.allowMulti === undefined) p.allowMulti = false;
-
-        tr.innerHTML = `
-          <td>${p.name}</td>
-          <td>${toDisplayDate(p.start)}</td>
-          <td>${toDisplayDate(p.end)}</td>
-          <td class="text-end">
-            <button
-              class="btn btn-sm ${p.allowMulti ? 'btn-success' : 'btn-outline-secondary'} me-1"
-              data-idx="${idx}" data-act="toggle-multi-btn"
-              title="Sta extra lijnen toe voor dit project"
-            >
-              ${p.allowMulti ? 'Extra lijn: aan' : 'Extra lijn: uit'}
-            </button>
-            <button class="btn btn-sm btn-warning me-1" data-idx="${idx}" data-act="extend">Verleng</button>
-            <button class="btn btn-sm btn-danger" data-idx="${idx}" data-act="delete">Verwijder</button>
-          </td>`;
-        projectTableBody.appendChild(tr);
-
-        const o1 = document.createElement('option'); o1.value=p.name; o1.textContent=p.name; newShiftProjectSelect.appendChild(o1);
-        const o2 = document.createElement('option'); o2.value=p.name; o2.textContent=p.name; projectFilterSelect.appendChild(o2);
-      });
-
-      // Button acties
-      projectTableBody.querySelectorAll('button').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const ud = getCurrentUserData();
-          const idx = Number(btn.dataset.idx);
-          const p = ud.projects[idx];
-          if (!p) return;
-
-          if (btn.dataset.act === 'toggle-multi-btn') {
-            p.allowMulti = !p.allowMulti;
-            await saveUserData();
-            try { writeAudit(getActiveUserId(), { action:'project.toggleMulti', context:{ name: p.name }, to: p.allowMulti }); } catch {}
-            renderProjects();
-            renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-            toast(`Extra lijn ${p.allowMulti ? 'ingeschakeld' : 'uitgeschakeld'} voor ${p.name}`, 'success');
-            return;
-          }
-
-          if (btn.dataset.act === 'extend') {
-            const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', toDisplayDate(p.end) || '');
-            if (!v) return;
-            p.end = fromDisplayDate(v);
-            await saveUserData();
-            renderProjects();
-            renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-            toast('Project verlengd', 'success');
-            
-            const qs = await getDocs(collection(db, 'users'));
-            for (const u of qs.docs) {
-              if (u.id !== currentUserId) await notifyProjectChange(u.id, 'extended', p.name, v);
-            }
-          } else if (btn.dataset.act === 'delete') {
-            if (!confirm('Project verwijderen?')) return;
-            ud.projects.splice(idx, 1);
-            await saveUserData();
-            renderProjects();
-            renderProjectFilterForMonth();
-            renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-            toast('Project verwijderd', 'danger');
-          }
-        });
-      });
-
+      if (action === 'toggle-multi') {
+        p.allowMulti = !p.allowMulti;
+        await saveUserData();
+        renderProjects();
+        renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+        toast(`Extra lijnen voor ${p.name} nu ${p.allowMulti ? 'aan' : 'uit'}`, 'info');
+      } 
+      else if (action === 'extend') {
+        const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', toDisplayDate(p.end) || '');
+        if (!v) return;
+        p.end = fromDisplayDate(v);
+        await saveUserData();
+        renderProjects();
+        renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+        toast('Project verlengd', 'success');
+      } 
+      else if (action === 'delete') {
+        if (!confirm(`Project "${p.name}" verwijderen?`)) return;
+        ud.projects.splice(idx, 1);
+        await saveUserData();
+        renderProjects();
+        renderProjectFilterForMonth();
+        renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+        toast('Project verwijderd', 'danger');
+      }
+    });
+  });
+}
       // Toggle inputs
       projectTableBody.querySelectorAll('input[data-act="toggle-multi"]').forEach(chk => {
         chk.addEventListener('change', async () => {
