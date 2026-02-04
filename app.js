@@ -1152,16 +1152,8 @@ async function renderMonth(year, month){
   // Als je Admin bent, is de maand voor jou nooit 'op slot'
   const locked = !iAmAdmin && (statusNow==='approved' || statusNow==='submitted');
 
-  // Toon acties als: (niet op slot) EN (instelling staat aan OF project staat het toe)
-  const showActions = !locked && ( 
-    userAllowsMultiMonth(ud, year, month) || 
-    (ud.projects||[]).some(p => p.allowMulti) 
-  );
-
+  
   // Zorg dat de kolom-header ook zichtbaar wordt
-  const th = document.getElementById('thActions');
-  if (th) th.classList.toggle('d-none', !showActions);
-
   const daysInMonth = new Date(year, month+1, 0).getDate();
   for(let d=1; d<=daysInMonth; d++){
     const baseKey = dateKey(year, month, d);
@@ -1209,18 +1201,6 @@ async function renderMonth(year, month){
 
       const tr = document.createElement('tr');
 
-      // HTML voor de knoppen (+ of -)
-      const actionsCell = showActions
-        ? (idx === 0
-            ? `<td class="actions-cell">
-                 <button type="button" class="btn btn-outline-success btn-line addLineBtn" ${allowThisRow ? '' : 'disabled'} title="Extra regel toevoegen">+</button>
-               </td>`
-            : `<td class="actions-cell">
-                 <button type="button" class="btn btn-outline-danger btn-line delLineBtn" data-key="${rowKey}" title="Deze regel verwijderen">−</button>
-               </td>`
-          )
-        : '';
-      
       // Status icoon logica
       let statusIconHtml = '<span class="shift-status-icon d-none"></span>'; 
       if (r.status === 'pending') {
@@ -1315,34 +1295,7 @@ async function renderMonth(year, month){
         r.omschrijving = e.target.value; saveCell(year, month, rowKey, r, tr); debouncedSave(); renderHistory();
       });
 
-      // --- Knoppen acties ---
-      const addBtn = tr.querySelector('.addLineBtn');
-      if (addBtn) {
-        addBtn.addEventListener('click', async (e) => {
-          e.preventDefault(); 
-          const idxNew = nextLineIndex(md, baseKey);
-          const newKey = `${baseKey}#${idxNew}`;
-          // 🔥 FIX: Maak een nieuwe regel aan, maar laat de tijden LEEG ('')
-md.rows[newKey] = { project: r.project, shift:'', start:'', end:'', break:0, omschrijving:'', minutes:0 };
-          await saveUserData();
-          renderMonth(year, month);
-          updateInputTotals(); renderHistory();
-        });
-      }
-      
-      const delBtn = tr.querySelector('.delLineBtn');
-      if (delBtn) {
-        delBtn.addEventListener('click', async (e) => {
-          e.preventDefault();
-          const k = delBtn.dataset.key;
-          delete md.rows[k];
-          await saveUserData();
-          renderMonth(year, month);
-          updateInputTotals(); renderHistory();
-        });
-      }
-    } 
-  }
+
 
   await saveUserData();
   renderCalendarGrid(year, month);
