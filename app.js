@@ -2053,27 +2053,28 @@ function updateInputTotals(){
   const ud = getCurrentUserData();
   const md = ud.monthData?.[y]?.[m] || { targetHours:0, targetMinutes:0, rows:{} };
 
-  // 1. Totaal berekenen
+  // 1. Maand-totaal berekenen (balk onderaan)
   const total = Object.values(md.rows || {}).reduce((s, r) => {
-    // ✅ Ook hier: Tel alles mee, tenzij EXPLICIET afgekeurd
-    if (r.status === 'rejected') {
-      return s; 
-    }
-    return s + (r.minutes || 0);
+    // Ook hier: Tel alles mee, tenzij expliciet afgekeurd
+    if (r.status === 'rejected') return s; 
+    return s + (Number(r.minutes) || 0);
   }, 0);
 
   const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
-  const diff = total - target;
   
   // 2. Footer balk updaten
   updateRemainingHours();
   
-  // 3. ✅ Badges updaten! (Dit zorgt dat het getal verspringt)
+  // 3. ✅ BADGES UPDATEN (Dit zorgt dat het getal bovenaan verspringt)
   if (typeof updateLeaveBadges === 'function') {
     updateLeaveBadges(); 
   }
+  
+  // 4. Project samenvatting updaten
+  if (typeof renderProjectSummary === 'function') {
+    renderProjectSummary();
+  }
 }
-
     // live target updates
     monthTargetHours.addEventListener('input', async ()=>{
       const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
@@ -2332,25 +2333,25 @@ function sumTakenMinutesFor(year, shiftNames) {
   const months = ud.monthData?.[year] || {};
   
   Object.values(months).forEach(md => {
-    // 1. Als de hele maand is afgekeurd: sla over
+    // 1. Als de hele maand is afgekeurd: sla over (teruggave uren)
     if (md.status === 'rejected') return;
 
     Object.values(md?.rows || {}).forEach(r => {
       const s = (r?.shift || '').trim();
       
-      // 2. Check of de shiftnaam klopt (bv. 'Verlof')
       if (s && shiftNames.includes(s)) {
-        
-        // ✅ DE OPLOSSING:
+        // ✅ ADMIN FIX:
         // We tellen de shift mee als:
-        // A. Hij GEEN status heeft (dus door admin/verfborstel gezet)
-        // B. OF hij WEL een status heeft, maar die is NIET 'rejected'
+        // - Hij GEEN status heeft (dus undefined, bv. via verfborstel)
+        // - OF hij WEL een status heeft, maar die is NIET 'rejected'
         if (r.status !== 'rejected') { 
           total += Number(r.minutes) || 0;
         }
       }
     });
   });
+  // Debug log: zie in je console (F12) of dit getal verandert
+  console.log(`[Teller] Totaal voor ${shiftNames}: ${total} minuten`);
   return total;
 }
 // Vervang de functie sumTakenMinutesForRange (rond regel 2385)
