@@ -636,7 +636,7 @@ async function revealAdminIfNeeded(){
       }
 }
 
-    // ======= Projects =======
+ // ======= Projects (Clean Look - Zonder Extra Lijn) =======
 function renderProjects() {
   const ud = getCurrentUserData();
   const projectTableBody = document.getElementById('projectTableBody');
@@ -645,33 +645,26 @@ function renderProjects() {
 
   if (!projectTableBody) return;
 
-  // Sorteren op startdatum
   const list = (ud.projects || []).slice().sort((a, b) => {
     const as = a.start ? new Date(a.start) : new Date('1900-01-01');
     const bs = b.start ? new Date(b.start) : new Date('1900-01-01');
-    if (as.getTime() !== bs.getTime()) return as - bs;
-    const ae = a.end ? new Date(a.end) : new Date('9999-12-31');
-    const be = b.end ? new Date(b.end) : new Date('9999-12-31');
-    return ae - be;
+    return as - bs;
   });
 
-  // Tabel en dropdowns resetten
   projectTableBody.innerHTML = '';
   if (newShiftProjectSelect) newShiftProjectSelect.innerHTML = '<option value="">Geen project</option>';
   if (projectFilterSelect) projectFilterSelect.innerHTML = '<option value="">Alle projecten</option>';
 
   list.forEach((p, idx) => {
     const tr = document.createElement('tr');
-    if (p.allowMulti === undefined) p.allowMulti = false;
 
-    // We bouwen de rij op met de "Shift-look"
     tr.innerHTML = `
       <td>
         <div class="d-flex align-items-center">
             <span class="dot bg-primary" style="width:10px; height:10px; display:inline-block; border-radius:50%; margin-right:12px;"></span>
             <div>
                 <strong class="text-dark">${p.name}</strong>
-                <div class="small text-muted">${p.allowMulti ? 'Extra lijnen toegestaan' : 'Enkele lijn'}</div>
+                <div class="small text-muted">Project</div>
             </div>
         </div>
       </td>
@@ -679,11 +672,6 @@ function renderProjects() {
       <td><span class="badge bg-light text-dark border">${toDisplayDate(p.end)}</span></td>
       <td class="text-end">
         <div class="btn-group">
-          <button class="btn btn-sm ${p.allowMulti ? 'btn-success' : 'btn-outline-secondary'}" 
-                  data-idx="${idx}" data-act="toggle-multi" 
-                  title="Extra lijnen aan/uit">
-            <span class="material-icons-outlined" style="font-size:16px">${p.allowMulti ? 'playlist_add_check' : 'playlist_add'}</span>
-          </button>
           <button class="btn btn-sm btn-outline-warning" data-idx="${idx}" data-act="extend" title="Verlengen">
             <span class="material-icons-outlined" style="font-size:16px">event_repeat</span>
           </button>
@@ -695,7 +683,6 @@ function renderProjects() {
     
     projectTableBody.appendChild(tr);
 
-    // Dropdowns vullen
     if (newShiftProjectSelect) {
       const o1 = document.createElement('option'); o1.value = p.name; o1.textContent = p.name; newShiftProjectSelect.appendChild(o1);
     }
@@ -704,7 +691,6 @@ function renderProjects() {
     }
   });
 
-  // Button acties koppelen
   projectTableBody.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', async () => {
       const ud = getCurrentUserData();
@@ -712,16 +698,7 @@ function renderProjects() {
       const p = ud.projects[idx];
       if (!p) return;
 
-      const action = btn.dataset.act;
-
-      if (action === 'toggle-multi') {
-        p.allowMulti = !p.allowMulti;
-        await saveUserData();
-        renderProjects();
-        renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-        toast(`Extra lijnen voor ${p.name} nu ${p.allowMulti ? 'aan' : 'uit'}`, 'info');
-      } 
-      else if (action === 'extend') {
+      if (btn.dataset.act === 'extend') {
         const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', toDisplayDate(p.end) || '');
         if (!v) return;
         p.end = fromDisplayDate(v);
@@ -730,7 +707,7 @@ function renderProjects() {
         renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
         toast('Project verlengd', 'success');
       } 
-      else if (action === 'delete') {
+      else if (btn.dataset.act === 'delete') {
         if (!confirm(`Project "${p.name}" verwijderen?`)) return;
         ud.projects.splice(idx, 1);
         await saveUserData();
@@ -1152,11 +1129,11 @@ async function renderMonth(year, month){
   // Als je Admin bent, is de maand voor jou nooit 'op slot'
   const locked = !iAmAdmin && (statusNow==='approved' || statusNow==='submitted');
 
-  // Toon acties als: (niet op slot) EN (instelling staat aan OF project staat het toe)
-  const showActions = !locked && ( 
-    userAllowsMultiMonth(ud, year, month) || 
-    (ud.projects||[]).some(p => p.allowMulti) 
-  );
+  // Alleen acties tonen als de admin de maand-wijde instelling heeft aangezet
+  const showActions = !locked && userAllowsMultiMonth(ud, year, month);
+
+  // In de loop voor de rijen:
+  const allowThisRow = showActions;
 
   // Zorg dat de kolom-header ook zichtbaar wordt
   const th = document.getElementById('thActions');
@@ -1209,18 +1186,6 @@ async function renderMonth(year, month){
 
       const tr = document.createElement('tr');
 
-      // HTML voor de knoppen (+ of -)
-      const actionsCell = showActions
-        ? (idx === 0
-            ? `<td class="actions-cell">
-                 <button type="button" class="btn btn-outline-success btn-line addLineBtn" ${allowThisRow ? '' : 'disabled'} title="Extra regel toevoegen">+</button>
-               </td>`
-            : `<td class="actions-cell">
-                 <button type="button" class="btn btn-outline-danger btn-line delLineBtn" data-key="${rowKey}" title="Deze regel verwijderen">−</button>
-               </td>`
-          )
-        : '';
-      
       // Status icoon logica
       let statusIconHtml = '<span class="shift-status-icon d-none"></span>'; 
       if (r.status === 'pending') {
@@ -1278,15 +1243,6 @@ async function renderMonth(year, month){
         updateInputTotals();
         debouncedSave();
 
-        // Check of de + knop nu aan/uit moet (afhankelijk van projectrechten)
-        const addBtn = tr.querySelector('.addLineBtn');
-        if (addBtn) {
-          const allowByMonth   = userAllowsMultiMonth(getCurrentUserData(), year, month);
-          const allowByProject = r.project ? canAddMultiForProject(r.project) : false;
-          addBtn.disabled = !(allowByMonth || allowByProject);
-        }
-      });
-
       await populateShiftSelectForRow(tr, rowKey);
 
       // --- Event Listeners voor inputs ---
@@ -1315,34 +1271,7 @@ async function renderMonth(year, month){
         r.omschrijving = e.target.value; saveCell(year, month, rowKey, r, tr); debouncedSave(); renderHistory();
       });
 
-      // --- Knoppen acties ---
-      const addBtn = tr.querySelector('.addLineBtn');
-      if (addBtn) {
-        addBtn.addEventListener('click', async (e) => {
-          e.preventDefault(); 
-          const idxNew = nextLineIndex(md, baseKey);
-          const newKey = `${baseKey}#${idxNew}`;
-          // 🔥 FIX: Maak een nieuwe regel aan, maar laat de tijden LEEG ('')
-md.rows[newKey] = { project: r.project, shift:'', start:'', end:'', break:0, omschrijving:'', minutes:0 };
-          await saveUserData();
-          renderMonth(year, month);
-          updateInputTotals(); renderHistory();
-        });
-      }
-      
-      const delBtn = tr.querySelector('.delLineBtn');
-      if (delBtn) {
-        delBtn.addEventListener('click', async (e) => {
-          e.preventDefault();
-          const k = delBtn.dataset.key;
-          delete md.rows[k];
-          await saveUserData();
-          renderMonth(year, month);
-          updateInputTotals(); renderHistory();
-        });
-      }
-    } 
-  }
+
 
   await saveUserData();
   renderCalendarGrid(year, month);
@@ -1982,14 +1911,7 @@ async function populateShiftSelectForRow(tr, rowKey){
     updateInputTotals();
     renderHistory();
 
-    const addBtn = tr.querySelector('.addLineBtn');
-    if (addBtn) {
-      const allowByMonth   = userAllowsMultiMonth(getCurrentUserData(), year, month);
-      const allowByProject = r.project ? canAddMultiForProject(r.project) : false;
-      addBtn.disabled = !(allowByMonth || allowByProject);
-    }
-  });
-}
+   
 async function ensureProjectExists(name){
   const ud = getCurrentUserData();
   ud.projects = ud.projects || [];
