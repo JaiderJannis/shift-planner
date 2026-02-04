@@ -2331,45 +2331,50 @@ function sumTakenMinutesFor(year, shiftNames) {
   const ud = getCurrentUserData();
   let total = 0;
   const months = ud.monthData?.[year] || {};
-  
+
   Object.values(months).forEach(md => {
-    // 1. Als de hele maand is afgekeurd: sla over (teruggave uren)
+    // 1. Als de HELE maandstatus rejected is, tellen we niks
     if (md.status === 'rejected') return;
 
     Object.values(md?.rows || {}).forEach(r => {
       const s = (r?.shift || '').trim();
       
+      // Check of de shiftnaam in de lijst staat (bv. 'Verlof')
       if (s && shiftNames.includes(s)) {
-        // ✅ ADMIN FIX:
-        // We tellen de shift mee als:
-        // - Hij GEEN status heeft (dus undefined, bv. via verfborstel)
-        // - OF hij WEL een status heeft, maar die is NIET 'rejected'
-        if (r.status !== 'rejected') { 
+        // Tellen als:
+        // - Er GEEN status is (undefined/null) -> wordt gezien als goedgekeurd/eigen invoer
+        // - OF de status NIET 'rejected' is (dus pending/approved/submitted mag allemaal)
+        if (!r.status || r.status !== 'rejected') {
           total += Number(r.minutes) || 0;
         }
       }
     });
   });
-  // Debug log: zie in je console (F12) of dit getal verandert
-  console.log(`[Teller] Totaal voor ${shiftNames}: ${total} minuten`);
+  
   return total;
 }
 // Vervang de functie sumTakenMinutesForRange (rond regel 2385)
 function sumTakenMinutesForRange(startISO, endISO, shiftNames) {
   const ud = getCurrentUserData();
   let total = 0;
+  
+  // Loop door alle jaren en maanden in de data
   for (const months of Object.values(ud.monthData || {})) {
     for (const md of Object.values(months || {})) {
       
-      // ✅ NIEUW: Skip deze maand als hij volledig is afgekeurd
+      // Als de maand volledig is afgekeurd, overslaan
       if (md.status === 'rejected') continue;
 
       for (const [key, r] of Object.entries(md?.rows || {})) {
         const sName = (r?.shift || '').trim();
+        
+        // Is dit een van de shifts die we zoeken? (bv. 'Schoolverlof')
         if (!sName || !shiftNames.includes(sName)) continue;
         
+        // Valt de datum binnen de periode?
         if (isDateWithin(key, startISO, endISO)) {
-          if (r.status !== 'rejected') {
+          // Zelfde logica: tel alles tenzij expliciet afgekeurd
+          if (!r.status || r.status !== 'rejected') {
             total += Number(r.minutes) || 0;
           }
         }
@@ -2416,9 +2421,9 @@ function updateLeaveBadges() {
   const y = Number(yearSelectMain.value);
   const m = Number(monthSelectMain.value);
 
-  // ---- Gewoon verlof (kalenderjaar, ongewijzigd) ----
+  // ---- Gewoon verlof (kalenderjaar) ----
   if (badgeLeave) {
-    const allowance = getLeaveAllowanceMinutes();
+    const allowance = getLeaveAllowanceMinutes(); // Haalt instelling op
     if (!allowance) {
       badgeLeave.textContent = 'Verlof saldo: — (stel in)';
       badgeLeave.className = 'badge bg-secondary-subtle text-dark ms-2';
@@ -2426,6 +2431,7 @@ function updateLeaveBadges() {
       const taken = sumTakenMinutesFor(y, LEAVE_SHIFT_NAMES);
       const remaining = allowance - taken;
       const over = remaining < 0;
+      
       badgeLeave.textContent = over
         ? `Verlof saldo: -${fmtMins(remaining)} (overschreden)`
         : `Verlof saldo: ${fmtMins(remaining)} over`;
@@ -2444,6 +2450,7 @@ function updateLeaveBadges() {
       const taken = sumTakenMinutesForRange(startISO, endISO, SCHOOL_LEAVE_SHIFT_NAMES);
       const remaining = allowance - taken;
       const over = remaining < 0;
+
       badgeSchool.textContent = over
         ? `Schoolverlof saldo: -${fmtMins(remaining)} (overschreden) — ${label}`
         : `Schoolverlof saldo: ${fmtMins(remaining)} over — ${label}`;
