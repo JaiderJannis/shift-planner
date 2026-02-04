@@ -2048,34 +2048,32 @@ async function ensureProjectExists(name){
       ud.monthData[year][month] = ud.monthData[year][month] || { targetHours:0, targetMinutes:0, rows:{} };
       ud.monthData[year][month].rows[key] = { ...r, minutes: r.minutes || minutesBetween(r.start, r.end, r.break) };
     }
-    function updateInputTotals(){
+function updateInputTotals(){
   const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
   const ud = getCurrentUserData();
   const md = ud.monthData?.[y]?.[m] || { targetHours:0, targetMinutes:0, rows:{} };
 
+  // 1. Bereken totaal van DEZE maand (alles behalve rejected)
   const total = Object.values(md.rows || {}).reduce((s, r) => {
-    // ✅ CORRECTIE: Tel ALLES mee (ook concept/leeg), behalve als het echt AFGEKEURD is
-    if (r.status === 'rejected') {
-      return s; 
-    }
-    return s + (r.minutes || 0);
+    if (r.status === 'rejected') return s; // Negeer afgekeurd
+    return s + (r.minutes || 0);           // Tel de rest (ook concept) mee
   }, 0);
 
   const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
   const diff = total - target;
   
-  updateRemainingHours();
+  updateRemainingHours(); // Update balk onderaan
   
-  // Update ook direct de badges bovenaan
+  // 2. Update de badges bovenin
   if (typeof updateLeaveBadges === 'function') {
-    updateLeaveBadges();
+    updateLeaveBadges(); 
   }
   
-  // En update de samenvatting (als die functie bestaat)
-  if (typeof renderProjectSummary === 'function') {
-    renderProjectSummary();
+  // 3. (Optioneel) Update ook meteen de historiek tabel als die zichtbaar is
+  // Dit zorgt dat tabblad 3 ook "live" mee verandert
+  if (typeof renderHistory === 'function') {
+    renderHistory(); // Zet deze aan als je wilt dat de tabel ook tijdens typen update
   }
-}
 
     // live target updates
     monthTargetHours.addEventListener('input', async ()=>{
@@ -2202,17 +2200,17 @@ function renderHistory() {
   if (historiekJaar) historiekJaar.textContent = year;
   if (currentUserHistoriek) currentUserHistoriek.textContent = ud.name || ud.email || '—';
 
-  // Kolommen definitie
+  // Kolommen
   const cols = [
     { key: 'monthLabel', title: 'Maand' },
-    { key: 'target', title: 'Doel uren' },
+    { key: 'target', title: 'Doel' },
     { key: 'planned', title: 'Gepland' },
     { key: 'diff', title: 'Verschil' },
     { key: 'leave', title: 'Verlof' },
     { key: 'sick', title: 'Ziekte' },
     { key: 'bench', title: 'Bench' },
-    { key: 'school', title: 'Schoolverlof' },
-    { key: 'holiday', title: 'Feestdag' }
+    { key: 'school', title: 'School' },
+    { key: 'holiday', title: 'Feest' }
   ];
 
   const schoolEnabled = !!(ud?.settings?.schoolLeaveEnabled ?? true);
@@ -2229,17 +2227,17 @@ function renderHistory() {
     const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
     const rows = md.rows || {};
 
-    // 1. Totaal gepland (Alles behalve rejected)
+    // 1. Totaal Gepland: Alles behalve rejected
     const planned = Object.values(rows).reduce((s, r) => {
-      if (r.status === 'rejected') return s; // ✅ CORRECTIE
+      if (r.status === 'rejected') return s; 
       return s + (r.minutes || 0);
     }, 0);
 
-    // 2. Categorieën tellen (Alles behalve rejected)
+    // 2. Categorieën: Alles behalve rejected
     let leave = 0, sick = 0, school = 0, holiday = 0, bench = 0;
     Object.values(rows).forEach(r => {
-      if (r.status === 'rejected') return; // ✅ CORRECTIE
-      
+      if (r.status === 'rejected') return;
+
       const s = (r.shift || '').trim();
       if (!s) return;
       
@@ -2252,7 +2250,7 @@ function renderHistory() {
 
     const diff = planned - target;
 
-    // Totalen optellen
+    // Totalen
     totals.target += target;
     totals.planned += planned;
     totals.diff += diff;
@@ -2262,9 +2260,9 @@ function renderHistory() {
     totals.holiday += holiday;
     totals.bench += bench;
 
-    // Helper voor opmaak uren
-    const fmt = (min) => `${Math.floor(min/60)}u ${min%60}min`;
-    const fmtDiff = (min) => `${min > 0 ? '+' : (min < 0 ? '-' : '')}${Math.floor(Math.abs(min)/60)}u ${Math.abs(min)%60}min`;
+    // Opmaak helpers
+    const fmt = (min) => `${Math.floor(min/60)}:${String(min%60).padStart(2,'0')}`;
+    const fmtDiff = (min) => `${min > 0 ? '+' : (min < 0 ? '-' : '')}${Math.floor(Math.abs(min)/60)}:${String(Math.abs(min)%60).padStart(2,'0')}`;
 
     const rowMap = {
       monthLabel: monthsFull[m],
@@ -2280,8 +2278,8 @@ function renderHistory() {
     
     const rowCells = visibleCols.map(c => {
       if (c.key === 'diff') {
-        const colorClass = diff > 0 ? 'text-success' : (diff < 0 ? 'text-danger' : '');
-        return `<td class="fw-medium ${colorClass}">${rowMap[c.key]}</td>`;
+        const colorClass = diff > 0 ? 'text-success' : (diff < 0 ? 'text-danger' : 'text-muted');
+        return `<td class="fw-bold ${colorClass}">${rowMap[c.key]}</td>`;
       }
       return `<td>${rowMap[c.key]}</td>`;
     }).join('');
@@ -2290,9 +2288,9 @@ function renderHistory() {
   }
   bodyHtml += '</tbody>';
 
-  // Footer opbouwen
-  const fmt = (min) => `${Math.floor(min/60)}u ${min%60}min`;
-  const fmtDiff = (min) => `${min > 0 ? '+' : (min < 0 ? '-' : '')}${Math.floor(Math.abs(min)/60)}u ${Math.abs(min)%60}min`;
+  // Footer
+  const fmt = (min) => `${Math.floor(min/60)}:${String(min%60).padStart(2,'0')}`;
+  const fmtDiff = (min) => `${min > 0 ? '+' : (min < 0 ? '-' : '')}${Math.floor(Math.abs(min)/60)}:${String(Math.abs(min)%60).padStart(2,'0')}`;
   
   const footerMap = {
     target: fmt(totals.target),
@@ -2314,9 +2312,8 @@ function renderHistory() {
     return `<th>${footerMap[c.key]}</th>`;
   }).join('');
 
-  table.innerHTML = `${theadHtml}${bodyHtml}<tfoot class="table-light"><tr>${tfootCells}</tr></tfoot>`;
+  table.innerHTML = `${theadHtml}${bodyHtml}<tfoot class="table-light fw-bold"><tr>${tfootCells}</tr></tfoot>`;
 }
-
 
 // === Verlof / Schoolverlof instellingen en badges ===
 
@@ -2334,12 +2331,12 @@ function sumTakenMinutesFor(year, shiftNames) {
   const ud = getCurrentUserData();
   let total = 0;
   const months = ud.monthData?.[year] || {};
+  
   Object.values(months).forEach(md => {
     Object.values(md?.rows || {}).forEach(r => {
       const s = (r?.shift || '').trim();
       if (s && shiftNames.includes(s)) {
-        // AANPASSING: Tel alles mee, BEHALVE wat expliciet is afgekeurd.
-        // Dus: Concept, Ingediend en Goedgekeurd tellen mee voor het saldo.
+        // AANPASSING: Tel ALLES (ook concept), behalve 'rejected'
         if (r.status !== 'rejected') {
           total += Number(r.minutes) || 0;
         }
