@@ -2248,24 +2248,27 @@ function renderHistory() {
 
     // specifieke categorie-sommen
     let leave = 0, sick = 0, school = 0, holiday = 0, bench = 0;
+    
     Object.values(rows).forEach(r => {
-  if (r.status && r.status !== 'approved') {
-    return; 
-  }
-  
-  const s = (r.shift || '').trim();
-  if (!s) return;
-  
-  // Deze tellen nu alleen 'approved' (dankzij de check hierboven)
-  if (s === 'Verlof') leave += Number(r.minutes)||0;
-  if (s === 'Ziekte') sick += Number(r.minutes)||0;
-  if (s === 'Schoolverlof' || s === 'School') school += Number(r.minutes)||0;
-  
-  // Feestdag & Bench hebben geen 'pending' status, dus die zijn ok
-  if (s === 'Feestdag') holiday += Number(r.minutes)||0;
-  if (s === 'Bench') bench += Number(r.minutes)||0;
-});
+      // Als de shift is afgekeurd, tellen we hem nergens mee
+      if (r.status === 'rejected') return;
 
+      const sID = (r.shift || '').trim();
+      if (!sID) return;
+
+      // --- DE FIX: Zoek de "Echte Naam" op ---
+      // We kijken in de instellingen (ud.shifts) wat de basisnaam is.
+      // Hierdoor wordt "Verlof (Eght Care)" herkend als "Verlof".
+      const shiftDef = ud.shifts?.[sID];
+      const realName = shiftDef ? (shiftDef.realName || sID) : sID;
+
+      // Nu vergelijken we met realName in plaats van sID
+      if (realName === 'Verlof') leave += Number(r.minutes)||0;
+      if (realName === 'Ziekte') sick += Number(r.minutes)||0;
+      if (realName === 'Schoolverlof' || realName === 'School') school += Number(r.minutes)||0;
+      if (realName === 'Feestdag') holiday += Number(r.minutes)||0;
+      if (realName === 'Bench') bench += Number(r.minutes)||0;
+    });
     const diff = planned - target;
 
     // push totals
