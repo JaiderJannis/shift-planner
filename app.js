@@ -674,7 +674,6 @@ function initTopbarAdminSwitcher() {
             if (typeof loadAllUsers === 'function') await loadAllUsers();
             if (typeof renderTeamRooster === 'function') renderTeamRooster();
         }, 500);
-      }
 }
 
     // ======= Projects =======
