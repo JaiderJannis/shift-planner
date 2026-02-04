@@ -98,6 +98,12 @@
 </div>
 
 <div class="d-flex align-items-center gap-3 ms-auto">
+  <div id="topbarAdminSwitch" class="d-none d-flex align-items-center gap-2 border-end pe-3 me-1">
+    <span class="material-icons-outlined text-muted" style="font-size: 20px;">admin_panel_settings</span>
+    <select id="topbarUserSelect" class="form-select form-select-sm shadow-sm" style="max-width: 160px; border-color: var(--bs-primary);">
+      <option value="">-- Beheer --</option>
+    </select>
+  </div>
   <span class="text-secondary small">Ingelogd als <strong id="currentUserName">-</strong></span>
   <!-- 🔔 Notificatieknop -->
   <div class="position-relative">
