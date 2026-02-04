@@ -636,125 +636,152 @@ async function revealAdminIfNeeded(){
       }
 }
 
-// ==========================================
-// FIX: renderProjects (Met veilige check voor ontbrekende popup)
-// ==========================================
-function renderProjects() {
-  const ud = getCurrentUserData();
-  const projects = ud.projects || {};
-  const tbody = document.getElementById('projectTableBody');
-  if (!tbody) return;
-  tbody.innerHTML = '';
+    // ======= Projects =======
+function renderProjects(){
+      const ud = getCurrentUserData();
+      // Sorteren
+      const list = (ud.projects || []).slice().sort((a,b)=>{
+        const as = a.start? new Date(a.start): new Date('1900-01-01');
+        const bs = b.start? new Date(b.start): new Date('1900-01-01');
+        if(as.getTime() !== bs.getTime()) return as - bs;
+        const ae = a.end? new Date(a.end): new Date('9999-12-31');
+        const be = b.end? new Date(b.end): new Date('9999-12-31');
+        return ae - be;
+      });
 
-  Object.keys(projects).forEach(key => {
-    const proj = projects[key];
-    const tr = document.createElement('tr');
-    
-    const statusLabel = proj.archived 
-        ? '<span class="badge bg-secondary ms-2">Gearchiveerd</span>' 
-        : '<span class="badge bg-success ms-2">Actief</span>';
+      // Tabel en dropdowns resetten
+      projectTableBody.innerHTML = '';
+      newShiftProjectSelect.innerHTML = '<option value="">Geen project</option>';
+      projectFilterSelect.innerHTML = '<option value="">Alle projecten</option>';
 
-    tr.innerHTML = `
-      <td>
-        <div class="d-flex align-items-center">
-            <span class="dot" style="background:${proj.color || '#ccc'}; width:12px; height:12px; display:inline-block; border-radius:50%; margin-right:10px;"></span>
-            <strong>${key}</strong>
-            ${statusLabel}
-        </div>
-      </td>
-      <td class="text-end">
-        <button class="btn btn-sm btn-outline-secondary btn-edit"><span class="material-icons-outlined" style="font-size:16px">edit</span></button>
-        <button class="btn btn-sm btn-outline-danger btn-del"><span class="material-icons-outlined" style="font-size:16px">delete</span></button>
-      </td>
-    `;
+      list.forEach((p, idx)=>{
+        const tr = document.createElement('tr');
+        if (p.allowMulti === undefined) p.allowMulti = false;
 
-    // VERWIJDEREN
-    tr.querySelector('.btn-del').onclick = async () => {
-      if(!confirm(`Project "${key}" verwijderen?`)) return;
-      delete ud.projects[key];
-      const id = getActiveUserId();
-      if(id) await updateDoc(doc(db,'users',id), { projects: ud.projects });
-      renderProjects();
-      toast('Verwijderd', 'success');
-    };
+        tr.innerHTML = `
+          <td>${p.name}</td>
+          <td>${toDisplayDate(p.start)}</td>
+          <td>${toDisplayDate(p.end)}</td>
+          <td class="text-end">
+            <button
+              class="btn btn-sm ${p.allowMulti ? 'btn-success' : 'btn-outline-secondary'} me-1"
+              data-idx="${idx}" data-act="toggle-multi-btn"
+              title="Sta extra lijnen toe voor dit project"
+            >
+              ${p.allowMulti ? 'Extra lijn: aan' : 'Extra lijn: uit'}
+            </button>
+            <button class="btn btn-sm btn-warning me-1" data-idx="${idx}" data-act="extend">Verleng</button>
+            <button class="btn btn-sm btn-danger" data-idx="${idx}" data-act="delete">Verwijder</button>
+          </td>`;
+        projectTableBody.appendChild(tr);
 
-    // BEWERKEN (Met Veiligheidscheck)
-    tr.querySelector('.btn-edit').onclick = () => {
-        const modalEl = document.getElementById('projectModal');
-        
-        // --- HIER ZIT DE FIX ---
-        if (!modalEl) {
-            console.error('FOUT: Kan "projectModal" niet vinden in de HTML.');
-            alert('Er is een technische fout: de popup voor projecten ontbreekt in de pagina.');
+        const o1 = document.createElement('option'); o1.value=p.name; o1.textContent=p.name; newShiftProjectSelect.appendChild(o1);
+        const o2 = document.createElement('option'); o2.value=p.name; o2.textContent=p.name; projectFilterSelect.appendChild(o2);
+      });
+
+      // Button acties
+      projectTableBody.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const ud = getCurrentUserData();
+          const idx = Number(btn.dataset.idx);
+          const p = ud.projects[idx];
+          if (!p) return;
+
+          if (btn.dataset.act === 'toggle-multi-btn') {
+            p.allowMulti = !p.allowMulti;
+            await saveUserData();
+            try { writeAudit(getActiveUserId(), { action:'project.toggleMulti', context:{ name: p.name }, to: p.allowMulti }); } catch {}
+            renderProjects();
+            renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+            toast(`Extra lijn ${p.allowMulti ? 'ingeschakeld' : 'uitgeschakeld'} voor ${p.name}`, 'success');
             return;
+          }
+
+          if (btn.dataset.act === 'extend') {
+            const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', toDisplayDate(p.end) || '');
+            if (!v) return;
+            p.end = fromDisplayDate(v);
+            await saveUserData();
+            renderProjects();
+            renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+            toast('Project verlengd', 'success');
+            
+            const qs = await getDocs(collection(db, 'users'));
+            for (const u of qs.docs) {
+              if (u.id !== currentUserId) await notifyProjectChange(u.id, 'extended', p.name, v);
+            }
+          } else if (btn.dataset.act === 'delete') {
+            if (!confirm('Project verwijderen?')) return;
+            ud.projects.splice(idx, 1);
+            await saveUserData();
+            renderProjects();
+            renderProjectFilterForMonth();
+            renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+            toast('Project verwijderd', 'danger');
+          }
+        });
+      });
+
+      // Toggle inputs
+      projectTableBody.querySelectorAll('input[data-act="toggle-multi"]').forEach(chk => {
+        chk.addEventListener('change', async () => {
+          const ud = getCurrentUserData();
+          const idx = Number(chk.dataset.idx);
+          const p = ud.projects[idx];
+          if (!p) return;
+          p.allowMulti = !!chk.checked;
+          await saveUserData();
+          toast(`Extra lijn ${p.allowMulti ? 'toegestaan' : 'uitgeschakeld'} voor ${p.name}`, 'success');
+        });
+      });
+
+      // ✨ NIEUW: Auto-datum invullen bij kiezen project ✨
+      newShiftProjectSelect.onchange = () => {
+        const selectedName = newShiftProjectSelect.value;
+        const p = list.find(proj => proj.name === selectedName);
+        
+        if (p) {
+            // Als het project datums heeft, vul ze in
+            if (p.start) newShiftStartDate.value = p.start;
+            if (p.end) newShiftEndDate.value = p.end;
+        } else {
+            // Als "Geen project" is gekozen, velden leegmaken
+            newShiftStartDate.value = '';
+            newShiftEndDate.value = '';
         }
-        // -----------------------
+      };
+    }
 
-        modalEl.dataset.editingKey = key;
-        
-        const nameInput = document.getElementById('newProjectName');
-        if(nameInput) nameInput.value = key;
+addProjectBtn?.addEventListener('click', async () => {
+  const name = newProjectName.value.trim();
+  if (!name) return toast('Vul projectnaam in', 'warning');
 
-        const colorInput = document.getElementById('newProjectColor');
-        if(colorInput) colorInput.value = proj.color || '#0d6efd';
-        
-        const archiveBox = document.getElementById('newProjectArchived');
-        if(archiveBox) archiveBox.checked = !!proj.archived;
-        
-        new bootstrap.Modal(modalEl).show();
-    };
-    tbody.appendChild(tr);
+  const ud = getCurrentUserData();
+  ud.projects = ud.projects || [];
+  ud.projects.push({
+    name,
+    start: newProjectStart.value || null,
+    end: newProjectEnd.value || null
   });
-}
 
-// Project Opslaan Knop
-const saveProjBtn = document.getElementById('addProjectBtn');
-if (saveProjBtn) {
-    const newBtn = saveProjBtn.cloneNode(true);
-    saveProjBtn.parentNode.replaceChild(newBtn, saveProjBtn);
+  await saveUserData();
 
-    newBtn.addEventListener('click', async () => {
-        const nameInput = document.getElementById('newProjectName');
-        const colorInput = document.getElementById('newProjectColor');
-        const archiveInput = document.getElementById('newProjectArchived');
-        const newName = nameInput.value.trim();
-        if (!newName) return toast('Naam verplicht', 'warning');
+  newProjectName.value = '';
+  newProjectStart.value = '';
+  newProjectEnd.value = '';
 
-        const modalEl = document.getElementById('projectModal');
-        const oldKey = modalEl.dataset.editingKey; 
-        const ud = getCurrentUserData();
-        ud.projects = ud.projects || {};
+  renderProjects();
+  renderProjectFilterForMonth();
+  toast('Project toegevoegd', 'success');
 
-        if (oldKey && oldKey !== newName) delete ud.projects[oldKey];
-
-        ud.projects[newName] = {
-            color: colorInput.value,
-            archived: archiveInput ? archiveInput.checked : false
-        };
-
-        const id = getActiveUserId();
-        if (id) await updateDoc(doc(db, 'users', id), { projects: ud.projects });
-
-        renderProjects();
-        bootstrap.Modal.getInstance(modalEl).hide();
-        nameInput.value = '';
-        if(archiveInput) archiveInput.checked = false;
-        delete modalEl.dataset.editingKey;
-        toast('Project opgeslagen', 'success');
-    });
-}
-
-// Reset knop "Nieuw Project"
-const btnNewProj = document.getElementById('homeBtnNewProject');
-if (btnNewProj) {
-    btnNewProj.addEventListener('click', () => {
-        const modalEl = document.getElementById('projectModal');
-        delete modalEl.dataset.editingKey; 
-        document.getElementById('newProjectName').value = '';
-        document.getElementById('newProjectColor').value = '#0d6efd';
-        if(document.getElementById('newProjectArchived')) document.getElementById('newProjectArchived').checked = false;
-    });
-}
+  // 🔔 Melding naar alle gebruikers (behalve admin zelf)
+  const qs = await getDocs(collection(db, 'users'));
+  for (const u of qs.docs) {
+    if (u.id !== currentUserId) {
+      await notifyProjectChange(u.id, 'added', name);
+    }
+  }
+});
 // ==========================================
 // FIX: SLEPEN & SORTEREN (Drag & Drop hersteld)
 // ==========================================
