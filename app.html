@@ -196,11 +196,33 @@
   </div>
 
   <!-- Verlof badges -->
-  <div class="mb-3">
-    <span class="badge bg-secondary-subtle text-dark me-2" id="homeLeave">Verlof: —</span>
-    <span class="badge bg-secondary-subtle text-dark" id="homeSchoolLeave">Schoolverlof: —</span>
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+  <div class="dropdown">
+    <span id="leaveBalanceBadge" class="badge bg-secondary-subtle text-dark small dropdown-toggle" 
+          data-bs-toggle="dropdown" style="cursor: pointer;">Verlof: —</span>
+    <div id="adminLeaveMenu" class="dropdown-menu p-3 shadow" style="min-width: 250px;">
+      <h6 class="dropdown-header px-0">Jaarlijkse toekenning (Uren)</h6>
+      <div class="input-group input-group-sm mb-2">
+        <input type="number" id="quickAdminLeaveHours" class="form-control" placeholder="bv. 160">
+        <span class="input-group-text">u</span>
+      </div>
+      <button id="btnSaveQuickLeave" class="btn btn-primary btn-sm w-100">Opslaan</button>
+    </div>
   </div>
 
+  <div class="dropdown">
+    <span id="schoolLeaveBalanceBadge" class="badge bg-secondary-subtle text-dark small dropdown-toggle" 
+          data-bs-toggle="dropdown" style="cursor: pointer;">School: —</span>
+    <div id="adminSchoolMenu" class="dropdown-menu p-3 shadow" style="min-width: 250px;">
+      <h6 class="dropdown-header px-0" id="quickSchoolYearLabel">Schooljaar —</h6>
+      <div class="input-group input-group-sm mb-2">
+        <input type="number" id="quickAdminSchoolHours" class="form-control" placeholder="bv. 40">
+        <span class="input-group-text">u</span>
+      </div>
+      <button id="btnSaveQuickSchoolLeave" class="btn btn-success btn-sm w-100">Opslaan</button>
+    </div>
+  </div>
+</div>
   <div class="row g-3">
     <!-- Actieve projecten -->
     <div class="col-12 col-lg-6">
