@@ -2049,21 +2049,33 @@ async function ensureProjectExists(name){
       ud.monthData[year][month].rows[key] = { ...r, minutes: r.minutes || minutesBetween(r.start, r.end, r.break) };
     }
     function updateInputTotals(){
-      const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
-      const ud = getCurrentUserData();
-      const md = ud.monthData?.[y]?.[m] || { targetHours:0, targetMinutes:0, rows:{} };
-      const total = Object.values(md.rows || {}).reduce((s, r) => {
-  if (r.status && r.status !== 'rejected') {
-    return s; 
-  }
-  return s + (r.minutes || 0);
-}, 0);
-      const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
-      const diff = total - target;
-      updateRemainingHours();
-      updateLeaveBadges();
-      renderProjectSummary(); // ✅ toegevoegd
+  const y = Number(yearSelectMain.value), m = Number(monthSelectMain.value);
+  const ud = getCurrentUserData();
+  const md = ud.monthData?.[y]?.[m] || { targetHours:0, targetMinutes:0, rows:{} };
+
+  const total = Object.values(md.rows || {}).reduce((s, r) => {
+    // ✅ CORRECTIE: Tel ALLES mee (ook concept/leeg), behalve als het echt AFGEKEURD is
+    if (r.status === 'rejected') {
+      return s; 
     }
+    return s + (r.minutes || 0);
+  }, 0);
+
+  const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
+  const diff = total - target;
+  
+  updateRemainingHours();
+  
+  // Update ook direct de badges bovenaan
+  if (typeof updateLeaveBadges === 'function') {
+    updateLeaveBadges();
+  }
+  
+  // En update de samenvatting (als die functie bestaat)
+  if (typeof renderProjectSummary === 'function') {
+    renderProjectSummary();
+  }
+}
 
     // live target updates
     monthTargetHours.addEventListener('input', async ()=>{
@@ -2178,21 +2190,19 @@ if (btnQuick) {
 }
     // ======= Historiek =======
 function renderHistory() {
-  // Bepaal welke gebruiker we tonen (admin kan een andere user kiezen)
   const viewUid = dataStore.viewUserId || dataStore.currentUser;
   if (!viewUid) return;
 
   const ud = dataStore.users[viewUid] || { name: '-', monthData: {} };
   const year = Number(yearSelectMain.value) || new Date().getFullYear();
 
-  // ✅ Titel updaten boven de tabel
+  // Update titels
   const historiekJaar = document.getElementById('historiekJaar');
   const currentUserHistoriek = document.getElementById('currentUserHistoriek');
   if (historiekJaar) historiekJaar.textContent = year;
-  if (currentUserHistoriek)
-    currentUserHistoriek.textContent = ud.name || ud.email || '—';
+  if (currentUserHistoriek) currentUserHistoriek.textContent = ud.name || ud.email || '—';
 
-  // Kies kolomvolgorde — let: schoolverlof komt NA bench
+  // Kolommen definitie
   const cols = [
     { key: 'monthLabel', title: 'Maand' },
     { key: 'target', title: 'Doel uren' },
@@ -2205,23 +2215,12 @@ function renderHistory() {
     { key: 'holiday', title: 'Feestdag' }
   ];
 
-  // Check of schoolverlof voor deze user actief is; standaard true
   const schoolEnabled = !!(ud?.settings?.schoolLeaveEnabled ?? true);
-
-  // Als schoolverlof uit, filter die kolom weg
   const visibleCols = cols.filter(c => c.key !== 'school' || schoolEnabled);
-
-  // Bouw tabel HTML
   const table = document.getElementById('historyTable');
-  if (!table) {
-    console.warn('historyTable niet gevonden (id="historyTable" ontbreekt in HTML)');
-    return;
-  }
+  if (!table) return;
 
-  // header
   const theadHtml = `<thead class="table-light"><tr>${visibleCols.map(c => `<th>${c.title}</th>`).join('')}</tr></thead>`;
-
-  // body
   let bodyHtml = '<tbody>';
   let totals = { target:0, planned:0, diff:0, leave:0, sick:0, school:0, holiday:0, bench:0 };
 
@@ -2229,36 +2228,31 @@ function renderHistory() {
     const md = ud.monthData?.[year]?.[m] || { targetHours:0, targetMinutes:0, rows:{} };
     const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
     const rows = md.rows || {};
-    const planned = Object.values(rows).reduce((s, r) => {
-  if (r.status && r.status !== 'approved') {
-    return s; // Tel niet mee (pending/rejected)
-  }
-  return s + (r.minutes || 0);
-}, 0);
 
-    // specifieke categorie-sommen
+    // 1. Totaal gepland (Alles behalve rejected)
+    const planned = Object.values(rows).reduce((s, r) => {
+      if (r.status === 'rejected') return s; // ✅ CORRECTIE
+      return s + (r.minutes || 0);
+    }, 0);
+
+    // 2. Categorieën tellen (Alles behalve rejected)
     let leave = 0, sick = 0, school = 0, holiday = 0, bench = 0;
     Object.values(rows).forEach(r => {
-  if (r.status && r.status !== 'approved') {
-    return; 
-  }
-  
-  const s = (r.shift || '').trim();
-  if (!s) return;
-  
-  // Deze tellen nu alleen 'approved' (dankzij de check hierboven)
-  if (s === 'Verlof') leave += Number(r.minutes)||0;
-  if (s === 'Ziekte') sick += Number(r.minutes)||0;
-  if (s === 'Schoolverlof' || s === 'School') school += Number(r.minutes)||0;
-  
-  // Feestdag & Bench hebben geen 'pending' status, dus die zijn ok
-  if (s === 'Feestdag') holiday += Number(r.minutes)||0;
-  if (s === 'Bench') bench += Number(r.minutes)||0;
-});
+      if (r.status === 'rejected') return; // ✅ CORRECTIE
+      
+      const s = (r.shift || '').trim();
+      if (!s) return;
+      
+      if (s === 'Verlof') leave += Number(r.minutes)||0;
+      if (s === 'Ziekte') sick += Number(r.minutes)||0;
+      if (s === 'Schoolverlof' || s === 'School') school += Number(r.minutes)||0;
+      if (s === 'Feestdag') holiday += Number(r.minutes)||0;
+      if (s === 'Bench') bench += Number(r.minutes)||0;
+    });
 
     const diff = planned - target;
 
-    // push totals
+    // Totalen optellen
     totals.target += target;
     totals.planned += planned;
     totals.diff += diff;
@@ -2268,85 +2262,59 @@ function renderHistory() {
     totals.holiday += holiday;
     totals.bench += bench;
 
+    // Helper voor opmaak uren
+    const fmt = (min) => `${Math.floor(min/60)}u ${min%60}min`;
+    const fmtDiff = (min) => `${min > 0 ? '+' : (min < 0 ? '-' : '')}${Math.floor(Math.abs(min)/60)}u ${Math.abs(min)%60}min`;
+
     const rowMap = {
       monthLabel: monthsFull[m],
-      target: `${Math.floor(target/60)}u ${target%60}min`,
-      planned: `${Math.floor(planned/60)}u ${planned%60}min`,
-      // === REGEL 1 AANGEPAST ===
-      diff: `${diff > 0 ? '+' : (diff < 0 ? '-' : '')}${Math.floor(Math.abs(diff)/60)}u ${Math.abs(diff)%60}min`,
-      leave: `${Math.floor(leave/60)}u ${leave%60}min`,
-      sick: `${Math.floor(sick/60)}u ${sick%60}min`,
-      bench: `${Math.floor(bench/60)}u ${bench%60}min`,
-      school: `${Math.floor(school/60)}u ${school%60}min`,
-      holiday: `${Math.floor(holiday/60)}u ${holiday%60}min`
+      target: fmt(target),
+      planned: fmt(planned),
+      diff: fmtDiff(diff),
+      leave: fmt(leave),
+      sick: fmt(sick),
+      bench: fmt(bench),
+      school: fmt(school),
+      holiday: fmt(holiday)
     };
     
-    // We bouwen de cellen nu op met een check voor de 'diff' kolom
     const rowCells = visibleCols.map(c => {
       if (c.key === 'diff') {
-        const diffValue = diff; // 'diff' is hier berekend
-        const diffText = rowMap[c.key]; // De opgemaakte string (bv: "+10u 0min")
-        
-        let colorClass = '';
-        if (diffValue > 0) {
-          colorClass = 'text-success'; // Bootstrap groen
-        } else if (diffValue < 0) {
-          colorClass = 'text-danger'; // Bootstrap rood
-        }
-        // Voeg ook fw-medium toe voor leesbaarheid
-        return `<td class="fw-medium ${colorClass}">${diffText}</td>`;
+        const colorClass = diff > 0 ? 'text-success' : (diff < 0 ? 'text-danger' : '');
+        return `<td class="fw-medium ${colorClass}">${rowMap[c.key]}</td>`;
       }
-      // Andere kolommen
-      return `<td>${rowMap[c.key] || ''}</td>`;
+      return `<td>${rowMap[c.key]}</td>`;
     }).join('');
     
     bodyHtml += `<tr>${rowCells}</tr>`;
   }
-
   bodyHtml += '</tbody>';
 
-  // footer (totaal)
-  const footerMap = {
-    target: `${Math.floor(totals.target/60)}u ${totals.target%60}min`,
-    planned: `${Math.floor(totals.planned/60)}u ${totals.planned%60}min`,
-    // === REGEL 2 AANGEPAST ===
-    diff: `${totals.diff > 0 ? '+' : (totals.diff < 0 ? '-' : '')}${Math.floor(Math.abs(totals.diff)/60)}u ${Math.abs(totals.diff)%60}min`,
-    leave: `${Math.floor(totals.leave/60)}u ${totals.leave%60}min`,
-    sick: `${Math.floor(totals.sick/60)}u ${totals.sick%60}min`,
-    bench: `${Math.floor(totals.bench/60)}u ${totals.bench%60}min`,
-    school: `${Math.floor(totals.school/60)}u ${totals.school%60}min`,
-    holiday: `${Math.floor(totals.holiday/60)}u ${totals.holiday%60}min`
-  };
+  // Footer opbouwen
+  const fmt = (min) => `${Math.floor(min/60)}u ${min%60}min`;
+  const fmtDiff = (min) => `${min > 0 ? '+' : (min < 0 ? '-' : '')}${Math.floor(Math.abs(min)/60)}u ${Math.abs(min)%60}min`;
   
-  // Zelfde logica voor de footer
+  const footerMap = {
+    target: fmt(totals.target),
+    planned: fmt(totals.planned),
+    diff: fmtDiff(totals.diff),
+    leave: fmt(totals.leave),
+    sick: fmt(totals.sick),
+    bench: fmt(totals.bench),
+    school: fmt(totals.school),
+    holiday: fmt(totals.holiday)
+  };
+
   const tfootCells = visibleCols.map(c => {
     if (c.key === 'monthLabel') return `<th>Totaal</th>`;
-
     if (c.key === 'diff') {
-      const diffValue = totals.diff; // De totale 'diff'
-      const diffText = footerMap[c.key]; // De opgemaakte string
-      
-      let colorClass = '';
-      if (diffValue > 0) {
-        colorClass = 'text-success';
-      } else if (diffValue < 0) {
-        colorClass = 'text-danger';
-      }
-      return `<th class="${colorClass}">${diffText}</th>`;
+      const colorClass = totals.diff > 0 ? 'text-success' : (totals.diff < 0 ? 'text-danger' : '');
+      return `<th class="${colorClass}">${footerMap[c.key]}</th>`;
     }
-    
-    // Andere kolommen
-    return `<th>${footerMap[c.key] || ''}</th>`;
+    return `<th>${footerMap[c.key]}</th>`;
   }).join('');
 
-  const tfootHtml = `<tfoot class="table-light"><tr>${tfootCells}</tr></tfoot>`;
-
-  // zet alles in de table
-  table.innerHTML = `${theadHtml}${bodyHtml}${tfootHtml}`;
-
-  // behoud dezelfde tbody id voor compatibiliteit
-  const newTbody = table.querySelector('tbody');
-  if (newTbody) newTbody.id = 'historyBody';
+  table.innerHTML = `${theadHtml}${bodyHtml}<tfoot class="table-light"><tr>${tfootCells}</tr></tfoot>`;
 }
 
 
