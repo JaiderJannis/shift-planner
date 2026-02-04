@@ -622,7 +622,52 @@ async function revealAdminIfNeeded(){
         
         const btnRooster = document.getElementById('adminRoosterTabBtn');
         if (btnRooster) btnRooster.classList.remove('d-none');
-        
+        // ✅ Activeer de Topbar Switcher
+    initTopbarAdminSwitcher();
+    
+    if (typeof renderAdminUserSelect === 'function') renderAdminUserSelect(); 
+  }
+}
+
+// ✅ Nieuwe functie voor de Topbar Switcher
+async function initTopbarAdminSwitcher() {
+  const container = document.getElementById('topbarAdminSwitch');
+  const select = document.getElementById('topbarUserSelect');
+  if (!select) return;
+
+  container.classList.remove('d-none');
+
+  // Vul de lijst (we gebruiken de dataStore die al geladen is)
+  const users = Object.entries(dataStore.users).sort((a, b) => 
+    (a[1].name || '').localeCompare(b[1].name || '')
+  );
+
+  select.innerHTML = '<option value="">-- Beheer: Mijzelf --</option>';
+  users.forEach(([uid, u]) => {
+    if (uid === currentUserId) return; // Jezelf staat al bovenaan
+    const opt = document.createElement('option');
+    opt.value = uid;
+    opt.textContent = u.name || u.email || uid;
+    if (uid === dataStore.viewUserId) opt.selected = true;
+    select.appendChild(opt);
+  });
+
+  // Event listener voor het wisselen
+  select.onchange = async () => {
+    const targetUid = select.value;
+    
+    if (!targetUid) {
+      dataStore.viewUserId = null;
+      toast('Beheer teruggezet naar jezelf', 'info');
+    } else {
+      dataStore.viewUserId = targetUid;
+      toast(`Beheer actief voor ${dataStore.users[targetUid]?.name || 'gebruiker'}`, 'primary');
+    }
+
+    // Update alle schermen
+    await renderUserDataAsAdmin(targetUid || currentUserId);
+  };
+}
         // Admin functies initialiseren (als de functies bestaan)
         if (typeof renderAdminUserSelect === 'function') renderAdminUserSelect(); 
         if (typeof renderAdminMonthlyMulti === 'function') renderAdminMonthlyMulti();
