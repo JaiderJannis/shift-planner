@@ -989,7 +989,34 @@
     </div>
   </div>
 </div>
-
+<div class="modal fade" id="projectModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Project Beheren</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Projectnaam</label>
+          <input type="text" id="newProjectName" class="form-control" placeholder="Bijv. Werk, Prive, Klant X">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Kleur label</label>
+          <input type="color" id="newProjectColor" class="form-control form-control-color" value="#0d6efd">
+        </div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="newProjectArchived">
+          <label class="form-check-label" for="newProjectArchived">Archiveren (niet meer tonen in lijsten)</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+        <button type="button" class="btn btn-primary" id="addProjectBtn">Opslaan</button>
+      </div>
+    </div>
+  </div>
+</div>
 <!-- Profile modal -->
 <div class="modal fade" id="profileModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
