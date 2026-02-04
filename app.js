@@ -7124,6 +7124,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mSel) mSel.addEventListener('change', turnOffPaint);
     if (ySel) ySel.addEventListener('change', turnOffPaint);
 });
+// ==========================================
+// Goedkeur status
+// ==========================================
 document.getElementById('adminStatusMenu')?.addEventListener('click', async (e) => {
   const item = e.target.closest('.dropdown-item');
   if (!item) return;
@@ -7165,6 +7168,66 @@ document.getElementById('adminStatusMenu')?.addEventListener('click', async (e) 
     console.error("Fout bij badge-update:", err);
     toast('Fout bij updaten status.', 'danger');
   }
+});
+// ✅ 1. Logica voor Verlof & Schoolverlof via Badges
+document.addEventListener('click', (e) => {
+  const badge = e.target.closest('#leaveBalanceBadge, #schoolLeaveBalanceBadge');
+  if (!badge) return;
+
+  const iAmAdmin = dataStore.users[currentUserId]?.role === 'admin';
+  if (!iAmAdmin) return; // Alleen voor admins interactief
+
+  const uid = getActiveUserId();
+  const ud = dataStore.users[uid];
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+
+  if (badge.id === 'leaveBalanceBadge') {
+    // Laad huidige jaarwaarde
+    const mins = ud?.settings?.leaveAllowanceMinutes || 0;
+    document.getElementById('quickAdminLeaveHours').value = Math.floor(mins / 60) || '';
+  } 
+  else if (badge.id === 'schoolLeaveBalanceBadge') {
+    // Bepaal schooljaar label en laad waarde
+    const { label } = getAcademicYearBounds(y, m);
+    document.getElementById('quickSchoolYearLabel').textContent = `Schooljaar ${label}`;
+    const map = ud?.settings?.schoolLeaveByYear || {};
+    const mins = map[label] || 0;
+    document.getElementById('quickAdminSchoolHours').value = Math.floor(mins / 60) || '';
+  }
+});
+
+// ✅ 2. Opslaan via de badge-menu's
+document.getElementById('btnSaveQuickLeave')?.addEventListener('click', async () => {
+  const hours = Number(document.getElementById('quickAdminLeaveHours').value);
+  const uid = getActiveUserId();
+  
+  const ud = dataStore.users[uid];
+  ud.settings = ud.settings || {};
+  ud.settings.leaveAllowanceMinutes = hours * 60;
+
+  await saveUserData();
+  updateLeaveBadges();
+  renderHome();
+  toast('Verlof saldo bijgewerkt', 'success');
+});
+
+document.getElementById('btnSaveQuickSchoolLeave')?.addEventListener('click', async () => {
+  const hours = Number(document.getElementById('quickAdminSchoolHours').value);
+  const uid = getActiveUserId();
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const { label } = getAcademicYearBounds(y, m);
+
+  const ud = dataStore.users[uid];
+  ud.settings = ud.settings || {};
+  ud.settings.schoolLeaveByYear = ud.settings.schoolLeaveByYear || {};
+  ud.settings.schoolLeaveByYear[label] = hours * 60;
+
+  await saveUserData();
+  updateLeaveBadges();
+  renderHome();
+  toast(`Schoolverlof ${label} bijgewerkt`, 'success');
 });
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
