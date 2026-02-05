@@ -1110,9 +1110,9 @@ function renderShifts() {
         ? `<span class="badge bg-light text-dark border">${sh.project}</span>` 
         : '<span class="text-muted small">-</span>';
 
-    const periodText = (sh.startDate || sh.endDate) 
-        ? `<small>${sh.startDate || '...'} <span class="text-muted">t/m</span> ${sh.endDate || '...'}</small>` 
-        : '<span class="text-muted small">-</span>';
+const periodText = (sh.startDate || sh.endDate) 
+    ? `<small>${toDisplayDate(sh.startDate) || '...'} <span class="text-muted">t/m</span> ${toDisplayDate(sh.endDate) || '...'}</small>` 
+    : '<span class="text-muted small">-</span>';
 
     // 7 Kolommen (Met sleep-icoon in de eerste kolom)
     tr.innerHTML = `
