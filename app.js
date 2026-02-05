@@ -807,7 +807,7 @@ function initTopbarAdminSwitcher() {
   };
 }
 
-    // ======= Projects =======
+// ======= Projects =======
 function renderProjects() {
   const ud = getCurrentUserData();
   const projectTableBody = document.getElementById('projectTableBody');
@@ -835,13 +835,14 @@ function renderProjects() {
     const tr = document.createElement('tr');
     if (p.allowMulti === undefined) p.allowMulti = false;
 
-    // We bouwen de rij op met de "Shift-look"
+    // We bouwen de rij op met de "Shift-look" + Kleur + Multi status
     tr.innerHTML = `
       <td>
         <div class="d-flex align-items-center">
-            <span class="dot bg-primary" style="width:10px; height:10px; display:inline-block; border-radius:50%; margin-right:12px;"></span>
+            <span class="dot" style="width:10px; height:10px; display:inline-block; border-radius:50%; margin-right:12px; background-color: ${p.color || '#0d6efd'}"></span>
             <div>
                 <strong class="text-dark">${p.name}</strong>
+                <div class="small text-muted">${p.allowMulti ? 'Extra lijnen: Ja' : 'Extra lijnen: Nee'}</div>
             </div>
         </div>
       </td>
@@ -849,6 +850,11 @@ function renderProjects() {
       <td><span class="badge bg-light text-dark border">${toDisplayDate(p.end)}</span></td>
       <td class="text-end">
         <div class="btn-group">
+          <button class="btn btn-sm ${p.allowMulti ? 'btn-success' : 'btn-outline-secondary'}" 
+                  data-idx="${idx}" data-act="toggle-multi" 
+                  title="Extra lijnen aan/uit">
+            <span class="material-icons-outlined" style="font-size:16px">${p.allowMulti ? 'playlist_add_check' : 'playlist_add'}</span>
+          </button>
           <button class="btn btn-sm btn-outline-warning" data-idx="${idx}" data-act="extend" title="Verlengen">
             <span class="material-icons-outlined" style="font-size:16px">event_repeat</span>
           </button>
@@ -906,65 +912,95 @@ function renderProjects() {
       }
     });
   });
-      // Toggle inputs
-      projectTableBody.querySelectorAll('input[data-act="toggle-multi"]').forEach(chk => {
-        chk.addEventListener('change', async () => {
-          const ud = getCurrentUserData();
-          const idx = Number(chk.dataset.idx);
-          const p = ud.projects[idx];
-          if (!p) return;
-          p.allowMulti = !!chk.checked;
-          await saveUserData();
-          toast(`Extra lijn ${p.allowMulti ? 'toegestaan' : 'uitgeschakeld'} voor ${p.name}`, 'success');
-        });
-      });
 
-      // ✨ NIEUW: Auto-datum invullen bij kiezen project ✨
+  // ✨ NIEUW: Auto-datum invullen bij kiezen project in Shift Modal ✨
+  if (newShiftProjectSelect) {
       newShiftProjectSelect.onchange = () => {
         const selectedName = newShiftProjectSelect.value;
         const p = list.find(proj => proj.name === selectedName);
         
+        const startInput = document.getElementById('newShiftStartDate');
+        const endInput = document.getElementById('newShiftEndDate');
+
         if (p) {
             // Als het project datums heeft, vul ze in
-            if (p.start) newShiftStartDate.value = p.start;
-            if (p.end) newShiftEndDate.value = p.end;
+            if (p.start && startInput) startInput.value = p.start;
+            if (p.end && endInput) endInput.value = p.end;
         } else {
             // Als "Geen project" is gekozen, velden leegmaken
-            newShiftStartDate.value = '';
-            newShiftEndDate.value = '';
+            if (startInput) startInput.value = '';
+            if (endInput) endInput.value = '';
         }
       };
-    }
+  }
+}
 
-addProjectBtn?.addEventListener('click', async () => {
-  const name = newProjectName.value.trim();
-  if (!name) return toast('Vul projectnaam in', 'warning');
+// --- NIEUWE LOGICA: OPSLAAN VIA MODAL ---
+// (Vervangt de oude addProjectBtn logica)
+
+document.getElementById('saveProjectBtn')?.addEventListener('click', async () => {
+  // Haal waarden uit de modal inputs
+  const nameInput = document.getElementById('modalProjectName');
+  const startInput = document.getElementById('modalProjectStart');
+  const endInput = document.getElementById('modalProjectEnd');
+  const colorInput = document.getElementById('modalProjectColor');
+  const multiInput = document.getElementById('modalProjectMulti');
+
+  const name = nameInput.value.trim();
+  
+  if (!name) return toast('Vul een projectnaam in', 'warning');
 
   const ud = getCurrentUserData();
   ud.projects = ud.projects || [];
+
+  // Voeg project toe aan data object
   ud.projects.push({
-    name,
-    start: newProjectStart.value || null,
-    end: newProjectEnd.value || null
+    name: name,
+    start: startInput.value || null,
+    end: endInput.value || null,
+    color: colorInput.value || '#0d6efd',
+    allowMulti: multiInput.checked || false
   });
 
   await saveUserData();
 
-  newProjectName.value = '';
-  newProjectStart.value = '';
-  newProjectEnd.value = '';
+  // Velden leegmaken
+  nameInput.value = '';
+  startInput.value = '';
+  endInput.value = '';
+  if (multiInput) multiInput.checked = false;
 
+  // Renderen en sluiten
   renderProjects();
-  renderProjectFilterForMonth();
+  renderProjectFilterForMonth(); // Update ook de filters
+  
+  // Sluit de modal
+  const modalEl = document.getElementById('projectModal');
+  const modal = bootstrap.Modal.getInstance(modalEl);
+  modal.hide();
+
   toast('Project toegevoegd', 'success');
 
-  // 🔔 Melding naar alle gebruikers (behalve admin zelf)
+  // Melding naar andere gebruikers (indien nodig)
   const qs = await getDocs(collection(db, 'users'));
   for (const u of qs.docs) {
     if (u.id !== currentUserId) {
       await notifyProjectChange(u.id, 'added', name);
     }
   }
+});
+
+// Zorg dat de velden leeg zijn als je de modal opent
+document.getElementById('projectModal')?.addEventListener('show.bs.modal', () => {
+  const nameInput = document.getElementById('modalProjectName');
+  const startInput = document.getElementById('modalProjectStart');
+  const endInput = document.getElementById('modalProjectEnd');
+  const multiInput = document.getElementById('modalProjectMulti');
+
+  if(nameInput) nameInput.value = '';
+  if(startInput) startInput.value = '';
+  if(endInput) endInput.value = '';
+  if(multiInput) multiInput.checked = false;
 });
 // ==========================================
 // FIX: SLEPEN & SORTEREN (Drag & Drop hersteld)
