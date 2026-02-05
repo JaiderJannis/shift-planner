@@ -7380,6 +7380,45 @@ document.getElementById('btnSaveQuickSchoolLeave')?.addEventListener('click', as
   updateLeaveBadges();
   toast(`Schoolverlof voor ${label} opgeslagen`, 'success');
 });
+// ✅ DEZE FUNCTIE ONTBRAK: Hiermee kan de topbar wisselen van gebruiker
+async function renderUserDataAsAdmin(uid) {
+  // 1. Zorg dat we de data hebben
+  if (!dataStore.users[uid]) {
+     const snap = await getDoc(doc(db, 'users', uid));
+     if (snap.exists()) {
+       dataStore.users[uid] = snap.data();
+     }
+  }
+  
+  // 2. Zet de actieve view user (zodat alle functies weten naar wie we kijken)
+  dataStore.viewUserId = uid;
+  
+  // 3. Update alle schermen met data van DEZE user
+  renderProjects();
+  renderShifts();
+  populateFilterShiftYears();
+  renderProjectFilterForMonth();
+  await generateMonth(); 
+  renderHistory();
+  
+  // 4. Update Admin specifieke velden (zoals verlof saldo inputs)
+  if (typeof hydrateAdminLeaveInputsFor === 'function') {
+    hydrateAdminLeaveInputsFor(uid);
+  }
+
+  // 5. Update labels zodat je ziet wie je bewerkt
+  const u = dataStore.users[uid];
+  const name = u ? (u.name || u.email || uid) : "Onbekend";
+  
+  const lblAdmin = document.getElementById('activeUserLabel');
+  if (lblAdmin) lblAdmin.textContent = name;
+  
+  const lblApprove = document.getElementById('approvalActiveUserLabel');
+  if (lblApprove) lblApprove.textContent = name;
+  
+  const settingsName = document.getElementById('adminSettingsName');
+  if (settingsName) settingsName.textContent = name;
+}
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
