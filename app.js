@@ -2635,7 +2635,7 @@ function hydrateAdminLeaveInputsFor(uid) {
   const i1 = document.getElementById('adminLeaveHours');
   if (i1) i1.value = Math.floor((ud?.settings?.leaveAllowanceMinutes || 0) / 60) || '';
 document.getElementById('adminSaveLeaveBtn')?.addEventListener('click', async () => {
-  const uid = adminUserSelect?.value || getActiveUserId();
+ const uid = getActiveUserId();
   if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
 
   const prev = dataStore.viewUserId; dataStore.viewUserId = uid;
@@ -2651,7 +2651,7 @@ document.getElementById('adminSaveLeaveBtn')?.addEventListener('click', async ()
 });
 
 document.getElementById('adminResetLeaveBtn')?.addEventListener('click', async () => {
-  const uid = adminUserSelect?.value || getActiveUserId();
+  const uid = getActiveUserId();
   if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
 
   const prev = dataStore.viewUserId; dataStore.viewUserId = uid;
@@ -2680,12 +2680,12 @@ document.getElementById('adminResetLeaveBtn')?.addEventListener('click', async (
 }
 
 document.getElementById('adminSchoolYearSelect')?.addEventListener('change', () => {
-  const uid = adminUserSelect?.value || getActiveUserId();
+  const uid = getActiveUserId();
   if (uid) hydrateAdminLeaveInputsFor(uid);
 });
 
 document.getElementById('adminSaveSchoolLeaveBtn')?.addEventListener('click', async () => {
-  const uid = adminUserSelect?.value || getActiveUserId();
+  const uid = getActiveUserId();
   if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
 
   const prev = dataStore.viewUserId;
@@ -2713,7 +2713,7 @@ document.getElementById('adminSaveSchoolLeaveBtn')?.addEventListener('click', as
 });
 
 document.getElementById('adminResetSchoolLeaveBtn')?.addEventListener('click', async () => {
-  const uid = adminUserSelect?.value || getActiveUserId();
+  const uid = getActiveUserId();
   if (!uid) return toast('Geen gebruiker geselecteerd', 'warning');
 
   const prev = dataStore.viewUserId;
@@ -2808,7 +2808,7 @@ async function renderAdminUserSelect() {
 }
 document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab', () => {
   buildSchoolYearOptions(document.getElementById('adminSchoolYearSelect'));
-  const uid = adminUserSelect?.value || getActiveUserId();
+  const uid = getActiveUserId();
   if (uid) hydrateAdminLeaveInputsFor(uid); // vult waarden in
 });
 // ✅ Gebruiker selecteren zonder adminstatus te verliezen
@@ -4584,7 +4584,7 @@ function renderAdminMonthlyMulti(){
   if (!yInput || !mSelect || !allowBox) return;
 
   // 1. Haal de doel-gebruiker op (of admin zelf als niets gekozen)
-  const uid = adminUserSelect?.value || getActiveUserId();
+  const uid = getActiveUserId();
   
   if (!uid){
     allowBox.checked = false;
@@ -4802,7 +4802,7 @@ function hydrateSchoolLeaveToggle() {
 
   // 🖱 Klikgedrag voor inschakelen / uitschakelen
   btn.onclick = async () => {
-    const uid = adminUserSelect?.value || getActiveUserId();
+    const uid = getActiveUserId();
     if (!uid) return;
 
     const prev = dataStore.viewUserId;
