@@ -1026,7 +1026,8 @@ document.getElementById('saveProjectBtn')?.addEventListener('click', async () =>
 });
 
 // Zorg dat de velden leeg zijn als je de modal opent
-document.getElementById('projectModal')?.addEventListener('show.bs.modal', () => {
+document.getElementById('projectModal')?.addEventListener('hidden.bs.modal', () => {
+  // 1. Velden leegmaken
   const nameInput = document.getElementById('modalProjectName');
   const startInput = document.getElementById('modalProjectStart');
   const endInput = document.getElementById('modalProjectEnd');
@@ -1036,6 +1037,13 @@ document.getElementById('projectModal')?.addEventListener('show.bs.modal', () =>
   if(startInput) startInput.value = '';
   if(endInput) endInput.value = '';
   if(multiInput) multiInput.checked = false;
+
+  // 2. Reset de 'edit modus' variabele
+  editingProjectIndex = null;
+
+  // 3. Zet de titel terug naar 'Nieuw Project' (voor de volgende keer)
+  const title = document.querySelector('#projectModal .modal-title');
+  if(title) title.textContent = "Nieuw Project";
 });
 // ==========================================
 // FIX: SLEPEN & SORTEREN (Drag & Drop hersteld)
