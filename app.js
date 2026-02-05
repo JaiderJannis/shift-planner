@@ -632,7 +632,6 @@ function initTopbarAdminSwitcher() {
   const container = document.getElementById('topbarAdminSwitch');
   if (!container) return;
 
-  // We bouwen de HTML opnieuw op om de extra knoppen toe te voegen
   container.innerHTML = `
     <div class="d-flex align-items-center gap-2">
       <span class="fw-bold text-muted small me-1">BEHEER:</span>
@@ -650,6 +649,11 @@ function initTopbarAdminSwitcher() {
                 style="width: 32px; height: 31px;" title="Schoolverlof Aan/Uit">
           <span class="material-icons-outlined" style="font-size:18px">school</span>
         </button>
+
+        <button id="topbarDeleteBtn" class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center" 
+                style="width: 32px; height: 31px;" title="Gebruiker verwijderen">
+          <span class="material-icons-outlined" style="font-size:18px">person_remove</span>
+        </button>
       </div>
     </div>
   `;
@@ -660,120 +664,125 @@ function initTopbarAdminSwitcher() {
   const controls = document.getElementById('topbarControls');
   const roleSelect = document.getElementById('topbarRoleSelect');
   const schoolBtn = document.getElementById('topbarSchoolBtn');
+  const deleteBtn = document.getElementById('topbarDeleteBtn');
 
-  // --- A. Vul de gebruikerslijst ---
-  const users = Object.entries(dataStore.users).sort((a, b) => 
-    (a[1].name || '').localeCompare(b[1].name || '')
-  );
+  // --- A. Vul de lijst ---
+  const refreshUserList = () => {
+    select.innerHTML = '<option value="">-- Mijzelf --</option>';
+    const users = Object.entries(dataStore.users).sort((a, b) => 
+      (a[1].name || '').localeCompare(b[1].name || '')
+    );
+    users.forEach(([uid, u]) => {
+      if (uid === currentUserId) return; 
+      const opt = document.createElement('option');
+      opt.value = uid;
+      opt.textContent = u.name || u.email || uid;
+      if (uid === dataStore.viewUserId) opt.selected = true;
+      select.appendChild(opt);
+    });
+  };
+  refreshUserList();
 
-  select.innerHTML = '<option value="">-- Mijzelf --</option>';
-  users.forEach(([uid, u]) => {
-    if (uid === currentUserId) return; 
-    const opt = document.createElement('option');
-    opt.value = uid;
-    opt.textContent = u.name || u.email || uid;
-    if (uid === dataStore.viewUserId) opt.selected = true;
-    select.appendChild(opt);
-  });
-
-  // --- B. Helper om UI te updaten op basis van gekozen user ---
+  // --- B. Update UI Helper ---
   const updateControlState = (uid) => {
+    // 1. Label in Admin tab bijwerken (zodat je ziet wie je edit)
+    const adminLabel = document.getElementById('adminSettingsName');
+    if (adminLabel) {
+        const uName = uid ? (dataStore.users[uid]?.name || uid) : "Mijzelf";
+        adminLabel.textContent = uName;
+        // Geef visueel aan als het niet jezelf is
+        adminLabel.className = uid ? "text-primary fw-bold" : "text-muted";
+    }
+
+    // 2. Velden in Admin tab verversen (Verlof uren etc.)
+    if (typeof hydrateAdminLeaveInputsFor === 'function') {
+        hydrateAdminLeaveInputsFor(uid || currentUserId);
+    }
+    
+    // 3. Knoppen in Topbar tonen/verbergen
     if (!uid) {
       controls.classList.add('d-none');
       return;
     }
+    
     const u = dataStore.users[uid];
     if (!u) return;
-
     controls.classList.remove('d-none');
-    
-    // Rol instellen
     roleSelect.value = u.role || 'user';
-
-    // Schoolverlof knop kleur
-    const schoolEnabled = u.settings?.schoolLeaveEnabled !== false; // default true
-    if (schoolEnabled) {
-      schoolBtn.classList.remove('btn-outline-secondary');
-      schoolBtn.classList.add('btn-success', 'text-white');
-    } else {
-      schoolBtn.classList.remove('btn-success', 'text-white');
-      schoolBtn.classList.add('btn-outline-secondary');
-    }
+    
+    const schoolEnabled = u.settings?.schoolLeaveEnabled !== false;
+    schoolBtn.className = schoolEnabled 
+      ? 'btn btn-sm btn-success text-white d-flex align-items-center justify-content-center' 
+      : 'btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center';
   };
 
-  // Initialiseren als er al iemand gekozen was
+  // Initialiseren
   updateControlState(select.value);
 
-  // --- C. Event: Gebruiker Wisselen ---
+  // --- C. Event: Wisselen ---
   select.onchange = async () => {
     const targetUid = select.value;
     dataStore.viewUserId = targetUid || null;
 
     if (!targetUid) {
       toast('Beheer teruggezet naar jezelf', 'info');
-      // Reset ook de admin tab selectie als die open staat
-      if(adminUserSelect) adminUserSelect.value = "";
     } else {
       toast(`Beheer actief voor ${dataStore.users[targetUid]?.name || 'gebruiker'}`, 'primary');
-      // Sync met admin tab
-      if(adminUserSelect) adminUserSelect.value = targetUid;
     }
-
+    
     updateControlState(targetUid);
     await renderUserDataAsAdmin(targetUid || currentUserId);
   };
 
-  // --- D. Event: Rol Wijzigen ---
+  // --- D. Event: Rol ---
   roleSelect.onchange = async () => {
     const uid = select.value;
     if (!uid) return;
-    const newRole = roleSelect.value;
-
     try {
-      // Update DB
-      await updateDoc(doc(db, 'users', uid), { role: newRole });
-      
-      // Update Lokale data
-      if (dataStore.users[uid]) dataStore.users[uid].role = newRole;
-      
-      toast(`Rol aangepast naar ${newRole}`, 'success');
-    } catch (err) {
-      console.error(err);
-      toast('Fout bij rol aanpassen', 'danger');
-    }
+      await updateDoc(doc(db, 'users', uid), { role: roleSelect.value });
+      dataStore.users[uid].role = roleSelect.value;
+      toast(`Rol aangepast`, 'success');
+    } catch (err) { console.error(err); toast('Fout bij rol', 'danger'); }
   };
 
-  // --- E. Event: Schoolverlof Toggle ---
+  // --- E. Event: Schoolverlof ---
   schoolBtn.onclick = async () => {
     const uid = select.value;
     if (!uid) return;
+    const u = dataStore.users[uid]; u.settings ||= {};
+    const newState = !(u.settings.schoolLeaveEnabled !== false);
+    try {
+      await updateDoc(doc(db, 'users', uid), { 'settings.schoolLeaveEnabled': newState });
+      u.settings.schoolLeaveEnabled = newState;
+      updateControlState(uid);
+      if (typeof applySchoolLeaveVisibility === 'function') applySchoolLeaveVisibility();
+      toast(`Schoolverlof ${newState ? 'AAN' : 'UIT'}`, 'success');
+    } catch (err) { console.error(err); toast('Fout', 'danger'); }
+  };
 
-    const u = dataStore.users[uid];
-    u.settings ||= {};
-    
-    // Toggle de waarde (standaard is true, dus undefined = true)
-    const currentState = u.settings.schoolLeaveEnabled !== false;
-    const newState = !currentState;
+  // --- F. Event: Verwijderen (NIEUW) ---
+  deleteBtn.onclick = async () => {
+    const uid = select.value;
+    if (!uid) return;
+    if (!confirm('Weet je zeker dat je deze gebruiker wilt verwijderen? Dit kan niet ongedaan worden gemaakt.')) return;
 
     try {
-      // Update DB
-      await updateDoc(doc(db, 'users', uid), { 'settings.schoolLeaveEnabled': newState });
+      await deleteDoc(doc(db, 'users', uid));
+      delete dataStore.users[uid]; // Verwijder lokaal
       
-      // Update Lokale data
-      u.settings.schoolLeaveEnabled = newState;
-
-      // Update UI knop
-      updateControlState(uid);
+      // Reset view naar jezelf
+      select.value = "";
+      dataStore.viewUserId = null;
+      updateControlState(null);
+      await renderUserDataAsAdmin(currentUserId);
       
-      // Update de applicatie weergave (kolommen verbergen/tonen)
-      if (typeof applySchoolLeaveVisibility === 'function') {
-         applySchoolLeaveVisibility(); 
-      }
-
-      toast(`Schoolverlof ${newState ? 'AAN' : 'UIT'}`, newState ? 'success' : 'info');
+      // Lijst verversen
+      refreshUserList();
+      
+      toast('Gebruiker verwijderd', 'success');
     } catch (err) {
       console.error(err);
-      toast('Fout bij opslaan schoolverlof', 'danger');
+      toast('Verwijderen mislukt', 'danger');
     }
   };
 }
