@@ -842,7 +842,6 @@ function renderProjects() {
             <span class="dot" style="width:10px; height:10px; display:inline-block; border-radius:50%; margin-right:12px; background-color: ${p.color || '#0d6efd'}"></span>
             <div>
                 <strong class="text-dark">${p.name}</strong>
-                <div class="small text-muted">${p.allowMulti ? 'Extra lijnen: Ja' : 'Extra lijnen: Nee'}</div>
             </div>
         </div>
       </td>
@@ -850,11 +849,6 @@ function renderProjects() {
       <td><span class="badge bg-light text-dark border">${toDisplayDate(p.end)}</span></td>
       <td class="text-end">
         <div class="btn-group">
-          <button class="btn btn-sm ${p.allowMulti ? 'btn-success' : 'btn-outline-secondary'}" 
-                  data-idx="${idx}" data-act="toggle-multi" 
-                  title="Extra lijnen aan/uit">
-            <span class="material-icons-outlined" style="font-size:16px">${p.allowMulti ? 'playlist_add_check' : 'playlist_add'}</span>
-          </button>
           <button class="btn btn-sm btn-outline-warning" data-idx="${idx}" data-act="extend" title="Verlengen">
             <span class="material-icons-outlined" style="font-size:16px">event_repeat</span>
           </button>
