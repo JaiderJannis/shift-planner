@@ -46,22 +46,36 @@ import {
     const db = getFirestore(app);
     const storage = getStorage(app);
 
-        // ======= State =======
+// ======= State =======
     let currentUserId = null;
     let mailUIBound = false;
     let notificationInterval = null;
+    
+    // --- NIEUWE VARIABELEN HIER NAARTOE VERPLAATST ---
+    let isPaintMode = false;
+    let selectedPaintShiftKey = null;
+    
+    let mailboxUnsubInbox = null;
+    let mailboxUnsubSent = null;
+    let mailboxCacheInbox = [];
+    let mailboxCacheSent = [];
+    let mailboxCache = [];         
+    let mailFolder   = 'inbox'; 
+    let composeThreadId = null; 
+    // --------------------------------------------------
+
     const dataStore = { 
       users: {}, 
       currentUser: null,
-      notifications: [] // 👈 VOEG DEZE REGEL TOE
+      notifications: [] 
     };
-    let saveTimer = null; // Timer voor het vertraagd opslaan
+    let saveTimer = null; 
     const debouncedSave = () => {
-      clearTimeout(saveTimer); // Stop de vorige timer
+      clearTimeout(saveTimer); 
       saveTimer = setTimeout(() => {
-        saveUserData(); // Sla nu pas echt op
+        saveUserData(); 
         console.log("DB: Data opgeslagen (met vertraging).");
-      }, 2000); // Wacht 2 seconden (2000ms)
+      }, 2000); 
     };
     // ======= Elements =======
     const sidebar = document.getElementById('sidebar');
@@ -2851,18 +2865,6 @@ async function renderAdminUserSelect() {
   if (lblApprove) lblApprove.textContent = activeName;
 }
   // --- EINDE CORRECTIE ---
-
-
-  // Tijdelijk: toon deze data in invoer & historiek
-  dataStore.users[uid] = u;
-  dataStore.viewUserId = uid;
-
-  renderProjects();
-  renderShifts();
-  populateFilterShiftYears();
-  renderProjectFilterForMonth();
-  await generateMonth(); // <-- 'await' is hier toegevoegd
-  renderHistory();
 
 // ✅ Rol bijwerken
 updateRoleBtn?.addEventListener('click', async () => {
