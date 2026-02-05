@@ -962,7 +962,6 @@ function renderProjects() {
         }
       };
   }
-}
 
 // --- NIEUWE LOGICA: OPSLAAN VIA MODAL ---
 // (Vervangt de oude addProjectBtn logica)
