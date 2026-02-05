@@ -47,12 +47,14 @@
   </div>
 </div>
 <nav class="nav flex-column" id="navTabs">
-  <a class="nav-link active" data-bs-toggle="tab" href="#tab-home">
+<a class="nav-link active" data-bs-toggle="tab" href="#tab-home">
     <span class="material-icons-outlined">home</span> <span class="label">Home</span>
+  </a>
+  <a class="nav-link" data-bs-toggle="tab" href="#tab-projects">
+    <span class="material-icons-outlined">assignment</span> <span class="label">Projecten</span>
   </a>
   <a class="nav-link" data-bs-toggle="tab" href="#tab-shifts">
     <span class="material-icons-outlined">schedule</span> <span class="label">Shifts</span>
-  </a>
   <a class="nav-link" data-bs-toggle="tab" href="#tab-invoer">
     <span class="material-icons-outlined">list_alt</span> <span class="label">Invoer</span>
   </a>
@@ -259,6 +261,38 @@
   
   <div id="roosterLegendContainer" class="mt-3 pt-2 border-top">
     </div>
+<section id="tab-projects" class="tab-pane fade">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Projectbeheer</h5>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#projectModal">
+      <span class="material-icons-outlined">add</span> Nieuw Project
+    </button>
+  </div>
+
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-striped align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Projectnaam</th>
+              <th>Startdatum</th>
+              <th>Einddatum</th>
+              <th class="text-end">Acties</th>
+            </tr>
+          </thead>
+          <tbody id="projectTableBody">
+            </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert alert-info small">
+    <span class="material-icons-outlined align-middle me-1" style="font-size:18px">info</span>
+    Projecten bepalen welke shiften je kunt kiezen in de planner op basis van de datum.
+  </div>
+</section>  
 </section>
       <!-- SHIFTS -->
       <section id="tab-shifts" class="tab-pane fade">
@@ -714,35 +748,7 @@
       </div>
     </div>
   </div>
-  <div class="card p-3 mb-3">
-    <h6 class="mb-3">Projectbeheer</h6>
-    <div class="row g-2 align-items-end">
-      <div class="col-md-4">
-        <label class="form-label">Projectnaam</label>
-        <input id="newProjectName" class="form-control" />
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Startdatum</label>
-        <input id="newProjectStart" type="date" class="form-control" />
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Einddatum</label>
-        <input id="newProjectEnd" type="date" class="form-control" />
-      </div>
-      <div class="col-md-2">
-        <button id="addProjectBtn" class="btn btn-success w-100">Toevoegen</button>
-      </div>
-    </div>
-
-    <div class="table-responsive mt-3">
-      <table class="table table-striped align-middle table-nowrap">
-        <thead class="table-light">
-          <tr><th>Project</th><th>Start</th><th>Eind</th><th>Acties</th></tr>
-        </thead>
-        <tbody id="projectTableBody"></tbody>
-      </table>
-    </div>
-  </div>
+ 
 
       </div>
     </div>
