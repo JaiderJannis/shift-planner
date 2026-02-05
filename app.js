@@ -55,13 +55,6 @@ import {
     let isPaintMode = false;
     let selectedPaintShiftKey = null;
     
-    let mailboxUnsubInbox = null;
-    let mailboxUnsubSent = null;
-    let mailboxCacheInbox = [];
-    let mailboxCacheSent = [];
-    let mailboxCache = [];         
-    let mailFolder   = 'inbox'; 
-    let composeThreadId = null; 
     // --------------------------------------------------
 
     const dataStore = { 
@@ -6880,9 +6873,6 @@ window.updateShiftTime = async (rowKey, field, value) => {
 // ==========================================
 // 6. VERF MODUS (PAINT MODE) 🎨
 // ==========================================
-let isPaintMode = false;
-let selectedPaintShiftKey = null;
-
 // 1. Initialiseer de Verf-knop en Balk (wordt autom. aangeroepen)
 function initPaintModeUI() {
   // Check of de UI al bestaat, zo ja, stop
