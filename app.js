@@ -990,15 +990,6 @@ if (addProjBtn) {
     }
   });
 }
-
-  // 🔔 Melding naar alle gebruikers (behalve admin zelf)
-  const qs = await getDocs(collection(db, 'users'));
-  for (const u of qs.docs) {
-    if (u.id !== currentUserId) {
-      await notifyProjectChange(u.id, 'added', name);
-    }
-  }
-});
 // ==========================================
 // FIX: SLEPEN & SORTEREN (Drag & Drop hersteld)
 // ==========================================
