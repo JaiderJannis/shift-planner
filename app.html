@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="nl">
 <head>
@@ -683,6 +684,31 @@
       Actief: <strong id="activeUserLabel">-</strong>
     </div>
   </div>
+
+  <div class="card p-3 mb-3">
+    <h6 class="mb-3">Gebruikersbeheer</h6>
+    <div class="row g-2 align-items-end">
+      <div class="col-md-6">
+        <label class="form-label">Gebruiker selecteren</label>
+        <select id="adminUserSelect" class="form-select"></select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Rol</label>
+        <select id="roleSelect" class="form-select">
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="col-md-6 d-flex gap-2">
+        <button id="updateRoleBtn" class="btn btn-warning flex-fill">Rol opslaan</button>
+        <button id="removeUserBtn" class="btn btn-danger flex-fill">Verwijder</button>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+  <button id="saveSettingsBtn" class="btn btn-outline-secondary flex-grow-1">
+    Schoolverlof uitschakelen
+  </button>
+  <span id="schoolLeaveStatusBadge" class="badge bg-secondary px-3 py-2" style="font-size:0.9rem; min-width:95px; text-align:center;">
+    Onbekend
+  </span>
 </div>
       </div>
     </div>
