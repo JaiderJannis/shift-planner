@@ -1,4 +1,3 @@
-
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
 // A. De Firestore imports (zonder storage)
@@ -943,27 +942,54 @@ function renderProjects() {
       };
     }
 
-addProjectBtn?.addEventListener('click', async () => {
-  const name = newProjectName.value.trim();
-  if (!name) return toast('Vul projectnaam in', 'warning');
+// ✅ Project toevoegen via Modal
+const addProjBtn = document.getElementById('addProjectBtn'); // Gebruik unieke naam
 
-  const ud = getCurrentUserData();
-  ud.projects = ud.projects || [];
-  ud.projects.push({
-    name,
-    start: newProjectStart.value || null,
-    end: newProjectEnd.value || null
+if (addProjBtn) {
+  addProjBtn.addEventListener('click', async () => {
+    // 1. Haal waarden uit de MODAL inputs
+    const nameInput = document.getElementById('newProjectName');
+    const startInput = document.getElementById('newProjectStart');
+    const endInput = document.getElementById('newProjectEnd');
+
+    const name = nameInput.value.trim();
+    if (!name) return toast('Vul projectnaam in', 'warning');
+
+    const ud = getCurrentUserData();
+    ud.projects = ud.projects || [];
+    ud.projects.push({
+      name,
+      start: startInput.value || null,
+      end: endInput.value || null
+    });
+
+    await saveUserData();
+
+    // 2. Velden leegmaken
+    nameInput.value = '';
+    startInput.value = '';
+    endInput.value = '';
+
+    // 3. UI verversen
+    renderProjects();
+    renderProjectFilterForMonth(); // Update filterdropdown
+
+    // 4. Sluit de Modal
+    const modalEl = document.getElementById('projectModal');
+    const modal = bootstrap.Modal.getInstance(modalEl); // Haal de bestaande instance op
+    if (modal) modal.hide();
+
+    toast('Project toegevoegd', 'success');
+
+    // 5. Melding naar alle gebruikers (behalve admin zelf)
+    const qs = await getDocs(collection(db, 'users'));
+    for (const u of qs.docs) {
+      if (u.id !== currentUserId) {
+        await notifyProjectChange(u.id, 'added', name);
+      }
+    }
   });
-
-  await saveUserData();
-
-  newProjectName.value = '';
-  newProjectStart.value = '';
-  newProjectEnd.value = '';
-
-  renderProjects();
-  renderProjectFilterForMonth();
-  toast('Project toegevoegd', 'success');
+}
 
   // 🔔 Melding naar alle gebruikers (behalve admin zelf)
   const qs = await getDocs(collection(db, 'users'));
