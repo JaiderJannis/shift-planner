@@ -1,3 +1,4 @@
+
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
 // A. De Firestore imports (zonder storage)
@@ -419,6 +420,15 @@ function updateMonthStatusBadge(){
     submitBtn.classList.toggle('d-none', hide);
     submitBtn.disabled = hide; 
   }
+
+  // De knop "Invoer meerdere dagen"
+const mBtn = document.getElementById('multiDayShiftBtn');
+  
+  if (mBtn){
+    mBtn.classList.toggle('d-none', hide);
+    mBtn.disabled = hide;
+  }
+}
 // ======= Auth =======
 onAuthStateChanged(auth, async (user) => {
     // Stop alle intervals als we uitloggen
@@ -3256,6 +3266,12 @@ document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
   doc.save(filename);
   toast('PDF geëxporteerd', 'success');
 });
+// 🔁 Shift toepassen op meerdere dagen
+const multiShiftName = document.getElementById('multiShiftName');
+const multiShiftStart = document.getElementById('multiShiftStart');
+const multiShiftEnd = document.getElementById('multiShiftEnd');
+const multiShiftDays = document.getElementById('multiShiftDays');
+const multiDayShiftBtn = document.getElementById('multiDayShiftBtn');
 
 // 🔵 Herkleur direct alle ingeplande dagen opnieuw
 const plannedDates = Object.keys(
@@ -3859,8 +3875,254 @@ function monthOverlapsPeriod(year, month0, startISO, endISO) {
   const e = end   || new Date('9999-12-31');
   return !(e < monthStart || s > monthEnd);
 }
+// 🟡 Kleurt de dagen die al een shift hebben
+function highlightPlannedDays(inst, plannedDates = []) {
+  if (!inst || !inst.daysContainer) return;
+
+  inst.daysContainer.querySelectorAll('.flatpickr-day').forEach(d => {
+    if (!d.dateObj) return;
+    const yyyy = d.dateObj.getFullYear();
+    const mm   = String(d.dateObj.getMonth() + 1).padStart(2, '0');
+    const dd   = String(d.dateObj.getDate()).padStart(2, '0');
+    const dateStr = `${yyyy}-${mm}-${dd}`; 
+
+    if (plannedDates.includes(dateStr)) {
+      d.classList.add('planned-day');
+    } else {
+      d.classList.remove('planned-day');
+    }
+  });
+}
+function populateMultiDayShifts(selectedDates = []) {
+  const ud = getCurrentUserData();
+  const sel = document.getElementById('multiShiftName');
+  sel.innerHTML = '<option value="">Kies shift</option>';
+
+  const all = ud.shifts || {};
+  const order = ud.shiftOrder || Object.keys(all);
+
+  order.forEach(name => {
+    const sh = all[name];
+    if (!sh) return;
+
+    // toon shift als er GEEN periode is, of als ten minste één dag binnen de periode valt
+    const match = !sh.startDate && !sh.endDate ||
+      selectedDates.some(d => isDateWithin(d, sh.startDate || null, sh.endDate || null));
+
+    if (match) {
+      const o = document.createElement('option');
+      o.value = name;
+      o.textContent = name;
+      sel.appendChild(o);
+    }
+  });
+}
+
+// 🔄 Kleurt de geplande dagen opnieuw na opslaan
+async function refreshPlannedDays() {
+  const year = Number(document.getElementById("yearSelectMain").value);
+  const month = Number(document.getElementById("monthSelectMain").value);
+  const ud = getCurrentUserData();
+  const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
+  const plannedDates = Object.keys(maandData).filter(d => !!maandData[d]?.shift);
+
+  if (window.multiDayPicker) {
+    highlightPlannedDays(window.multiDayPicker, plannedDates);
+  }
+}
+
+// --- Geeft alle ingeplande datums terug in ISO-formaat ---
+function getPlannedDates() {
+  const ud = getCurrentUserData();
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const md = ud.monthData?.[y]?.[m];
+  if (!md || !md.rows) return [];
+  const set = new Set();
+  for (const [k, r] of Object.entries(md.rows)) {
+    const base = k.split('#')[0]; // strip extra-lijn suffix
+    const shiftName = (r?.shift || '').trim();
+    if (shiftName && shiftName.toLowerCase() !== 'niet ingepland') {
+      set.add(base);
+    }
+  }
+  return [...set];
+}
+
+/* === Kalender voor invoer meerdere dagen === */
+function initMultiDayPicker() {
+  const year = Number(document.getElementById("yearSelectMain").value);
+  const month = Number(document.getElementById("monthSelectMain").value);
+  const start = new Date(year, month, 1);
+  const end = new Date(year, month + 1, 0);
+if (window.multiDayPicker) window.multiDayPicker.destroy();
+  const ud = getCurrentUserData();
+  const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
+  const plannedDates = Object.keys(maandData).filter(d => !!maandData[d]?.shift);
+
+  console.log("✅ Planned dates:", plannedDates);
+
+window.multiDayPicker = flatpickr("#multiShiftDays", {
+  static: true,
+  mode: "multiple",
+  dateFormat: "d-m-Y",
+  altInput: true,
+  altFormat: "d F Y",
+  locale: flatpickr.l10ns.nl,
+  weekNumbers: true,
+  minDate: start,
+  maxDate: end,
+  disableMobile: true,
+  defaultDate: [],
+
+  // ✅ Eerste dag correct kleuren bij laden
+onReady(_, __, inst) {
+  setTimeout(() => highlightPlannedDays(inst, getPlannedDates()), 50);
+},
+onMonthChange(_, __, inst) {
+  highlightPlannedDays(inst, getPlannedDates());
+},
+onChange(selectedDates) {
+  const isoDates = selectedDates.map(d => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;   // no toISOString()
+  });
+  populateMultiDayShifts(isoDates);
+},
+});
+setTimeout(markPlannedDays, 100);
+
+function markPlannedDays() {
+  const ud = getCurrentUserData();
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const md = ud.monthData?.[y]?.[m] || {};
+  const planned = Object.keys(md.rows || {}).filter(k => md.rows[k].shift);
+
+  document.querySelectorAll('.calendar-day').forEach(dayEl => {
+    const date = dayEl.dataset?.date;
+    if (!date) return;
+    if (planned.includes(date)) {
+      dayEl.classList.add('planned-day');
+    } else {
+      dayEl.classList.remove('planned-day');
+    }
+  });
+}
+  // 🟡 extra aanroep om te garanderen dat dag 1 direct mee kleurt
+  highlightPlannedDays(window.multiDayPicker, plannedDates);
+}
 
 /* === Eventlisteners === */
+// 🟢 Open de "Meerdere dagen" modal
+document.getElementById("multiDayShiftBtn")?.addEventListener("click", () => {
+  const modalEl = document.getElementById("multiDayModal");
+  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+  // 1. Bereid de shift-lijst VOOR
+  populateMultiDayShifts();
+  
+  // 2. Toon de modal
+  modal.show();
+
+  // 3. Initialiseer de kalender met een korte vertraging (dit is de fix)
+  setTimeout(initMultiDayPicker, 150);
+}); // <-- NU CORRECT GEPLAATST
+
+// 💾 Opslaan van meerdere dagen
+document.getElementById('saveMultiShift').addEventListener('click', async () => {
+  try {
+    const ud = getCurrentUserData();
+    const dateInput = document.getElementById('multiShiftDays');
+    const shiftSelect = document.getElementById('multiShiftName');
+
+    const selectedShift = shiftSelect.value;
+    if (!selectedShift) {
+      toast('Kies eerst een shift', 'warning');
+      return;
+    }
+
+  // flatpickr geeft comma-separated string terug → splits op ','
+    const selectedDates = (dateInput.value || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(disp => {
+        // "d-m-Y" -> ISO zonder timezone-trucs
+        const [dd, mm, yyyy] = disp.split('-').map(x => x.trim());
+        return `${yyyy}-${mm}-${dd}`;
+      });
+
+    if (selectedDates.length === 0) {
+      toast('Kies minstens één dag', 'warning');
+      return;
+    }
+
+    const sh = ud.shifts[selectedShift];
+    if (!sh) {
+      toast('Shift niet gevonden', 'danger');
+      return;
+    }
+
+    // wegschrijven
+    for (const iso of selectedDates) {
+      const [yStr, mStr] = iso.split('-');
+      const y = Number(yStr);
+      const m = Number(mStr) - 1;
+
+      ud.monthData ||= {};
+      ud.monthData[y] ||= {};
+      ud.monthData[y][m] ||= { targetHours: 0, targetMinutes: 0, rows: {} };
+
+      // project auto
+      let project = sh.project || '';
+      const sp = autoProjectForShift(selectedShift);
+      if (sp) {
+        ensureProjectExists(sp);
+        project = sp;
+      }
+
+      const minutes = minutesBetween(sh.start, sh.end, sh.break);
+
+      ud.monthData[y][m].rows[iso] = {
+        project,
+        shift: selectedShift,
+        start: sh.start,
+        end: sh.end,
+        break: sh.break,
+        omschrijving: '',
+        minutes
+      };
+    }
+
+    await saveUserData();
+
+    // UI refresh
+    const curY = Number(yearSelectMain.value);
+    const curM = Number(monthSelectMain.value);
+    await renderMonth(curY, curM);
+    updateInputTotals();
+    renderHistory();
+
+    // kalender-highlights (veilig, zonder await)
+    if (window.multiDayPicker) {
+      highlightPlannedDays(window.multiDayPicker, getPlannedDates());
+    }
+
+    // ✅ eerst toast tonen...
+    toast('Shiften toegevoegd', 'success');
+
+    // ...dán modal sluiten (met fallback als getInstance null is)
+    const modalEl = document.getElementById('multiDayModal');
+    (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).hide();
+
+  } catch (err) {
+    console.error(err);
+    toast('Er ging iets mis bij opslaan', 'danger');
+  }
+});
 // 🧩 Functie om direct 1 dag op de kalender te updaten
 function updateCalendarDay(date, shiftName) {
   // Zoek het cel-element dat overeenkomt met deze datum
