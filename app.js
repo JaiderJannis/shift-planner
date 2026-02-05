@@ -2863,10 +2863,6 @@ async function renderAdminUserSelect() {
   renderProjectFilterForMonth();
   await generateMonth(); // <-- 'await' is hier toegevoegd
   renderHistory();
-}
-
-
-
 
 // ✅ Rol bijwerken
 updateRoleBtn?.addEventListener('click', async () => {
