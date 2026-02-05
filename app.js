@@ -50,6 +50,7 @@ import {
     let currentUserId = null;
     let mailUIBound = false;
     let notificationInterval = null;
+let editingProjectIndex = null;
     
     // --- NIEUWE VARIABELEN HIER NAARTOE VERPLAATST ---
     let isPaintMode = false;
@@ -833,7 +834,7 @@ function renderProjects() {
     const tr = document.createElement('tr');
     if (p.allowMulti === undefined) p.allowMulti = false;
 
-    // We bouwen de rij op met de "Shift-look" + Kleur + Multi status
+    // We bouwen de rij op
     tr.innerHTML = `
       <td>
         <div class="d-flex align-items-center">
@@ -846,7 +847,11 @@ function renderProjects() {
       <td><span class="badge bg-light text-dark border">${toDisplayDate(p.end)}</span></td>
       <td class="text-end">
         <div class="btn-group">
-          <button class="btn btn-sm btn-outline-warning" data-idx="${idx}" data-act="extend" title="Verlengen">
+          <button class="btn btn-sm btn-outline-primary" data-idx="${idx}" data-act="edit" title="Bewerken">
+            <span class="material-icons-outlined" style="font-size:16px">edit</span>
+          </button>
+          
+          <button class="btn btn-sm btn-outline-warning" data-idx="${idx}" data-act="extend" title="Snel verlengen">
             <span class="material-icons-outlined" style="font-size:16px">event_repeat</span>
           </button>
           <button class="btn btn-sm btn-outline-danger" data-idx="${idx}" data-act="delete" title="Verwijderen">
@@ -866,22 +871,53 @@ function renderProjects() {
     }
   });
 
+  // ✨ NIEUW: Auto-datum invullen bij kiezen project in Shift Modal
+  if (newShiftProjectSelect) {
+      newShiftProjectSelect.onchange = () => {
+        const selectedName = newShiftProjectSelect.value;
+        const p = list.find(proj => proj.name === selectedName);
+        
+        const startInput = document.getElementById('newShiftStartDate');
+        const endInput = document.getElementById('newShiftEndDate');
+
+        if (p) {
+            if (p.start && startInput) startInput.value = p.start;
+            if (p.end && endInput) endInput.value = p.end;
+        } else {
+            if (startInput) startInput.value = '';
+            if (endInput) endInput.value = '';
+        }
+      };
+  }
+
   // Button acties koppelen
   projectTableBody.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', async () => {
       const ud = getCurrentUserData();
-      const idx = Number(btn.dataset.idx);
-      const p = ud.projects[idx];
-      if (!p) return;
+      // Zoek het originele index nummer in de ongesorteerde lijst op basis van object vergelijking
+      // (Omdat 'list' gesorteerd is, komt 'idx' niet meer overeen met ud.projects)
+      const clickedItem = list[Number(btn.dataset.idx)];
+      const realIdx = ud.projects.indexOf(clickedItem);
+      
+      if (realIdx === -1) return;
+      const p = ud.projects[realIdx];
 
       const action = btn.dataset.act;
 
-      if (action === 'toggle-multi') {
-        p.allowMulti = !p.allowMulti;
-        await saveUserData();
-        renderProjects();
-        renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-        toast(`Extra lijnen voor ${p.name} nu ${p.allowMulti ? 'aan' : 'uit'}`, 'info');
+      if (action === 'edit') {
+        // ✨ BEWERK LOGICA ✨
+        editingProjectIndex = realIdx; // Onthoud welk project we bewerken
+        
+        // Vul de modal
+        document.getElementById('modalProjectName').value = p.name;
+        document.getElementById('modalProjectStart').value = p.start || '';
+        document.getElementById('modalProjectEnd').value = p.end || '';
+        
+        // Update titel van modal (optioneel)
+        document.querySelector('#projectModal .modal-title').textContent = "Project Bewerken";
+
+        // Open modal
+        new bootstrap.Modal(document.getElementById('projectModal')).show();
       } 
       else if (action === 'extend') {
         const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', toDisplayDate(p.end) || '');
@@ -889,12 +925,13 @@ function renderProjects() {
         p.end = fromDisplayDate(v);
         await saveUserData();
         renderProjects();
+        renderProjectFilterForMonth(); // Update ook filters
         renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
         toast('Project verlengd', 'success');
       } 
       else if (action === 'delete') {
         if (!confirm(`Project "${p.name}" verwijderen?`)) return;
-        ud.projects.splice(idx, 1);
+        ud.projects.splice(realIdx, 1);
         await saveUserData();
         renderProjects();
         renderProjectFilterForMonth();
@@ -903,6 +940,7 @@ function renderProjects() {
       }
     });
   });
+}
 
   // ✨ NIEUW: Auto-datum invullen bij kiezen project in Shift Modal ✨
   if (newShiftProjectSelect) {
@@ -934,49 +972,58 @@ document.getElementById('saveProjectBtn')?.addEventListener('click', async () =>
   const nameInput = document.getElementById('modalProjectName');
   const startInput = document.getElementById('modalProjectStart');
   const endInput = document.getElementById('modalProjectEnd');
-  const colorInput = document.getElementById('modalProjectColor');
-  const multiInput = document.getElementById('modalProjectMulti');
-
-  const name = nameInput.value.trim();
   
+  const name = nameInput.value.trim();
   if (!name) return toast('Vul een projectnaam in', 'warning');
 
   const ud = getCurrentUserData();
   ud.projects = ud.projects || [];
 
-  // Voeg project toe aan data object
-  ud.projects.push({
-    name: name,
-    start: startInput.value || null,
-    end: endInput.value || null,
-  });
+  if (editingProjectIndex !== null) {
+    // === UPDATE BESTAAND PROJECT ===
+    const existing = ud.projects[editingProjectIndex];
+    
+    // Check of naam gewijzigd is (voor notificatie)
+    const oldName = existing.name;
+    const nameChanged = oldName !== name;
+
+    // Update waarden
+    existing.name = name;
+    existing.start = startInput.value || null;
+    existing.end = endInput.value || null;
+    
+    // Als de naam veranderd is, moeten we misschien bestaande shiften/uren ook updaten? 
+    // Voor nu laten we dat zo (shiften slaan de projectnaam op als string).
+    
+    toast('Project gewijzigd', 'success');
+  } else {
+    // === NIEUW PROJECT TOEVOEGEN ===
+    ud.projects.push({
+      name: name,
+      start: startInput.value || null,
+      end: endInput.value || null,
+      allowMulti: false
+    });
+    toast('Project toegevoegd', 'success');
+    
+    // Melding naar andere gebruikers
+    const qs = await getDocs(collection(db, 'users'));
+    for (const u of qs.docs) {
+      if (u.id !== currentUserId) {
+        await notifyProjectChange(u.id, 'added', name);
+      }
+    }
+  }
 
   await saveUserData();
 
-  // Velden leegmaken
-  nameInput.value = '';
-  startInput.value = '';
-  endInput.value = '';
-  if (multiInput) multiInput.checked = false;
-
-  // Renderen en sluiten
-  renderProjects();
-  renderProjectFilterForMonth(); // Update ook de filters
-  
-  // Sluit de modal
+  // Resetten en sluiten wordt afgehandeld door de 'hidden.bs.modal' listener hieronder
   const modalEl = document.getElementById('projectModal');
   const modal = bootstrap.Modal.getInstance(modalEl);
   modal.hide();
 
-  toast('Project toegevoegd', 'success');
-
-  // Melding naar andere gebruikers (indien nodig)
-  const qs = await getDocs(collection(db, 'users'));
-  for (const u of qs.docs) {
-    if (u.id !== currentUserId) {
-      await notifyProjectChange(u.id, 'added', name);
-    }
-  }
+  renderProjects();
+  renderProjectFilterForMonth();
 });
 
 // Zorg dat de velden leeg zijn als je de modal opent
