@@ -839,7 +839,6 @@ function renderProjects() {
     tr.innerHTML = `
       <td>
         <div class="d-flex align-items-center">
-            <span class="dot" style="width:10px; height:10px; display:inline-block; border-radius:50%; margin-right:12px; background-color: ${p.color || '#0d6efd'}"></span>
             <div>
                 <strong class="text-dark">${p.name}</strong>
             </div>
@@ -952,8 +951,6 @@ document.getElementById('saveProjectBtn')?.addEventListener('click', async () =>
     name: name,
     start: startInput.value || null,
     end: endInput.value || null,
-    color: colorInput.value || '#0d6efd',
-    allowMulti: multiInput.checked || false
   });
 
   await saveUserData();
