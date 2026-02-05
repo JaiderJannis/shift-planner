@@ -88,13 +88,6 @@ document.querySelector('a[href="#tab-mail"]')?.addEventListener('shown.bs.tab', 
     const filterShiftYear = document.getElementById('filterShiftYear');
     const shiftTableBody = document.getElementById('shiftTableBody');
 
-    // Projecten
-const projectTableBody = document.getElementById('projectTableBody');
-const newProjectName = document.getElementById('newProjectName');
-const newProjectStart = document.getElementById('newProjectStart');
-const newProjectEnd = document.getElementById('newProjectEnd');
-const addProjectBtn = document.getElementById('addProjectBtn');
-
     // Invoer elements
     const monthSelectMain = document.getElementById('monthSelectMain');
     const yearSelectMain = document.getElementById('yearSelectMain');
