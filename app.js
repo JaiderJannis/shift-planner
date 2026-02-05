@@ -421,103 +421,99 @@ const mBtn = document.getElementById('multiDayShiftBtn');
     mBtn.disabled = hide;
   }
 }
-    // ======= Auth =======
-onAuthStateChanged(auth, async (user)=>{
-      // Stop alle intervals als we uitloggen
-      if (notificationInterval) clearInterval(notificationInterval);
+// ======= Auth =======
+onAuthStateChanged(auth, async (user) => {
+    // Stop alle intervals als we uitloggen
+    if (notificationInterval) clearInterval(notificationInterval);
 
-      // ✅ Kleur laden (instant)
-      const savedColor = localStorage.getItem('accentColor');
-      if (savedColor) {
+    // ✅ Kleur laden (instant)
+    const savedColor = localStorage.getItem('accentColor');
+    if (savedColor) {
         applyAccentColor(savedColor);
-      }
+    }
 
-  // 1. GEEN GEBRUIKER? REDIRECT!
-  if (!user) {
-    window.location.replace('index.html');
-    return; // Stop hier
-  }
+    // 1. GEEN GEBRUIKER? REDIRECT!
+    if (!user) {
+        window.location.replace('index.html');
+        return; // Stop hier
+    }
 
-  // 2. WEL EEN GEBRUIKER? TOON DE APP!
-  document.body.classList.add('auth-checked');
-  requestNotificationPermission(); 
-  currentUserId = user.uid; 
-  
-  // --- ✅ HIER WAS DE FOUT: VEILIG GEMAAKT ---
-  // We zoeken het element eerst op. Bestaat het niet? Dan slaan we het over.
-  const nameEl = document.getElementById('currentUserName');
-  if (nameEl) {
-      nameEl.textContent = user.displayName || user.email;
-  }
-  // ------------------------------------------
+    // 2. WEL EEN GEBRUIKER? TOON DE APP!
+    document.body.classList.add('auth-checked');
+    requestNotificationPermission();
+    currentUserId = user.uid;
 
-      // ✅ PLAATS DEZE CODE HIER
-      const topPhotoEl = document.getElementById('topbarProfilePhoto');
-      if (topPhotoEl && user.photoURL) {
+    // --- Veilige update van gebruikersnaam ---
+    const nameEl = document.getElementById('currentUserName');
+    if (nameEl) {
+        nameEl.textContent = user.displayName || user.email;
+    }
+
+    // --- Profielfoto in topbar ---
+    const topPhotoEl = document.getElementById('topbarProfilePhoto');
+    if (topPhotoEl && user.photoURL) {
         topPhotoEl.src = user.photoURL;
-      } else if (topPhotoEl) {
+    } else if (topPhotoEl) {
         // Fallback
-        topPhotoEl.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0iI2NjYyIgY2xhc3M9ImJpIGJpLXBlcnNvbi1jaXJjbGUiIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTExIDZhMyAzIDAgMTEtNiAwIDMgMyAwIDAxNiAwIi8+PHBhdGggZmlsbC1ydWxlPSJldmVub2RkIiBkPSJNMDggYTEuNSAxLjUgMCAwMC0xLjUgMS41VjE0YWguNWExLjUgMS41IDAgMDAxLjUtMS41VjkuNWEzIDMgMCAwMS41NTYtMS45OTEuNDk5LjQ5OSAwIDAw-.NDctLjAwMkExLjUgMS41IDAgMDA4IDEzLjQ5NnYxLjAxOEM4IDE1Ni44ODQgMTYgNS41IDE2SDIuNUEEuNSAxLjUgMCAwMTQgMTQuNUgxdjEuNUMxIDE1LjYxMiAxLjA0IDE2IDEuMzU3IDE2aDExLjI4NkMxMy45NiAxNiAxNCAxNS42MTIgMTQgMTUuNXYtMS41aC0zYTEuNSAxLjUgMCAwMS0xLjUtMS41VjEyYTEuNSAxLjUgMCAwMS.2Ny0uODQ0LjQ5OS40OTkgMCAwMC0uNDctLjAwNkExLjUgMS41IDAgMDAtOCAxMy41MXYxLjAxOGMwIDEuMzczIDEuMTI3IDIuNSA2LjUgMi41aDNBNy41IDcuNSAwIDAwOCAwdjNhMy41IDMuNSAwIDAwLTQgNC41djNBMi41IDIuNSAwIDAwLjUgMTN2LjVhMS41IDEuNSAwIDAwLTEuNSAxLjVaIi8+PC9zdmc+';
-      }
+        topPhotoEl.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0iY3VycmVudENvbG9yIiBjbGFzcz0iYmkgYmktcGVyc29uLWZpbGwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTMgMTQgczEtMiAyLTIgMiAyIDIgMiAyLTItMi0yem01LTAiLz48cGF0aCBkPSJNODguNUM4IDcuNjcgNy4zMyA3IDYuNSA3UzUgNy42NyA1IDguNSA1LjY3IDEwIDYuNSAxMFM4IDkuMzMgOCA4LjV6bS0yIDBjMCAxLjExLS44OSAyLTIgMnMtMi0uODktMi0yIC44OS0yIDItMiAyIC44OSAyIDJ6bS0yLTNjLTMuMTQ2IDAtNS41IDIuNTM2LTUuNSA1LjVWMTloMTJ2LTIuNWMwLTIuOTY0LTIuMzU0LTUuNS01LjUtNS41eiIvPjwvc3ZnPg==';
+    }
 
-      await ensureUserDoc(user);
-      await loadAllUsers();
-      
-      // ✅ Sidebar & accentkleur
-      const ud = getCurrentUserData();
-      if (ud?.settings?.accentColor) {
+    await ensureUserDoc(user);
+    await loadAllUsers();
+
+    // ✅ Sidebar & accentkleur
+    const ud = getCurrentUserData();
+    if (ud?.settings?.accentColor) {
         applyAccentColor(ud.settings.accentColor);
-      }
+    }
 
-      if (ud?.settings?.sidebarCollapsed) {
-          const sb = document.getElementById('sidebar'); // Veilig ophalen
-          const mn = document.getElementById('main');    // Veilig ophalen
-          if(sb) sb.classList.add('collapsed');
-          if(mn) mn.classList.add('collapsed');
-      }
+    if (ud?.settings?.sidebarCollapsed) {
+        const sb = document.getElementById('sidebar');
+        const mn = document.getElementById('main');
+        if (sb) sb.classList.add('collapsed');
+        if (mn) mn.classList.add('collapsed');
+    }
 
-      initSelectors();
-      renderAll();
-      await revealAdminIfNeeded();
-      updateMonthStatusBadge();
-      updateLeaveBadges();
-      renderHome();
-});
-      
-      // --- NIEUWE NOTIFICATIE LOGICA ---
-      listenToNotifications(user.uid); // Start de listener
-      
-      // 🕒 Start automatische meldingensysteem
-      await autoCheckNotifications(); // 1. Direct uitvoeren na login
+    initSelectors();
+    renderAll();
+    await revealAdminIfNeeded();
+    updateMonthStatusBadge();
+    updateLeaveBadges();
+    renderHome();
 
-      // 🔁 Herhaal automatisch elke 24 uur (86400000 ms)
-      notificationInterval = setInterval(async () => {
+    // -----------------------------------------------------------
+    // HIER ZAT DE FOUT: De '});' die hier stond is verwijderd
+    // Zodat de code hieronder nog steeds toegang heeft tot 'user'
+    // -----------------------------------------------------------
+
+    // --- NIEUWE NOTIFICATIE LOGICA ---
+    listenToNotifications(user.uid); // Start de listener
+
+    // 🕒 Start automatische meldingensysteem
+    await autoCheckNotifications(); // 1. Direct uitvoeren na login
+
+    // 🔁 Herhaal automatisch elke 24 uur (86400000 ms)
+    notificationInterval = setInterval(async () => {
         await autoCheckNotifications();
-      }, 86400000);
-      // --- EINDE NIEUWE LOGICA ---
+    }, 86400000);
+    // --- EINDE NIEUWE LOGICA ---
 
-      // --- NIEUWE MAILBOX LOGICA ---
-      bindMailboxUIOnce();
-      listenMailbox(user.uid);
-      // --- EINDE NIEUWE LOGICA ---
-      // ✅ HIER TOEVOEGEN: Opstart-tabblad instellen
-      try {
+    // --- NIEUWE MAILBOX LOGICA ---
+    bindMailboxUIOnce();
+    listenMailbox(user.uid);
+    // --- EINDE NIEUWE LOGICA ---
+
+    // ✅ Opstart-tabblad instellen
+    try {
         if (ud?.settings?.defaultTab) {
-          const tabLink = document.querySelector(`a[href="${ud.settings.defaultTab}"]`);
-          if (tabLink) {
-            // De .show() functie hieronder deactiveert automatisch de 'Home' tab.
-            // Deze regels zijn dus niet nodig en kunnen conflicten geven:
-            // document.getElementById('tab-home').classList.remove('show', 'active');
-            // document.querySelector('a[href="#tab-home"]').classList.remove('active');
-            
-            // Toon de gekozen tab
-            bootstrap.Tab.getOrCreateInstance(tabLink).show(); // 👈 CORRECTIE
-          }
+            const tabLink = document.querySelector(`a[href="${ud.settings.defaultTab}"]`);
+            if (tabLink) {
+                bootstrap.Tab.getOrCreateInstance(tabLink).show();
+            }
         }
-      } catch (e) {
+    } catch (e) {
         console.warn("Kon standaard tab niet laden:", e);
-      }
-      // EINDE TOEVOEGING  
+    }
 
 });
 
