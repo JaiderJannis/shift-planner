@@ -262,31 +262,36 @@
     </div>
   
 </section>
-<div class="card p-3 mb-3 shadow-sm border-0">
-  <div class="d-flex justify-content-between align-items-center">
-    <div>
-      <h6 class="mb-0">Projectenlijst</h6>
-      <small class="text-muted">Beheer hier je actieve projecten.</small>
-    </div>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#projectModal">
-      <span class="material-icons-outlined align-middle">add</span> Nieuw Project
-    </button>
+<section id="tab-projects" class="tab-pane fade">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Projectbeheer</h5>
   </div>
 
-  <div class="table-responsive mt-3">
-    <table class="table table-striped align-middle table-nowrap">
-      <thead class="table-light">
-        <tr>
-          <th>Project</th>
-          <th>Start</th>
-          <th>Eind</th>
-          <th class="text-end">Acties</th>
-        </tr>
-      </thead>
-      <tbody id="projectTableBody"></tbody>
-    </table>
+  <div class="card p-3 mb-3 shadow-sm border-0">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h6 class="mb-0">Projectenlijst</h6>
+        <small class="text-muted">Beheer hier je actieve projecten.</small>
+      </div>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#projectModal">
+        <span class="material-icons-outlined align-middle">add</span> Nieuw Project
+      </button>
+    </div>
+
+    <div class="table-responsive mt-3">
+      <table class="table table-striped align-middle table-nowrap">
+        <thead class="table-light">
+          <tr>
+            <th>Project</th>
+            <th>Start</th>
+            <th>Eind</th>
+            <th class="text-end">Acties</th>
+          </tr>
+        </thead>
+        <tbody id="projectTableBody"></tbody>
+      </table>
+    </div>
   </div>
-</div>
 </section>
       <!-- SHIFTS -->
       <section id="tab-shifts" class="tab-pane fade">
