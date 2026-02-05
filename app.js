@@ -1,3 +1,4 @@
+
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
 // A. De Firestore imports (zonder storage)
@@ -842,7 +843,7 @@ function renderProjects() {
     if (projectFilterSelect) {
       const o2 = document.createElement('option'); o2.value = p.name; o2.textContent = p.name; projectFilterSelect.appendChild(o2);
     }
-
+  });
 
   // Button acties koppelen
   projectTableBody.querySelectorAll('button').forEach(btn => {
