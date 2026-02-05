@@ -2069,7 +2069,7 @@ function renderProfileShiftSettings() {
   };
 }
 async function populateShiftSelectForRow(tr, rowKey){
-  const base = rowKey.split('#')[0];                   // YYYY-MM-DD
+  const base = rowKey.split('#')[0];                   // DD-MM-YYYY
   const [yStr, mStr, dStr] = base.split('-');
   const year = Number(yStr), month = Number(mStr)-1;
 
