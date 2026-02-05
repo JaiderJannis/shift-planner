@@ -423,49 +423,57 @@ const mBtn = document.getElementById('multiDayShiftBtn');
 }
     // ======= Auth =======
 onAuthStateChanged(auth, async (user)=>{
-      //Stop alle intervals als we uitloggen
+      // Stop alle intervals als we uitloggen
       if (notificationInterval) clearInterval(notificationInterval);
-// ✅ HIER TOEVOEGEN (BOVENAAN): Laad kleur uit localStorage (instant)
+
+      // ✅ Kleur laden (instant)
       const savedColor = localStorage.getItem('accentColor');
       if (savedColor) {
         applyAccentColor(savedColor);
       }
-      // EINDE TOEVOEGING
-// 1. GEEN GEBRUIKER? REDIRECT!
+
+  // 1. GEEN GEBRUIKER? REDIRECT!
   if (!user) {
     window.location.replace('index.html');
-    return; // Stop hier, laat de app NIET zien
+    return; // Stop hier
   }
 
   // 2. WEL EEN GEBRUIKER? TOON DE APP!
-  // Dit verwijdert de blokkade die we in CSS hebben gezet
   document.body.classList.add('auth-checked');
   requestNotificationPermission(); 
-currentUserId = user.uid; 
-      currentUserName.textContent = user.displayName || user.email;
+  currentUserId = user.uid; 
+  
+  // --- ✅ HIER WAS DE FOUT: VEILIG GEMAAKT ---
+  // We zoeken het element eerst op. Bestaat het niet? Dan slaan we het over.
+  const nameEl = document.getElementById('currentUserName');
+  if (nameEl) {
+      nameEl.textContent = user.displayName || user.email;
+  }
+  // ------------------------------------------
 
       // ✅ PLAATS DEZE CODE HIER
       const topPhotoEl = document.getElementById('topbarProfilePhoto');
       if (topPhotoEl && user.photoURL) {
         topPhotoEl.src = user.photoURL;
       } else if (topPhotoEl) {
-        // Fallback als er geen Google foto is (icoontje)
-        topPhotoEl.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0iI2NjYyIgY2xhc3M9ImJpIGJpLXBlcnNvbi1jaXJjbGUiIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTExIDZhMyAzIDAgMTEtNiAwIDMgMyAwIDAxNiAwIi8+PHBhdGggZmlsbC1ydWxlPSJldmVub2RkIiBkPSJNMDggYTEuNSAxLjUgMCAwMC0xLjUgMS41VjE0YWguNWExLjUgMS41IDAgMDAxLjUtMS41VjkuNWEzIDMgMCAwMS41NTYtMS45OTEuNDk5LjQ5OSAwIDAwLS40NzEtLjAwMkExLjUgMS41IDAgMDA4IDEzLjQ5NnYxLjAxOEM4IDE1Ni44ODQgMTYgNS41IDE2SDIuNUEEuNSAxLjUgMCAwMTQgMTQuNUgxdjEuNUMxIDE1LjYxMiAxLjA0IDE2IDEuMzU3IDE2aDExLjI4NkMxMy45NiAxNiAxNCAxNS42MTIgMTQgMTUuNXYtMS41aC0zYTEuNSAxLjUgMCAwMS0xLjUtMS41VjEyYTEuNSAxLjUgMCAwMS4yNy0uODQ0LjQ5OS40OTkgMCAwMC0uNDctLjAwNkExLjUgMS41IDAgMDAtOCAxMy41MXYxLjAxOGMwIDEuMzczIDEuMTI3IDIuNSA2LjUgMi41aDNBNy41IDcuNSAwIDAwOCAwdjNhMy41IDMuNSAwIDAwLTQgNC41djNBMi41IDIuNSAwIDAwLjUgMTN2LjVhMS41IDEuNSAwIDAwLTEuNSAxLjVaIi8+PC9zdmc+';
+        // Fallback
+        topPhotoEl.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0iI2NjYyIgY2xhc3M9ImJpIGJpLXBlcnNvbi1jaXJjbGUiIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTExIDZhMyAzIDAgMTEtNiAwIDMgMyAwIDAxNiAwIi8+PHBhdGggZmlsbC1ydWxlPSJldmVub2RkIiBkPSJNMDggYTEuNSAxLjUgMCAwMC0xLjUgMS41VjE0YWguNWExLjUgMS41IDAgMDAxLjUtMS41VjkuNWEzIDMgMCAwMS41NTYtMS45OTEuNDk5LjQ5OSAwIDAw-.NDctLjAwMkExLjUgMS41IDAgMDA4IDEzLjQ5NnYxLjAxOEM4IDE1Ni44ODQgMTYgNS41IDE2SDIuNUEEuNSAxLjUgMCAwMTQgMTQuNUgxdjEuNUMxIDE1LjYxMiAxLjA0IDE2IDEuMzU3IDE2aDExLjI4NkMxMy45NiAxNiAxNCAxNS42MTIgMTQgMTUuNXYtMS41aC0zYTEuNSAxLjUgMCAwMS0xLjUtMS41VjEyYTEuNSAxLjUgMCAwMS.2Ny0uODQ0LjQ5OS40OTkgMCAwMC0uNDctLjAwNkExLjUgMS41IDAgMDAtOCAxMy41MXYxLjAxOGMwIDEuMzczIDEuMTI3IDIuNSA2LjUgMi41aDNBNy41IDcuNSAwIDAwOCAwdjNhMy41IDMuNSAwIDAwLTQgNC41djNBMi41IDIuNSAwIDAwLjUgMTN2LjVhMS41IDEuNSAwIDAwLTEuNSAxLjVaIi8+PC9zdmc+';
       }
+
       await ensureUserDoc(user);
       await loadAllUsers();
       
-      // ✅ HIER TOEVOEGEN: Sidebar & accentkleur-voorkeur toepassen
+      // ✅ Sidebar & accentkleur
       const ud = getCurrentUserData();
-      // ✅ HIER AANPASSEN: Laad kleur uit Firestore (als sync)
-      // (Vervang de 'savedColor' check als die al bestaat)
       if (ud?.settings?.accentColor) {
         applyAccentColor(ud.settings.accentColor);
       }
-      // EINDE AANPASSING
+
       if (ud?.settings?.sidebarCollapsed) {
-          sidebar.classList.add('collapsed');
-          main.classList.add('collapsed');
+          const sb = document.getElementById('sidebar'); // Veilig ophalen
+          const mn = document.getElementById('main');    // Veilig ophalen
+          if(sb) sb.classList.add('collapsed');
+          if(mn) mn.classList.add('collapsed');
       }
 
       initSelectors();
@@ -474,6 +482,7 @@ currentUserId = user.uid;
       updateMonthStatusBadge();
       updateLeaveBadges();
       renderHome();
+});
       
       // --- NIEUWE NOTIFICATIE LOGICA ---
       listenToNotifications(user.uid); // Start de listener
@@ -535,7 +544,15 @@ currentUserId = user.uid;
       }
     }
 function getActiveUserId() {
-  return dataStore.viewUserId || dataStore.currentUser;
+  // NIEUW: Kijk eerst naar de variabele die de Topbar instelt
+  if (dataStore.viewUserId) return dataStore.viewUserId;
+  
+  // OUD: Dit mag weg of blijven als fallback, maar mag niet crashen
+  const oldSelect = document.getElementById('adminUserSelect');
+  if (oldSelect && oldSelect.value) return oldSelect.value;
+
+  // FALLBACK: Gewoon de ingelogde gebruiker
+  return currentUserId;
 }
     // ======= Data loading/saving =======
     async function loadAllUsers(){
@@ -2785,87 +2802,58 @@ function renderProjectSummaryForVisibleMonth()
 // ======= Admin =======
 // Gebruikerslijst renderen
 async function renderAdminUserSelect() {
-  // Leegmaken (als ze bestaan)
-  if (adminUserSelect) adminUserSelect.innerHTML = '<option value="">-- Kies gebruiker --</option>';
-  if (approvalUserSelect) approvalUserSelect.innerHTML = '<option value="">-- Kies gebruiker --</option>';
+  // 1. Haal beide elementen op (ze kunnen null zijn)
+  const adminSelect = document.getElementById('adminUserSelect');
+  const approvalSelect = document.getElementById('approvalUserSelect');
 
-  const qs = await getDocs(collection(db, 'users'));
-  qs.forEach(d => {
-    const u = d.data();
-    const opt = document.createElement('option');
-    opt.value = d.id;
-    opt.textContent = `${u.name || u.email || d.id} (${u.role || 'user'})`;
-    
-    // Voeg toe aan beide selects (indien ze bestaan)
-    if (adminUserSelect) adminUserSelect.appendChild(opt.cloneNode(true));
-    if (approvalUserSelect) approvalUserSelect.appendChild(opt.cloneNode(true));
+  // 2. Als ze BEIDE niet bestaan, heeft de functie geen nut en stoppen we.
+  if (!adminSelect && !approvalSelect) return;
+
+  // 3. Resetten (alleen als ze bestaan)
+  if (adminSelect) adminSelect.innerHTML = '<option value="">Laden...</option>';
+  if (approvalSelect) approvalSelect.innerHTML = '<option value="">Kies gebruiker...</option>';
+
+  // 4. Data ophalen
+  // (We gebruiken hier dataStore als die gevuld is, anders database)
+  let usersList = [];
+  if (Object.keys(dataStore.users).length > 0) {
+     usersList = Object.values(dataStore.users);
+  } else {
+     const qs = await getDocs(collection(db, 'users'));
+     qs.forEach(d => usersList.push({id: d.id, ...d.data()}));
+  }
+
+  // 5. Loop en vul de opties
+  usersList.forEach(u => {
+    const txt = `${u.name || u.email || u.id} (${u.role || 'user'})`;
+    const uid = u.id || u.uid; // veiligheidje
+
+    // Vul Admin Dropdown (als die nog bestaat)
+    if (adminSelect) {
+      const opt = document.createElement('option');
+      opt.value = uid;
+      opt.textContent = txt;
+      adminSelect.appendChild(opt);
+    }
+
+    // Vul Approval Dropdown (als die nog bestaat)
+    if (approvalSelect) {
+      const opt = document.createElement('option');
+      opt.value = uid;
+      opt.textContent = txt;
+      approvalSelect.appendChild(opt);
+    }
   });
 
-  // Update de "Actief:" labels (indien ze bestaan)
-  const activeName = dataStore.users[currentUserId]?.name || currentUserName.textContent || '-';
-  if (activeUserLabel) activeUserLabel.textContent = activeName;
-  if (approvalActiveUserLabel) approvalActiveUserLabel.textContent = activeName;
+  // 6. Labels updaten (veilig checken of element bestaat)
+  const activeName = dataStore.users[currentUserId]?.name || '-';
+  
+  const lblAdmin = document.getElementById('activeUserLabel');
+  if (lblAdmin) lblAdmin.textContent = activeName;
+  
+  const lblApprove = document.getElementById('approvalActiveUserLabel');
+  if (lblApprove) lblApprove.textContent = activeName;
 }
-document.querySelector('a[href="#tab-admin"]')?.addEventListener('shown.bs.tab', () => {
-  buildSchoolYearOptions(document.getElementById('adminSchoolYearSelect'));
-  const uid = getActiveUserId();
-  if (uid) hydrateAdminLeaveInputsFor(uid); // vult waarden in
-});
-// ✅ Gebruiker selecteren zonder adminstatus te verliezen
-adminUserSelect?.addEventListener('change', async () => {
-  const uid = adminUserSelect.value;
-  if (!uid) {
-    // Reset naar de ingelogde admin
-    dataStore.viewUserId = null; 
-    const self = dataStore.users[currentUserId];
-    activeUserLabel.textContent = self.name || self.email || currentUserId;
-    roleSelect.value = self.role || 'user';
-    document.getElementById('currentUserName').textContent = self.name || self.email || currentUserId;
-    document.getElementById('currentUserHistoriek').textContent = self.name || self.email || currentUserId;
-    
-    await renderUserDataAsAdmin(currentUserId);
-    toast('Beheer teruggezet naar jezelf', 'info');
-    return;
-  }
-
-  // ✅ FIX: Haal data direct uit de 'dataStore' (die al geladen is)
-  // We hoeven geen 'getDoc' meer te doen, wat de permissiefout veroorzaakte.
-  const u = dataStore.users[uid];
-  if (!u) {
-    toast('Gebruiker niet gevonden in lokale data', 'warning');
-    return;
-  }
-  
-  // Plaats de gebruiker tijdelijk in dataStore voor weergave
-  dataStore.users[uid] = u;
-
-  // UI labels bijwerken
-  activeUserLabel.textContent = u.name || u.email || uid;
-  roleSelect.value = u.role || 'user';
-  document.getElementById('currentUserName').textContent = u.name || u.email || uid;
-  document.getElementById('currentUserHistoriek').textContent = u.name || u.email || uid;
-
-  // We tonen enkel hun data (zonder rechten te verliezen)
-  await renderUserDataAsAdmin(uid);
-  toast(`Beheer actief voor ${u.name || uid}`, 'primary');
-});
-
-// ✅ Alleen UI renderen voor geselecteerde gebruiker
-async function renderUserDataAsAdmin(uid) {
-  
-  // --- DIT IS DE CORRECTIE ---
-  // De 'getDoc' hieronder is verwijderd.
-  // We gebruiken nu 'u = dataStore.users[uid]' om de data uit de cache te halen.
-  
-  // const snap = await getDoc(doc(db, 'users', uid)); // <--- DEZE REGEL IS FOUT EN IS VERWIJDERD
-  // if (!snap.exists()) return; // <--- DEZE REGEL IS VERWIJDERD
-  // const u = snap.data(); // <--- DEZE REGEL IS VERWIJDERD
-
-  const u = dataStore.users[uid]; // <-- DIT IS DE NIEUWE REGEL
-  if (!u) {
-    console.warn("renderUserDataAsAdmin: Kon user niet vinden in dataStore.");
-    return;
-  }
   // --- EINDE CORRECTIE ---
 
 
