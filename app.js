@@ -817,11 +817,11 @@ function renderProjects() {
 
   // Sorteren op startdatum
   const list = (ud.projects || []).slice().sort((a, b) => {
-    const as = a.start ? new Date(a.start) : new Date('1900-01-01');
-    const bs = b.start ? new Date(b.start) : new Date('1900-01-01');
+    const as = a.start ? new Date(a.start) : new Date('01-01-1900');
+    const bs = b.start ? new Date(b.start) : new Date('01-01-1900');
     if (as.getTime() !== bs.getTime()) return as - bs;
-    const ae = a.end ? new Date(a.end) : new Date('9999-12-31');
-    const be = b.end ? new Date(b.end) : new Date('9999-12-31');
+    const ae = a.end ? new Date(a.end) : new Date('31-12-9999');
+    const be = b.end ? new Date(b.end) : new Date('31-12-9999');
     return ae - be;
   });
 
