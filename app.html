@@ -684,65 +684,148 @@
     </div>
   </div>
 
- <div class="tab-pane fade" id="tab-admin" role="tabpanel">
+<div class="tab-pane fade" id="tab-admin" role="tabpanel">
   <div class="row g-4">
     
     <div class="col-12">
-        <div class="alert alert-light border d-flex align-items-center gap-2">
-            <span class="material-icons-outlined text-primary">settings</span>
-            <h5 class="mb-0">
-                Instellingen bewerken voor: 
-                <span id="adminSettingsName" class="text-muted">Mijzelf</span>
-            </h5>
+        <div class="alert alert-light border d-flex align-items-center gap-2 shadow-sm">
+            <span class="material-icons-outlined text-primary">manage_accounts</span>
+            <div>
+                <h5 class="mb-0">
+                    Instellingen bewerken voor: 
+                    <span id="adminSettingsName" class="text-primary fw-bold">Mijzelf</span>
+                </h5>
+                <small class="text-muted">
+                   Gebruik de balk bovenaan (naast het belletje) om een andere gebruiker te kiezen.
+                </small>
+            </div>
         </div>
-        <small class="text-muted ms-1">
-           Gebruik de balk bovenaan (naast het belletje) om een andere gebruiker te kiezen, te verwijderen of rechten te geven.
-        </small>
     </div>
 
     <div class="col-md-6">
-       <div class="card shadow-sm h-100">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-light fw-bold">
+            <span class="material-icons-outlined align-middle me-1">flight_takeoff</span>
+            Verlof Saldo (Kalenderjaar)
+        </div>
+        <div class="card-body">
+          <p class="small text-muted">
+            Totaal aantal uren per jaar (bv. 160 uren = 20 dagen x 8u). 
+            Dit geldt voor het geselecteerde jaar in de planner.
+          </p>
+          <div class="input-group mb-3">
+            <input type="number" id="adminLeaveHours" class="form-control" placeholder="Uren">
+            <span class="input-group-text">uren</span>
           </div>
+          
+          <div class="d-flex gap-2 mb-3">
+             <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('adminLeaveHours').value=160">20d (160u)</button>
+             <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('adminLeaveHours').value=200">25d (200u)</button>
+             <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('adminLeaveHours').value=240">30d (240u)</button>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button id="adminSaveLeaveBtn" class="btn btn-primary w-100">Opslaan</button>
+            <button id="adminResetLeaveBtn" class="btn btn-outline-secondary" title="Wissen">
+              <span class="material-icons-outlined">delete</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="col-md-6 school-leave-section">
-       </div>
-    
-    </div>
-</div>
-</div>
-      </div>
-    </div>
-  </div>
-  <div class="card p-3 mb-3">
-    <h6 class="mb-3">Projectbeheer</h6>
-    <div class="row g-2 align-items-end">
-      <div class="col-md-4">
-        <label class="form-label">Projectnaam</label>
-        <input id="newProjectName" class="form-control" />
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Startdatum</label>
-        <input id="newProjectStart" type="date" class="form-control" />
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Einddatum</label>
-        <input id="newProjectEnd" type="date" class="form-control" />
-      </div>
-      <div class="col-md-2">
-        <button id="addProjectBtn" class="btn btn-success w-100">Toevoegen</button>
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-light fw-bold d-flex justify-content-between align-items-center">
+            <span>
+                <span class="material-icons-outlined align-middle me-1">school</span>
+                Schoolverlof Saldo
+            </span>
+            <span id="schoolLeaveStatusBadge" class="badge bg-success" style="font-size: 0.7em;">Actief</span>
+        </div>
+        <div class="card-body">
+          <p class="small text-muted">
+             Krediet per <b>schooljaar</b> (1 sep – 31 aug).
+          </p>
+          
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Kies Schooljaar:</label>
+            <select id="adminSchoolYearSelect" class="form-select mb-2"></select>
+          </div>
+
+          <div class="input-group mb-3">
+            <input type="number" id="adminSchoolLeaveHours" class="form-control" placeholder="Uren">
+            <span class="input-group-text">uren</span>
+          </div>
+
+          <div class="d-flex gap-2 mb-3">
+            <button id="adminSaveSchoolLeaveBtn" class="btn btn-primary w-100">Opslaan</button>
+            <button id="adminResetSchoolLeaveBtn" class="btn btn-outline-secondary" title="Wissen">
+                <span class="material-icons-outlined">delete</span>
+            </button>
+          </div>
+
+          <hr>
+          <button id="saveSettingsBtn" class="btn btn-outline-secondary w-100 btn-sm">
+             Schoolverlof uitschakelen
+          </button>
+        </div>
       </div>
     </div>
 
-    <div class="table-responsive mt-3">
-      <table class="table table-striped align-middle table-nowrap">
-        <thead class="table-light">
-          <tr><th>Project</th><th>Start</th><th>Eind</th><th>Acties</th></tr>
-        </thead>
-        <tbody id="projectTableBody"></tbody>
-      </table>
+    <div class="col-12 mt-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">
+            <span class="material-icons-outlined align-middle me-2">work</span>
+            Projecten Beheren
+          </h5>
+          <button class="btn btn-light btn-sm text-primary fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#projectCollapse">
+             Toon/Verberg
+          </button>
+        </div>
+        
+        <div class="collapse show" id="projectCollapse">
+            <div class="card-body">
+              <div class="row g-2 align-items-end mb-4 p-3 bg-light rounded border">
+                <div class="col-md-4">
+                  <label class="form-label small fw-bold">Projectnaam</label>
+                  <input type="text" id="newProjectName" class="form-control" placeholder="Naam...">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold">Startdatum</label>
+                  <input type="date" id="newProjectStart" class="form-control">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold">Einddatum</label>
+                  <input type="date" id="newProjectEnd" class="form-control">
+                </div>
+                <div class="col-md-2">
+                  <button id="addProjectBtn" class="btn btn-success w-100">
+                    <span class="material-icons-outlined align-middle">add</span> Toevoegen
+                  </button>
+                </div>
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Projectnaam</th>
+                      <th>Start</th>
+                      <th>Eind</th>
+                      <th class="text-end">Acties</th>
+                    </tr>
+                  </thead>
+                  <tbody id="projectTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+        </div>
+      </div>
     </div>
-  </div>
+
+  </div> </div> ```
 
       </div>
     </div>
