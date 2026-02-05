@@ -653,9 +653,7 @@ function initTopbarAdminSwitcher() {
   if (!container) return;
 
   container.innerHTML = `
-    <div class="d-flex align-items-center gap-2">
-      <span class="fw-bold text-muted small me-1">BEHEER:</span>
-      
+    <div class="d-flex align-items-center gap-2">   
       <select id="topbarUserSelect" class="form-select form-select-sm" style="width: auto; max-width: 180px;"></select>
       
       <div id="topbarControls" class="d-none d-flex align-items-center gap-2 border-start ps-2 ms-1">
