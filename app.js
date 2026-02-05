@@ -842,7 +842,7 @@ function renderProjects() {
     if (projectFilterSelect) {
       const o2 = document.createElement('option'); o2.value = p.name; o2.textContent = p.name; projectFilterSelect.appendChild(o2);
     }
-  });
+
 
   // Button acties koppelen
   projectTableBody.querySelectorAll('button').forEach(btn => {
