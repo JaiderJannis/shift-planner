@@ -1,4 +1,3 @@
-
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
 // A. De Firestore imports (zonder storage)
@@ -816,25 +815,57 @@ function initTopbarAdminSwitcher() {
 function renderProjects() {
   const ud = getCurrentUserData();
   const projectTableBody = document.getElementById('projectTableBody');
+  const newShiftProjectSelect = document.getElementById('newShiftProjectSelect');
+  const projectFilterSelect = document.getElementById('projectFilterSelect');
+
   if (!projectTableBody) return;
 
+  // Sorteren op startdatum
+  const list = (ud.projects || []).slice().sort((a, b) => {
+    const as = a.start ? new Date(a.start) : new Date('1900-01-01');
+    const bs = b.start ? new Date(b.start) : new Date('1900-01-01');
+    if (as.getTime() !== bs.getTime()) return as - bs;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  // Tabel en dropdowns resetten
   projectTableBody.innerHTML = '';
-  const list = ud.projects || [];
+  if (newShiftProjectSelect) newShiftProjectSelect.innerHTML = '<option value="">Geen project</option>';
+  if (projectFilterSelect) projectFilterSelect.innerHTML = '<option value="">Alle projecten</option>';
 
   list.forEach((p, idx) => {
     const tr = document.createElement('tr');
+    if (p.allowMulti === undefined) p.allowMulti = false;
+
     tr.innerHTML = `
-      <td><strong>${p.name}</strong></td>
+      <td>
+        <div class="d-flex align-items-center">
+            <span class="dot bg-primary" style="width:10px; height:10px; display:inline-block; border-radius:50%; margin-right:12px;"></span>
+            <div>
+                <strong class="text-dark">${p.name}</strong>
+                <div class="small text-muted">${p.allowMulti ? 'Extra lijnen toegestaan' : 'Enkele lijn'}</div>
+            </div>
+        </div>
+      </td>
       <td><span class="badge bg-light text-dark border">${toDisplayDate(p.start)}</span></td>
       <td><span class="badge bg-light text-dark border">${toDisplayDate(p.end)}</span></td>
       <td class="text-end">
-        <button class="btn btn-sm btn-outline-danger" onclick="deleteProject(${idx})">
-          <span class="material-icons-outlined" style="font-size:16px">delete</span>
-        </button>
+        <div class="btn-group">
+          <button class="btn btn-sm ${p.allowMulti ? 'btn-success' : 'btn-outline-secondary'}" 
+                  data-idx="${idx}" data-act="toggle-multi" 
+                  title="Extra lijnen aan/uit">
+            <span class="material-icons-outlined" style="font-size:16px">${p.allowMulti ? 'playlist_add_check' : 'playlist_add'}</span>
+          </button>
+          <button class="btn btn-sm btn-outline-warning" data-idx="${idx}" data-act="extend" title="Verlengen">
+            <span class="material-icons-outlined" style="font-size:16px">event_repeat</span>
+          </button>
+          <button class="btn btn-sm btn-outline-danger" data-idx="${idx}" data-act="delete" title="Verwijderen">
+            <span class="material-icons-outlined" style="font-size:16px">delete</span>
+          </button>
+        </div>
       </td>`;
+    
     projectTableBody.appendChild(tr);
-  });
-}
 
     // Dropdowns vullen
     if (newShiftProjectSelect) {
@@ -845,7 +876,7 @@ function renderProjects() {
     }
   });
 
-  // Button acties koppelen
+  // Button acties koppelen (Bewerken/Verwijderen)
   projectTableBody.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', async () => {
       const ud = getCurrentUserData();
@@ -882,57 +913,19 @@ function renderProjects() {
       }
     });
   });
-      // Toggle inputs
-      projectTableBody.querySelectorAll('input[data-act="toggle-multi"]').forEach(chk => {
-        chk.addEventListener('change', async () => {
-          const ud = getCurrentUserData();
-          const idx = Number(chk.dataset.idx);
-          const p = ud.projects[idx];
-          if (!p) return;
-          p.allowMulti = !!chk.checked;
-          await saveUserData();
-          toast(`Extra lijn ${p.allowMulti ? 'toegestaan' : 'uitgeschakeld'} voor ${p.name}`, 'success');
-        });
-      });
 
-      // ✨ NIEUW: Auto-datum invullen bij kiezen project ✨
-      newShiftProjectSelect.onchange = () => {
-        const selectedName = newShiftProjectSelect.value;
-        const p = list.find(proj => proj.name === selectedName);
-        
-        if (p) {
-            // Als het project datums heeft, vul ze in
-            if (p.start) newShiftStartDate.value = p.start;
-            if (p.end) newShiftEndDate.value = p.end;
-        } else {
-            // Als "Geen project" is gekozen, velden leegmaken
-            newShiftStartDate.value = '';
-            newShiftEndDate.value = '';
-        }
-      };
-    }
-
-addProjectBtn?.addEventListener('click', async () => {
-  const name = newProjectName.value.trim();
-  if (!name) return toast('Vul projectnaam in', 'warning');
-
-  const ud = getCurrentUserData();
-  ud.projects = ud.projects || [];
-  ud.projects.push({
-    name,
-    start: newProjectStart.value || null,
-    end: newProjectEnd.value || null
-  });
-
-  await saveUserData();
-
-  newProjectName.value = '';
-  newProjectStart.value = '';
-  newProjectEnd.value = '';
-
-  renderProjects();
-  renderProjectFilterForMonth();
-  toast('Project toegevoegd', 'success');
+  // Auto-datum invullen bij kiezen project in Shift Modal
+  if (newShiftProjectSelect) {
+    newShiftProjectSelect.onchange = () => {
+      const selectedName = newShiftProjectSelect.value;
+      const p = list.find(proj => proj.name === selectedName);
+      if (p) {
+          if (p.start) document.getElementById('newShiftStartDate').value = p.start;
+          if (p.end) document.getElementById('newShiftEndDate').value = p.end;
+      }
+    };
+  }
+}
 
   // 🔔 Melding naar alle gebruikers (behalve admin zelf)
   const qs = await getDocs(collection(db, 'users'));
