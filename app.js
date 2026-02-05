@@ -84,6 +84,10 @@ document.querySelector('a[href="#tab-mail"]')?.addEventListener('shown.bs.tab', 
   if (currentUserId) listenMailbox(currentUserId); 
 });
 
+// activeer Projecten
+document.querySelector('a[href="#tab-projects"]')?.addEventListener('shown.bs.tab', () => {
+  renderProjects();
+});
     // Tabs: Shifts
     const filterShiftYear = document.getElementById('filterShiftYear');
     const shiftTableBody = document.getElementById('shiftTableBody');
@@ -811,60 +815,25 @@ function initTopbarAdminSwitcher() {
 function renderProjects() {
   const ud = getCurrentUserData();
   const projectTableBody = document.getElementById('projectTableBody');
-  const newShiftProjectSelect = document.getElementById('newShiftProjectSelect');
-  const projectFilterSelect = document.getElementById('projectFilterSelect');
-
   if (!projectTableBody) return;
 
-  // Sorteren op startdatum
-  const list = (ud.projects || []).slice().sort((a, b) => {
-    const as = a.start ? new Date(a.start) : new Date('1900-01-01');
-    const bs = b.start ? new Date(b.start) : new Date('1900-01-01');
-    if (as.getTime() !== bs.getTime()) return as - bs;
-    const ae = a.end ? new Date(a.end) : new Date('9999-12-31');
-    const be = b.end ? new Date(b.end) : new Date('9999-12-31');
-    return ae - be;
-  });
-
-  // Tabel en dropdowns resetten
   projectTableBody.innerHTML = '';
-  if (newShiftProjectSelect) newShiftProjectSelect.innerHTML = '<option value="">Geen project</option>';
-  if (projectFilterSelect) projectFilterSelect.innerHTML = '<option value="">Alle projecten</option>';
+  const list = ud.projects || [];
 
   list.forEach((p, idx) => {
     const tr = document.createElement('tr');
-    if (p.allowMulti === undefined) p.allowMulti = false;
-
-    // We bouwen de rij op met de "Shift-look"
     tr.innerHTML = `
-      <td>
-        <div class="d-flex align-items-center">
-            <span class="dot bg-primary" style="width:10px; height:10px; display:inline-block; border-radius:50%; margin-right:12px;"></span>
-            <div>
-                <strong class="text-dark">${p.name}</strong>
-                <div class="small text-muted">${p.allowMulti ? 'Extra lijnen toegestaan' : 'Enkele lijn'}</div>
-            </div>
-        </div>
-      </td>
+      <td><strong>${p.name}</strong></td>
       <td><span class="badge bg-light text-dark border">${toDisplayDate(p.start)}</span></td>
       <td><span class="badge bg-light text-dark border">${toDisplayDate(p.end)}</span></td>
       <td class="text-end">
-        <div class="btn-group">
-          <button class="btn btn-sm ${p.allowMulti ? 'btn-success' : 'btn-outline-secondary'}" 
-                  data-idx="${idx}" data-act="toggle-multi" 
-                  title="Extra lijnen aan/uit">
-            <span class="material-icons-outlined" style="font-size:16px">${p.allowMulti ? 'playlist_add_check' : 'playlist_add'}</span>
-          </button>
-          <button class="btn btn-sm btn-outline-warning" data-idx="${idx}" data-act="extend" title="Verlengen">
-            <span class="material-icons-outlined" style="font-size:16px">event_repeat</span>
-          </button>
-          <button class="btn btn-sm btn-outline-danger" data-idx="${idx}" data-act="delete" title="Verwijderen">
-            <span class="material-icons-outlined" style="font-size:16px">delete</span>
-          </button>
-        </div>
+        <button class="btn btn-sm btn-outline-danger" onclick="deleteProject(${idx})">
+          <span class="material-icons-outlined" style="font-size:16px">delete</span>
+        </button>
       </td>`;
-    
     projectTableBody.appendChild(tr);
+  });
+}
 
     // Dropdowns vullen
     if (newShiftProjectSelect) {
