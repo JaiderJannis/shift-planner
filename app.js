@@ -84,10 +84,6 @@ document.querySelector('a[href="#tab-mail"]')?.addEventListener('shown.bs.tab', 
   if (currentUserId) listenMailbox(currentUserId); 
 });
 
-// activeer Projecten
-document.querySelector('a[href="#tab-projects"]')?.addEventListener('shown.bs.tab', () => {
-  renderProjects();
-});
     // Tabs: Shifts
     const filterShiftYear = document.getElementById('filterShiftYear');
     const shiftTableBody = document.getElementById('shiftTableBody');
@@ -825,7 +821,9 @@ function renderProjects() {
     const as = a.start ? new Date(a.start) : new Date('1900-01-01');
     const bs = b.start ? new Date(b.start) : new Date('1900-01-01');
     if (as.getTime() !== bs.getTime()) return as - bs;
-    return (a.name || '').localeCompare(b.name || '');
+    const ae = a.end ? new Date(a.end) : new Date('9999-12-31');
+    const be = b.end ? new Date(b.end) : new Date('9999-12-31');
+    return ae - be;
   });
 
   // Tabel en dropdowns resetten
@@ -837,6 +835,7 @@ function renderProjects() {
     const tr = document.createElement('tr');
     if (p.allowMulti === undefined) p.allowMulti = false;
 
+    // We bouwen de rij op met de "Shift-look"
     tr.innerHTML = `
       <td>
         <div class="d-flex align-items-center">
@@ -876,7 +875,7 @@ function renderProjects() {
     }
   });
 
-  // Button acties koppelen (Bewerken/Verwijderen)
+  // Button acties koppelen
   projectTableBody.querySelectorAll('button').forEach(btn => {
     btn.addEventListener('click', async () => {
       const ud = getCurrentUserData();
@@ -913,19 +912,66 @@ function renderProjects() {
       }
     });
   });
+      // Toggle inputs
+      projectTableBody.querySelectorAll('input[data-act="toggle-multi"]').forEach(chk => {
+        chk.addEventListener('change', async () => {
+          const ud = getCurrentUserData();
+          const idx = Number(chk.dataset.idx);
+          const p = ud.projects[idx];
+          if (!p) return;
+          p.allowMulti = !!chk.checked;
+          await saveUserData();
+          toast(`Extra lijn ${p.allowMulti ? 'toegestaan' : 'uitgeschakeld'} voor ${p.name}`, 'success');
+        });
+      });
 
-  // Auto-datum invullen bij kiezen project in Shift Modal
-  if (newShiftProjectSelect) {
-    newShiftProjectSelect.onchange = () => {
-      const selectedName = newShiftProjectSelect.value;
-      const p = list.find(proj => proj.name === selectedName);
-      if (p) {
-          if (p.start) document.getElementById('newShiftStartDate').value = p.start;
-          if (p.end) document.getElementById('newShiftEndDate').value = p.end;
-      }
-    };
+      // ✨ NIEUW: Auto-datum invullen bij kiezen project ✨
+      newShiftProjectSelect.onchange = () => {
+        const selectedName = newShiftProjectSelect.value;
+        const p = list.find(proj => proj.name === selectedName);
+        
+        if (p) {
+            // Als het project datums heeft, vul ze in
+            if (p.start) newShiftStartDate.value = p.start;
+            if (p.end) newShiftEndDate.value = p.end;
+        } else {
+            // Als "Geen project" is gekozen, velden leegmaken
+            newShiftStartDate.value = '';
+            newShiftEndDate.value = '';
+        }
+      };
+    }
+
+addProjectBtn?.addEventListener('click', async () => {
+  const name = newProjectName.value.trim();
+  if (!name) return toast('Vul projectnaam in', 'warning');
+
+  const ud = getCurrentUserData();
+  ud.projects = ud.projects || [];
+  ud.projects.push({
+    name,
+    start: newProjectStart.value || null,
+    end: newProjectEnd.value || null
+  });
+
+  await saveUserData();
+
+  newProjectName.value = '';
+  newProjectStart.value = '';
+  newProjectEnd.value = '';
+
+  renderProjects();
+  renderProjectFilterForMonth();
+  toast('Project toegevoegd', 'success');
+
+  // 🔔 Melding naar alle gebruikers (behalve admin zelf)
+  const qs = await getDocs(collection(db, 'users'));
+  for (const u of qs.docs) {
+    if (u.id !== currentUserId) {
+      await notifyProjectChange(u.id, 'added', name);
+    }
   }
-}
+});
 // ==========================================
 // FIX: SLEPEN & SORTEREN (Drag & Drop hersteld)
 // ==========================================
