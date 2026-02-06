@@ -27,11 +27,14 @@ const messaging = getMessaging(app);
 // 1. Vraag permissie en haal het token op
 async function enableNotifications(uid) {
     try {
-        // Vraag toestemming aan de browser
         const permission = await Notification.requestPermission();
         
         if (permission === 'granted') {
             console.log('Notificatie toestemming gegeven.');
+
+            // STAP 1: Handmatig de Service Worker registreren
+            // De punt-slash (./) zorgt dat hij in de huidige map zoekt, in plaats van de root van het domein
+            const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
             
             // Haal het unieke token op
             const token = await getToken(messaging, {
