@@ -3445,9 +3445,6 @@ function listenToNotifications(uid) {
         notifList.appendChild(li);
       });
     }
-  });
-}
-
     // Ververs ook het overzicht op de Home-pagina
     if (typeof loadHomeNotifications === 'function') loadHomeNotifications();
     isFirstRun = false;
