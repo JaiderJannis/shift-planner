@@ -5192,9 +5192,9 @@ ${row.attachmentURL ? `\n- BIJLAGE: ${row.attachmentURL}` : ''}
 async function markMailRead(messageId, val = true) {
   const uid = currentUserId; 
   
-  // ⬇️ FIX: Vind het bericht in de cache om de bron te kennen
+  // Zoek bericht in cache
   const msg = mailboxCache.find(m => m._id === messageId);
-  if (!msg) return; // Bericht al weg
+  if (!msg) return; // Als hij lokaal al weg is, stop direct
 
   let docRef;
   if (msg._source === 'admin_mail') {
@@ -5203,9 +5203,28 @@ async function markMailRead(messageId, val = true) {
     docRef = doc(db, 'users', uid, 'mailbox', messageId);
   }
 
-  await updateDoc(docRef, { read: !!val }); // 👈 Gebruik het juiste pad
+  // --- HIER IS DE FIX: Try/Catch toegevoegd ---
+  try {
+    await updateDoc(docRef, { read: !!val }); 
+  } catch (err) {
+    // Als het document niet gevonden wordt ('not-found'), is het al verwijderd.
+    // We loggen dit even, maar laten de app NIET crashen.
+    if (err.code === 'not-found') {
+      console.warn(`Bericht ${messageId} bestond niet meer in DB. Verwijderen uit scherm...`);
+      // Verwijder het spook-bericht ook uit de lokale cache en ververs lijst
+      mailboxCache = mailboxCache.filter(x => x._id !== messageId);
+      mailboxCacheInbox = mailboxCacheInbox.filter(x => x._id !== messageId);
+      mailboxCacheSent = mailboxCacheSent.filter(x => x._id !== messageId);
+      renderMailList();
+      return;
+    } else {
+      // Andere fouten wel tonen
+      console.error("Fout bij markMailRead:", err);
+    }
+  }
+  // ---------------------------------------------
   
-  // Cache update (lokaal)
+  // Cache update (lokaal) als de update gelukt is
   const m = mailboxCache.find(x => x._id === messageId);
   if (m) m.read = !!val;
   renderMailList();
