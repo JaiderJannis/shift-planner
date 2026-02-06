@@ -34,11 +34,12 @@ async function enableNotifications(uid) {
 
             // STAP 1: Handmatig de Service Worker registreren
             // De punt-slash (./) zorgt dat hij in de huidige map zoekt, in plaats van de root van het domein
-            const registration = await navigator.serviceWorker.register('/shift-planner/firebase-messaging-sw.js');
+            const swRegistration = await navigator.serviceWorker.register('/shift-planner/firebase-messaging-sw.js');
             
             // Haal het unieke token op
             const token = await getToken(messaging, {
       vapidKey: 'BNmFq_okEj9STULKC_Q5s5ZlNKiY-CDGS7upVvf_kGcBiemBcVavu1RrFNFDTuYclbx_7omnUmhH9yOnuyCiCxY' // Deze vind je in de Firebase Console
+              serviceWorkerRegistration: swRegistration
     });
     
  if (token) {
