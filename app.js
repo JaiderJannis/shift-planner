@@ -36,6 +36,7 @@ async function enableNotifications(uid) {
             // De punt-slash (./) zorgt dat hij in de huidige map zoekt, in plaats van de root van het domein
             const swRegistration = await navigator.serviceWorker.register('./firebase-messaging-sw.js', {
     scope: './'
+});
             
             // Haal het unieke token op
             const token = await getToken(messaging, {
