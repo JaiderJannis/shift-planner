@@ -3405,18 +3405,18 @@ function listenToNotifications(uid) {
   const colRef = collection(db, 'users', uid, 'notifications');
   const q = query(colRef, orderBy('timestamp', 'desc'), limit(50));
 
-  // ✅ HIER ONTBRAK DE REGEL:
   let isFirstRun = true; 
 
-  const unsub = onSnapshot(q, (snapshot) => {
+  onSnapshot(q, (snapshot) => {
     const notifs = [];
-    const docs = snapshot.docs; // Voor 'Toon meer' check
-
     snapshot.forEach(doc => {
       notifs.push({ id: doc.id, ...doc.data() });
     });
 
-    // Update de badge
+    // Update de globale dataStore zodat het dashboard ook meewerkt
+    dataStore.notifications = notifs;
+
+    // Update de badge (rode getalletje)
     const unreadCount = notifs.filter(n => !n.read).length;
     if (notifBadge) {
       if (unreadCount > 0) {
@@ -3427,53 +3427,53 @@ function listenToNotifications(uid) {
       }
     }
 
-    // Render de lijst
+    // Render de lijst in het dropdown menu
     notifList.innerHTML = '';
     if (notifs.length === 0) {
       notifList.innerHTML = '<li><span class="dropdown-item-text small text-muted">Geen meldingen</span></li>';
     } else {
       notifs.forEach(n => {
         const li = document.createElement('li');
-        const dateStr = n.timestamp ? new Date(n.timestamp.seconds * 1000).toLocaleDateString() : '';
+        
+        // Fix voor de datum: werkt nu voor zowel Firestore Timestamps als ISO strings
+        let dateStr = '';
+        if (n.timestamp) {
+            const dateObj = n.timestamp.seconds ? new Date(n.timestamp.seconds * 1000) : new Date(n.timestamp);
+            dateStr = dateObj.toLocaleDateString('nl-BE');
+        }
+
+        // Gebruik 'n.text' aangezien dat het veld is dat je opslaat
         li.innerHTML = `
           <a class="dropdown-item" href="#" onclick="markNotifRead('${n.id}', event)">
             <div class="d-flex justify-content-between">
-              <strong class="${n.read ? 'fw-normal text-muted' : 'fw-bold'}">${n.title || 'Melding'}</strong>
+              <strong class="${n.read ? 'fw-normal text-muted' : 'fw-bold'}">Melding</strong>
               <small class="text-muted" style="font-size:0.7em;">${dateStr}</small>
             </div>
-            <div class="small text-muted text-wrap" style="max-width: 250px;">${n.message || ''}</div>
+            <div class="small text-muted text-wrap" style="max-width: 250px;">${n.text || ''}</div>
           </a>
         `;
         notifList.appendChild(li);
       });
     }
 
-    // Browser meldingen (alleen bij nieuwe inkomende, niet bij start)
-    if (!isFirstRun) {
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === "added") {
-          const n = change.doc.data();
-          // Check of we sendBrowserNotification hebben
-          if (typeof sendBrowserNotification === 'function') {
-             sendBrowserNotification("Nieuwe melding", n.message || n.text || "Er is een nieuwe notificatie");
-          }
-        }
-      });
-    }
-
-    // Load home notifications (als die functie bestaat)
+    // Ververs ook het overzicht op de Home-pagina
     if (typeof loadHomeNotifications === 'function') loadHomeNotifications();
-
-    // Toon 'Toon meer' knop logic
-    const loadMoreBtn = document.getElementById('loadMoreNotifBtn');
-    if (loadMoreBtn) {
-        loadMoreBtn.classList.toggle('d-none', docs.length < 20);
-    }
-    
-    // Zet vlag uit
     isFirstRun = false;
   });
 }
+
+// 2. Ontbrekende functie toevoegen voor het markeren als gelezen
+window.markNotifRead = async (id, event) => {
+  if (event) event.preventDefault();
+  if (!currentUserId) return;
+  try {
+    const ref = doc(db, 'users', currentUserId, 'notifications', id);
+    await updateDoc(ref, { read: true });
+    toast('Gemarkeerd als gelezen', 'info');
+  } catch (err) {
+    console.error("Fout bij markeren:", err);
+  }
+};
 
 // 📥 Extra meldingen ophalen
 async function loadMoreNotifications(uid) {
