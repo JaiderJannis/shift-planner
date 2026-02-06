@@ -40,7 +40,7 @@ async function enableNotifications(uid) {
             
             // Haal het unieke token op
             const token = await getToken(messaging, {
-      vapidKey: 'BNmFq_okEj9STULKC_Q5s5ZlNKiY-CDGS7upVvf_kGcBiemBcVavu1RrFNFDTuYclbx_7omnUmhH9yOnuyCiCxY' // Deze vind je in de Firebase Console
+      vapidKey: 'BAQfmfk_rwoMDHbDeTU6gdRZBjxWmikZWf_prrddhvW8Pf2hOrLc8QmkMbltWCqxbKfRs3S8ZCB3NOjrGgj2h64' // Deze vind je in de Firebase Console
     });
     
  if (token) {
