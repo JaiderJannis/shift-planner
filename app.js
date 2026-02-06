@@ -25,29 +25,34 @@ const storage = getStorage(app);
 const messaging = getMessaging(app);
 
 // 1. Vraag permissie en haal het token op
-async function requestPermission() {
-  console.log('Verzoek om notificatie-toestemming...');
-  const permission = await Notification.requestPermission();
-  
-  if (permission === 'granted') {
-    console.log('Toestemming verleend.');
-    
-    // Haal de token op
-    const currentToken = await getToken(messaging, { 
+async function enableNotifications(uid) {
+    try {
+        // Vraag toestemming aan de browser
+        const permission = await Notification.requestPermission();
+        
+        if (permission === 'granted') {
+            console.log('Notificatie toestemming gegeven.');
+            
+            // Haal het unieke token op
+            const token = await getToken(messaging, {
       vapidKey: 'BNmFq_okEj9STULKC_Q5s5ZlNKiY-CDGS7upVvf_kGcBiemBcVavu1RrFNFDTuYclbx_7omnUmhH9yOnuyCiCxY' // Deze vind je in de Firebase Console
     });
     
-    if (currentToken) {
-      console.log("FCM Token:", currentToken);
-      // SLA DIT TOKEN OP in de database bij de huidige gebruiker
-      // Zodat je later via de server een bericht naar dit token kunt sturen
-      saveTokenToDatabase(currentToken);
-    } else {
-      console.log('Geen registratie-token beschikbaar.');
+ if (token) {
+                console.log('Mijn Token:', token);
+                // Sla het op in de database bij jouw gebruiker
+                const userRef = doc(db, 'users', uid);
+                await updateDoc(userRef, { fcmToken: token });
+                console.log('Token opgeslagen in database!');
+            } else {
+                console.log('Geen token ontvangen.');
+            }
+        } else {
+            console.log('Notificatie toestemming geweigerd.');
+        }
+    } catch (err) {
+        console.error('Fout bij notificaties:', err);
     }
-  } else {
-    console.log('Toestemming geweigerd.');
-  }
 }
 
 // 2. Luister naar berichten als de app OPEN staat (voorgrond)
@@ -499,6 +504,7 @@ onAuthStateChanged(auth, async (user) => {
     updateMonthStatusBadge();
     updateLeaveBadges();
     renderHome();
+    enableNotifications(user.uid);
 
     // -----------------------------------------------------------
     // HIER ZAT DE FOUT: De '});' die hier stond is verwijderd
