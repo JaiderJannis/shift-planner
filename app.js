@@ -57,12 +57,6 @@ onMessage(messaging, (payload) => {
   alert(`${payload.notification.title}: ${payload.notification.body}`);
 });
 
-    // ===== App init =====
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const storage = getStorage(app);
-
 // ======= State =======
     let currentUserId = null;
     let mailUIBound = false;
