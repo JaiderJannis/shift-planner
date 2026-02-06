@@ -1,3 +1,4 @@
+
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
 // A. De Firestore imports (zonder storage)
@@ -3405,13 +3406,18 @@ function listenToNotifications(uid) {
   const colRef = collection(db, 'users', uid, 'notifications');
   const q = query(colRef, orderBy('timestamp', 'desc'), limit(50));
 
-  onSnapshot(q, (snapshot) => {
+  // ✅ HIER ONTBRAK DE REGEL:
+  let isFirstRun = true; 
+
+  const unsub = onSnapshot(q, (snapshot) => {
     const notifs = [];
+    const docs = snapshot.docs; // Voor 'Toon meer' check
+
     snapshot.forEach(doc => {
       notifs.push({ id: doc.id, ...doc.data() });
     });
 
-    // Update de badge (rode bolletje)
+    // Update de badge
     const unreadCount = notifs.filter(n => !n.read).length;
     if (notifBadge) {
       if (unreadCount > 0) {
@@ -3422,47 +3428,53 @@ function listenToNotifications(uid) {
       }
     }
 
-    // Vul de lijst onder het belletje
+    // Render de lijst
     notifList.innerHTML = '';
     if (notifs.length === 0) {
       notifList.innerHTML = '<li><span class="dropdown-item-text small text-muted">Geen meldingen</span></li>';
     } else {
       notifs.forEach(n => {
         const li = document.createElement('li');
-        // Zorg voor een leesbare datum, ongeacht of het een string of timestamp is
-        const dateObj = n.timestamp?.seconds ? new Date(n.timestamp.seconds * 1000) : new Date(n.timestamp);
-        const dateStr = dateObj.toLocaleDateString('nl-BE');
-
+        const dateStr = n.timestamp ? new Date(n.timestamp.seconds * 1000).toLocaleDateString() : '';
         li.innerHTML = `
           <a class="dropdown-item" href="#" onclick="markNotifRead('${n.id}', event)">
             <div class="d-flex justify-content-between">
-              <strong class="${n.read ? 'fw-normal text-muted' : 'fw-bold'}">Melding</strong>
+              <strong class="${n.read ? 'fw-normal text-muted' : 'fw-bold'}">${n.title || 'Melding'}</strong>
               <small class="text-muted" style="font-size:0.7em;">${dateStr}</small>
             </div>
-            <div class="small text-muted text-wrap" style="max-width: 250px;">${n.text || ''}</div>
+            <div class="small text-muted text-wrap" style="max-width: 250px;">${n.message || ''}</div>
           </a>
         `;
         notifList.appendChild(li);
       });
     }
-    // Ververs ook het overzicht op de Home-pagina
+
+    // Browser meldingen (alleen bij nieuwe inkomende, niet bij start)
+    if (!isFirstRun) {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const n = change.doc.data();
+          // Check of we sendBrowserNotification hebben
+          if (typeof sendBrowserNotification === 'function') {
+             sendBrowserNotification("Nieuwe melding", n.message || n.text || "Er is een nieuwe notificatie");
+          }
+        }
+      });
+    }
+
+    // Load home notifications (als die functie bestaat)
     if (typeof loadHomeNotifications === 'function') loadHomeNotifications();
+
+    // Toon 'Toon meer' knop logic
+    const loadMoreBtn = document.getElementById('loadMoreNotifBtn');
+    if (loadMoreBtn) {
+        loadMoreBtn.classList.toggle('d-none', docs.length < 20);
+    }
+    
+    // Zet vlag uit
     isFirstRun = false;
   });
 }
-
-// 2. Ontbrekende functie toevoegen voor het markeren als gelezen
-window.markNotifRead = async (id, event) => {
-  if (event) event.preventDefault();
-  if (!currentUserId) return;
-  try {
-    const ref = doc(db, 'users', currentUserId, 'notifications', id);
-    await updateDoc(ref, { read: true });
-    toast('Gemarkeerd als gelezen', 'info');
-  } catch (err) {
-    console.error("Fout bij markeren:", err);
-  }
-};
 
 // 📥 Extra meldingen ophalen
 async function loadMoreNotifications(uid) {
@@ -3775,25 +3787,19 @@ for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) 
   }
 }
 // ⚙️ Helper
-window.createUniqueNotification = async function(uid, text) {
+async function createUniqueNotification(uid, text) {
   const colRef = collection(db, 'users', uid, 'notifications');
   const todayKey = new Date().toISOString().slice(0, 10);
-  
-  // Controleer op duplicaten van vandaag
   const q = query(colRef, where('text', '==', text), where('dateKey', '==', todayKey));
   const snap = await getDocs(q);
   if (!snap.empty) return;
 
-  // Voeg de melding toe aan Firestore
   await addDoc(colRef, {
-    text: text,
+    text,
     timestamp: new Date().toISOString(),
     dateKey: todayKey,
     read: false
   });
-  
-  console.log("Melding succesvol aangemaakt in database.");
-};
 
   // ➕ Log ook als "noreply"-mail in de inbox
   await sendSystemMail(
