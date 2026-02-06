@@ -1,46 +1,27 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
 import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-messaging.js';
-// A. De Firestore imports (zonder storage)
-import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  getDocs,
-  addDoc,
-  deleteDoc,
-  collection,
-  query,
-  orderBy,
-  limit,
-  onSnapshot,
-  where,
-  startAfter,
-  serverTimestamp
-} from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, getDocs, addDoc, deleteDoc, collection, query, orderBy, limit, onSnapshot, where, startAfter, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, uploadBytesResumable } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js';
 
-// B. De Storage imports (in een nieuw blok)
-import { 
-  getStorage, 
-  ref, 
-  uploadBytes, 
-  getDownloadURL, 
-  deleteObject,
-  uploadBytesResumable
-} from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js';
+// 2. Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyB8uHwRXCe1iV7z6T80YPxEbeB64qdMpNY",
+  authDomain: "shift-planner-dc7ad.firebaseapp.com",
+  projectId: "shift-planner-dc7ad",
+  storageBucket: "shift-planner-dc7ad.firebasestorage.app",
+  messagingSenderId: "103953800507",
+  appId: "1:103953800507:web:8677c733364f899e4f576e",
+  measurementId: "G-7Q630776V6"
+};
 
-    // ===== Firebase config (jouw bestaande waarden) =====
-    const firebaseConfig = {
-      apiKey: "AIzaSyB8uHwRXCe1iV7z6T80YPxEbeB64qdMpNY",
-      authDomain: "shift-planner-dc7ad.firebaseapp.com",
-      projectId: "shift-planner-dc7ad",
-      storageBucket: "shift-planner-dc7ad.firebasestorage.app",
-      messagingSenderId: "719441527396",
-      appId: "1:719441527396:web:de87d6f950fe23702a5571"
-    };
+// 3. INITIALISEER FIREBASE EERST
+const app = initializeApp(firebaseConfig);
 
+// 4. Initialiseer nu pas de andere services met de 'app' variabele
+const db = getFirestore(app);
+const auth = getAuth(app);
+const storage = getStorage(app);
 const messaging = getMessaging(app);
 
 // 1. Vraag permissie en haal het token op
