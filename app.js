@@ -3397,72 +3397,55 @@ let lastVisible = null; // houdt bij tot waar we geladen hebben
 
 // 🔁 Laad de eerste reeks meldingen
 function listenToNotifications(uid) {
-  const notifList = document.getElementById('notifList');
-  const notifBadge = document.getElementById('notifBadge');
-  
-  if (!notifList) return;
-
   const colRef = collection(db, 'users', uid, 'notifications');
-  const q = query(colRef, orderBy('timestamp', 'desc'), limit(50));
+  const q = query(colRef, orderBy('timestamp', 'desc'), limit(20));
 
-  // ✅ HIER ONTBRAK DE REGEL:
+  // 1. 🛑 Vlag om te voorkomen dat je bij het opstarten 20 meldingen krijgt
   let isFirstRun = true; 
 
-  const unsub = onSnapshot(q, (snapshot) => {
-    const notifs = [];
-    const docs = snapshot.docs; // Voor 'Toon meer' check
+  onSnapshot(q, (snapshot) => {
+    notifList.innerHTML = '';
+    let unread = 0;
+    
+    dataStore.notifications = []; 
 
-    snapshot.forEach(doc => {
-      notifs.push({ id: doc.id, ...doc.data() });
+    const docs = snapshot.docs;
+    if (docs.length > 0) {
+        lastVisible = docs[docs.length - 1]; 
+    }
+
+    // --- A. DE BESTAANDE UI-LUS (Lijst opbouwen) ---
+    snapshot.forEach((docSnap) => {
+      const n = docSnap.data();
+      dataStore.notifications.push(n); 
+      
+      const time = n.timestamp ? new Date(n.timestamp).toLocaleString('nl-BE') : '';
+      if (!n.read) unread++;
+      const li = document.createElement('li');
+      li.className = `mb-1 p-1 rounded ${n.read ? '' : 'bg-light unread'}`;
+      li.innerHTML = `
+        <div>${n.text}</div>
+        <div class="text-muted small">${time}</div>
+      `;
+      notifList.appendChild(li);
     });
 
-    // Update de badge
-    const unreadCount = notifs.filter(n => !n.read).length;
-    if (notifBadge) {
-      if (unreadCount > 0) {
-        notifBadge.classList.remove('d-none');
-        notifBadge.textContent = unreadCount > 9 ? '9+' : unreadCount;
-      } else {
-        notifBadge.classList.add('d-none');
-      }
-    }
-
-    // Render de lijst
-    notifList.innerHTML = '';
-    if (notifs.length === 0) {
-      notifList.innerHTML = '<li><span class="dropdown-item-text small text-muted">Geen meldingen</span></li>';
-    } else {
-      notifs.forEach(n => {
-        const li = document.createElement('li');
-        const dateStr = n.timestamp ? new Date(n.timestamp.seconds * 1000).toLocaleDateString() : '';
-        li.innerHTML = `
-          <a class="dropdown-item" href="#" onclick="markNotifRead('${n.id}', event)">
-            <div class="d-flex justify-content-between">
-              <strong class="${n.read ? 'fw-normal text-muted' : 'fw-bold'}">${n.title || 'Melding'}</strong>
-              <small class="text-muted" style="font-size:0.7em;">${dateStr}</small>
-            </div>
-            <div class="small text-muted text-wrap" style="max-width: 250px;">${n.message || ''}</div>
-          </a>
-        `;
-        notifList.appendChild(li);
-      });
-    }
-
-    // Browser meldingen (alleen bij nieuwe inkomende, niet bij start)
+    // --- B. NIEUW: DE BROWSER NOTIFICATIE LUS ---
+    // We voeren dit alleen uit als het NIET de eerste keer laden is
     if (!isFirstRun) {
       snapshot.docChanges().forEach((change) => {
+        // Als er een nieuw bericht is binnengekomen (added)
         if (change.type === "added") {
           const n = change.doc.data();
-          // Check of we sendBrowserNotification hebben
-          if (typeof sendBrowserNotification === 'function') {
-             sendBrowserNotification("Nieuwe melding", n.message || n.text || "Er is een nieuwe notificatie");
-          }
+          // Stuur de browser melding (functie die we eerder maakten)
+          sendBrowserNotification("Nieuwe melding", n.text);
         }
       });
     }
 
-    // Load home notifications (als die functie bestaat)
-    if (typeof loadHomeNotifications === 'function') loadHomeNotifications();
+    // Update de badges
+    notifBadge.textContent = unread;
+    notifBadge.classList.toggle('d-none', unread === 0);
 
     // Toon 'Toon meer' knop logic
     const loadMoreBtn = document.getElementById('loadMoreNotifBtn');
@@ -3470,7 +3453,9 @@ function listenToNotifications(uid) {
         loadMoreBtn.classList.toggle('d-none', docs.length < 20);
     }
     
-    // Zet vlag uit
+    loadHomeNotifications(); 
+
+    // 2. 🛑 Zet de vlag op false na de eerste keer laden
     isFirstRun = false;
   });
 }
