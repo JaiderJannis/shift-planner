@@ -3405,18 +3405,13 @@ function listenToNotifications(uid) {
   const colRef = collection(db, 'users', uid, 'notifications');
   const q = query(colRef, orderBy('timestamp', 'desc'), limit(50));
 
-  let isFirstRun = true; 
-
   onSnapshot(q, (snapshot) => {
     const notifs = [];
     snapshot.forEach(doc => {
       notifs.push({ id: doc.id, ...doc.data() });
     });
 
-    // Update de globale dataStore zodat het dashboard ook meewerkt
-    dataStore.notifications = notifs;
-
-    // Update de badge (rode getalletje)
+    // Update de badge (rode bolletje)
     const unreadCount = notifs.filter(n => !n.read).length;
     if (notifBadge) {
       if (unreadCount > 0) {
@@ -3427,22 +3422,17 @@ function listenToNotifications(uid) {
       }
     }
 
-    // Render de lijst in het dropdown menu
+    // Vul de lijst onder het belletje
     notifList.innerHTML = '';
     if (notifs.length === 0) {
       notifList.innerHTML = '<li><span class="dropdown-item-text small text-muted">Geen meldingen</span></li>';
     } else {
       notifs.forEach(n => {
         const li = document.createElement('li');
-        
-        // Fix voor de datum: werkt nu voor zowel Firestore Timestamps als ISO strings
-        let dateStr = '';
-        if (n.timestamp) {
-            const dateObj = n.timestamp.seconds ? new Date(n.timestamp.seconds * 1000) : new Date(n.timestamp);
-            dateStr = dateObj.toLocaleDateString('nl-BE');
-        }
+        // Zorg voor een leesbare datum, ongeacht of het een string of timestamp is
+        const dateObj = n.timestamp?.seconds ? new Date(n.timestamp.seconds * 1000) : new Date(n.timestamp);
+        const dateStr = dateObj.toLocaleDateString('nl-BE');
 
-        // Gebruik 'n.text' aangezien dat het veld is dat je opslaat
         li.innerHTML = `
           <a class="dropdown-item" href="#" onclick="markNotifRead('${n.id}', event)">
             <div class="d-flex justify-content-between">
@@ -3455,6 +3445,8 @@ function listenToNotifications(uid) {
         notifList.appendChild(li);
       });
     }
+  });
+}
 
     // Ververs ook het overzicht op de Home-pagina
     if (typeof loadHomeNotifications === 'function') loadHomeNotifications();
@@ -3786,19 +3778,25 @@ for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) 
   }
 }
 // ⚙️ Helper
-async function createUniqueNotification(uid, text) {
+window.createUniqueNotification = async function(uid, text) {
   const colRef = collection(db, 'users', uid, 'notifications');
   const todayKey = new Date().toISOString().slice(0, 10);
+  
+  // Controleer op duplicaten van vandaag
   const q = query(colRef, where('text', '==', text), where('dateKey', '==', todayKey));
   const snap = await getDocs(q);
   if (!snap.empty) return;
 
+  // Voeg de melding toe aan Firestore
   await addDoc(colRef, {
-    text,
+    text: text,
     timestamp: new Date().toISOString(),
     dateKey: todayKey,
     read: false
   });
+  
+  console.log("Melding succesvol aangemaakt in database.");
+};
 
   // ➕ Log ook als "noreply"-mail in de inbox
   await sendSystemMail(
