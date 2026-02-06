@@ -43,23 +43,38 @@ import {
 
 const messaging = getMessaging(app);
 
-// Functie om de unieke "Push Token" van de gebruiker op te slaan
-async function setupPushNotifications() {
-  try {
-    const token = await getToken(messaging, { 
-      vapidKey: 'BNmFq_okEj9STULKC_Q5s5ZlNKiY-CDGS7upVvf_kGcBiemBcVavu1RrFNFDTuYclbx_7omnUmhH9yOnuyCiCxY' 
+// 1. Vraag permissie en haal het token op
+async function requestPermission() {
+  console.log('Verzoek om notificatie-toestemming...');
+  const permission = await Notification.requestPermission();
+  
+  if (permission === 'granted') {
+    console.log('Toestemming verleend.');
+    
+    // Haal de token op
+    const currentToken = await getToken(messaging, { 
+      vapidKey: 'BNmFq_okEj9STULKC_Q5s5ZlNKiY-CDGS7upVvf_kGcBiemBcVavu1RrFNFDTuYclbx_7omnUmhH9yOnuyCiCxY' // Deze vind je in de Firebase Console
     });
-
-    if (token) {
-      // Sla dit token op in de Firestore bij de gebruiker
-      const userRef = doc(db, 'users', currentUserId);
-      await updateDoc(userRef, { fcmToken: token });
-      console.log("Push Token opgeslagen:", token);
+    
+    if (currentToken) {
+      console.log("FCM Token:", currentToken);
+      // SLA DIT TOKEN OP in de database bij de huidige gebruiker
+      // Zodat je later via de server een bericht naar dit token kunt sturen
+      saveTokenToDatabase(currentToken);
+    } else {
+      console.log('Geen registratie-token beschikbaar.');
     }
-  } catch (err) {
-    console.error("FCM Token fout:", err);
+  } else {
+    console.log('Toestemming geweigerd.');
   }
 }
+
+// 2. Luister naar berichten als de app OPEN staat (voorgrond)
+onMessage(messaging, (payload) => {
+  console.log('Bericht ontvangen in voorgrond: ', payload);
+  // Je kunt hier een custom alert of UI element tonen
+  alert(`${payload.notification.title}: ${payload.notification.body}`);
+});
 
     // ===== App init =====
     const app = initializeApp(firebaseConfig);
