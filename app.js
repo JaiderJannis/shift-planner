@@ -807,11 +807,27 @@ function initTopbarAdminSwitcher() {
 }
 
 // ======= Projects =======
+// ======= Projects =======
 function renderProjects() {
   const ud = getCurrentUserData();
   const projectTableBody = document.getElementById('projectTableBody');
   const newShiftProjectSelect = document.getElementById('newShiftProjectSelect');
   const projectFilterSelect = document.getElementById('projectFilterSelect');
+
+  // 🔒 SECURITY CHECK: Ben ik Admin?
+  const loggedInUser = dataStore.users[currentUserId];
+  const iAmAdmin = loggedInUser && loggedInUser.role === 'admin';
+
+  // 1. "Nieuw Project" knop verbergen/tonen
+  // We zoeken de knop binnen de projects tab die de modal opent
+  const btnNew = document.querySelector('#tab-projects button[data-bs-target="#projectModal"]');
+  if (btnNew) {
+    if (iAmAdmin) {
+        btnNew.classList.remove('d-none');
+    } else {
+        btnNew.classList.add('d-none');
+    }
+  }
 
   if (!projectTableBody) return;
 
@@ -834,6 +850,26 @@ function renderProjects() {
     const tr = document.createElement('tr');
     if (p.allowMulti === undefined) p.allowMulti = false;
 
+    // 🔒 Bepaal Actie-kolom inhoud
+    let actionsHtml = '';
+    if (iAmAdmin) {
+        actionsHtml = `
+        <div class="btn-group">
+          <button class="btn btn-sm btn-outline-primary" data-idx="${idx}" data-act="edit" title="Bewerken">
+            <span class="material-icons-outlined" style="font-size:16px">edit</span>
+          </button>
+          
+          <button class="btn btn-sm btn-outline-warning" data-idx="${idx}" data-act="extend" title="Snel verlengen">
+            <span class="material-icons-outlined" style="font-size:16px">event_repeat</span>
+          </button>
+          <button class="btn btn-sm btn-outline-danger" data-idx="${idx}" data-act="delete" title="Verwijderen">
+            <span class="material-icons-outlined" style="font-size:16px">delete</span>
+          </button>
+        </div>`;
+    } else {
+        actionsHtml = `<span class="text-muted small material-icons-outlined" style="font-size:16px; opacity:0.5;">lock</span>`;
+    }
+
     // We bouwen de rij op
     tr.innerHTML = `
       <td>
@@ -846,23 +882,12 @@ function renderProjects() {
       <td><span class="badge bg-light text-dark border">${toDisplayDate(p.start)}</span></td>
       <td><span class="badge bg-light text-dark border">${toDisplayDate(p.end)}</span></td>
       <td class="text-end">
-        <div class="btn-group">
-          <button class="btn btn-sm btn-outline-primary" data-idx="${idx}" data-act="edit" title="Bewerken">
-            <span class="material-icons-outlined" style="font-size:16px">edit</span>
-          </button>
-          
-          <button class="btn btn-sm btn-outline-warning" data-idx="${idx}" data-act="extend" title="Snel verlengen">
-            <span class="material-icons-outlined" style="font-size:16px">event_repeat</span>
-          </button>
-          <button class="btn btn-sm btn-outline-danger" data-idx="${idx}" data-act="delete" title="Verwijderen">
-            <span class="material-icons-outlined" style="font-size:16px">delete</span>
-          </button>
-        </div>
+        ${actionsHtml}
       </td>`;
     
     projectTableBody.appendChild(tr);
 
-    // Dropdowns vullen
+    // Dropdowns vullen (Dit blijft werken voor iedereen zodat ze shiften kunnen koppelen)
     if (newShiftProjectSelect) {
       const o1 = document.createElement('option'); o1.value = p.name; o1.textContent = p.name; newShiftProjectSelect.appendChild(o1);
     }
@@ -890,56 +915,48 @@ function renderProjects() {
       };
   }
 
-  // Button acties koppelen
-  projectTableBody.querySelectorAll('button').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const ud = getCurrentUserData();
-      // Zoek het originele index nummer in de ongesorteerde lijst op basis van object vergelijking
-      // (Omdat 'list' gesorteerd is, komt 'idx' niet meer overeen met ud.projects)
-      const clickedItem = list[Number(btn.dataset.idx)];
-      const realIdx = ud.projects.indexOf(clickedItem);
-      
-      if (realIdx === -1) return;
-      const p = ud.projects[realIdx];
+  // Button acties koppelen (Alleen als admin, anders zijn er geen knoppen)
+  if (iAmAdmin) {
+      projectTableBody.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const ud = getCurrentUserData();
+          const clickedItem = list[Number(btn.dataset.idx)];
+          const realIdx = ud.projects.indexOf(clickedItem);
+          
+          if (realIdx === -1) return;
+          const p = ud.projects[realIdx];
+          const action = btn.dataset.act;
 
-      const action = btn.dataset.act;
-
-      if (action === 'edit') {
-        // ✨ BEWERK LOGICA ✨
-        editingProjectIndex = realIdx; // Onthoud welk project we bewerken
-        
-        // Vul de modal
-        document.getElementById('modalProjectName').value = p.name;
-        document.getElementById('modalProjectStart').value = p.start || '';
-        document.getElementById('modalProjectEnd').value = p.end || '';
-        
-        // Update titel van modal (optioneel)
-        document.querySelector('#projectModal .modal-title').textContent = "Project Bewerken";
-
-        // Open modal
-        new bootstrap.Modal(document.getElementById('projectModal')).show();
-      } 
-      else if (action === 'extend') {
-        const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', toDisplayDate(p.end) || '');
-        if (!v) return;
-        p.end = fromDisplayDate(v);
-        await saveUserData();
-        renderProjects();
-        renderProjectFilterForMonth(); // Update ook filters
-        renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-        toast('Project verlengd', 'success');
-      } 
-      else if (action === 'delete') {
-        if (!confirm(`Project "${p.name}" verwijderen?`)) return;
-        ud.projects.splice(realIdx, 1);
-        await saveUserData();
-        renderProjects();
-        renderProjectFilterForMonth();
-        renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-        toast('Project verwijderd', 'danger');
-      }
-    });
-  });
+          if (action === 'edit') {
+            editingProjectIndex = realIdx; 
+            document.getElementById('modalProjectName').value = p.name;
+            document.getElementById('modalProjectStart').value = p.start || '';
+            document.getElementById('modalProjectEnd').value = p.end || '';
+            document.querySelector('#projectModal .modal-title').textContent = "Project Bewerken";
+            new bootstrap.Modal(document.getElementById('projectModal')).show();
+          } 
+          else if (action === 'extend') {
+            const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', toDisplayDate(p.end) || '');
+            if (!v) return;
+            p.end = fromDisplayDate(v);
+            await saveUserData();
+            renderProjects();
+            renderProjectFilterForMonth(); 
+            renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+            toast('Project verlengd', 'success');
+          } 
+          else if (action === 'delete') {
+            if (!confirm(`Project "${p.name}" verwijderen?`)) return;
+            ud.projects.splice(realIdx, 1);
+            await saveUserData();
+            renderProjects();
+            renderProjectFilterForMonth();
+            renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+            toast('Project verwijderd', 'danger');
+          }
+        });
+      });
+  }
 }
 
   // ✨ NIEUW: Auto-datum invullen bij kiezen project in Shift Modal ✨
@@ -967,6 +984,11 @@ function renderProjects() {
 // (Vervangt de oude addProjectBtn logica)
 
 document.getElementById('saveProjectBtn')?.addEventListener('click', async () => {
+  // 🔒 SECURITY CHECK
+  const loggedInUser = dataStore.users[currentUserId];
+  if (!loggedInUser || loggedInUser.role !== 'admin') {
+      return toast('Alleen beheerders mogen projecten aanpassen.', 'danger');
+  }
   // Haal waarden uit de modal inputs
   const nameInput = document.getElementById('modalProjectName');
   const startInput = document.getElementById('modalProjectStart');
