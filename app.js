@@ -5192,10 +5192,11 @@ ${row.attachmentURL ? `\n- BIJLAGE: ${row.attachmentURL}` : ''}
 async function markMailRead(messageId, val = true) {
   const uid = currentUserId; 
   
-  // Zoek bericht in cache
+  // 1. Zoek het bericht in je lokale geheugen
   const msg = mailboxCache.find(m => m._id === messageId);
-  if (!msg) return; // Als hij lokaal al weg is, stop direct
+  if (!msg) return; // Het is al weg, stop.
 
+  // 2. Bepaal waar het bericht zou moeten staan in de database
   let docRef;
   if (msg._source === 'admin_mail') {
     docRef = doc(db, 'admin_mail', messageId);
@@ -5203,28 +5204,36 @@ async function markMailRead(messageId, val = true) {
     docRef = doc(db, 'users', uid, 'mailbox', messageId);
   }
 
-  // --- HIER IS DE FIX: Try/Catch toegevoegd ---
   try {
+    // 3. Probeer de status te updaten naar 'gelezen'
     await updateDoc(docRef, { read: !!val }); 
   } catch (err) {
-    // Als het document niet gevonden wordt ('not-found'), is het al verwijderd.
-    // We loggen dit even, maar laten de app NIET crashen.
+    // 4. Vang de fout op als het bericht niet bestaat
     if (err.code === 'not-found') {
-      console.warn(`Bericht ${messageId} bestond niet meer in DB. Verwijderen uit scherm...`);
-      // Verwijder het spook-bericht ook uit de lokale cache en ververs lijst
+      // GEBRUIKERSVRIENDELIJKE MELDING:
+      toast('Dit bericht is niet meer gevonden en wordt verwijderd.', 'warning');
+      
+      // Verwijder het spookbericht uit alle lokale lijsten
       mailboxCache = mailboxCache.filter(x => x._id !== messageId);
       mailboxCacheInbox = mailboxCacheInbox.filter(x => x._id !== messageId);
       mailboxCacheSent = mailboxCacheSent.filter(x => x._id !== messageId);
+      
+      // Ververs de lijst op het scherm
       renderMailList();
+      
+      // Maak het lees-scherm leeg als dat bericht open stond
+      const detailEl = document.getElementById('mailDetail');
+      if (detailEl && detailEl.dataset.openId === messageId) {
+          detailEl.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
+      }
       return;
     } else {
-      // Andere fouten wel tonen
+      // Echte fouten (zoals geen internet/permissie) wel loggen
       console.error("Fout bij markMailRead:", err);
     }
   }
-  // ---------------------------------------------
   
-  // Cache update (lokaal) als de update gelukt is
+  // 5. Als alles goed ging: update lokaal ook naar 'gelezen'
   const m = mailboxCache.find(x => x._id === messageId);
   if (m) m.read = !!val;
   renderMailList();
