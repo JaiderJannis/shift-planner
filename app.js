@@ -3469,6 +3469,12 @@ function listenToNotifications(uid) {
     if (loadMoreBtn) {
         loadMoreBtn.classList.toggle('d-none', docs.length < 20);
     }
+// Voeg dit toe binnen de onSnapshot om te debuggen:
+console.log("Notificatie-update ontvangen, aantal docs:", snapshot.size);
+
+// Zorg dat de badge ALTIJD wordt geüpdatet, ook bij de eerste run
+const unreadCount = notifs.filter(n => !n.read).length;
+console.log("Ongelezen meldingen gevonden:", unreadCount);
     
     // Zet vlag uit
     isFirstRun = false;
