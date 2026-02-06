@@ -6,7 +6,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyB8uHwRXCe1iV7z6T80YPxEbeB64qdMpNY",
   authDomain: "shift-planner-dc7ad.firebaseapp.com",
   projectId: "shift-planner-dc7ad",
-  messagingSenderId: "103953800507",
+  messagingSenderId: "719441527396",
   appId: "1:103953800507:web:8677c733364f899e4f576e"
 };
 
@@ -25,5 +25,6 @@ messaging.onBackgroundMessage((payload) => {
 
   self.registration.showNotification(notificationTitle, notificationOptions);
 });
+
 
 
