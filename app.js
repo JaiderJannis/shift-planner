@@ -1,5 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
+import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-messaging.js';
 // A. De Firestore imports (zonder storage)
 import {
   getFirestore,
@@ -39,6 +40,26 @@ import {
       messagingSenderId: "719441527396",
       appId: "1:719441527396:web:de87d6f950fe23702a5571"
     };
+
+const messaging = getMessaging(app);
+
+// Functie om de unieke "Push Token" van de gebruiker op te slaan
+async function setupPushNotifications() {
+  try {
+    const token = await getToken(messaging, { 
+      vapidKey: 'BNmFq_okEj9STULKC_Q5s5ZlNKiY-CDGS7upVvf_kGcBiemBcVavu1RrFNFDTuYclbx_7omnUmhH9yOnuyCiCxY' 
+    });
+
+    if (token) {
+      // Sla dit token op in de Firestore bij de gebruiker
+      const userRef = doc(db, 'users', currentUserId);
+      await updateDoc(userRef, { fcmToken: token });
+      console.log("Push Token opgeslagen:", token);
+    }
+  } catch (err) {
+    console.error("FCM Token fout:", err);
+  }
+}
 
     // ===== App init =====
     const app = initializeApp(firebaseConfig);
