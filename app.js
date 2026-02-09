@@ -7695,7 +7695,7 @@ function getBelgianHoliday(dateObj) {
     if (daysToAdd === 0) daysToAdd = 7;
     
     const verlorenMaandagDag = 6 + daysToAdd;
-    if (day === verlorenMaandagDag) return { name: 'Verloren Maandag', emoji: '🌭' };
+    if (day === verlorenMaandagDag) return { name: 'Verloren maandag', emoji: '🌭' };
   }
   return null;
 }
