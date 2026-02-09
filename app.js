@@ -1751,33 +1751,50 @@ function renderCalendarGrid(year, month) {
     grid.insertAdjacentHTML('beforeend', `<div class="calendar-header">${d}</div>`)
   );
 
-  const firstDay = new Date(year, month, 1).getDay();
+const firstDay = new Date(year, month, 1).getDay();
   const offset = (firstDay === 0) ? 6 : firstDay - 1;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const dayEl = document.createElement('div');
-    dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}`;
 
-  for (let i = 0; i < offset; i++) grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
+  // 1. Eerst de lege vakjes voor de start van de maand
+  for (let i = 0; i < offset; i++) {
+      grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
+  }
 
   const todayDate = new Date();
   const isCurrentMonth = (todayDate.getFullYear() === Number(year) && todayDate.getMonth() === Number(month));
   const currentDayNum = todayDate.getDate();
 
+  // 2. NU PAS de lus voor de echte dagen (hier moet de logica in!)
   for (let d = 1; d <= daysInMonth; d++) {
     const baseKey = dateKey(year, month, d);
     const dateObj = new Date(year, month, d);
     const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
     const isToday = (isCurrentMonth && d === currentDayNum);
 
-    // Emoji knopjes
+    // --- ✨ HIER IS DE NIEUWE FEESTDAG LOGICA ✨ ---
+    const holidayInfo = getBelgianHoliday(dateObj);
+    let holidayHtml = '';
+    if (holidayInfo) {
+      // We tonen de emoji en naam klein naast of onder het nummer
+      holidayHtml = `<span class="holiday-badge">${holidayInfo.emoji} ${holidayInfo.name}</span>`;
+    }
+    // ------------------------------------------------
+
+    // Emoji knopjes (Favorieten) logic...
     const quickIconsHtml = favorites.map(sh => {
       if (!isDateWithin(baseKey, sh.startDate, sh.endDate)) return '';
+      const ICON_MAP = {
+        'light_mode': '☀️', 'wb_twilight': '🌅', 'bedtime': '🌙', 'schedule': '🕒',
+        'star': '⭐', 'school': '🎓', 'medical_services': '🏥', 'flight': '✈️',
+        'bench': '🪑', 'feestdag': '🎉', 'teammeeting': '👥', 'niet_ingepland': '❌',
+        'vrij_weekend': '😎'
+      };
       const emoji = ICON_MAP[sh.icon] || '⭐';
       const hoverText = sh.realName || sh.key;
       return `<span class="quick-icon-btn" data-shift="${sh.key}" title="${hoverText}">${emoji}</span>`;
     }).join('');
 
-    // Shift balkjes
+    // Shift balkjes logic...
     const dayKeys = listDayKeys(md, baseKey);
     let shiftsHtml = '';
     
@@ -1807,25 +1824,18 @@ function renderCalendarGrid(year, month) {
     const realCount = dayKeys.filter(k => md.rows[k].shift).length;
     if (realCount > 3) shiftsHtml += `<div style="font-size:9px; text-align:center; color:#999;">+${realCount - 3}</div>`;
 
-   // ✅ NIEUW: Check op feestdag
-    const holidayInfo = getBelgianHoliday(dateObj);
-    let holidayHtml = '';
-    if (holidayInfo) {
-      holidayHtml = `<div class="holiday-badge">${holidayInfo.emoji} ${holidayInfo.name}</div>`;
-    }
-
+    // --- ELEMENT MAKEN ---
     const dayEl = document.createElement('div');
     dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}`;
     
-    // Voeg 'paint-cursor' toe als mode aan staat
     if (typeof isPaintMode !== 'undefined' && isPaintMode) {
         dayEl.style.cursor = 'cell'; 
     }
 
-    // ✅ AANGEPASTE HTML: Voeg ${holidayHtml} toe onder het dagnummer
+    // ✅ HTML VULLEN (Met holidayHtml toegevoegd)
     dayEl.innerHTML = `
       <div class="d-flex justify-content-between align-items-start">
-        <div class="d-flex flex-column">
+        <div class="d-flex align-items-center">
             <span class="day-number">${d}</span>
             ${holidayHtml} 
         </div>
@@ -1834,18 +1844,15 @@ function renderCalendarGrid(year, month) {
       <div class="d-flex flex-column gap-1 mt-1" style="overflow:hidden;">${shiftsHtml}</div>
     `;
 
-    // 🔥 DE KLIK LOGICA 🔥
+    // Klik logica
     dayEl.onclick = () => {
-        // Als verf-modus aan staat -> VERVEN!
         if (typeof isPaintMode !== 'undefined' && isPaintMode) {
             applyPaintShift(baseKey);
         } else {
-            // Anders -> Popup openen
             openDayEditor(baseKey);
         }
     };
 
-    // Quick icons (sterretjes) blijven altijd werken
     dayEl.querySelectorAll('.quick-icon-btn').forEach(btn => {
       btn.onclick = (e) => {
         e.stopPropagation(); 
@@ -1856,7 +1863,6 @@ function renderCalendarGrid(year, month) {
 
     grid.appendChild(dayEl);
   }
-}
 // ==========================================
 // 2. HELPER: DIRECT OPSLAAN (Voor icoontjes)
 // ==========================================
