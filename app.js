@@ -1728,34 +1728,16 @@ function renderCalendarGrid(year, month) {
     .filter(key => allShifts[key] && allShifts[key].isFavorite)
     .map(key => ({ key, ...allShifts[key] }));
 
-  // 2. EMOJI MAPPING
-  // Vertaal de "oude" icoon-namen naar emojis
-  const ICON_MAP = {
-    'light_mode': '☀️',
-    'wb_twilight': '🌅',
-    'bedtime': '🌙',
-    'schedule': '🕒',
-    'star': '⭐',
-    'school': '🎓',
-    'medical_services': '🏥',
-    'flight': '✈️',
-    'bench': '🪑',
-    'feestdag': '🎉',
-    'teammeeting': '👥',
-    'niet_ingepland': '❌',
-    'vrij_weekend': '😎'
-  };
-
- // Headers
- ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'].forEach(d => 
+  // Headers
+  ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'].forEach(d => 
     grid.insertAdjacentHTML('beforeend', `<div class="calendar-header">${d}</div>`)
   );
 
-const firstDay = new Date(year, month, 1).getDay();
+  const firstDay = new Date(year, month, 1).getDay();
   const offset = (firstDay === 0) ? 6 : firstDay - 1;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  // 1. Eerst de lege vakjes voor de start van de maand
+  // Lege vakjes voor de start
   for (let i = 0; i < offset; i++) {
       grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
   }
@@ -1764,23 +1746,22 @@ const firstDay = new Date(year, month, 1).getDay();
   const isCurrentMonth = (todayDate.getFullYear() === Number(year) && todayDate.getMonth() === Number(month));
   const currentDayNum = todayDate.getDate();
 
-  // 2. NU PAS de lus voor de echte dagen (hier moet de logica in!)
+  // Dagen genereren
   for (let d = 1; d <= daysInMonth; d++) {
     const baseKey = dateKey(year, month, d);
     const dateObj = new Date(year, month, d);
     const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
     const isToday = (isCurrentMonth && d === currentDayNum);
 
-    // --- ✨ HIER IS DE NIEUWE FEESTDAG LOGICA ✨ ---
+    // ✨ FEESTDAG LOGICA (Correcte versie met backticks) ✨
     const holidayInfo = getBelgianHoliday(dateObj);
     let holidayHtml = '';
     if (holidayInfo) {
-      // We tonen de emoji en naam klein naast of onder het nummer
+      // Let op de ` ` tekens hieronder!
       holidayHtml = `<span class="holiday-badge">${holidayInfo.emoji} ${holidayInfo.name}</span>`;
     }
-    // ------------------------------------------------
 
-    // Emoji knopjes (Favorieten) logic...
+    // Emoji knopjes
     const quickIconsHtml = favorites.map(sh => {
       if (!isDateWithin(baseKey, sh.startDate, sh.endDate)) return '';
       const ICON_MAP = {
@@ -1794,7 +1775,7 @@ const firstDay = new Date(year, month, 1).getDay();
       return `<span class="quick-icon-btn" data-shift="${sh.key}" title="${hoverText}">${emoji}</span>`;
     }).join('');
 
-    // Shift balkjes logic...
+    // Shift balkjes
     const dayKeys = listDayKeys(md, baseKey);
     let shiftsHtml = '';
     
@@ -1824,7 +1805,6 @@ const firstDay = new Date(year, month, 1).getDay();
     const realCount = dayKeys.filter(k => md.rows[k].shift).length;
     if (realCount > 3) shiftsHtml += `<div style="font-size:9px; text-align:center; color:#999;">+${realCount - 3}</div>`;
 
-    // --- ELEMENT MAKEN ---
     const dayEl = document.createElement('div');
     dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}`;
     
@@ -1832,19 +1812,17 @@ const firstDay = new Date(year, month, 1).getDay();
         dayEl.style.cursor = 'cell'; 
     }
 
-    // ✅ HTML VULLEN (Met holidayHtml toegevoegd)
     dayEl.innerHTML = `
       <div class="d-flex justify-content-between align-items-start">
         <div class="d-flex align-items-center">
             <span class="day-number">${d}</span>
-            ${holidayHtml} 
+            ${holidayHtml}
         </div>
         <div class="quick-icons-wrapper">${quickIconsHtml}</div>
       </div>
       <div class="d-flex flex-column gap-1 mt-1" style="overflow:hidden;">${shiftsHtml}</div>
     `;
 
-    // Klik logica
     dayEl.onclick = () => {
         if (typeof isPaintMode !== 'undefined' && isPaintMode) {
             applyPaintShift(baseKey);
@@ -1863,6 +1841,7 @@ const firstDay = new Date(year, month, 1).getDay();
 
     grid.appendChild(dayEl);
   }
+}
 // ==========================================
 // 2. HELPER: DIRECT OPSLAAN (Voor icoontjes)
 // ==========================================
