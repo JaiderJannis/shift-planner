@@ -955,3 +955,13 @@ body:not(.auth-checked) #loadingOverlay {
     font-size: 0.75rem;
   }
 }
+/* Achtergrondkleur voor schooldagen in vakantie (Ma-Vr) */
+.calendar-day.school-holiday-bg {
+  background-color: #e3f2fd !important; /* Lichtblauw van de badge */
+}
+
+/* Zorg dat de weekend-kleur (indien je die hebt) of 'vandaag' nog steeds zichtbaar is/werkt */
+.calendar-day.school-holiday-bg.today {
+  background-color: #fff3cd !important; /* Vandaag blijft geel-achtig */
+  border: 2px solid #ffc107;
+}
