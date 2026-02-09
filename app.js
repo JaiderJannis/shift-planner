@@ -7617,10 +7617,10 @@ async function renderUserDataAsAdmin(uid) {
 
 function getBelgianHoliday(dateObj) {
   const year = dateObj.getFullYear();
-  const month = dateObj.getMonth(); // 0-11
+  const month = dateObj.getMonth(); // 0-based (Jan=0, Dec=11)
   const day = dateObj.getDate();
 
-  // 1. Vaste datums
+  // --- 1. VASTE OFFICIËLE FEESTDAGEN ---
   if (month === 0 && day === 1)   return { name: 'Nieuwjaar', emoji: '🥂' };
   if (month === 4 && day === 1)   return { name: 'Dag v/d Arbeid', emoji: '🛠️' };
   if (month === 6 && day === 21)  return { name: 'Nationale Feestdag', emoji: '🇧🇪' };
@@ -7629,8 +7629,14 @@ function getBelgianHoliday(dateObj) {
   if (month === 10 && day === 11) return { name: 'Wapenstilstand', emoji: '🌺' };
   if (month === 11 && day === 25) return { name: 'Kerstmis', emoji: '🎄' };
 
-  // 2. Variabele datums (Pasen berekening)
-  // Algoritme van Spencers Jones voor Pasen
+  // --- 2. POPULAIRE "SIDE" FEESTDAGEN (Nieuw!) ---
+  if (month === 1 && day === 14)  return { name: 'Valentijn', emoji: '❤️' };
+  if (month === 3 && day === 1)   return { name: '1 April', emoji: '🃏' };
+  if (month === 9 && day === 31)  return { name: 'Halloween', emoji: '🎃' };
+  if (month === 11 && day === 6)  return { name: 'Sinterklaas', emoji: '🎁' };
+  if (month === 11 && day === 31) return { name: 'Oudejaarsavond', emoji: '🍾' };
+
+  // --- 3. VARIABELE DATUMS (PASEN & CO) ---
   const a = year % 19;
   const b = Math.floor(year / 100);
   const c = year % 100;
@@ -7643,28 +7649,22 @@ function getBelgianHoliday(dateObj) {
   const k = c % 4;
   const l = (32 + 2 * e + 2 * i - h - k) % 7;
   const m = Math.floor((a + 11 * h + 22 * l) / 451);
-  
-  const monthEaster = Math.floor((h + l - 7 * m + 114) / 31) - 1; // 0-based
+  const monthEaster = Math.floor((h + l - 7 * m + 114) / 31) - 1;
   const dayEaster = ((h + l - 7 * m + 114) % 31) + 1;
-
+  
   const easterDate = new Date(year, monthEaster, dayEaster);
+  
+  // Verschil in dagen berekenen
+  const oneDay = 24 * 60 * 60 * 1000;
+  const diffDays = Math.round((dateObj - easterDate) / oneDay);
 
-  // Helper om verschil in dagen te checken
-  const diffDays = (dateObj - easterDate) / (1000 * 60 * 60 * 24);
+  if (diffDays === 0)  return { name: 'Pasen', emoji: '🐣' };
+  if (diffDays === 1)  return { name: 'Paasmaandag', emoji: '🐣' };
+  if (diffDays === 39) return { name: 'O.L.H. Hemelvaart', emoji: '🕊️' };
+  if (diffDays === 49) return { name: 'Pinksteren', emoji: '🕯️' };
+  if (diffDays === 50) return { name: 'Pinkstermaandag', emoji: '🕯️' };
 
-  // Pasen en gerelateerde dagen
-  // Let op: afhankelijk van tijdzones kan Math.round nodig zijn, 
-  // maar met pure datums (zonder uren) werkt dit meestal direct.
-  // We gebruiken Math.round voor veiligheid rondom zomertijd-wissels.
-  const diff = Math.round(diffDays);
-
-  if (diff === 0)  return { name: 'Pasen', emoji: '🐣' };
-  if (diff === 1)  return { name: 'Paasmaandag', emoji: '🐣' };
-  if (diff === 39) return { name: 'O.L.H. Hemelvaart', emoji: '🕊️' };
-  if (diff === 49) return { name: 'Pinksteren', emoji: '🕯️' };
-  if (diff === 50) return { name: 'Pinkstermaandag', emoji: '🕯️' };
-
-  return null; // Geen feestdag
+  return null;
 }
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
