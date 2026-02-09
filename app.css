@@ -894,3 +894,17 @@ body:not(.auth-checked) #loadingOverlay {
     line-height: 1.2;
   }
 }
+/* Feestdag label in de kalender */
+.holiday-badge {
+  font-size: 0.7rem;
+  color: #d63384; /* Roze/Paars tintje voor feestdagen */
+  background-color: rgba(214, 51, 132, 0.1);
+  border-radius: 4px;
+  padding: 1px 4px;
+  margin-bottom: 2px;
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
