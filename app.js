@@ -1,4 +1,4 @@
-const dayEl = document.createElement('div');import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
 import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-messaging.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, getDocs, addDoc, deleteDoc, collection, query, orderBy, limit, onSnapshot, where, startAfter, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
@@ -1717,33 +1717,33 @@ function renderCalendarGrid(year, month) {
   const grid = document.getElementById('monthlyCalendarGrid');
   if (!grid) return;
   grid.innerHTML = '';
-// --- 👇 DIT STUKJE CODE ZORGT DAT HET LABEL GEVULD WORDT 👇 ---
+
+  // 1. SCHOOLVAKANTIE INFO OPHALEN (Bovenin, zodat de hele functie het kent)
+  const schoolVacation = getSchoolHolidayInfo(year, month);
+
+  // 2. Label vullen
   const holidayLabel = document.getElementById('schoolHolidayLabel');
   if (holidayLabel) {
-      // 1. Haal de info op
-      const info = getSchoolHolidayInfo(year, month);
-      
-      // 2. Is er vakantie? Vul de HTML. Zo niet? Maak leeg.
-      if (info) {
+      if (schoolVacation) {
           let text = '';
-          if (info.fullMonth) {
-              text = info.name;
+          if (schoolVacation.fullMonth) {
+              text = schoolVacation.name;
           } else {
               const options = { month: 'short', day: 'numeric' };
-              const s = info.start.toLocaleDateString('nl-NL', options);
-              const e = info.end.toLocaleDateString('nl-NL', options);
-              text = `${info.name}: ${s} t/m ${e}`;
+              const s = schoolVacation.start.toLocaleDateString('nl-NL', options);
+              const e = schoolVacation.end.toLocaleDateString('nl-NL', options);
+              text = `${schoolVacation.name}: ${s} t/m ${e}`;
           }
-          // De CSS class 'school-holiday-tag' zorgt voor de styling
           holidayLabel.innerHTML = `
             <div class="school-holiday-tag">
-               <span class="material-icons-outlined" style="font-size:16px">${info.icon}</span> ${text}
+               <span class="material-icons-outlined" style="font-size:16px">${schoolVacation.icon}</span> ${text}
             </div>
           `;
       } else {
-          holidayLabel.innerHTML = ''; // Geen vakantie = leegmaken
+          holidayLabel.innerHTML = '';
       }
   }
+
   const ud = getCurrentUserData();
   const md = ud.monthData?.[year]?.[month] || { rows: {} };
   
@@ -1773,31 +1773,23 @@ function renderCalendarGrid(year, month) {
   const currentDayNum = todayDate.getDate();
 
   // Dagen genereren
- for (let d = 1; d <= daysInMonth; d++) {
+  for (let d = 1; d <= daysInMonth; d++) {
     const baseKey = dateKey(year, month, d);
     const dateObj = new Date(year, month, d);
     const dayOfWeek = dateObj.getDay(); // 0=zo, 6=za
     const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
     const isToday = (isCurrentMonth && d === currentDayNum);
 
-    // ✅ NIEUW: Check voor vakantiekleur (Alleen Ma-Vr)
+    // ✅ FIX: Gebruik 'schoolVacation' variabele van hierboven
     let isHolidayDay = false;
-    // We kleuren alleen als er vakantie info is EN het geen weekend is
-    if (holidayInfo && !isWeekend) {
-        if (holidayInfo.fullMonth) {
-            // Zomervakantie (hele maand)
+    if (schoolVacation && !isWeekend) {
+        if (schoolVacation.fullMonth) {
             isHolidayDay = true;
-        } else if (holidayInfo.start && holidayInfo.end) {
-            // Check of deze dag tussen start en einde valt
-            // We zetten tijden op 00:00 voor eerlijke vergelijking
-            const dTime = dateObj.getTime();
-            const sTime = holidayInfo.start.getTime(); // start datum object
-            const eTime = holidayInfo.end.getTime();   // eind datum object
-            
-            // Zet start op 00:00 en end op 23:59 om zeker te zijn (optioneel, maar veiliger)
+        } else if (schoolVacation.start && schoolVacation.end) {
+            // Check datums (tijd op 0 zetten voor eerlijke vergelijking)
             const checkDate = new Date(dateObj).setHours(0,0,0,0);
-            const checkStart = new Date(holidayInfo.start).setHours(0,0,0,0);
-            const checkEnd = new Date(holidayInfo.end).setHours(0,0,0,0);
+            const checkStart = new Date(schoolVacation.start).setHours(0,0,0,0);
+            const checkEnd = new Date(schoolVacation.end).setHours(0,0,0,0);
 
             if (checkDate >= checkStart && checkDate <= checkEnd) {
                 isHolidayDay = true;
@@ -1805,12 +1797,11 @@ function renderCalendarGrid(year, month) {
         }
     }
 
-    // ✨ FEESTDAG LOGICA
-    const holidayInfo = getBelgianHoliday(dateObj);
+    // ✨ FEESTDAG LOGICA (Variabele naam aangepast naar dayHoliday)
+    const dayHoliday = getBelgianHoliday(dateObj);
     let holidayHtml = '';
-    if (holidayInfo) {
-      // Nu zonder span, maar als div die we later invoegen
-      holidayHtml = `<div class="holiday-badge"><span style="font-size: 1.3em;">${holidayInfo.emoji}</span> ${holidayInfo.name}</div>`;
+    if (dayHoliday) {
+      holidayHtml = `<div class="holiday-badge"><span style="font-size: 1.3em;">${dayHoliday.emoji}</span> ${dayHoliday.name}</div>`;
     }
 
     // Emoji knopjes
@@ -1857,29 +1848,23 @@ function renderCalendarGrid(year, month) {
     const realCount = dayKeys.filter(k => md.rows[k].shift).length;
     if (realCount > 3) shiftsHtml += `<div style="font-size:9px; text-align:center; color:#999;">+${realCount - 3}</div>`;
 
-// --- ELEMENT MAKEN ---
+    // --- ELEMENT MAKEN ---
     const dayEl = document.createElement('div');
     
-    // 1. Maak de basis string
+    // 1. Basis klassen
     let classes = `calendar-day ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''} d-flex flex-column`;
     
-    // 2. Voeg de kleur toe als het vakantie is
+    // 2. Kleur toevoegen indien vakantie
     if (isHolidayDay) {
         classes += ' school-holiday-bg';
     }
     
-    // 3. Wijs het toe aan het element
     dayEl.className = classes;
     
     if (typeof isPaintMode !== 'undefined' && isPaintMode) {
         dayEl.style.cursor = 'cell'; 
     }
 
-    // ✅ NIEUWE INDELING: 
-    // 1. Header (Nummer + Icons)
-    // 2. Shifts (in een flex-grow container)
-    // 3. Feestdag (helemaal onderaan)
-    
     dayEl.innerHTML = `
       <div class="d-flex justify-content-between align-items-start p-1">
         <span class="day-number">${d}</span>
@@ -1890,7 +1875,8 @@ function renderCalendarGrid(year, month) {
         ${shiftsHtml}
       </div>
 
-      ${holidayHtml} `;
+      ${holidayHtml} 
+    `;
 
     // Events
     dayEl.onclick = () => {
