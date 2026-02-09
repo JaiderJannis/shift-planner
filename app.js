@@ -1114,7 +1114,7 @@ function renderShifts() {
   const selectedYear = filterShiftYear?.value ? Number(filterShiftYear.value) : null;
   const isAdminUser = (ud.role === 'admin');
 
-  // UI Checks
+  // UI Checks (voor shortcode/color columns in modal, niet tabel)
   const divShort = document.getElementById('divShiftShort');
   const divColor = document.getElementById('divShiftColor');
   const divName  = document.getElementById('divShiftName');
@@ -1155,16 +1155,31 @@ function renderShifts() {
         ? `<span class="badge bg-light text-dark border">${sh.project}</span>` 
         : '<span class="text-muted small">-</span>';
 
-const periodText = (sh.startDate || sh.endDate) 
-    ? `<small>${toDisplayDate(sh.startDate) || '...'} <span class="text-muted">t/m</span> ${toDisplayDate(sh.endDate) || '...'}</small>` 
-    : '<span class="text-muted small">-</span>';
+    const periodText = (sh.startDate || sh.endDate) 
+        ? `<small>${toDisplayDate(sh.startDate) || '...'} <span class="text-muted">t/m</span> ${toDisplayDate(sh.endDate) || '...'}</small>` 
+        : '<span class="text-muted small">-</span>';
 
-    // 7 Kolommen (Met sleep-icoon in de eerste kolom)
+    // ✅ HTML voor Icoon Selectie
+    const iconOptions = `
+      <option value="light_mode" ${sh.icon === 'light_mode' ? 'selected' : ''}>☀️</option>
+      <option value="wb_twilight" ${sh.icon === 'wb_twilight' ? 'selected' : ''}>🌅</option>
+      <option value="bedtime" ${sh.icon === 'bedtime' ? 'selected' : ''}>🌙</option>
+      <option value="schedule" ${sh.icon === 'schedule' ? 'selected' : ''}>🕒</option>
+      <option value="school" ${sh.icon === 'school' ? 'selected' : ''}>🎓</option>
+      <option value="medical_services" ${sh.icon === 'medical_services' ? 'selected' : ''}>🏥</option>
+      <option value="flight" ${sh.icon === 'flight' ? 'selected' : ''}>✈️</option>
+      <option value="bench" ${sh.icon === 'bench' ? 'selected' : ''}>🪑</option>
+      <option value="feestdag" ${sh.icon === 'feestdag' ? 'selected' : ''}>🎉</option>
+      <option value="teammeeting" ${sh.icon === 'teammeeting' ? 'selected' : ''}>👥</option>
+      <option value="niet_ingepland" ${sh.icon === 'niet_ingepland' ? 'selected' : ''}>❌</option>
+      <option value="vrij_weekend" ${sh.icon === 'vrij_weekend' ? 'selected' : ''}>😎</option>
+    `;
+
+    // Tabelrij opbouwen
     tr.innerHTML = `
       <td>
         <div class="d-flex align-items-center">
             <span class="handle material-icons-outlined text-muted me-2" style="cursor: grab; font-size: 18px;">drag_indicator</span>
-            
             <span class="dot" style="background:${sh.color || '#ccc'}; width:12px; height:12px; display:inline-block; border-radius:50%; margin-right:10px;"></span>
             <div>
                 <strong class="text-dark">${sh.realName || name}</strong>
@@ -1177,6 +1192,19 @@ const periodText = (sh.startDate || sh.endDate)
       <td>${sh.end || '00:00'}</td>
       <td>${sh.break || 0}</td>
       <td>${projectBadge}</td>
+
+      <td class="text-center">
+        <select class="form-select form-select-sm shift-icon-select" data-key="${name}" style="width: 70px; margin: auto;">
+          ${iconOptions}
+        </select>
+      </td>
+
+      <td class="text-center">
+        <div class="form-check form-switch d-flex justify-content-center">
+          <input class="form-check-input shift-fav-toggle" type="checkbox" data-key="${name}" ${sh.isFavorite ? 'checked' : ''}>
+        </div>
+      </td>
+
       <td>${periodText}</td>
 
       <td class="text-end">
@@ -1188,7 +1216,8 @@ const periodText = (sh.startDate || sh.endDate)
       </td>
     `;
 
-    // Events
+    // --- Events voor Knoppen (Bewerken, Verwijderen, Kopiëren) ---
+    // (Blijft hetzelfde als voorheen)
     tr.querySelector('.btn-del').onclick = async () => {
       if(!confirm(`Shift "${sh.realName || name}" verwijderen?`)) return;
       delete ud.shifts[name];
@@ -1228,10 +1257,34 @@ const periodText = (sh.startDate || sh.endDate)
         new bootstrap.Modal(modalEl).show();
     };
 
+    // --- ✅ NIEUW: Events voor Icoon & Favoriet ---
+    // Direct opslaan bij wijziging
+    tr.querySelector('.shift-icon-select').onchange = async (e) => {
+        const key = e.target.dataset.key;
+        ud.shifts[key].icon = e.target.value;
+        await saveUserData(); // Sla op in DB
+        
+        // Ververs kalender direct als die zichtbaar is
+        const y = Number(document.getElementById('yearSelectMain')?.value);
+        const m = Number(document.getElementById('monthSelectMain')?.value);
+        if (y && !isNaN(m)) renderCalendarGrid(y, m);
+    };
+
+    tr.querySelector('.shift-fav-toggle').onchange = async (e) => {
+        const key = e.target.dataset.key;
+        ud.shifts[key].isFavorite = e.target.checked;
+        await saveUserData(); // Sla op in DB
+        
+        // Ververs kalender
+        const y = Number(document.getElementById('yearSelectMain')?.value);
+        const m = Number(document.getElementById('monthSelectMain')?.value);
+        if (y && !isNaN(m)) renderCalendarGrid(y, m);
+    };
+
     shiftTableBody.appendChild(tr);
   });
 
-  // START DE SORTEER FUNCTIE
+  // START DE SORTEER FUNCTIE (Drag & Drop)
   initShiftSortable();
 }
 
