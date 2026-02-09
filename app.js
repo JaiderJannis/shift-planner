@@ -7699,6 +7699,99 @@ function getBelgianHoliday(dateObj) {
   }
   return null;
 }
+// Hulpfunctie: Bereken Vlaamse Schoolvakanties
+function getSchoolHolidayInfo(year, month) {
+  // Pasen berekenen (nodig voor Krokus, Pasen, Hemelvaart)
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const monthEaster = Math.floor((h + l - 7 * m + 114) / 31) - 1;
+  const dayEaster = ((h + l - 7 * m + 114) % 31) + 1;
+  const easterDate = new Date(year, monthEaster, dayEaster);
+
+  // 1. KROKUSVAKANTIE (Week van Aswoensdag)
+  // Aswoensdag is 46 dagen voor Pasen.
+  const ashWed = new Date(easterDate);
+  ashWed.setDate(easterDate.getDate() - 46);
+  // De vakantie is de week waarin Aswoensdag valt (Maandag t/m Zondag)
+  // We zoeken de maandag van die week
+  const krokusStart = new Date(ashWed);
+  const dayAsh = ashWed.getDay(); // 3 = woensdag
+  krokusStart.setDate(ashWed.getDate() - (dayAsh - 1)); // Terug naar maandag
+  const krokusEnd = new Date(krokusStart);
+  krokusEnd.setDate(krokusStart.getDate() + 6); // Tot zondag
+
+  if (month === krokusStart.getMonth() || month === krokusEnd.getMonth()) {
+     // Check of de vakantie deels in deze maand valt
+     if (month === krokusStart.getMonth()) {
+        return { name: 'Krokusvakantie', start: krokusStart, end: krokusEnd, icon: '🎭' };
+     }
+  }
+
+  // 2. PAASVAKANTIE (2 weken)
+  // Regel: Paasmaandag is dag 1 van week 2. Dus start is 1 week voor Paasmaandag.
+  // Uitzondering: Als Pasen in maart valt? In Vlaanderen meestal vast rond Pasen.
+  // Simpele regel: Paasmaandag + 1 dag is einde. Start is 14 dagen ervoor? 
+  // Standaard: 2 weken rond Pasen.
+  const easterMon = new Date(easterDate);
+  easterMon.setDate(easterDate.getDate() + 1);
+  const paasStart = new Date(easterMon);
+  paasStart.setDate(easterMon.getDate() - 8); // Zondag ervoor, of maandag ervoor? Laten we maandag nemen (1 week voor paasmaandag)
+  paasStart.setDate(paasStart.getDate() + 1 - paasStart.getDay() + 1); // Maandag vd eerste week
+  const paasEnd = new Date(paasStart);
+  paasEnd.setDate(paasStart.getDate() + 13); // 2 weken
+
+  if ((month === paasStart.getMonth()) || (month === paasEnd.getMonth())) {
+     // Als startdatum in deze maand is OF einddatum
+     return { name: 'Paasvakantie', start: paasStart, end: paasEnd, icon: '🐣' };
+  }
+
+  // 3. ZOMERVAKANTIE (Juli & Augustus)
+  if (month === 6) return { name: 'Zomervakantie', fullMonth: true, icon: '☀️' };
+  if (month === 7) return { name: 'Zomervakantie', fullMonth: true, icon: '🏖️' };
+
+  // 4. HERFSTVAKANTIE (Week van 1 november)
+  const nov1 = new Date(year, 10, 1);
+  const herfstStart = new Date(nov1);
+  // Als 1 nov op zondag valt -> week erna? Meestal week waarin 1 nov valt.
+  // We nemen de maandag van de week van 1 nov.
+  let dayNov1 = nov1.getDay(); // 0=zo, 1=ma
+  if (dayNov1 === 0) dayNov1 = 7; 
+  herfstStart.setDate(nov1.getDate() - (dayNov1 - 1));
+  const herfstEnd = new Date(herfstStart);
+  herfstEnd.setDate(herfstStart.getDate() + 6);
+
+  if (month === 10) { // November (en soms eind oktober)
+     if (herfstStart.getMonth() === month || herfstEnd.getMonth() === month) {
+        return { name: 'Herfstvakantie', start: herfstStart, end: herfstEnd, icon: '🍂' };
+     }
+  }
+
+  // 5. KERSTVAKANTIE (2 weken rond Kerst/Nieuwjaar)
+  // Start maandag van de week van Kerstmis usually
+  const xmas = new Date(year, 11, 25);
+  let dayXmas = xmas.getDay();
+  if (dayXmas === 0) dayXmas = 7;
+  const kerstStart = new Date(xmas);
+  kerstStart.setDate(xmas.getDate() - (dayXmas - 1));
+  const kerstEnd = new Date(kerstStart);
+  kerstEnd.setDate(kerstStart.getDate() + 13);
+
+  if (month === 11) { // December
+      return { name: 'Kerstvakantie', start: kerstStart, end: kerstEnd, icon: '🎄' };
+  }
+  
+  return null;
+}
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
     // De Wachtwoord Reset Knop-logica is nu verwijderd.
