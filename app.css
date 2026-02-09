@@ -894,15 +894,29 @@ body:not(.auth-checked) #loadingOverlay {
     line-height: 1.2;
   }
 }
-/* Nieuwe stijl: Geen achtergrond, schone tekst onderaan */
+/* Styling voor de feestdag tekst */
 .holiday-badge {
-  margin-top: auto;       /* Duwt de badge naar de bodem */
-  font-size: 0.8rem;     /* Basis grootte voor de tekst */
-  text-align: center;     /* Gecentreerd */
-  color: #c2185b;         /* Iets donkerder roze/rood voor contrast */
-  padding: 4px 0 2px 0;   /* Beetje ruimte */
+  margin-top: auto;
+  font-size: 0.8rem;      /* Standaard grootte (Desktop) */
+  text-align: center;
+  color: #c2185b;
+  padding: 4px 0 2px 0;
   width: 100%;
   display: block;
   font-weight: 500;
-  /* Background-color en border zijn verwijderd */
+
+  /* ✅ Zorgt voor de puntjes (...) als het te lang is */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ✅ Specifiek voor mobiel (schermen kleiner dan 768px) */
+@media (max-width: 768px) {
+  .holiday-badge {
+    font-size: 0.6rem;    /* Stuk kleiner lettertype */
+    padding: 1px 0;       /* Minder witruimte */
+    line-height: 1.1;
+  }
 }
