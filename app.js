@@ -1773,11 +1773,37 @@ function renderCalendarGrid(year, month) {
   const currentDayNum = todayDate.getDate();
 
   // Dagen genereren
-  for (let d = 1; d <= daysInMonth; d++) {
+ for (let d = 1; d <= daysInMonth; d++) {
     const baseKey = dateKey(year, month, d);
     const dateObj = new Date(year, month, d);
-    const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
+    const dayOfWeek = dateObj.getDay(); // 0=zo, 6=za
+    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
     const isToday = (isCurrentMonth && d === currentDayNum);
+
+    // ✅ NIEUW: Check voor vakantiekleur (Alleen Ma-Vr)
+    let isHolidayDay = false;
+    // We kleuren alleen als er vakantie info is EN het geen weekend is
+    if (holidayInfo && !isWeekend) {
+        if (holidayInfo.fullMonth) {
+            // Zomervakantie (hele maand)
+            isHolidayDay = true;
+        } else if (holidayInfo.start && holidayInfo.end) {
+            // Check of deze dag tussen start en einde valt
+            // We zetten tijden op 00:00 voor eerlijke vergelijking
+            const dTime = dateObj.getTime();
+            const sTime = holidayInfo.start.getTime(); // start datum object
+            const eTime = holidayInfo.end.getTime();   // eind datum object
+            
+            // Zet start op 00:00 en end op 23:59 om zeker te zijn (optioneel, maar veiliger)
+            const checkDate = new Date(dateObj).setHours(0,0,0,0);
+            const checkStart = new Date(holidayInfo.start).setHours(0,0,0,0);
+            const checkEnd = new Date(holidayInfo.end).setHours(0,0,0,0);
+
+            if (checkDate >= checkStart && checkDate <= checkEnd) {
+                isHolidayDay = true;
+            }
+        }
+    }
 
     // ✨ FEESTDAG LOGICA
     const holidayInfo = getBelgianHoliday(dateObj);
@@ -7822,26 +7848,34 @@ function getSchoolHolidayInfo(year, month) {
       }
   }
 
-  // 5. KERSTVAKANTIE
-  // Start maandag van de week van Kerstmis (behalve als Kerst op zat/zon valt?)
-  // Regel: 2 weken. Als Kerstmis op zat/zon valt, begint het de maandag erna?
-  // Nee, meestal: Kerstvakantie begint maandag van de week waarin Kerst valt.
-  // Tenzij Kerst op zaterdag/zondag valt, dan begint het maandag erna? 
-  // (Simpele benadering: week van 25 dec)
-  const xmas = new Date(year, 11, 25);
-  let dayXmas = xmas.getDay();
-  if (dayXmas === 0) dayXmas = 7;
-  const kerstStart = new Date(xmas);
-  kerstStart.setDate(xmas.getDate() - (dayXmas - 1));
+ // 5. KERSTVAKANTIE
+  const xmas = new Date(year, 11, 25); // 25 dec van DIT jaar (of vorig jaar als we in jan zitten?)
   
-  // Correctie voor schooljaren: Als kerst op weekend valt, start het vaak erna.
-  // We houden de standaard "week van kerst" aan voor nu.
+  // Hier zit een listigheidje: Als we in Januari kijken (month 0), moeten we kijken naar de Kerst van VORIG jaar.
+  let referenceYear = year;
+  if (month === 0) referenceYear = year - 1;
+  
+  const xmasRef = new Date(referenceYear, 11, 25);
+  let dayXmas = xmasRef.getDay();
+  if (dayXmas === 0) dayXmas = 7;
+  
+  const kerstStart = new Date(xmasRef);
+  kerstStart.setDate(xmasRef.getDate() - (dayXmas - 1));
   
   const kerstEnd = new Date(kerstStart);
-  kerstEnd.setDate(kerstStart.getDate() + 13);
+  kerstEnd.setDate(kerstStart.getDate() + 13); // 2 weken
 
-  if (month === 11) { 
-      return { name: 'Kerstvakantie', start: kerstStart, end: kerstEnd, icon: '🎄' };
+  // Check of de vakantie overlapt met de huidige maand (Dec of Jan)
+  if (month === 11 || month === 0) {
+      // Check overlap
+      // Simpele check: start de vakantie in deze maand? OF eindigt hij in deze maand?
+      const sM = kerstStart.getMonth();
+      const eM = kerstEnd.getMonth();
+      
+      if (sM === month || eM === month) {
+           // Voor het label geven we gewoon 'Kerstvakantie' terug
+           return { name: 'Kerstvakantie', start: kerstStart, end: kerstEnd, icon: '🎄' };
+      }
   }
   
   return null;
