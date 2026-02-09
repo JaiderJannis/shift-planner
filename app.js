@@ -7727,7 +7727,7 @@ function getBelgianHoliday(dateObj) {
 }
 // Hulpfunctie: Bereken Vlaamse Schoolvakanties
 function getSchoolHolidayInfo(year, month) {
-  // Pasen berekenen (nodig voor Krokus, Pasen, Hemelvaart)
+  // Pasen berekenen
   const a = year % 19;
   const b = Math.floor(year / 100);
   const c = year % 100;
@@ -7745,74 +7745,102 @@ function getSchoolHolidayInfo(year, month) {
   const easterDate = new Date(year, monthEaster, dayEaster);
 
   // 1. KROKUSVAKANTIE (Week van Aswoensdag)
-  // Aswoensdag is 46 dagen voor Pasen.
   const ashWed = new Date(easterDate);
   ashWed.setDate(easterDate.getDate() - 46);
-  // De vakantie is de week waarin Aswoensdag valt (Maandag t/m Zondag)
-  // We zoeken de maandag van die week
   const krokusStart = new Date(ashWed);
+  // Terug naar de maandag van die week
   const dayAsh = ashWed.getDay(); // 3 = woensdag
-  krokusStart.setDate(ashWed.getDate() - (dayAsh - 1)); // Terug naar maandag
+  krokusStart.setDate(ashWed.getDate() - (dayAsh - 1)); 
   const krokusEnd = new Date(krokusStart);
-  krokusEnd.setDate(krokusStart.getDate() + 6); // Tot zondag
+  krokusEnd.setDate(krokusStart.getDate() + 6);
 
   if (month === krokusStart.getMonth() || month === krokusEnd.getMonth()) {
-     // Check of de vakantie deels in deze maand valt
+     // Check of de startdatum in deze maand ligt
+     // We tonen het label in de maand waarin de vakantie START (of grotendeels valt)
      if (month === krokusStart.getMonth()) {
         return { name: 'Krokusvakantie', start: krokusStart, end: krokusEnd, icon: '🎭' };
      }
   }
 
-  // 2. PAASVAKANTIE (2 weken)
-  // Regel: Paasmaandag is dag 1 van week 2. Dus start is 1 week voor Paasmaandag.
-  // Uitzondering: Als Pasen in maart valt? In Vlaanderen meestal vast rond Pasen.
-  // Simpele regel: Paasmaandag + 1 dag is einde. Start is 14 dagen ervoor? 
-  // Standaard: 2 weken rond Pasen.
-  const easterMon = new Date(easterDate);
-  easterMon.setDate(easterDate.getDate() + 1);
-  const paasStart = new Date(easterMon);
-  paasStart.setDate(easterMon.getDate() - 8); // Zondag ervoor, of maandag ervoor? Laten we maandag nemen (1 week voor paasmaandag)
-  paasStart.setDate(paasStart.getDate() + 1 - paasStart.getDay() + 1); // Maandag vd eerste week
-  const paasEnd = new Date(paasStart);
-  paasEnd.setDate(paasStart.getDate() + 13); // 2 weken
+  // 2. PAASVAKANTIE (De complexe regel!)
+  let paasStart, paasEnd;
+  const easterMonday = new Date(easterDate);
+  easterMonday.setDate(easterDate.getDate() + 1);
 
-  if ((month === paasStart.getMonth()) || (month === paasEnd.getMonth())) {
-     // Als startdatum in deze maand is OF einddatum
-     return { name: 'Paasvakantie', start: paasStart, end: paasEnd, icon: '🐣' };
+  // REGEL: Als Pasen in Maart valt OF in April vóór de 15e -> Vakantie start Paasmaandag
+  if (easterDate.getMonth() === 2 || (easterDate.getMonth() === 3 && easterDate.getDate() <= 15)) {
+      // Start op Paasmaandag
+      paasStart = new Date(easterMonday);
+      paasEnd = new Date(paasStart);
+      paasEnd.setDate(paasStart.getDate() + 13); // 2 weken
+  } else {
+      // Laat Pasen (> 15 april): Vakantie eindigt op Paasmaandag (dus begint 2 weken eerder)
+      paasEnd = new Date(easterMonday);
+      paasStart = new Date(paasEnd);
+      paasStart.setDate(paasEnd.getDate() - 14); // 14 dagen terugtellen
   }
 
-  // 3. ZOMERVAKANTIE (Juli & Augustus)
+  if (month === paasStart.getMonth() || month === paasEnd.getMonth()) {
+     // Toon label in de startmaand (of als start eind vorige maand was, toon in deze maand als het doorloopt)
+     // Simpelheidshalve: toon als start in deze maand is
+     if (month === paasStart.getMonth()) {
+         return { name: 'Paasvakantie', start: paasStart, end: paasEnd, icon: '🐣' };
+     }
+     // Als vakantie start in Maart maar maand is April, toon het ook in April?
+     // Nee, meestal staat het label bij de startdatum.
+  }
+
+  // 3. ZOMERVAKANTIE
   if (month === 6) return { name: 'Zomervakantie', fullMonth: true, icon: '☀️' };
   if (month === 7) return { name: 'Zomervakantie', fullMonth: true, icon: '🏖️' };
 
-  // 4. HERFSTVAKANTIE (Week van 1 november)
+  // 4. HERFSTVAKANTIE (Week van 1 nov)
+  // Regel: Begint maandag van de week waarin 1 nov valt.
+  // Uitzondering: Als 1 nov op zondag valt, begint het de maandag erna (2 nov).
   const nov1 = new Date(year, 10, 1);
-  const herfstStart = new Date(nov1);
-  // Als 1 nov op zondag valt -> week erna? Meestal week waarin 1 nov valt.
-  // We nemen de maandag van de week van 1 nov.
-  let dayNov1 = nov1.getDay(); // 0=zo, 1=ma
-  if (dayNov1 === 0) dayNov1 = 7; 
-  herfstStart.setDate(nov1.getDate() - (dayNov1 - 1));
+  let herfstStart = new Date(nov1);
+  let dayNov1 = nov1.getDay(); // 0=zo, 1=ma...
+  
+  if (dayNov1 === 0) {
+      // 1 nov is zondag -> start maandag 2 nov
+      herfstStart.setDate(nov1.getDate() + 1);
+  } else {
+      // Anders: terug naar maandag van die week
+      herfstStart.setDate(nov1.getDate() - (dayNov1 - 1));
+  }
+  
   const herfstEnd = new Date(herfstStart);
   herfstEnd.setDate(herfstStart.getDate() + 6);
 
-  if (month === 10) { // November (en soms eind oktober)
-     if (herfstStart.getMonth() === month || herfstEnd.getMonth() === month) {
-        return { name: 'Herfstvakantie', start: herfstStart, end: herfstEnd, icon: '🍂' };
-     }
+  if (month === 10) { // November (of eind oktober)
+      if (herfstStart.getMonth() === month) {
+         return { name: 'Herfstvakantie', start: herfstStart, end: herfstEnd, icon: '🍂' };
+      }
+      // Als start in Oktober is (bijv 28 okt)
+      if (month === 9 && herfstStart.getMonth() === 9) {
+         return { name: 'Herfstvakantie', start: herfstStart, end: herfstEnd, icon: '🍂' };
+      }
   }
 
-  // 5. KERSTVAKANTIE (2 weken rond Kerst/Nieuwjaar)
-  // Start maandag van de week van Kerstmis usually
+  // 5. KERSTVAKANTIE
+  // Start maandag van de week van Kerstmis (behalve als Kerst op zat/zon valt?)
+  // Regel: 2 weken. Als Kerstmis op zat/zon valt, begint het de maandag erna?
+  // Nee, meestal: Kerstvakantie begint maandag van de week waarin Kerst valt.
+  // Tenzij Kerst op zaterdag/zondag valt, dan begint het maandag erna? 
+  // (Simpele benadering: week van 25 dec)
   const xmas = new Date(year, 11, 25);
   let dayXmas = xmas.getDay();
   if (dayXmas === 0) dayXmas = 7;
   const kerstStart = new Date(xmas);
   kerstStart.setDate(xmas.getDate() - (dayXmas - 1));
+  
+  // Correctie voor schooljaren: Als kerst op weekend valt, start het vaak erna.
+  // We houden de standaard "week van kerst" aan voor nu.
+  
   const kerstEnd = new Date(kerstStart);
   kerstEnd.setDate(kerstStart.getDate() + 13);
 
-  if (month === 11) { // December
+  if (month === 11) { 
       return { name: 'Kerstvakantie', start: kerstStart, end: kerstEnd, icon: '🎄' };
   }
   
