@@ -1721,7 +1721,7 @@ function renderCalendarGrid(year, month) {
   const ud = getCurrentUserData();
   const md = ud.monthData?.[year]?.[month] || { rows: {} };
   
-  // 1. Shiften & Favorieten ophalen
+  // Shiften & Favorieten ophalen
   const allShifts = ud.shifts || {};
   const order = ud.shiftOrder || Object.keys(allShifts);
   const favorites = order
@@ -1737,7 +1737,7 @@ function renderCalendarGrid(year, month) {
   const offset = (firstDay === 0) ? 6 : firstDay - 1;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  // Lege vakjes voor de start
+  // Lege vakjes
   for (let i = 0; i < offset; i++) {
       grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
   }
@@ -1753,12 +1753,12 @@ function renderCalendarGrid(year, month) {
     const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
     const isToday = (isCurrentMonth && d === currentDayNum);
 
-    // ✨ FEESTDAG LOGICA (Correcte versie met backticks) ✨
+    // ✨ FEESTDAG LOGICA
     const holidayInfo = getBelgianHoliday(dateObj);
     let holidayHtml = '';
     if (holidayInfo) {
-      // Let op de ` ` tekens hieronder!
-      holidayHtml = `<span class="holiday-badge">${holidayInfo.emoji} ${holidayInfo.name}</span>`;
+      // Nu zonder span, maar als div die we later invoegen
+      holidayHtml = `<div class="holiday-badge">${holidayInfo.emoji} ${holidayInfo.name}</div>`;
     }
 
     // Emoji knopjes
@@ -1805,24 +1805,34 @@ function renderCalendarGrid(year, month) {
     const realCount = dayKeys.filter(k => md.rows[k].shift).length;
     if (realCount > 3) shiftsHtml += `<div style="font-size:9px; text-align:center; color:#999;">+${realCount - 3}</div>`;
 
+    // --- ELEMENT MAKEN ---
     const dayEl = document.createElement('div');
-    dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}`;
+    
+    // ✅ BELANGRIJK: Voeg 'd-flex flex-column' toe zodat we 'margin-top: auto' kunnen gebruiken
+    dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''} d-flex flex-column`;
     
     if (typeof isPaintMode !== 'undefined' && isPaintMode) {
         dayEl.style.cursor = 'cell'; 
     }
 
+    // ✅ NIEUWE INDELING: 
+    // 1. Header (Nummer + Icons)
+    // 2. Shifts (in een flex-grow container)
+    // 3. Feestdag (helemaal onderaan)
+    
     dayEl.innerHTML = `
-      <div class="d-flex justify-content-between align-items-start">
-        <div class="d-flex align-items-center">
-            <span class="day-number">${d}</span>
-            ${holidayHtml}
-        </div>
+      <div class="d-flex justify-content-between align-items-start p-1">
+        <span class="day-number">${d}</span>
         <div class="quick-icons-wrapper">${quickIconsHtml}</div>
       </div>
-      <div class="d-flex flex-column gap-1 mt-1" style="overflow:hidden;">${shiftsHtml}</div>
-    `;
+      
+      <div class="d-flex flex-column gap-1 px-1" style="overflow:hidden;">
+        ${shiftsHtml}
+      </div>
 
+      ${holidayHtml} `;
+
+    // Events
     dayEl.onclick = () => {
         if (typeof isPaintMode !== 'undefined' && isPaintMode) {
             applyPaintShift(baseKey);
