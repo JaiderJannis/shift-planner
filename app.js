@@ -1754,6 +1754,8 @@ function renderCalendarGrid(year, month) {
   const firstDay = new Date(year, month, 1).getDay();
   const offset = (firstDay === 0) ? 6 : firstDay - 1;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const dayEl = document.createElement('div');
+    dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}`;
 
   for (let i = 0; i < offset; i++) grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
 
@@ -1805,17 +1807,28 @@ function renderCalendarGrid(year, month) {
     const realCount = dayKeys.filter(k => md.rows[k].shift).length;
     if (realCount > 3) shiftsHtml += `<div style="font-size:9px; text-align:center; color:#999;">+${realCount - 3}</div>`;
 
+   // ✅ NIEUW: Check op feestdag
+    const holidayInfo = getBelgianHoliday(dateObj);
+    let holidayHtml = '';
+    if (holidayInfo) {
+      holidayHtml = `<div class="holiday-badge">${holidayInfo.emoji} ${holidayInfo.name}</div>`;
+    }
+
     const dayEl = document.createElement('div');
     dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}`;
     
-    // Voeg 'paint-cursor' toe als mode aan staat voor visuele feedback
+    // Voeg 'paint-cursor' toe als mode aan staat
     if (typeof isPaintMode !== 'undefined' && isPaintMode) {
         dayEl.style.cursor = 'cell'; 
     }
 
+    // ✅ AANGEPASTE HTML: Voeg ${holidayHtml} toe onder het dagnummer
     dayEl.innerHTML = `
       <div class="d-flex justify-content-between align-items-start">
-        <span class="day-number">${d}</span>
+        <div class="d-flex flex-column">
+            <span class="day-number">${d}</span>
+            ${holidayHtml} 
+        </div>
         <div class="quick-icons-wrapper">${quickIconsHtml}</div>
       </div>
       <div class="d-flex flex-column gap-1 mt-1" style="overflow:hidden;">${shiftsHtml}</div>
@@ -7602,6 +7615,61 @@ async function renderUserDataAsAdmin(uid) {
   
   const settingsName = document.getElementById('adminSettingsName');
   if (settingsName) settingsName.textContent = name;
+}
+// ==========================================
+// 🎉 FEESTDAGEN LOGICA (BELGIË)
+// ==========================================
+
+function getBelgianHoliday(dateObj) {
+  const year = dateObj.getFullYear();
+  const month = dateObj.getMonth(); // 0-11
+  const day = dateObj.getDate();
+
+  // 1. Vaste datums
+  if (month === 0 && day === 1)   return { name: 'Nieuwjaar', emoji: '🥂' };
+  if (month === 4 && day === 1)   return { name: 'Dag v/d Arbeid', emoji: '🛠️' };
+  if (month === 6 && day === 21)  return { name: 'Nationale Feestdag', emoji: '🇧🇪' };
+  if (month === 7 && day === 15)  return { name: 'O.L.V. Hemelvaart', emoji: '⛪' };
+  if (month === 10 && day === 1)  return { name: 'Allerheiligen', emoji: '🍂' };
+  if (month === 10 && day === 11) return { name: 'Wapenstilstand', emoji: '🌺' };
+  if (month === 11 && day === 25) return { name: 'Kerstmis', emoji: '🎄' };
+
+  // 2. Variabele datums (Pasen berekening)
+  // Algoritme van Spencers Jones voor Pasen
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  
+  const monthEaster = Math.floor((h + l - 7 * m + 114) / 31) - 1; // 0-based
+  const dayEaster = ((h + l - 7 * m + 114) % 31) + 1;
+
+  const easterDate = new Date(year, monthEaster, dayEaster);
+
+  // Helper om verschil in dagen te checken
+  const diffDays = (dateObj - easterDate) / (1000 * 60 * 60 * 24);
+
+  // Pasen en gerelateerde dagen
+  // Let op: afhankelijk van tijdzones kan Math.round nodig zijn, 
+  // maar met pure datums (zonder uren) werkt dit meestal direct.
+  // We gebruiken Math.round voor veiligheid rondom zomertijd-wissels.
+  const diff = Math.round(diffDays);
+
+  if (diff === 0)  return { name: 'Pasen', emoji: '🐣' };
+  if (diff === 1)  return { name: 'Paasmaandag', emoji: '🐣' };
+  if (diff === 39) return { name: 'O.L.H. Hemelvaart', emoji: '🕊️' };
+  if (diff === 49) return { name: 'Pinksteren', emoji: '🕯️' };
+  if (diff === 50) return { name: 'Pinkstermaandag', emoji: '🕯️' };
+
+  return null; // Geen feestdag
 }
 // Initialiseer bij laden pagina (voor de selectors)
 document.addEventListener('DOMContentLoaded', initNonBillable);
