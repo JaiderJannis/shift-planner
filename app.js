@@ -1758,7 +1758,7 @@ function renderCalendarGrid(year, month) {
     let holidayHtml = '';
     if (holidayInfo) {
       // Nu zonder span, maar als div die we later invoegen
-      holidayHtml = `<div class="holiday-badge">${holidayInfo.emoji} ${holidayInfo.name}</div>`;
+      holidayHtml = `<div class="holiday-badge"><span style="font-size: 1.3em;">${holidayInfo.emoji}</span> ${holidayInfo.name}</div>`;
     }
 
     // Emoji knopjes
