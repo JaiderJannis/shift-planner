@@ -7636,7 +7636,7 @@ function getBelgianHoliday(dateObj) {
   if (month === 1 && day === 14)  return { name: 'Valentijn', emoji: '❤️' };
   if (month === 3 && day === 1)   return { name: '1 April', emoji: '🃏' };
   if (month === 5 && day === 14)   return { name: 'Kaat & Jaider', emoji: '🧑🏽‍❤️‍💋‍👩🏼' };
-  if (month === 5 && day === 26)   return { name: 'Dag v/d Arbeid', emoji: '🎂' };
+  if (month === 5 && day === 26)   return { name: 'Kaat', emoji: '🎂' };
   if (month === 9 && day === 31)  return { name: 'Halloween', emoji: '🎃' };
   if (month === 11 && day === 6)  return { name: 'Sinterklaas', emoji: '🎁' };
   if (month === 11 && day === 7)   return { name: 'Jaider', emoji: '🎂' };
@@ -7685,7 +7685,18 @@ function getBelgianHoliday(dateObj) {
     const secondSunday = 1 + offset + 7;
     if (day === secondSunday) return { name: 'Vaderdag', emoji: '👔' };
   }
-
+// ✅ Verloren Maandag (Maandag na Driekoningen)
+  if (month === 0) { // Januari
+    // Driekoningen is altijd 6 jan. We zoeken de maandag erna.
+    const daySix = new Date(year, 0, 6).getDay(); // dag v/d week van 6 jan
+    // Bereken hoeveel dagen we moeten optellen om bij maandag (1) te komen
+    // Als 6 jan maandag is (1), moeten we er 7 dagen bijtellen (volgende week)
+    let daysToAdd = (1 - daySix + 7) % 7;
+    if (daysToAdd === 0) daysToAdd = 7;
+    
+    const verlorenMaandagDag = 6 + daysToAdd;
+    if (day === verlorenMaandagDag) return { name: 'Verloren Maandag', emoji: '🌭' };
+  }
   return null;
 }
 // Initialiseer bij laden pagina (voor de selectors)
