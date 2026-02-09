@@ -1,4 +1,4 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
+const dayEl = document.createElement('div');import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
 import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-messaging.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, getDocs, addDoc, deleteDoc, collection, query, orderBy, limit, onSnapshot, where, startAfter, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js';
@@ -1857,11 +1857,19 @@ function renderCalendarGrid(year, month) {
     const realCount = dayKeys.filter(k => md.rows[k].shift).length;
     if (realCount > 3) shiftsHtml += `<div style="font-size:9px; text-align:center; color:#999;">+${realCount - 3}</div>`;
 
-    // --- ELEMENT MAKEN ---
+// --- ELEMENT MAKEN ---
     const dayEl = document.createElement('div');
     
-    // ✅ BELANGRIJK: Voeg 'd-flex flex-column' toe zodat we 'margin-top: auto' kunnen gebruiken
-    dayEl.className = `calendar-day ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''} d-flex flex-column`;
+    // 1. Maak de basis string
+    let classes = `calendar-day ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''} d-flex flex-column`;
+    
+    // 2. Voeg de kleur toe als het vakantie is
+    if (isHolidayDay) {
+        classes += ' school-holiday-bg';
+    }
+    
+    // 3. Wijs het toe aan het element
+    dayEl.className = classes;
     
     if (typeof isPaintMode !== 'undefined' && isPaintMode) {
         dayEl.style.cursor = 'cell'; 
