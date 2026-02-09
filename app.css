@@ -920,3 +920,38 @@ body:not(.auth-checked) #loadingOverlay {
     line-height: 1.1;
   }
 }
+/* Schoolvakantie Label (naast de maandtitel) */
+.school-holiday-tag {
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); /* Zacht blauw verloop */
+  color: #0d47a1; /* Donkerblauw tekst */
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 50px; /* Mooie ronde pil-vorm */
+  display: inline-flex;
+  align-items: center;
+  gap: 6px; /* Ruimte tussen icoon en tekst */
+  margin-left: 15px; /* Ruimte links van de titel */
+  box-shadow: 0 2px 4px rgba(13, 71, 161, 0.1);
+  border: 1px solid rgba(13, 71, 161, 0.1);
+  vertical-align: middle;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.school-holiday-tag span.material-icons-outlined {
+  font-size: 16px; /* Icoon iets kleiner */
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Op mobiel zetten we het eronder in plaats van ernaast */
+@media (max-width: 768px) {
+  .school-holiday-tag {
+    display: table; /* Of flex */
+    margin: 5px auto 10px auto; /* Centreren onder titel */
+    font-size: 0.75rem;
+  }
+}
