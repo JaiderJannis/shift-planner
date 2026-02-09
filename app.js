@@ -1717,7 +1717,33 @@ function renderCalendarGrid(year, month) {
   const grid = document.getElementById('monthlyCalendarGrid');
   if (!grid) return;
   grid.innerHTML = '';
-
+// --- 👇 DIT STUKJE CODE ZORGT DAT HET LABEL GEVULD WORDT 👇 ---
+  const holidayLabel = document.getElementById('schoolHolidayLabel');
+  if (holidayLabel) {
+      // 1. Haal de info op
+      const info = getSchoolHolidayInfo(year, month);
+      
+      // 2. Is er vakantie? Vul de HTML. Zo niet? Maak leeg.
+      if (info) {
+          let text = '';
+          if (info.fullMonth) {
+              text = info.name;
+          } else {
+              const options = { month: 'short', day: 'numeric' };
+              const s = info.start.toLocaleDateString('nl-NL', options);
+              const e = info.end.toLocaleDateString('nl-NL', options);
+              text = `${info.name}: ${s} t/m ${e}`;
+          }
+          // De CSS class 'school-holiday-tag' zorgt voor de styling
+          holidayLabel.innerHTML = `
+            <div class="school-holiday-tag">
+               <span class="material-icons-outlined" style="font-size:16px">${info.icon}</span> ${text}
+            </div>
+          `;
+      } else {
+          holidayLabel.innerHTML = ''; // Geen vakantie = leegmaken
+      }
+  }
   const ud = getCurrentUserData();
   const md = ud.monthData?.[year]?.[month] || { rows: {} };
   
