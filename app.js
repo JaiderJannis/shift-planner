@@ -7614,26 +7614,32 @@ async function renderUserDataAsAdmin(uid) {
 // ==========================================
 // 🎉 FEESTDAGEN LOGICA (BELGIË)
 // ==========================================
-
 function getBelgianHoliday(dateObj) {
   const year = dateObj.getFullYear();
   const month = dateObj.getMonth(); // 0-based (Jan=0, Dec=11)
   const day = dateObj.getDate();
-
-  // --- 1. VASTE OFFICIËLE FEESTDAGEN ---
+  
+  // --- 1. VASTE OFFICIËLE & REGIONALE FEESTDAGEN ---
   if (month === 0 && day === 1)   return { name: 'Nieuwjaar', emoji: '🥂' };
+  if (month === 0 && day === 6)   return { name: 'Driekoningen', emoji: '👑' }; // NIEUW
   if (month === 4 && day === 1)   return { name: 'Dag v/d Arbeid', emoji: '🛠️' };
+  if (month === 6 && day === 11)  return { name: 'Vlaamse Feestdag', emoji: '🦁' }; // NIEUW
   if (month === 6 && day === 21)  return { name: 'Nationale Feestdag', emoji: '🇧🇪' };
   if (month === 7 && day === 15)  return { name: 'O.L.V. Hemelvaart', emoji: '⛪' };
   if (month === 10 && day === 1)  return { name: 'Allerheiligen', emoji: '🍂' };
+  if (month === 10 && day === 2)  return { name: 'Allerzielen', emoji: '🕯️' }; // NIEUW
   if (month === 10 && day === 11) return { name: 'Wapenstilstand', emoji: '🌺' };
   if (month === 11 && day === 25) return { name: 'Kerstmis', emoji: '🎄' };
+  if (month === 11 && day === 26) return { name: '2e Kerstdag', emoji: '🎄' }; // NIEUW
 
-  // --- 2. POPULAIRE "SIDE" FEESTDAGEN (Nieuw!) ---
+  // --- 2. POPULAIRE "SIDE" DAGEN ---
   if (month === 1 && day === 14)  return { name: 'Valentijn', emoji: '❤️' };
   if (month === 3 && day === 1)   return { name: '1 April', emoji: '🃏' };
+  if (month === 5 && day === 14)   return { name: 'Kaat & Jaider', emoji: '🧑🏽‍❤️‍💋‍👩🏼' };
+  if (month === 5 && day === 26)   return { name: 'Dag v/d Arbeid', emoji: '🎂' };
   if (month === 9 && day === 31)  return { name: 'Halloween', emoji: '🎃' };
   if (month === 11 && day === 6)  return { name: 'Sinterklaas', emoji: '🎁' };
+  if (month === 11 && day === 7)   return { name: 'Jaider', emoji: '🎂' };
   if (month === 11 && day === 31) return { name: 'Oudejaarsavond', emoji: '🍾' };
 
   // --- 3. VARIABELE DATUMS (PASEN & CO) ---
@@ -7663,6 +7669,22 @@ function getBelgianHoliday(dateObj) {
   if (diffDays === 39) return { name: 'O.L.H. Hemelvaart', emoji: '🕊️' };
   if (diffDays === 49) return { name: 'Pinksteren', emoji: '🕯️' };
   if (diffDays === 50) return { name: 'Pinkstermaandag', emoji: '🕯️' };
+
+  // --- 4. OPTIONEEL: Moederdag (2e zondag mei) & Vaderdag (2e zondag juni) ---
+  // Moederdag
+  if (month === 4) { // Mei
+    const firstDayMay = new Date(year, 4, 1).getDay(); // 0=Zon, 1=Maa...
+    const offset = firstDayMay === 0 ? 0 : 7 - firstDayMay; // Dagen tot 1e zondag
+    const secondSunday = 1 + offset + 7;
+    if (day === secondSunday) return { name: 'Moederdag', emoji: '💐' };
+  }
+  // Vaderdag
+  if (month === 5) { // Juni
+    const firstDayJune = new Date(year, 5, 1).getDay();
+    const offset = firstDayJune === 0 ? 0 : 7 - firstDayJune;
+    const secondSunday = 1 + offset + 7;
+    if (day === secondSunday) return { name: 'Vaderdag', emoji: '👔' };
+  }
 
   return null;
 }
