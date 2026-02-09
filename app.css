@@ -894,17 +894,15 @@ body:not(.auth-checked) #loadingOverlay {
     line-height: 1.2;
   }
 }
-/* Nieuwe stijl voor feestdagen: onderaan en groter */
+/* Nieuwe stijl: Geen achtergrond, schone tekst onderaan */
 .holiday-badge {
-  margin-top: auto;       /* Duwt de badge naar de bodem van het vakje */
-  font-size: 0.85rem;     /* Groter lettertype (was 0.65rem) */
-  text-align: center;     /* Tekst in het midden */
-  background-color: #ffebf0; /* Zacht roze achtergrond */
-  color: #d63384;         /* Donkerroze tekst */
-  border-top: 1px solid rgba(214, 51, 132, 0.2); /* Subtiel lijntje boven */
-  padding: 3px 0;
+  margin-top: auto;       /* Duwt de badge naar de bodem */
+  font-size: 0.8rem;     /* Basis grootte voor de tekst */
+  text-align: center;     /* Gecentreerd */
+  color: #c2185b;         /* Iets donkerder roze/rood voor contrast */
+  padding: 4px 0 2px 0;   /* Beetje ruimte */
   width: 100%;
   display: block;
-  border-radius: 0 0 4px 4px; /* Alleen onderkant afronden */
   font-weight: 500;
+  /* Background-color en border zijn verwijderd */
 }
