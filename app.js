@@ -4016,11 +4016,11 @@ function updateRemainingHours() {
 
   // 🔹 Kleur aanpassen volgens voortgang
   alertBox.classList.remove('alert-danger', 'alert-success');
-  if (pct >= 100) {
-    alertBox.classList.add('alert-success'); // groen
-  } else {
-    alertBox.classList.add('alert-danger'); // rood
-  }
+if (gepland >= doel) {
+  alertBox.classList.add('alert-success'); // groen
+} else {
+  alertBox.classList.add('alert-danger'); // rood
+}
 
   // 🔹 HTML samenstellen
   alertBox.innerHTML = `
