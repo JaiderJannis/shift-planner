@@ -4001,7 +4001,7 @@ function updateRemainingHours() {
 
   // 🔹 Bereken tekst voor resterende of extra uren
   let resterendTekst = '';
-  if (verschil > 0) {
+  if (verschil < 0) {
     const uren = Math.floor(verschil / 60);
     const min = verschil % 60;
     resterendTekst = `🕓 <b>Resterend:</b> ${uren}u ${min}min`;
