@@ -4005,7 +4005,7 @@ function updateRemainingHours() {
     const uren = Math.floor(verschil / 60);
     const min = verschil % 60;
     resterendTekst = `🕓 <b>Resterend:</b> ${uren}u ${min}min`;
-  } else if (verschil = 0) {
+  } else if (verschil < 0) {
     const extra = Math.abs(verschil);
     const uren = Math.floor(extra / 60);
     const min = extra % 60;
