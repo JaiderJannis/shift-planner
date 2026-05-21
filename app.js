@@ -1836,9 +1836,13 @@ function renderCalendarGrid(year, month) {
           durationText = `${h}u${mStr}`;
       }
       
+// Bepaal de tekst voor het hover-venstertje
+      const hoverTekst = `Van ${r.start || '00:00'} tot ${r.end || '00:00'} (Pauze: ${r.break || 0} min)`;
+
       shiftsHtml += `
         <div class="cal-shift-item d-flex justify-content-between align-items-center" 
-             style="background:${sh.color || '#eee'}; border-left:3px solid rgba(0,0,0,0.2); padding-right:4px;">
+             title="${hoverTekst}"
+             style="background:${sh.color || '#eee'}; border-left:3px solid rgba(0,0,0,0.2); padding-right:4px; cursor: help;">
           <span style="overflow:hidden; text-overflow:ellipsis;">${sh.realName || r.shift}</span>
           <span style="font-size:1em; font-weight:bold; margin-left:6px; white-space:nowrap; color:#000;">
             ${durationText}
