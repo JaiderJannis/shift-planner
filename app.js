@@ -1619,6 +1619,7 @@ async function renderMonth(year, month){
         await populateShiftSelectForRow(tr, rowKey);
         updateInputTotals();
         debouncedSave();
+        renderhistory();
 
         // Check of de + knop nu aan/uit moet (afhankelijk van projectrechten)
         const addBtn = tr.querySelector('.addLineBtn');
@@ -3142,6 +3143,9 @@ removeUserBtn?.addEventListener('click', async () => {
     document.getElementById('sidebarMobile').addEventListener('click', ()=>{
       sidebar.classList.toggle('show');
     });
+document.querySelector('a[href="#tab-historiek"]')?.addEventListener('shown.bs.tab', () => {
+  renderHistory();
+});
     // ======= Admin tab =======
     document.querySelector('a[href="#tab-admin"]')
   ?.addEventListener('shown.bs.tab', renderAdminMonthlyMulti);
@@ -7325,6 +7329,7 @@ window.applyPaintShift = async (dateKey) => {
     // Update UI (alleen kalender is genoeg en snel)
     renderCalendarGrid(y, m);
     updateInputTotals();
+    renderHistory();
 };
 
 // Start de UI op zodra het script laadt
