@@ -264,8 +264,90 @@ function loadHomeNotifications() {
   } catch(e){ console.error(e); }
 }
 
+// ======= VANDAAG WIDGET =======
+function renderTodayWidget() {
+  const ud = getCurrentUserData();
+  const widgetContent = document.getElementById('todayWidgetContent');
+  const widgetDate = document.getElementById('todayWidgetDate');
+  
+  if (!widgetContent || !widgetDate) return;
+
+  // 1. Haal de datum van vandaag op
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = today.getMonth();
+  const d = today.getDate();
+  const dateKey = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  
+  // 2. Formatteer de datum voor in de hoek (bijv: "Dinsdag 15 Mei")
+  const options = { weekday: 'long', day: 'numeric', month: 'long' };
+  const formattedDate = today.toLocaleDateString('nl-BE', options);
+  // Maak de eerste letter een hoofdletter
+  widgetDate.textContent = formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
+
+  // 3. Haal de shiften van deze maand op
+  const md = ud.monthData?.[y]?.[m] || { rows: {} };
+  
+  // 4. Zoek alle rijen die bij de datum van vandaag horen (incl. extra regels met # of _)
+  const keysToday = Object.keys(md.rows).filter(k => k === dateKey || k.startsWith(dateKey + '#') || k.startsWith(dateKey + '_'));
+  
+  // 5. Filter lege rijen ("spoken") eruit
+  const activeShifts = keysToday.filter(k => md.rows[k].shift).map(k => md.rows[k]);
+
+  if (activeShifts.length === 0) {
+    widgetContent.innerHTML = `<div class="mt-2 text-white-50 fst-italic small">Geen shiften gepland voor vandaag. Geniet van je dag!</div>`;
+    return;
+  }
+
+  // 6. Bouw de HTML voor de shiften op
+  let html = `<div class="d-flex flex-column gap-2 mt-3">`;
+  
+  activeShifts.forEach(r => {
+    const sh = ud.shifts[r.shift] || { realName: r.shift, color: '#ccc', icon: 'schedule' };
+    const isPendingOrRejected = r.status && r.status !== 'approved';
+    
+    // Icoontje ophalen uit de instellingen
+    const ICON_MAP = {
+      'light_mode': '☀️', 'wb_twilight': '🌅', 'bedtime': '🌙', 'schedule': '🕒',
+      'star': '⭐', 'school': '🎓', 'medical_services': '🏥', 'flight': '✈️',
+      'bench': '🪑', 'feestdag': '🎉', 'teammeeting': '👥', 'niet_ingepland': '❌',
+      'vrij_weekend': '😎'
+    };
+    const emoji = ICON_MAP[sh.icon] || '⭐';
+    
+    // Duur berekenen
+    let durationText = '';
+    if (r.minutes > 0) {
+      const h = Math.floor(r.minutes / 60);
+      const min = r.minutes % 60;
+      durationText = `${h}u ${min}m`;
+    }
+
+    html += `
+      <div class="p-2 rounded shadow-sm" style="background: rgba(255,255,255,0.1); border-left: 4px solid ${sh.color || '#fff'};">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <strong class="fs-6 m-0">${emoji} ${sh.realName || r.shift}</strong>
+          ${r.project ? `<span class="badge bg-light text-dark bg-opacity-75" style="font-size:0.7rem;">${r.project}</span>` : ''}
+        </div>
+        <div class="small d-flex justify-content-between align-items-center text-white-50">
+          <span class="d-flex align-items-center gap-1">
+            <span class="material-icons-outlined" style="font-size:14px;">schedule</span>
+            ${r.start || '--:--'} - ${r.end || '--:--'} 
+            ${r.break > 0 ? `(Pauze: ${r.break}m)` : ''}
+          </span>
+          <span class="fw-bold text-white">${isPendingOrRejected ? '<span title="In aanvraag/Afgekeurd">0u 0m</span>' : durationText}</span>
+        </div>
+        ${r.omschrijving ? `<div class="mt-1 small text-white-50 fst-italic">"${r.omschrijving}"</div>` : ''}
+      </div>
+    `;
+  });
+  
+  html += `</div>`;
+  widgetContent.innerHTML = html;
+}
 
 function renderHome() {
+  renderTodayWidget ();
   const ud = getCurrentUserData();
   const name = ud.name || ud.email || '-';
   const y = Number(yearSelectMain.value);
