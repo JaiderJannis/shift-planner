@@ -2450,7 +2450,24 @@ function updateInputTotals(){
       ud.monthData[y][m].targetMinutes = Number(monthTargetMinutes.value)||0;
       debouncedSave(); updateInputTotals(); renderHistory();
     });
-
+    // Schakelaar: Maand uitsluiten van historiek
+    document.getElementById('excludeHistoryToggle')?.addEventListener('change', async (e) => {
+      const y = Number(yearSelectMain.value);
+      const m = Number(monthSelectMain.value);
+      const ud = getCurrentUserData();
+      
+      ud.monthData[y] = ud.monthData[y] || {};
+      ud.monthData[y][m] = ud.monthData[y][m] || { targetHours:0, targetMinutes:0, rows:{} };
+      
+      // Sla de status op in de database
+      ud.monthData[y][m].excludeFromHistory = e.target.checked;
+      
+      debouncedSave();
+      renderHistory(); // Update historiek direct
+      
+      toast(e.target.checked ? 'Maand telt niet meer mee in historiek' : 'Maand telt weer mee in historiek', 'info');
+    });
+    
     projectFilterSelect.addEventListener('change', ()=> { renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value)); updateInputTotals(); renderProjectSummary(); });
 
     yearSelectMain.addEventListener('change', async ()=> {
