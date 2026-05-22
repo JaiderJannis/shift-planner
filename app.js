@@ -1705,6 +1705,13 @@ md.rows[newKey] = { project: r.project, shift:'', start:'', end:'', break:0, oms
   if (monthTargetMinutes) monthTargetMinutes.disabled = lockedNow;
   if (projectFilterSelect) projectFilterSelect.disabled = lockedNow;
 
+  // Update de uitsluiten schakelaar UI
+  const excludeToggle = document.getElementById('excludeHistoryToggle');
+  if (excludeToggle) {
+    excludeToggle.checked = md.excludeFromHistory === true;
+    excludeToggle.disabled = lockedNow; // Blokkeer als de maand is ingediend
+  }
+
   updateMonthStatusBadge();
 }
 // Functie om de kalender te tekenen met de gekozen iconen
@@ -2581,7 +2588,7 @@ function renderHistory() {
   if (currentUserHistoriek)
     currentUserHistoriek.textContent = ud.name || ud.email || '—';
 
-  // Kies kolomvolgorde — let: schoolverlof komt NA bench
+  // Kies kolomvolgorde
   const cols = [
     { key: 'monthLabel', title: 'Maand' },
     { key: 'target', title: 'Doel uren' },
@@ -2594,18 +2601,12 @@ function renderHistory() {
     { key: 'holiday', title: 'Feestdag' }
   ];
 
-  // Check of schoolverlof voor deze user actief is; standaard true
+  // Check of schoolverlof actief is
   const schoolEnabled = !!(ud?.settings?.schoolLeaveEnabled ?? true);
-
-  // Als schoolverlof uit, filter die kolom weg
   const visibleCols = cols.filter(c => c.key !== 'school' || schoolEnabled);
 
-  // Bouw tabel HTML
   const table = document.getElementById('historyTable');
-  if (!table) {
-    console.warn('historyTable niet gevonden (id="historyTable" ontbreekt in HTML)');
-    return;
-  }
+  if (!table) return;
 
   // header
   const theadHtml = `<thead class="table-light"><tr>${visibleCols.map(c => `<th>${c.title}</th>`).join('')}</tr></thead>`;
@@ -2616,32 +2617,25 @@ function renderHistory() {
 
   for (let m = 0; m < 12; m++) {
     const md = ud.monthData?.[year]?.[m] || { targetHours:0, targetMinutes:0, rows:{} };
+    const isExcluded = md.excludeFromHistory === true; // Check de nieuwe instelling!
+
     const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
     const rows = md.rows || {};
     const planned = Object.values(rows).reduce((s, r) => {
-  if (r.status && r.status !== 'approved') {
-    return s; // Tel niet mee (pending/rejected)
-  }
-  return s + (r.minutes || 0);
-}, 0);
+      if (r.status && r.status !== 'approved') return s; 
+      return s + (r.minutes || 0);
+    }, 0);
 
-    // specifieke categorie-sommen
     let leave = 0, sick = 0, school = 0, holiday = 0, bench = 0;
     
     Object.values(rows).forEach(r => {
-      // Als de shift is afgekeurd, tellen we hem nergens mee
       if (r.status === 'rejected') return;
-
       const sID = (r.shift || '').trim();
       if (!sID) return;
 
-      // --- DE FIX: Zoek de "Echte Naam" op ---
-      // We kijken in de instellingen (ud.shifts) wat de basisnaam is.
-      // Hierdoor wordt "Verlof (Eght Care)" herkend als "Verlof".
       const shiftDef = ud.shifts?.[sID];
       const realName = shiftDef ? (shiftDef.realName || sID) : sID;
 
-      // Nu vergelijken we met realName in plaats van sID
       if (realName === 'Verlof') leave += Number(r.minutes)||0;
       if (realName === 'Ziekte') sick += Number(r.minutes)||0;
       if (realName === 'Schoolverlof' || realName === 'School') school += Number(r.minutes)||0;
@@ -2650,49 +2644,47 @@ function renderHistory() {
     });
     const diff = planned - target;
 
-    // push totals
-    totals.target += target;
-    totals.planned += planned;
-    totals.diff += diff;
-    totals.leave += leave;
-    totals.sick += sick;
-    totals.school += school;
-    totals.holiday += holiday;
-    totals.bench += bench;
+    // Alleen optellen bij het Totaal als hij NIET is uitgesloten
+    if (!isExcluded) {
+      totals.target += target;
+      totals.planned += planned;
+      totals.diff += diff;
+      totals.leave += leave;
+      totals.sick += sick;
+      totals.school += school;
+      totals.holiday += holiday;
+      totals.bench += bench;
+    }
 
     const rowMap = {
-      monthLabel: monthsFull[m],
-      target: `${Math.floor(target/60)}u ${target%60}min`,
-      planned: `${Math.floor(planned/60)}u ${planned%60}min`,
-      // === REGEL 1 AANGEPAST ===
-      diff: `${diff > 0 ? '+' : (diff < 0 ? '-' : '')}${Math.floor(Math.abs(diff)/60)}u ${Math.abs(diff)%60}min`,
-      leave: `${Math.floor(leave/60)}u ${leave%60}min`,
-      sick: `${Math.floor(sick/60)}u ${sick%60}min`,
-      bench: `${Math.floor(bench/60)}u ${bench%60}min`,
-      school: `${Math.floor(school/60)}u ${school%60}min`,
-      holiday: `${Math.floor(holiday/60)}u ${holiday%60}min`
+      monthLabel: isExcluded ? `${monthsFull[m]} <span class="badge bg-secondary ms-1" style="font-size:0.65rem;">Uitgesloten</span>` : monthsFull[m],
+      target: isExcluded ? '-' : `${Math.floor(target/60)}u ${target%60}min`,
+      planned: isExcluded ? '-' : `${Math.floor(planned/60)}u ${planned%60}min`,
+      diff: isExcluded ? '-' : `${diff > 0 ? '+' : (diff < 0 ? '-' : '')}${Math.floor(Math.abs(diff)/60)}u ${Math.abs(diff)%60}min`,
+      leave: isExcluded ? '-' : `${Math.floor(leave/60)}u ${leave%60}min`,
+      sick: isExcluded ? '-' : `${Math.floor(sick/60)}u ${sick%60}min`,
+      bench: isExcluded ? '-' : `${Math.floor(bench/60)}u ${bench%60}min`,
+      school: isExcluded ? '-' : `${Math.floor(school/60)}u ${school%60}min`,
+      holiday: isExcluded ? '-' : `${Math.floor(holiday/60)}u ${holiday%60}min`
     };
     
-    // We bouwen de cellen nu op met een check voor de 'diff' kolom
     const rowCells = visibleCols.map(c => {
+      if (c.key === 'monthLabel') return `<td>${rowMap[c.key]}</td>`;
       if (c.key === 'diff') {
-        const diffValue = diff; // 'diff' is hier berekend
-        const diffText = rowMap[c.key]; // De opgemaakte string (bv: "+10u 0min")
-        
+        const diffValue = diff; 
+        const diffText = rowMap[c.key]; 
         let colorClass = '';
-        if (diffValue > 0) {
-          colorClass = 'text-success'; // Bootstrap groen
-        } else if (diffValue < 0) {
-          colorClass = 'text-danger'; // Bootstrap rood
+        if (!isExcluded) {
+            if (diffValue > 0) colorClass = 'text-success'; 
+            else if (diffValue < 0) colorClass = 'text-danger'; 
         }
-        // Voeg ook fw-medium toe voor leesbaarheid
         return `<td class="fw-medium ${colorClass}">${diffText}</td>`;
       }
-      // Andere kolommen
       return `<td>${rowMap[c.key] || ''}</td>`;
     }).join('');
     
-    bodyHtml += `<tr>${rowCells}</tr>`;
+    // Maak de rij deels transparant als hij is uitgesloten
+    bodyHtml += `<tr class="${isExcluded ? 'opacity-50' : ''}">${rowCells}</tr>`;
   }
 
   bodyHtml += '</tbody>';
@@ -2701,7 +2693,6 @@ function renderHistory() {
   const footerMap = {
     target: `${Math.floor(totals.target/60)}u ${totals.target%60}min`,
     planned: `${Math.floor(totals.planned/60)}u ${totals.planned%60}min`,
-    // === REGEL 2 AANGEPAST ===
     diff: `${totals.diff > 0 ? '+' : (totals.diff < 0 ? '-' : '')}${Math.floor(Math.abs(totals.diff)/60)}u ${Math.abs(totals.diff)%60}min`,
     leave: `${Math.floor(totals.leave/60)}u ${totals.leave%60}min`,
     sick: `${Math.floor(totals.sick/60)}u ${totals.sick%60}min`,
@@ -2710,33 +2701,27 @@ function renderHistory() {
     holiday: `${Math.floor(totals.holiday/60)}u ${totals.holiday%60}min`
   };
   
-  // Zelfde logica voor de footer
   const tfootCells = visibleCols.map(c => {
     if (c.key === 'monthLabel') return `<th>Totaal</th>`;
 
     if (c.key === 'diff') {
-      const diffValue = totals.diff; // De totale 'diff'
-      const diffText = footerMap[c.key]; // De opgemaakte string
+      const diffValue = totals.diff; 
+      const diffText = footerMap[c.key]; 
       
       let colorClass = '';
-      if (diffValue > 0) {
-        colorClass = 'text-success';
-      } else if (diffValue < 0) {
-        colorClass = 'text-danger';
-      }
+      if (diffValue > 0) colorClass = 'text-success';
+      else if (diffValue < 0) colorClass = 'text-danger';
+      
       return `<th class="${colorClass}">${diffText}</th>`;
     }
     
-    // Andere kolommen
     return `<th>${footerMap[c.key] || ''}</th>`;
   }).join('');
 
   const tfootHtml = `<tfoot class="table-light"><tr>${tfootCells}</tr></tfoot>`;
 
-  // zet alles in de table
   table.innerHTML = `${theadHtml}${bodyHtml}${tfootHtml}`;
 
-  // behoud dezelfde tbody id voor compatibiliteit
   const newTbody = table.querySelector('tbody');
   if (newTbody) newTbody.id = 'historyBody';
 }
