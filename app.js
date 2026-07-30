@@ -2911,3 +2911,2952 @@ leaveRequestTableBody?.addEventListener('click', async (e) => {
     await loadAndRenderLeaveRequests();
   }
 });
+// ==========================================
+// 21. MAILBOX SYSTEEM
+// ==========================================
+const mailListBody    = document.getElementById('mailListBody');
+const mailDetail      = document.getElementById('mailDetail');
+const mailRefreshBtn  = document.getElementById('mailRefreshBtn');
+const mailComposeBtn  = document.getElementById('mailComposeBtn');
+const mailComposeCard = document.getElementById('mailComposeCard');
+const mailToSelect    = document.getElementById('mailToSelect');
+const mailSubjectInput= document.getElementById('mailSubjectInput');
+const mailBodyInput   = document.getElementById('mailBodyInput');
+const mailSendBtn     = document.getElementById('mailSendBtn');
+const mailCancelBtn   = document.getElementById('mailCancelBtn');
+const mailUnreadBadge = document.getElementById('mailUnreadBadge');
+const mailSidebarBadge= document.getElementById('mailSidebarBadge');
+const mailFolderNav   = document.getElementById('mailFolderNav');
+const mailMarkAllReadBtn = document.getElementById('mailMarkAllReadBtn');
+const mailDeleteAllBtn = document.getElementById('mailDeleteAllBtn');
+
+function normTs(ts){
+  if (!ts) return '';
+  if (typeof ts?.toDate === 'function') return ts.toDate().toISOString();
+  if (typeof ts === 'string') return ts;
+  return '';
+}
+
+function formatWhen(ts){
+  if (!ts) return '';
+  try { return new Date(ts).toLocaleString('nl-BE'); } catch { return ''; }
+}
+
+function updateUnreadBadges(unread) {
+  const n = Math.max(0, Number(unread) || 0);
+  [mailUnreadBadge, mailSidebarBadge].forEach(badge => {
+    if (!badge) return;
+    if (n > 0) { badge.textContent = n; badge.classList.remove('d-none'); }
+    else       { badge.classList.add('d-none'); }
+  });
+}
+
+function listenMailbox(uid) {
+  if (mailboxUnsubInbox) mailboxUnsubInbox();
+  if (mailboxUnsubSent) mailboxUnsubSent();
+  mailboxCacheInbox = [];
+  mailboxCacheSent = [];
+
+  const me = dataStore.users[uid]; 
+  const iAmAdmin = (me?.role || 'user') === 'admin';
+
+  if (iAmAdmin) {
+    const inboxColRef = collection(db, 'admin_mail');
+    const qyInbox = query(inboxColRef, orderBy('timestamp','desc'), limit(200));
+    
+    let isFirstLoadAdmin = true; 
+
+    mailboxUnsubInbox = onSnapshot(qyInbox, (snap) => {
+      let hasNewLeaveRequest = false; 
+
+      if (!isFirstLoadAdmin) {
+        snap.docChanges().forEach((change) => {
+          if (change.type === "added") {
+            const d = change.doc.data();
+            if (!d.read) {
+              const sender = d.fromName || d.from?.name || "Onbekend";
+              const subject = d.subject || "(Geen onderwerp)";
+              sendBrowserNotification(`Nieuw bericht van ${sender}`, subject);
+            }
+          }
+        });
+      }
+
+      mailboxCacheInbox = snap.docs.map(d => {
+        const data = d.data();
+        if (data.kind === 'leave_request' && data.read === false) {
+          hasNewLeaveRequest = true; 
+        }
+        return { _id:d.id, ...data, _tsIso: normTs(data.timestamp), _source: 'admin_mail' };
+      });
+      
+      mergeAndRenderMail(); 
+
+      if (hasNewLeaveRequest) {
+        const isVerlofTabActive = document.querySelector('a[href="#tab-verlofbeheer"]')?.classList.contains('active');
+        if (isVerlofTabActive) {
+          console.log("Live update: Nieuwe verlofaanvraag gedetecteerd.");
+          toast('Nieuwe verlofaanvraag!', 'info');
+          (async () => {
+             await loadAllUsers(); 
+             if(typeof loadAndRenderLeaveRequests === 'function') loadAndRenderLeaveRequests();
+          })();
+        }
+      }
+      isFirstLoadAdmin = false; 
+    });
+
+    const sentColRef = collection(db, 'users', uid, 'mailbox');
+    const qySent = query(sentColRef, orderBy('timestamp','desc'), limit(200));
+    mailboxUnsubSent = onSnapshot(qySent, (snap) => {
+      mailboxCacheSent = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp), _source: 'user_mailbox' }));
+      mergeAndRenderMail(); 
+    });
+
+  } else {
+    const userColRef = collection(db, 'users', uid, 'mailbox');
+    const qyUser = query(userColRef, orderBy('timestamp','desc'), limit(200));
+    let isFirstLoadUser = true; 
+
+    mailboxUnsubInbox = onSnapshot(qyUser, (snap) => {
+      if (!isFirstLoadUser) {
+        snap.docChanges().forEach((change) => {
+          if (change.type === "added") {
+            const d = change.doc.data();
+            const isForMe = d.to?.uid === uid || d.to?.type === 'user'; 
+            const notFromMe = d.from?.uid !== uid; 
+
+            if (!d.read && isForMe && notFromMe) {
+               const sender = d.system ? "Shift Planner" : (d.from?.name || "Admin");
+               const subject = d.subject || "(Geen onderwerp)";
+               sendBrowserNotification(`Nieuw bericht van ${sender}`, subject);
+            }
+          }
+        });
+      }
+
+      mailboxCacheInbox = snap.docs.map(d => ({ _id:d.id, ...d.data(), _tsIso: normTs(d.data().timestamp), _source: 'user_mailbox' }));
+      mailboxCacheSent = []; 
+      mergeAndRenderMail(); 
+      isFirstLoadUser = false; 
+    });
+  }
+}
+
+function isAdmin() {
+  const me = dataStore.users[getActiveUserId()];
+  return (me?.role || 'user') === 'admin';
+}
+
+function prepareComposeOptions() {
+  mailToSelect.innerHTML = '';
+  if (isAdmin()) {
+    const opt0 = document.createElement('option');
+    opt0.value = ''; opt0.textContent = 'Kies gebruiker…';
+    mailToSelect.appendChild(opt0);
+    Object.entries(dataStore.users).forEach(([uid,u]) => {
+      if ((u.role || 'user') === 'admin') return;
+      const o = document.createElement('option');
+      o.value = `user:${uid}`; o.textContent = u.name || u.email || uid;
+      mailToSelect.appendChild(o);
+    });
+  } else {
+    const o = document.createElement('option');
+    o.value = 'admin-group'; o.textContent = 'Admins';
+    mailToSelect.appendChild(o);
+  }
+}
+
+function prepareComposeToCounterparty(m) {
+  prepareComposeOptions();
+  if (isAdmin()) {
+    mailToSelect.value = `user:${m.from?.uid || ''}`;
+  } else {
+    mailToSelect.value = 'admin-group';
+  }
+  mailSubjectInput.value = m.subject?.startsWith('Re: ') ? m.subject : `Re: ${m.subject || ''}`;
+  mailBodyInput.value = '';
+  composeThreadId = m.threadId || `conv:${m.from?.uid || getActiveUserId()}`;
+}
+
+async function sendSystemMail(uid, subject, body, kind = "notification", threadId = `sys:${Date.now()}`) {
+  await addDoc(collection(db, "users", uid, "mailbox"), {
+    threadId,
+    system: true,
+    kind,
+    from: { uid: "noreply", name: "Shift Planner", role: "system", email: "no-reply@local" },
+    to:   { type: "user", uid },
+    subject,
+    body,
+    read: false,
+    timestamp: serverTimestamp()
+  });
+}
+
+async function sendUserMessageToAdmins(subject, body, threadId=`conv:${getActiveUserId()}`) {
+  const meUid = getActiveUserId();
+  const me = dataStore.users[meUid];
+  const meName = me?.name || me?.email || meUid;
+  const meEmail = me?.email || 'onbekend'; 
+
+  await addDoc(collection(db, 'users', meUid, 'mailbox'), {
+    threadId, system:false, kind:'message',
+    from:{ uid: meUid, name: meName, role:'user' },
+    to:{ type:'admin-group' },
+    subject, body, read:true,
+    timestamp: serverTimestamp()
+  });
+
+  await addDoc(collection(db, "admin_mail"), {
+      fromUserId: meUid,
+      fromName: meName,
+      fromEmail: meEmail, 
+      subject: subject,
+      body: body,
+      timestamp: serverTimestamp(),
+      read: false, 
+      threadId: threadId 
+  });
+}
+
+async function broadcastToAdmins(subject, body, kind = 'status') {
+  const meUid = getActiveUserId();
+  const me = dataStore.users[meUid];
+  const meName = me?.name || me?.email || meUid;
+  const meEmail = me?.email || 'onbekend';
+  
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const threadId = `plan:${meUid}:${y}-${m}`;
+
+  await addDoc(collection(db, 'users', meUid, 'mailbox'), {
+    threadId, 
+    system: false, 
+    kind: kind,
+    from:{ uid: meUid, name: meName, role:'user' },
+    to:{ type:'admin-group' }, 
+    subject, body, read:true,
+    timestamp: serverTimestamp()
+  });
+
+  await addDoc(collection(db, "admin_mail"), {
+      fromUserId: meUid,
+      fromName: meName,
+      fromEmail: meEmail,
+      subject: subject,
+      body: body,
+      kind: kind, 
+      timestamp: serverTimestamp(),
+      read: false, 
+      threadId: threadId
+  });
+}
+
+async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
+  const admin = dataStore.users[adminUid];
+  const user  = dataStore.users[userUid];
+  const threadId = `conv:${userUid}`;
+
+  await addDoc(collection(db,'users', adminUid, 'mailbox'), {
+    threadId, system:false, kind:'message',
+    from: { uid:adminUid, name: admin?.name || admin?.email || 'Admin', role:'admin' },
+    to:   { type:'user-id', uid:userUid },
+    subject, body, read:true, timestamp: serverTimestamp()
+  });
+
+  await addDoc(collection(db,'users', userUid, 'mailbox'), {
+    threadId, system:false, kind:'message',
+    from: { uid:adminUid, name: admin?.name || admin?.email || 'Admin', role:'admin' },
+    to:   { type:'user', uid:userUid },
+    subject, body, read:false, timestamp: serverTimestamp()
+  });
+}
+
+async function notifyAdminOfPendingLeave(uid, year, month, rowKey, row) {
+  const me = dataStore.users[uid];
+  const meName = me?.name || me?.email || uid;
+  const meEmail = me?.email || 'onbekend';
+  
+  const threadId = `leave:${uid}:${rowKey}`; 
+  const subject = `[Verlof] Nieuwe aanvraag: ${row.shift} op ${rowKey}`;
+  const body = `${meName} heeft een nieuwe aanvraag ingediend:
+- Shift: ${row.shift}
+- Datum: ${rowKey.split('-').reverse().join('-')}
+- Omschrijving: ${row.omschrijving || '-'}
+${row.attachmentURL ? `\n- BIJLAGE: ${row.attachmentURL}` : ''}`; 
+
+  await addDoc(collection(db, "admin_mail"), {
+      fromUserId: uid,
+      fromName: meName,
+      fromEmail: meEmail,
+      subject: subject,
+      body: body,
+      kind: 'leave_request', 
+      timestamp: serverTimestamp(),
+      read: false, 
+      threadId: threadId,
+      requestData: { uid: uid, year: Number(year), month: Number(month), rowKey: rowKey } 
+  });
+}
+
+async function markMailRead(messageId, val = true) {
+  const uid = currentUserId; 
+  const msg = mailboxCache.find(m => m._id === messageId);
+  if (!msg) return; 
+
+  let docRef;
+  if (msg._source === 'admin_mail') {
+    docRef = doc(db, 'admin_mail', messageId);
+  } else {
+    docRef = doc(db, 'users', uid, 'mailbox', messageId);
+  }
+
+  try {
+    await updateDoc(docRef, { read: !!val }); 
+  } catch (err) {
+    if (err.code === 'not-found') {
+      toast('Dit bericht is niet meer gevonden en wordt verwijderd.', 'warning');
+      mailboxCache = mailboxCache.filter(x => x._id !== messageId);
+      mailboxCacheInbox = mailboxCacheInbox.filter(x => x._id !== messageId);
+      mailboxCacheSent = mailboxCacheSent.filter(x => x._id !== messageId);
+      renderMailList();
+      
+      const detailEl = document.getElementById('mailDetail');
+      if (detailEl && detailEl.dataset.openId === messageId) {
+          detailEl.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
+      }
+      return;
+    } else {
+      console.error("Fout bij markMailRead:", err);
+    }
+  }
+  
+  const m = mailboxCache.find(x => x._id === messageId);
+  if (m) m.read = !!val;
+  renderMailList();
+}
+
+async function deleteMail(messageId) {
+  const uid = currentUserId; 
+  const msg = mailboxCache.find(m => m._id === messageId);
+  if (!msg) return; 
+
+  let docRef;
+  if (msg._source === 'admin_mail') {
+    docRef = doc(db, 'admin_mail', messageId);
+  } else {
+    docRef = doc(db, 'users', uid, 'mailbox', messageId);
+  }
+
+  await deleteDoc(docRef); 
+  
+  mailboxCache = mailboxCache.filter(x => x._id !== messageId);
+  mailboxCacheInbox = mailboxCacheInbox.filter(x => x._id !== messageId);
+  mailboxCacheSent = mailboxCacheSent.filter(x => x._id !== messageId);
+  
+  renderMailList();
+  if (mailDetail.dataset?.openId === messageId) {
+    mailDetail.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
+    delete mailDetail.dataset.openId;
+  }
+}
+
+function mergeAndRenderMail() {
+  const combined = new Map();
+  [...mailboxCacheInbox, ...mailboxCacheSent].forEach(m => {
+    combined.set(m._id, m);
+  });
+  mailboxCache = Array.from(combined.values());
+  renderMailList();
+}
+
+function filteredMessages() {
+  const uid = currentUserId; 
+  const items = mailboxCache
+    .slice()
+    .sort((a,b)=> (b._tsIso||'').localeCompare(a._tsIso||''));
+
+  if (mailFolder === 'sent') {
+    return items.filter(m => (m.from?.uid === uid) && !m.system);
+  }
+  return items.filter(m => (m.from?.uid !== uid) || m.system);
+}
+
+function renderMailList() {
+  const msgs = filteredMessages();
+  if(!mailListBody) return;
+  mailListBody.innerHTML = '';
+
+  let unread = 0;
+  msgs.forEach(m => { if (!m.read && mailFolder === 'inbox') unread++; });
+
+  updateUnreadBadges(unread);
+
+  msgs.forEach(m => {
+    let displayName = '—';
+    if (mailFolder === 'sent') {
+      if (m.to?.type === 'admin-group') {
+        displayName = 'Admins';
+      } else if (m.to?.uid && dataStore.users[m.to.uid]) {
+        displayName = dataStore.users[m.to.uid].name || dataStore.users[m.to.uid].email; 
+      } else if (m.to?.name) {
+        displayName = m.to.name;
+      } else {
+        displayName = 'Onbekend';
+      }
+    } else {
+      displayName = m.system ? 'Shift Planner (noreply)' : (m.fromName || m.from?.name || m.fromEmail || m.from?.email || '—');
+    }
+
+    const tr = document.createElement('tr');
+    tr.className = m.read ? '' : 'fw-semibold';
+    tr.innerHTML = `
+      <td>${displayName}</td>
+      <td><a href="#" class="js-open" data-id="${m._id}">${m.subject || '(geen onderwerp)'}</a></td>
+      <td class="text-end"><span class="mail-meta">${formatWhen(m._tsIso)}</span></td>
+      <td class="text-end">
+        <button class="btn btn-sm ${m.read ? 'btn-outline-secondary' : 'btn-outline-primary'} me-1 js-toggle" data-id="${m._id}">
+          ${m.read ? 'Ongelezen' : 'Gelezen'}
+        </button>
+        <button class="btn btn-sm btn-outline-danger js-del" data-id="${m._id}">
+          <span class="material-icons-outlined" style="font-size:16px">delete</span>
+        </button>
+      </td>
+    `;
+    mailListBody.appendChild(tr);
+  });
+}
+
+function openMail(m) {
+  if (!m) return;
+  if (!m.read) { markMailRead(m._id, true); m.read = true; }
+
+  const fromName = m.system ? 'Shift Planner (noreply)' : (m.from?.name || m.from?.email || '—');
+  const actions = `
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-secondary btn-sm js-mark-unread" data-id="${m._id}">Markeer ongelezen</button>
+      <button class="btn btn-outline-danger btn-sm js-del" data-id="${m._id}">
+        <span class="material-icons-outlined" style="font-size:16px">delete</span>
+      </button>
+      ${m.system ? '' : '<button class="btn btn-outline-primary btn-sm js-reply" data-id="'+m._id+'"><span class="material-icons-outlined">reply</span> Antwoorden</button>'}
+    </div>`;
+
+  if(mailDetail) {
+      mailDetail.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="fw-semibold">${m.subject || '(geen onderwerp)'}</div>
+            <div class="mail-meta">Van: ${fromName} • ${formatWhen(m._tsIso)}</div>
+          </div>
+          ${actions}
+        </div>
+        <hr class="my-2">
+        <div style="white-space:pre-wrap">${m.body || ''}</div>
+      `;
+      mailDetail.dataset.openId = m._id;
+  }
+}
+
+function bindMailboxUIOnce() {
+  if (mailUIBound) return;
+  mailUIBound = true;
+
+  const nav = document.getElementById('mailFolderNav');
+  const compBtn = document.getElementById('mailComposeBtn');
+  const refBtn = document.getElementById('mailRefreshBtn');
+  const cancBtn = document.getElementById('mailCancelBtn');
+  const sndBtn = document.getElementById('mailSendBtn');
+  const delAllBtn = document.getElementById('mailDeleteAllBtn');
+  const markAllBtn = document.getElementById('mailMarkAllReadBtn');
+  const compCard = document.getElementById('mailComposeCard');
+  
+  nav?.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-folder]');
+    if (!btn) return;
+    mailFolder = btn.dataset.folder; 
+  
+    const inboxBtn = document.getElementById('mailTabInbox');
+    const sentBtn = document.getElementById('mailTabSent');
+  
+    if (mailFolder === 'sent') {
+      if(inboxBtn) { inboxBtn.classList.remove('active', 'btn-outline-primary'); inboxBtn.classList.add('btn-outline-secondary'); }
+      if(sentBtn) { sentBtn.classList.add('active', 'btn-outline-primary'); sentBtn.classList.remove('btn-outline-secondary'); }
+    } else { 
+      if(inboxBtn) { inboxBtn.classList.add('active', 'btn-outline-primary'); inboxBtn.classList.remove('btn-outline-secondary'); }
+      if(sentBtn) { sentBtn.classList.remove('active', 'btn-outline-primary'); sentBtn.classList.add('btn-outline-secondary'); }
+    }
+  
+    const titleEl = document.getElementById('mailListTitle');
+    if (titleEl) titleEl.textContent = (mailFolder === 'sent') ? 'Verzonden' : 'Inbox';
+  
+    renderMailList();
+    const detailEl = document.getElementById('mailDetail');
+    if (detailEl) detailEl.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
+  });
+
+  compBtn?.addEventListener('click', () => {
+    compCard?.classList.toggle('d-none');
+    if (!compCard?.classList.contains('d-none')) {
+      prepareComposeOptions();
+      const subj = document.getElementById('mailSubjectInput');
+      const body = document.getElementById('mailBodyInput');
+      if (subj) subj.value = '';
+      if (body) body.value = '';
+      composeThreadId = null;
+    }
+  });
+
+  cancBtn?.addEventListener('click', () => {
+    compCard?.classList.add('d-none');
+    composeThreadId = null;
+  });
+
+  sndBtn?.addEventListener('click', async () => {
+    const toSelect = document.getElementById('mailToSelect');
+    const subjInput = document.getElementById('mailSubjectInput');
+    const bodyInput = document.getElementById('mailBodyInput');
+
+    const toVal   = toSelect?.value;
+    const subject = (subjInput?.value || '').trim();
+    const body    = (bodyInput?.value || '').trim();
+    
+    if (!toVal || !subject || !body) return toast('Vul aan: geadresseerde, onderwerp en bericht', 'warning');
+
+    const meUid = getActiveUserId();
+    try {
+      if (isAdmin()) {
+        const userUid = toVal.startsWith('user:') ? toVal.split(':')[1] : null;
+        if (!userUid) return toast('Kies gebruiker', 'warning');
+        await sendAdminReplyToUser(meUid, userUid, subject, body);
+        toast('Bericht verzonden aan gebruiker', 'success');
+      } else {
+        await sendUserMessageToAdmins(subject, body, composeThreadId || `conv:${meUid}`);
+        toast('Bericht verzonden aan admins', 'success');
+      }
+      compCard?.classList.add('d-none');
+      composeThreadId = null;
+    } catch (e) {
+      console.error(e);
+      toast('Versturen mislukt', 'danger');
+    }
+  });
+
+  refBtn?.addEventListener('click', () => {
+    const uid = getActiveUserId();
+    if (uid) listenMailbox(uid);
+  });
+
+  delAllBtn?.addEventListener('click', async () => {
+    const uid = currentUserId; 
+    if (!uid) return;
+    const folderName = (mailFolder === 'sent') ? 'verzonden items' : 'inbox';
+    const messagesToDelete = filteredMessages(); 
+
+    if (messagesToDelete.length === 0) return toast(`Er zijn geen berichten in je ${folderName}.`, 'info');
+    if (!confirm(`Weet je zeker dat je alle ${messagesToDelete.length} berichten in je ${folderName} permanent wilt verwijderen?`)) return;
+
+    try {
+      const deletions = messagesToDelete.map(m => {
+        let docRef; 
+        if (m._source === 'admin_mail') {
+          docRef = doc(db, 'admin_mail', m._id);
+        } else {
+          docRef = doc(db, 'users', uid, 'mailbox', m._id);
+        }
+        return deleteDoc(docRef);
+      });
+      await Promise.all(deletions);
+      toast(`Alle berichten verwijderd.`, 'success');
+      const detailEl = document.getElementById('mailDetail');
+      if (detailEl) {
+          detailEl.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
+          delete detailEl.dataset.openId;
+      }
+    } catch (err) {
+      console.error("Fout:", err);
+      toast('Er ging iets mis.', 'danger');
+    }
+  });
+
+  markAllBtn?.addEventListener('click', async () => {
+    const uid = currentUserId; 
+    if (!uid) return;
+    if (!confirm('Alle berichten in de inbox als gelezen markeren?')) return;
+
+    const unreadInbox = mailboxCache.filter(m => (m.from?.uid !== uid || m.system) && m.read === false);
+    if (unreadInbox.length === 0) return toast('Geen ongelezen berichten', 'info');
+
+    try {
+      const updates = unreadInbox.map(m => {
+        let docRef; 
+        if (m._source === 'admin_mail') {
+         docRef = doc(db, 'admin_mail', m._id);
+        } else {
+          docRef = doc(db, 'users', uid, 'mailbox', m._id);
+        }
+        return updateDoc(docRef, { read: true });
+      });
+      await Promise.all(updates);
+      toast(`Gemarkeerd als gelezen`, 'success');
+    } catch (err) {
+      console.error("Fout:", err);
+      toast('Er ging iets mis.', 'danger');
+    }
+  });
+
+  const listBody = document.getElementById('mailListBody');
+  listBody?.addEventListener('click', async (e) => {
+    const aOpen = e.target.closest('a.js-open');
+    const bTog  = e.target.closest('button.js-toggle');
+    const bDel  = e.target.closest('button.js-del');
+    
+    if (aOpen) {
+      e.preventDefault();
+      const msg = filteredMessages().find(x => x._id === aOpen.dataset.id) || mailboxCache.find(x => x._id === aOpen.dataset.id);
+      if (msg) openMail(msg);
+    }
+    else if (bTog) {
+      const id = bTog.dataset.id;
+      const msg = mailboxCache.find(x => x._id === id);
+      await markMailRead(id, !(msg?.read));
+    }
+    else if (bDel) {
+      const id = bDel.dataset.id;
+      if (!confirm('Dit bericht verwijderen?')) return;
+      await deleteMail(id);
+      toast('Bericht verwijderd', 'success');
+    }
+  });
+
+  const detailEl = document.getElementById('mailDetail');
+  detailEl?.addEventListener('click', (e) => {
+    const markUn = e.target.closest('.js-mark-unread');
+    const delBtn = e.target.closest('.js-del');
+    const reply  = e.target.closest('.js-reply');
+
+    if (markUn) {
+      markMailRead(markUn.dataset.id, false);
+      toast('Gemarkeerd als ongelezen', 'success');
+    }
+    else if (delBtn) {
+      if (!confirm('Dit bericht verwijderen?')) return;
+      deleteMail(delBtn.dataset.id).then(()=> toast('Bericht verwijderd', 'success'));
+    }
+    else if (reply) {
+      const id = reply.dataset.id;
+      const msg = mailboxCache.find(x => x._id === id);
+      if (!msg) return;
+      compCard?.classList.remove('d-none');
+      prepareComposeToCounterparty(msg);
+      if (compCard) window.scrollTo({ top: compCard.offsetTop - 80, behavior: 'smooth' });
+    }
+  });
+}
+
+async function notifyUserOfLeaveStatus(uid, rowData, dateKey, status) {
+  const adminId = auth.currentUser.uid;
+  const adminName = auth.currentUser.displayName || "Admin";
+  const { shift, omschrijving } = rowData;
+  const dateStr = dateKey.split('-').reverse().join('-'); 
+
+  let subject = '';
+  let body = '';
+
+  if (status === 'approved') {
+    subject = `[Planner] Verlof Goedgekeurd: ${shift} op ${dateStr}`;
+    body = `Je aanvraag voor ${shift} op ${dateStr} is goedgekeurd.`;
+  } else {
+    subject = `[Planner] Verlof Afgekeurd: ${shift} op ${dateStr}`;
+    body = `Je aanvraag voor ${shift} op ${dateStr} is helaas afgekeurd.`;
+  }
+
+  const threadId = `leave:${uid}:${dateKey}`;
+
+  await addDoc(collection(db, "users", uid, "mailbox"), {
+    threadId, system: true, kind: "status",
+    from: { uid: adminId, name: adminName, role: 'admin' },
+    to: { uid: uid, type: "user" },
+    subject, body, read: false,
+    timestamp: serverTimestamp()
+  });
+
+  await addDoc(collection(db, "users", adminId, "mailbox"), {
+    threadId, system: false, kind: "status",
+    from: { uid: adminId, name: adminName, role: 'admin' },
+    to: { uid: uid, type: "user" },
+    subject, body, read: true,
+    timestamp: serverTimestamp()
+  });
+}
+
+// ==========================================
+// 22. PROFIEL, KLEUREN & EXPORT
+// ==========================================
+function loadProfileTab() {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  if(document.getElementById('profileName')) document.getElementById('profileName').value = user.displayName || '';
+  if(document.getElementById('profileEmail')) document.getElementById('profileEmail').value = user.email || '';
+
+  const photoEl = document.getElementById('profilePhoto');
+  if (photoEl) {
+      if (user.photoURL) {
+        photoEl.src = user.photoURL;
+      } else {
+        photoEl.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iY3VycmVudENvbG9yIiBjbGFzcz0iYmkgYmktcGVyc29uLWZpbGwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTMgMTQgczEtMiAyLTIgMiAyIDIgMiAyLTItMi0yem01LTAiLz48cGF0aCBkPSJNODguNUM4IDcuNjcgNy4zMyA3IDYuNSA3UzUgNy42NyA1IDguNSA1LjY3IDEwIDYuNSAxMFM4IDkuMzMgOCA4LjV6bS0yIDBjMCAxLjExLS44OSAyLTIgMnMtMi0uODktMi0yIC44OS0yIDItMiAyIC44OSAyIDJ6bS0yLTNjLTMuMTQ2IDAtNS41IDIuNTM2LTUuNSA1LjVWMTloMTJ2LTIuNWMwLTIuOTY0LTIuMzU0LTUuNS01LjUtNS41eiIvPjwvc3ZnPg==';
+      }
+  }
+
+  const toggle = document.getElementById('profileDarkModeToggle');
+  if(toggle) toggle.checked = document.body.classList.contains('dark-mode');
+  
+  const ud = getCurrentUserData();
+  const sidebarToggle = document.getElementById('profileSidebarToggle');
+  if (sidebarToggle) {
+    sidebarToggle.checked = !!ud?.settings?.sidebarCollapsed;
+  }
+
+  const defaultTabSelect = document.getElementById('profileDefaultTab');
+  if (defaultTabSelect) {
+    defaultTabSelect.value = ud?.settings?.defaultTab || '#tab-home'; 
+  }
+
+  const picker = document.getElementById('profileColorPicker');
+  if (picker) {
+    const currentColor = localStorage.getItem('accentColor') || ud?.settings?.accentColor || '#0d6efd';
+    picker.querySelectorAll('.color-dot').forEach(dot => dot.classList.remove('selected'));
+    const activeDot = picker.querySelector(`.color-dot[data-color="${currentColor}"]`);
+    if (activeDot) {
+      activeDot.classList.add('selected');
+    }
+  }
+  
+  const prefs = ud?.settings?.notificationPrefs || {};
+  if(document.getElementById('prefNotifyDailyEmpty')) document.getElementById('prefNotifyDailyEmpty').checked = prefs.notifyDailyEmpty !== false;
+  if(document.getElementById('prefNotifyWeeklyEmpty')) document.getElementById('prefNotifyWeeklyEmpty').checked = prefs.notifyWeeklyEmpty !== false;
+  if(document.getElementById('prefNotifyMonthlyGoal')) document.getElementById('prefNotifyMonthlyGoal').checked = prefs.notifyMonthlyGoal !== false;
+  if(document.getElementById('prefNotifyProjectEnd')) document.getElementById('prefNotifyProjectEnd').checked = prefs.notifyProjectEnd !== false;
+  
+  if(typeof renderProfileShiftSettings === 'function') renderProfileShiftSettings();
+}
+
+const profileModalEl = document.getElementById('profileModal');
+profileModalEl?.addEventListener('show.bs.modal', loadProfileTab);
+
+document.getElementById('profileSaveBtn')?.addEventListener('click', async () => {
+  const user = auth.currentUser;
+  const newName = document.getElementById('profileName').value.trim();
+  if (!user || !newName) return toast('Vul een naam in', 'warning');
+
+  try {
+    await updateProfile(user, { displayName: newName });
+    const userRef = doc(db, 'users', user.uid);
+    await updateDoc(userRef, { name: newName });
+
+    if(document.getElementById('currentUserName')) document.getElementById('currentUserName').textContent = newName;
+    if(document.getElementById('homeUserName')) document.getElementById('homeUserName').textContent = newName;
+
+    toast('Naam opgeslagen!', 'success');
+  } catch (err) {
+    console.error("Fout bij opslaan profiel:", err);
+    toast('Opslaan mislukt: ' + err.message, 'danger');
+  }
+});
+
+const prefersDark = localStorage.getItem('darkMode') === 'true';
+if (prefersDark) document.body.classList.add('dark-mode');
+
+document.getElementById('profileDarkModeToggle')?.addEventListener('change', (e) => {
+  const active = e.target.checked;
+  document.body.classList.toggle('dark-mode', active);
+  localStorage.setItem('darkMode', active);
+});
+
+document.getElementById('profileSidebarToggle')?.addEventListener('change', async (e) => {
+  const active = e.target.checked;
+  const ud = getCurrentUserData();
+  ud.settings ||= {};
+  ud.settings.sidebarCollapsed = active;
+  
+  if(sidebar) sidebar.classList.toggle('collapsed', active);
+  if(main) main.classList.toggle('collapsed', active);
+  
+  await saveUserData(); 
+  toast('Sidebar-voorkeur opgeslagen', 'success');
+});
+
+document.getElementById('profileDefaultTab')?.addEventListener('change', async (e) => {
+  const newTab = e.target.value;
+  const ud = getCurrentUserData();
+  ud.settings ||= {};
+  ud.settings.defaultTab = newTab;
+  await saveUserData(); 
+  toast('Standaard opstart-tabblad opgeslagen', 'success');
+});
+
+document.getElementById('profileNotifPrefs')?.addEventListener('change', async (e) => {
+  if (e.target.type !== 'checkbox') return; 
+  const ud = getCurrentUserData();
+  ud.settings ||= {};
+  
+  const prefs = {
+    notifyDailyEmpty: document.getElementById('prefNotifyDailyEmpty').checked,
+    notifyWeeklyEmpty: document.getElementById('prefNotifyWeeklyEmpty').checked,
+    notifyMonthlyGoal: document.getElementById('prefNotifyMonthlyGoal').checked,
+    notifyProjectEnd: document.getElementById('prefNotifyProjectEnd').checked,
+  };
+  
+  ud.settings.notificationPrefs = prefs;
+  await saveUserData(); 
+  toast(`Notificatie-voorkeuren opgeslagen`, 'success');
+});
+
+document.getElementById('profileColorPicker')?.addEventListener('click', async (e) => {
+  const dot = e.target.closest('.color-dot');
+  if (!dot) return; 
+
+  const newColor = dot.dataset.color;
+  applyAccentColor(newColor);
+
+  document.querySelectorAll('#profileColorPicker .color-dot').forEach(d => d.classList.remove('selected'));
+  dot.classList.add('selected');
+
+  const ud = getCurrentUserData();
+  ud.settings ||= {};
+  ud.settings.accentColor = newColor;
+  await saveUserData();
+  
+  toast('Accentkleur opgeslagen!', 'success');
+});
+
+document.getElementById('profileExportBtn')?.addEventListener('click', () => {
+  try {
+    const ud = dataStore.users[currentUserId];
+    if (!ud) {
+      return toast('Kon gebruikersdata niet vinden.', 'danger');
+    }
+
+    const dataStr = JSON.stringify(ud, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    
+    const ymd = new Date().toISOString().slice(0, 10); 
+    a.download = `shift_planner_export_${ud.name || 'user'}_${ymd}.json`;
+
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    toast('Gegevens worden gedownload!', 'success');
+  
+  } catch (err) {
+    console.error("Fout bij exporteren:", err);
+    toast('Export mislukt: ' + err.message, 'danger');
+  }
+});
+
+// ==========================================
+// 23. BIJLAGEN (FIREBASE STORAGE)
+// ==========================================
+const attachmentModal = document.getElementById('attachmentModal');
+const currentAttachmentBox = document.getElementById('currentAttachmentBox');
+const currentAttachmentName = document.getElementById('currentAttachmentName');
+const downloadAttachmentBtn = document.getElementById('downloadAttachmentBtn');
+const deleteAttachmentBtn = document.getElementById('deleteAttachmentBtn');
+const uploadAttachmentBox = document.getElementById('uploadAttachmentBox');
+const uploadBoxLabel = document.getElementById('uploadBoxLabel');
+const attachmentUploadInput = document.getElementById('attachmentUploadInput');
+const uploadAttachmentBtn = document.getElementById('uploadAttachmentBtn');
+const progressContainer = document.getElementById('attachmentUploadProgressContainer');
+const progressBar = document.getElementById('attachmentUploadProgress');
+
+let currentRowKey = null; 
+
+attachmentModal?.addEventListener('show.bs.modal', (e) => {
+  const triggerButton = e.relatedTarget;
+  currentRowKey = triggerButton?.dataset?.key;
+  if (!currentRowKey) {
+    console.error("Geen rowKey gevonden voor bijlage modal");
+    return;
+  }
+  
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const ud = getCurrentUserData();
+  const r = ud.monthData?.[y]?.[m]?.rows?.[currentRowKey];
+
+  if (!r) {
+    console.error("Kon rij-data niet vinden:", currentRowKey);
+    return;
+  }
+
+  attachmentUploadInput.value = null;
+  uploadAttachmentBtn.classList.add('d-none');
+  progressContainer.classList.add('d-none');
+  progressBar.style.width = '0%';
+
+  if (r.attachmentURL) {
+    currentAttachmentBox.classList.remove('d-none');
+    currentAttachmentName.textContent = r.attachmentName || 'Bijlage';
+    downloadAttachmentBtn.href = r.attachmentURL;
+    uploadAttachmentBox.classList.add('d-none'); 
+  } else {
+    currentAttachmentBox.classList.add('d-none');
+    uploadAttachmentBox.classList.remove('d-none');
+    uploadBoxLabel.textContent = "Nog geen bijlage. Kies een bestand (max 5MB):";
+  }
+});
+
+attachmentUploadInput?.addEventListener('change', () => {
+  if (attachmentUploadInput.files.length > 0) {
+    uploadAttachmentBtn.classList.remove('d-none');
+    uploadBoxLabel.textContent = `Geselecteerd: ${attachmentUploadInput.files[0].name}`;
+  } else {
+    uploadAttachmentBtn.classList.add('d-none');
+  }
+});
+
+uploadAttachmentBtn?.addEventListener('click', async () => {
+  if (!currentRowKey || !attachmentUploadInput.files.length) return;
+
+  const file = attachmentUploadInput.files[0];
+  if (file.size > 5 * 1024 * 1024) { 
+    return toast('Bestand is te groot (max 5MB)', 'danger');
+  }
+  
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const ud = getCurrentUserData();
+  const r = ud.monthData?.[y]?.[m]?.rows?.[currentRowKey];
+  if (!r) return;
+
+  const filePath = `attachments/${currentUserId}/${currentRowKey}/${file.name}`;
+  const storageRef = ref(storage, filePath);
+
+  progressContainer.classList.remove('d-none');
+  uploadAttachmentBtn.classList.add('d-none');
+  
+  try {
+    const uploadTask = uploadBytesResumable(storageRef, file);
+
+    uploadTask.on('state_changed', 
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        progressBar.style.width = progress + '%';
+      }, 
+      (error) => {
+        console.error("Upload fout:", error);
+        toast('Upload mislukt', 'danger');
+        progressContainer.classList.add('d-none');
+      }, 
+      async () => {
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+        r.attachmentURL = downloadURL;
+        r.attachmentName = file.name;
+        await saveUserData();
+        
+        toast('Bijlage opgeslagen!', 'success');
+        if(typeof renderMonth === 'function') await renderMonth(y, m); 
+        bootstrap.Modal.getInstance(attachmentModal).hide();
+      }
+    );
+
+  } catch (err) {
+    console.error(err);
+    toast('Fout bij opslaan bijlage', 'danger');
+  }
+});
+
+deleteAttachmentBtn?.addEventListener('click', async () => {
+  if (!currentRowKey) return;
+  if (!confirm('Weet je zeker dat je deze bijlage wilt verwijderen?')) return;
+
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const ud = getCurrentUserData();
+  const r = ud.monthData?.[y]?.[m]?.rows?.[currentRowKey];
+  if (!r || !r.attachmentName) return;
+
+  const filePath = `attachments/${currentUserId}/${currentRowKey}/${r.attachmentName}`;
+  const storageRef = ref(storage, filePath);
+
+  try {
+    await deleteObject(storageRef);
+    delete r.attachmentURL;
+    delete r.attachmentName;
+    await saveUserData();
+
+    toast('Bijlage verwijderd', 'success');
+    if(typeof renderMonth === 'function') await renderMonth(y, m); 
+    bootstrap.Modal.getInstance(attachmentModal).hide();
+
+  } catch (err) {
+    console.error("Verwijderfout:", err);
+    toast('Verwijderen mislukt', 'danger');
+  }
+});
+
+// ==========================================
+// 24. TEAM ROOSTER (ADMIN) - HYBRIDE LEGENDE
+// ==========================================
+function stringToColor(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
+  const h = Math.abs(hash % 360);
+  return `hsl(${h}, 70%, 80%)`;
+}
+
+function getShiftStyle(shiftName, userShifts = null) {
+  const sLower = shiftName.toLowerCase();
+  const sourceShifts = userShifts || getCurrentUserData().shifts;
+  const shiftDef = sourceShifts ? sourceShifts[shiftName] : null;
+  
+  let letter = '';
+  if (shiftDef && shiftDef.shortName) {
+      letter = shiftDef.shortName;
+  } else {
+      letter = shiftName.substring(0, 2).toUpperCase();
+  }
+
+  if (shiftDef && shiftDef.color && shiftDef.color !== '#e9ecef') { 
+      return {
+          class: '',
+          style: `background-color: ${shiftDef.color}; color: #000; font-weight:600; border:1px solid rgba(0,0,0,0.1);`, 
+          letter: letter,
+          label: shiftName,
+          isGlobal: false 
+      };
+  }
+
+  if (['ziekte', 'ziek'].includes(sLower))       return { class: 'bg-shift-sick',   letter: letter || 'Z', label: 'Ziekte', isGlobal: true };
+  if (['verlof', 'feestdag'].includes(sLower))   return { class: 'bg-shift-leave',  letter: 'V', label: 'Verlof', isGlobal: true }; 
+  if (['school', 'schoolverlof'].includes(sLower)) return { class: 'bg-shift-school', letter: 'S', label: 'School', isGlobal: true };
+  if (sLower === 'bench')                        return { class: '', letter: '-', label: 'Bench', isGlobal: true };
+
+  if (sLower.includes('vroege'))                 return { class: 'bg-shift-vroege', letter: letter, label: 'Vroege', isGlobal: true };
+  if (sLower.includes('late'))                   return { class: 'bg-shift-late',   letter: letter, label: 'Late', isGlobal: true };
+  if (sLower.includes('nacht'))                  return { class: 'bg-shift-nacht',  letter: letter, label: 'Nacht', isGlobal: true };
+  if (sLower.includes('dag'))                    return { class: 'bg-shift-dag',    letter: letter, label: 'Dagdienst', isGlobal: true };
+  if (sLower.includes('vrij weekend'))           return { class: 'bg-shift-normal', letter: 'Vw', label: 'Vrij weekend', isGlobal: true };
+  
+  const dynamicColor = stringToColor(shiftName);
+  
+  return { 
+    class: '', 
+    style: `background-color: ${dynamicColor}; color: #333; font-weight:600;`, 
+    letter: letter, 
+    label: shiftName,
+    isGlobal: false 
+  };
+}
+
+function initRoosterSelectors() {
+  const rMonth = document.getElementById('roosterMonth');
+  const rYear = document.getElementById('roosterYear');
+  if (!rMonth || !rYear) return;
+  
+  if (rMonth.options.length === 0) {
+      rMonth.innerHTML = monthsFull.map((m, i) => `<option value="${i}">${m}</option>`).join('');
+      rMonth.value = new Date().getMonth();
+  }
+  if (rYear.options.length === 0) {
+      const yNow = new Date().getFullYear();
+      rYear.innerHTML = '';
+      for (let y = yNow - 1; y <= yNow + 2; y++) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        if (y === yNow) opt.selected = true;
+        rYear.appendChild(opt);
+      }
+  }
+  rMonth.onchange = renderTeamRooster;
+  rYear.onchange = renderTeamRooster;
+  
+  const refreshBtn = document.getElementById('refreshRoosterBtn');
+  if (refreshBtn) {
+      refreshBtn.onclick = async () => {
+        toast('Rooster verversen...', 'info');
+        await loadAllUsers(); 
+        renderTeamRooster();
+      };
+  }
+}
+
+function renderTeamRooster() {
+  const rBody = document.getElementById('roosterBody');
+  const rHead = document.getElementById('roosterHeaderRow');
+  const rLegend = document.getElementById('roosterLegendContainer');
+  const rMonth = document.getElementById('roosterMonth');
+  const rYear = document.getElementById('roosterYear');
+
+  if (!rBody || !rHead) return;
+  
+  rBody.innerHTML = '';
+  rHead.innerHTML = '';
+  if(rLegend) rLegend.innerHTML = '';
+
+  const year = Number(rYear.value);
+  const month = Number(rMonth.value);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  
+  const globalShifts = new Map();
+  const userSpecificShifts = new Map(); 
+
+  let headerHtml = '<th style="min-width:150px; background:#fff; position:sticky; left:0; z-index:30;">Werknemer</th>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateObj = new Date(year, month, d);
+    const dayIndex = dateObj.getDay(); 
+    const dayLetter = daysFull[dayIndex].charAt(0); 
+    const isWeekend = (dayIndex === 0 || dayIndex === 6);
+    headerHtml += `
+      <th class="${isWeekend ? 'bg-light text-muted' : ''}" style="min-width:35px; font-weight:normal; font-size:0.8rem;">
+        <div>${d}</div>
+        <div>${dayLetter}</div>
+      </th>`;
+  }
+  rHead.innerHTML = headerHtml;
+
+  if (!dataStore.users) return;
+  const users = Object.values(dataStore.users).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  users.forEach(u => {
+    const tr = document.createElement('tr');
+    const userName = u.name || u.email.split('@')[0];
+    let rowHtml = `<th style="background:#fff; position:sticky; left:0; z-index:20;">${userName}</th>`;
+
+    const monthData = u.monthData?.[year]?.[month]?.rows || {};
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const entryKey = Object.keys(monthData).find(k => k === key || k.startsWith(key + '#'));
+      const rowData = entryKey ? monthData[entryKey] : null;
+
+      let cellContent = '';
+      let cellClass = '';
+      let cellStyle = '';
+      let tooltip = '';
+
+      if (rowData && rowData.shift) {
+        const shiftName = rowData.shift;
+        tooltip = `${shiftName} (${rowData.start} - ${rowData.end})`;
+        
+        const style = getShiftStyle(shiftName, u.shifts);
+        
+        cellContent = style.letter;
+        cellClass = style.class;
+        cellStyle = style.style || '';
+
+        if (style.letter !== '-') {
+          if (style.isGlobal) {
+            globalShifts.set(style.label, style);
+          } else {
+            if (!userSpecificShifts.has(userName)) {
+              userSpecificShifts.set(userName, new Map());
+            }
+            userSpecificShifts.get(userName).set(style.label, style);
+          }
+        }
+      }
+
+      rowHtml += `
+        <td class="rooster-cell ${cellClass}" style="${cellStyle}" title="${tooltip}">
+          <div class="rooster-content">${cellContent}</div>
+        </td>`;
+    }
+    tr.innerHTML = rowHtml;
+    rBody.appendChild(tr);
+  });
+
+  if (rLegend) {
+    let legendHtml = '';
+
+    if (globalShifts.size > 0) {
+      const sortedGlobal = Array.from(globalShifts.values()).sort((a, b) => a.label.localeCompare(b.label));
+      legendHtml += '<div class="mb-2"><small class="text-muted fw-bold">Algemeen:</small><div class="d-flex flex-wrap gap-3 small mt-1">';
+      sortedGlobal.forEach(s => {
+        const c = s.class || '';
+        const st = s.style || '';
+        legendHtml += `
+          <div class="d-flex align-items-center gap-1">
+            <span class="badge ${c} border text-dark" style="min-width:25px; font-weight:normal; font-size:0.75rem; ${st}">${s.letter}</span> 
+            <span>${s.label}</span>
+          </div>`;
+      });
+      legendHtml += '</div></div>';
+    }
+
+    if (userSpecificShifts.size > 0) {
+      if (globalShifts.size > 0) legendHtml += '<hr class="my-2">';
+      legendHtml += '<div class="mb-2"><small class="text-muted fw-bold">Specifiek per gebruiker:</small><div class="row g-2 mt-1">';
+      userSpecificShifts.forEach((shiftsMap, userName) => {
+        const sortedUserShifts = Array.from(shiftsMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+        let badgesHtml = sortedUserShifts.map(s => {
+            const st = s.style || '';
+            return `<span class="badge border text-dark" style="font-weight:normal; font-size:0.75rem; ${st}">${s.letter} = ${s.label}</span>`;
+        }).join(' ');
+        legendHtml += `
+          <div class="col-12 col-md-auto">
+            <div class="d-flex align-items-center flex-wrap gap-2 small bg-light p-1 px-2 rounded border">
+              <strong class="text-nowrap me-1">${userName}:</strong>
+              ${badgesHtml}
+            </div>
+          </div>`;
+      });
+      legendHtml += '</div></div>';
+    }
+
+    if (globalShifts.size === 0 && userSpecificShifts.size === 0) {
+       legendHtml = '<small class="text-muted fst-italic">Geen shiften gepland deze maand.</small>';
+    }
+    rLegend.innerHTML = legendHtml;
+  }
+}
+
+document.querySelector('a[href="#tab-team-rooster"]')?.addEventListener('shown.bs.tab', () => {
+    initRoosterSelectors();
+    renderTeamRooster();
+});
+
+// ==========================================
+// 25. NOTIFICATIE LOGICA (APP LEVEL)
+// ==========================================
+function getNotifPref(key) {
+    const ud = getCurrentUserData();
+    if (!ud.settings || !ud.settings.notificationPrefs) {
+      return true; 
+    }
+    return ud.settings.notificationPrefs[key] !== false; 
+}
+
+function getISOWeekParts(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const day = d.getUTCDay() || 7;           
+    d.setUTCDate(d.getUTCDate() + 4 - day);   
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return { week, year: d.getUTCFullYear() };
+}
+
+function isoWeekId(date) {
+    const { week, year } = getISOWeekParts(date);
+    return `${year}-W${String(week).padStart(2, '0')}`;
+}
+
+async function autoCheckNotifications() {
+    if (!currentUserId || !auth.currentUser) {
+      console.log("autoCheckNotifications: Gestopt, geen (actief) ingelogde gebruiker.");
+      return; 
+    }
+    const uid = currentUserId;
+    if (!uid) {
+      console.warn("autoCheckNotifications: Gestopt, geen UID.");
+      return;
+    }
+    
+    const ud = getCurrentUserData();
+    if (!ud || !ud.monthData) return;
+  
+    const today = new Date();
+    const currentYear = today.getFullYear();
+  
+  if (getNotifPref('notifyWeeklyEmpty')) {
+    const thisWeek = isoWeekId(new Date());
+    let hasShiftThisWeek = false;
+    const yearMap = ud.monthData || {};
+  
+    for (const yStr of Object.keys(yearMap)) {
+      const months = yearMap[yStr] || {};
+      for (const mStr of Object.keys(months)) {
+        const rowsObj = months[mStr]?.rows || {};
+        for (const key of Object.keys(rowsObj)) {
+          const [Y, M, D] = key.split('-').map(Number);
+          const rowDate = new Date(Y, M - 1, D);
+  
+          const shiftName = rowsObj[key]?.shift?.trim() || '';
+          const filled = shiftName && shiftName !== 'Vrij weekend';
+  
+          if (isoWeekId(rowDate) === thisWeek && filled) {
+            hasShiftThisWeek = true;
+            break;
+          }
+        }
+        if (hasShiftThisWeek) break;
+      }
+      if (hasShiftThisWeek) break;
+    }
+  
+    if (!hasShiftThisWeek) {
+      await createUniqueNotification(uid, 'Je hebt deze week nog geen shifts ingevuld.');
+    }
+  }
+  
+  const currentMonthData = ud.monthData?.[currentYear]?.[today.getMonth()] || { rows: {}, targetHours: 0, targetMinutes: 0 };
+  const md = currentMonthData;
+  
+  if (getNotifPref('notifyMonthlyGoal')) {
+    const doel = (md.targetHours || 0) * 60 + (md.targetMinutes || 0);
+    const gepland = Object.values(md.rows || {}).reduce((s, r) => {
+    if (r.status && r.status !== 'approved') {
+      return s; 
+    }
+    return s + (r.minutes || 0);
+  }, 0);
+    if (doel > 0 && gepland < doel * 0.8) {
+      await createUniqueNotification(uid, 'Je hebt nog minder dan 80% van je maanddoel behaald.');
+    }
+  }
+  
+  if (getNotifPref('notifyProjectEnd')) {
+    const soon = ud.projects?.filter(p => {
+      if (!p.end) return false;
+      const end = new Date(p.end);
+      const diff = (end - today) / (1000 * 60 * 60 * 24);
+      return diff > 0 && diff < 14; 
+    });
+    if (soon?.length) {
+      const names = soon.map(p => p.name).join(', ');
+      await createUniqueNotification(uid, `Project(en) bijna afgelopen: ${names}`);
+    }
+  }
+  
+  if (getNotifPref('notifyDailyEmpty')) {
+  const startOfYear = new Date(today.getFullYear(), 0, 1);
+  const endOfYear = new Date(today);
+  
+  for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) {
+    const y = d.getFullYear();
+    const m = d.getMonth();
+    const day = d.getDate();
+    const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  
+    const rows = ud.monthData?.[y]?.[m]?.rows || {};
+    const r = rows[key];
+  
+    if (!ud.monthData?.[y]?.[m] || !r) continue;
+    if (d > today) continue;
+  
+    const skipShifts = ['Vrij weekend', 'Verlof', 'Ziekte', 'Feestdag', 'Schoolverlof', 'School', 'Bench'];
+    const shiftName = (r?.shift || '').trim();
+    const isEmpty = !shiftName;
+    const isSkipped = skipShifts.includes(shiftName);
+  
+    if (isEmpty && !isSkipped) {
+      await createUniqueNotification(
+        uid,
+        `Geen shift ingevuld op ${String(day).padStart(2, '0')}-${String(m + 1).padStart(2, '0')}-${y}.`
+      );
+    }
+  }
+  }
+  
+  try {
+      const notifCol = collection(db, 'users', uid, 'notifications');
+      const nowClean = new Date();
+      const thirtyDaysAgo = new Date(nowClean.getTime() - (30 * 24 * 60 * 60 * 1000)).toISOString();
+  
+      const q = query(notifCol, where("timestamp", "<", thirtyDaysAgo));
+      const oldNotifSnap = await getDocs(q); 
+  
+      oldNotifSnap.forEach(async (docSnap) => {
+        console.log(`🧹 Oude melding verwijderd (${docSnap.data().text})`);
+        await deleteDoc(docSnap.ref);
+      });
+  
+    } catch (err) {
+      console.error(`PERMISSION ERROR in autoCheckNotifications (UID: ${uid}):`, err.message);
+    }
+}
+  
+async function createUniqueNotification(uid, text) {
+    const colRef = collection(db, 'users', uid, 'notifications');
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const q = query(colRef, where('text', '==', text), where('dateKey', '==', todayKey));
+    const snap = await getDocs(q);
+    if (!snap.empty) return;
+  
+    await addDoc(colRef, {
+      text,
+      timestamp: new Date().toISOString(),
+      dateKey: todayKey,
+      read: false
+    });
+  
+    if(typeof sendSystemMail === 'function') {
+        await sendSystemMail(uid, 'Notificatie', text, 'notification');
+    }
+    console.log('🔔 Automatische melding + mail aangemaakt:', text);
+}
+
+async function notifyProjectChange(userId, type, projectName, newEndDate = null) {
+    const colRef = collection(db, 'users', userId, 'notifications');
+    const todayKey = new Date().toISOString().slice(0, 10);
+    let text = '';
+  
+    if (type === 'added') {
+      text = `Admin heeft een nieuw project toegevoegd: ${projectName}`;
+    } else if (type === 'extended') {
+      text = `Admin heeft het project "${projectName}" verlengd tot ${newEndDate}`;
+    }
+  
+    const q = query(colRef, where('text', '==', text), where('dateKey', '==', todayKey));
+    const snap = await getDocs(q);
+    if (snap.empty) {
+      await addDoc(colRef, { text, timestamp: new Date().toISOString(), dateKey: todayKey, read: false });
+    }
+  
+    if(typeof sendSystemMail === 'function') {
+        await sendSystemMail(userId, 'Projectupdate', text, 'notification');
+    }
+    console.log('🔔 Melding + mail gestuurd naar gebruiker:', text);
+}
+
+document.getElementById('enableNotifBtn')?.addEventListener('click', async () => {
+    const allowed = await requestNotificationPermission();
+    if (allowed) {
+      toast('Meldingen zijn geactiveerd!', 'success');
+      document.getElementById('enableNotifBtn').classList.add('d-none'); 
+      document.getElementById('notifStatusText').textContent = '✅ Meldingen zijn actief.';
+    } else {
+      toast('Meldingen geweigerd of niet mogelijk.', 'warning');
+    }
+});
+  
+document.getElementById('profileModal')?.addEventListener('show.bs.modal', () => {
+    if (Notification.permission === 'granted') {
+       const btn = document.getElementById('enableNotifBtn');
+       if(btn) btn.classList.add('d-none');
+       const txt = document.getElementById('notifStatusText');
+       if(txt) txt.textContent = '✅ Meldingen zijn actief.';
+    }
+});
+
+// ==========================================
+// 26. RESTRENDE UREN BEREKENING & UI
+// ==========================================
+function updateRemainingHours() {
+    const alertBox = document.getElementById('remainingHoursAlert');
+    if (!alertBox) return;
+  
+    const year = parseInt(yearSelectMain.value);
+    const month = parseInt(monthSelectMain.value);
+    const ud = getCurrentUserData();
+    const monthData = ud?.monthData?.[year]?.[month];
+    if (!monthData) {
+      alertBox.classList.add('d-none');
+      return;
+    }
+  
+    const doel = (monthData.targetHours || 0) * 60 + (monthData.targetMinutes || 0);
+    const gepland = Object.values(monthData.rows || {}).reduce((s, r) => {
+    if (r.status && r.status !== 'approved') {
+      return s; 
+    }
+    return s + (r.minutes || 0);
+  }, 0);
+    const verschil = doel - gepland;
+    const pct = doel > 0 ? Math.round((gepland / doel) * 100) : 0;
+  
+    let resterendTekst = '';
+    if (verschil > 0) {
+      const uren = Math.floor(verschil / 60);
+      const min = verschil % 60;
+      resterendTekst = `🕓 <b>Resterend:</b> ${uren}u ${min}min`;
+    } else if (verschil < 0) {
+      const extra = Math.abs(verschil);
+      const uren = Math.floor(extra / 60);
+      const min = extra % 60;
+      resterendTekst = `✅ <b>Meer uren:</b> ${uren}u ${min}min`;
+    } else {
+      resterendTekst = `✅ <b>Doel exact behaald!</b>`;
+    }
+  
+    alertBox.classList.remove('alert-danger', 'alert-success');
+  if (gepland >= doel) {
+    alertBox.classList.add('alert-success'); 
+  } else {
+    alertBox.classList.add('alert-danger'); 
+  }
+  
+    alertBox.innerHTML = `
+      🎯 <b>Doel:</b> ${Math.floor(doel / 60)}u ${doel % 60}min 
+      &nbsp;|&nbsp; ⏱ <b>Gepland:</b> ${Math.floor(gepland / 60)}u ${gepland % 60}min 
+      &nbsp;|&nbsp; ${resterendTekst}
+    `;
+    alertBox.classList.remove('d-none');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const alertBox = document.getElementById('remainingHoursAlert');
+    if (!alertBox) return;
+  
+    document.body.style.paddingBottom = "120px";
+  
+    Object.assign(alertBox.style, {
+      position: "fixed",
+      bottom: "15px",         
+      left: "50%",
+      transform: "translateX(-50%)",
+      zIndex: "2000",
+      width: "auto",
+      maxWidth: "95%",        
+      boxShadow: "0 4px 10px rgba(0,0,0,0.2)", 
+      borderRadius: "50px"    
+    });
+});
+  
+document.addEventListener("DOMContentLoaded", () => {
+    const alertBox = document.getElementById("remainingHoursAlert");
+    if (!alertBox) return;
+  
+    alertBox.style.position = "fixed";
+    alertBox.style.bottom = "1rem";
+    alertBox.style.left = "50%";
+    alertBox.style.transform = "translateX(-50%)";
+    alertBox.style.zIndex = "2000";
+  
+    setTimeout(() => {
+      alertBox.style.position = "fixed";
+      alertBox.style.bottom = "1rem";
+      alertBox.style.left = "50%";
+      alertBox.style.transform = "translateX(-50%)";
+    }, 500);
+});
+
+// ==========================================
+// 27. MEERDERE DAGEN INVOEREN (FLATPICKR)
+// ==========================================
+function highlightPlannedDays(inst, plannedDates = []) {
+    if (!inst || !inst.daysContainer) return;
+  
+    inst.daysContainer.querySelectorAll('.flatpickr-day').forEach(d => {
+      if (!d.dateObj) return;
+      const yyyy = d.dateObj.getFullYear();
+      const mm   = String(d.dateObj.getMonth() + 1).padStart(2, '0');
+      const dd   = String(d.dateObj.getDate()).padStart(2, '0');
+      const dateStr = `${yyyy}-${mm}-${dd}`; 
+  
+      if (plannedDates.includes(dateStr)) {
+        d.classList.add('planned-day');
+      } else {
+        d.classList.remove('planned-day');
+      }
+    });
+}
+
+function populateMultiDayShifts(selectedDates = []) {
+    const ud = getCurrentUserData();
+    const sel = document.getElementById('multiShiftName');
+    if(!sel) return;
+    sel.innerHTML = '<option value="">Kies shift</option>';
+  
+    const all = ud.shifts || {};
+    const order = ud.shiftOrder || Object.keys(all);
+  
+    order.forEach(name => {
+      const sh = all[name];
+      if (!sh) return;
+  
+      const match = !sh.startDate && !sh.endDate ||
+        selectedDates.some(d => isDateWithin(d, sh.startDate || null, sh.endDate || null));
+  
+      if (match) {
+        const o = document.createElement('option');
+        o.value = name;
+        o.textContent = name;
+        sel.appendChild(o);
+      }
+    });
+}
+
+function getPlannedDates() {
+    const ud = getCurrentUserData();
+    const y = Number(yearSelectMain.value);
+    const m = Number(monthSelectMain.value);
+    const md = ud.monthData?.[y]?.[m];
+    if (!md || !md.rows) return [];
+    const set = new Set();
+    for (const [k, r] of Object.entries(md.rows)) {
+      const base = k.split('#')[0]; 
+      const shiftName = (r?.shift || '').trim();
+      if (shiftName && shiftName.toLowerCase() !== 'niet ingepland') {
+        set.add(base);
+      }
+    }
+    return [...set];
+}
+
+function initMultiDayPicker() {
+    const year = Number(document.getElementById("yearSelectMain").value);
+    const month = Number(document.getElementById("monthSelectMain").value);
+    const start = new Date(year, month, 1);
+    const end = new Date(year, month + 1, 0);
+  if (window.multiDayPicker) window.multiDayPicker.destroy();
+    const ud = getCurrentUserData();
+    const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
+    const plannedDates = Object.keys(maandData).filter(d => !!maandData[d]?.shift);
+  
+  window.multiDayPicker = flatpickr("#multiShiftDays", {
+    static: true,
+    mode: "multiple",
+    dateFormat: "d-m-Y",
+    altInput: true,
+    altFormat: "d F Y",
+    locale: flatpickr.l10ns.nl,
+    weekNumbers: true,
+    minDate: start,
+    maxDate: end,
+    disableMobile: true,
+    defaultDate: [],
+  
+  onReady(_, __, inst) {
+    setTimeout(() => highlightPlannedDays(inst, getPlannedDates()), 50);
+  },
+  onMonthChange(_, __, inst) {
+    highlightPlannedDays(inst, getPlannedDates());
+  },
+  onChange(selectedDates) {
+    const isoDates = selectedDates.map(d => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${day}`;   
+    });
+    populateMultiDayShifts(isoDates);
+  },
+  });
+  
+  setTimeout(markPlannedDays, 100);
+  
+  function markPlannedDays() {
+    const ud = getCurrentUserData();
+    const y = Number(yearSelectMain.value);
+    const m = Number(monthSelectMain.value);
+    const md = ud.monthData?.[y]?.[m] || {};
+    const planned = Object.keys(md.rows || {}).filter(k => md.rows[k].shift);
+  
+    document.querySelectorAll('.calendar-day').forEach(dayEl => {
+      const date = dayEl.dataset?.date;
+      if (!date) return;
+      if (planned.includes(date)) {
+        dayEl.classList.add('planned-day');
+      } else {
+        dayEl.classList.remove('planned-day');
+      }
+    });
+  }
+    highlightPlannedDays(window.multiDayPicker, plannedDates);
+}
+  
+document.getElementById("multiDayShiftBtn")?.addEventListener("click", () => {
+    const modalEl = document.getElementById("multiDayModal");
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  
+    populateMultiDayShifts();
+    modal.show();
+    setTimeout(initMultiDayPicker, 150);
+}); 
+  
+document.getElementById('saveMultiShift')?.addEventListener('click', async () => {
+    try {
+      const ud = getCurrentUserData();
+      const dateInput = document.getElementById('multiShiftDays');
+      const shiftSelect = document.getElementById('multiShiftName');
+  
+      const selectedShift = shiftSelect.value;
+      if (!selectedShift) {
+        toast('Kies eerst een shift', 'warning');
+        return;
+      }
+  
+      const selectedDates = (dateInput.value || '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map(disp => {
+          const [dd, mm, yyyy] = disp.split('-').map(x => x.trim());
+          return `${yyyy}-${mm}-${dd}`;
+        });
+  
+      if (selectedDates.length === 0) {
+        toast('Kies minstens één dag', 'warning');
+        return;
+      }
+  
+      const sh = ud.shifts[selectedShift];
+      if (!sh) {
+        toast('Shift niet gevonden', 'danger');
+        return;
+      }
+  
+      for (const iso of selectedDates) {
+        const [yStr, mStr] = iso.split('-');
+        const y = Number(yStr);
+        const m = Number(mStr) - 1;
+  
+        ud.monthData ||= {};
+        ud.monthData[y] ||= {};
+        ud.monthData[y][m] ||= { targetHours: 0, targetMinutes: 0, rows: {} };
+  
+        let project = sh.project || '';
+        const sp = autoProjectForShift(selectedShift);
+        if (sp) {
+          ensureProjectExists(sp);
+          project = sp;
+        }
+  
+        const minutes = minutesBetween(sh.start, sh.end, sh.break);
+  
+        ud.monthData[y][m].rows[iso] = {
+          project,
+          shift: selectedShift,
+          start: sh.start,
+          end: sh.end,
+          break: sh.break,
+          omschrijving: '',
+          minutes
+        };
+      }
+  
+      await saveUserData();
+  
+      const curY = Number(yearSelectMain.value);
+      const curM = Number(monthSelectMain.value);
+      if(typeof renderMonth === 'function') await renderMonth(curY, curM);
+      if(typeof updateInputTotals === 'function') updateInputTotals();
+      if(typeof renderHistory === 'function') renderHistory();
+  
+      if (window.multiDayPicker) {
+        highlightPlannedDays(window.multiDayPicker, getPlannedDates());
+      }
+  
+      toast('Shiften toegevoegd', 'success');
+  
+      const modalEl = document.getElementById('multiDayModal');
+      (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).hide();
+  
+    } catch (err) {
+      console.error(err);
+      toast('Er ging iets mis bij opslaan', 'danger');
+    }
+});
+
+// ==========================================
+// 28. PDF EXPORT FUNCTIE
+// ==========================================
+document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  
+    const monthIndex = Number(document.getElementById('monthSelectMain').value);
+    const year = document.getElementById('yearSelectMain').value;
+    const monthName = monthsFull[monthIndex];
+    const ud = getCurrentUserData();
+    const md = ud.monthData?.[year]?.[monthIndex];
+  
+    if (!md || !md.rows || Object.keys(md.rows).length === 0) {
+      return toast('Geen data voor deze maand', 'warning');
+    }
+
+    const pageWidth = doc.internal.pageSize.width;
+    doc.setFillColor(13, 110, 253);
+    doc.rect(0, 0, pageWidth, 25, 'F');
+    doc.setFontSize(16);
+    doc.setTextColor(255, 255, 255);
+    doc.text('Shift Planner', 14, 15);
+    doc.setFontSize(11);
+    doc.text(`${monthName} ${year}`, pageWidth - 50, 15);
+  
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(9);
+    doc.text(`Gebruiker: ${ud.name || ud.email || '-'}`, 14, 32);
+  
+    const body = Object.entries(md.rows)
+      .sort(([a], [b]) => a.localeCompare(b)) 
+      .map(([key, r]) => {
+        const date = key.split('-').reverse().join('-');
+        const duration = `${Math.floor(r.minutes / 60)}u ${r.minutes % 60}m`;
+        return [
+          date,
+          r.project || '-',
+          r.shift || '-',
+          r.start || '',
+          r.end || '',
+          r.break || 0,
+          duration,
+          r.omschrijving || ''
+        ];
+      });
+  
+    doc.autoTable({
+      head: [['Datum', 'Project', 'Shift', 'Start', 'Einde', 'Pauze', 'Duur', 'Omschrijving']],
+      body,
+      startY: 43,
+      theme: 'grid',
+      styles: {
+        fontSize: 8,
+        cellPadding: 1.5,
+        lineWidth: 0.1
+      },
+      headStyles: { fillColor: [13, 110, 253], textColor: 255 },
+      alternateRowStyles: { fillColor: [248, 249, 252] },
+      margin: { left: 8, right: 8 },
+      tableWidth: 'auto',
+      columnStyles: {
+        0: { cellWidth: 20 }, 
+        1: { cellWidth: 30 }, 
+        2: { cellWidth: 25 }, 
+        3: { cellWidth: 15 }, 
+        4: { cellWidth: 15 }, 
+        5: { cellWidth: 12 }, 
+        6: { cellWidth: 18 }, 
+        7: { cellWidth: 'auto' } 
+      },
+      didDrawPage: (data) => {
+        const pageCount = doc.internal.getNumberOfPages();
+        const pageHeight = doc.internal.pageSize.height;
+        doc.setFontSize(8);
+        doc.setTextColor(120);
+        doc.text(`Pagina ${pageCount}`, pageWidth - 30, pageHeight - 8);
+      }
+    });
+  
+    const total = Object.values(md.rows).reduce((s, r) => s + (r.minutes || 0), 0);
+    const doel = ((md.targetHours || 0) * 60) + (md.targetMinutes || 0);
+    const diff = total - doel;
+    const endY = doc.lastAutoTable.finalY + 6;
+  
+    doc.setFontSize(11);
+    doc.setTextColor(13, 110, 253);
+    doc.text('Maandoverzicht', 14, endY);
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(9);
+    doc.text(`Doel: ${fmt(doel)}`, 20, endY + 5);
+    doc.text(`Gepland: ${fmt(total)}`, 20, endY + 10);
+    doc.text(`Verschil: ${(diff >= 0 ? '+' : '-') + fmt(Math.abs(diff))}`, 20, endY + 15);
+  
+    const filename = `Shiftplanning_${ud.name || 'gebruiker'}_${monthName}_${year}.pdf`;
+    doc.save(filename);
+    toast('PDF geëxporteerd', 'success');
+});
+
+// ==========================================
+// 29. LEEGMAKEN EN INDIENEN (USER)
+// ==========================================
+document.getElementById('clearMonthBtn')?.addEventListener('click', async () => {
+    const y = Number(yearSelectMain.value);
+    const m = Number(monthSelectMain.value);
+    
+    const status = getMonthStatus(y, m);
+    const ud = getCurrentUserData();
+    const loggedInUser = dataStore.users[currentUserId];
+    const iAmAdmin = loggedInUser && loggedInUser.role === 'admin';
+    
+    if (!iAmAdmin && (status === 'submitted' || status === 'approved')) {
+      return toast('Deze maand is vergrendeld en kan niet worden leeggemaakt.', 'warning');
+    }
+  
+    if (!confirm(`Weet je zeker dat je ALLE shifts voor ${monthsFull[m]} ${y} wilt verwijderen? Dit kan niet ongedaan worden gemaakt.`)) {
+      return;
+    }
+  
+    if (ud.monthData && ud.monthData[y] && ud.monthData[y][m]) {
+      ud.monthData[y][m].rows = {}; 
+      ud.monthData[y][m].status = 'draft'; 
+    }
+  
+    await saveUserData();
+    
+    if(typeof renderMonth === 'function') await renderMonth(y, m);
+    if(typeof updateInputTotals === 'function') updateInputTotals();
+    if(typeof renderHistory === 'function') renderHistory();
+    renderHome();
+    
+    toast(`Planning voor ${monthsFull[m]} ${y} is leeggemaakt.`, 'success');
+});
+  
+document.getElementById('submitMonthBtn')?.addEventListener('click', async () => {
+    const y = Number(yearSelectMain.value);
+    const m = Number(monthSelectMain.value);
+    const status = getMonthStatus(y,m);
+    if (status === 'approved') return toast('Maand is al goedgekeurd', 'info');
+    if (status === 'submitted') return toast('Maand is al ingediend', 'info');
+  
+    await setMonthStatus(y, m, 'submitted');
+    toast('Maand ingediend ter goedkeuring', 'success');
+  
+    const ud = getCurrentUserData();
+    const who = ud.name || ud.email || currentUserId;
+    const subject = `[Planner] Ingediend — ${who} — ${monthsFull[m]} ${y}`;
+    const bodyAdmin = `${who} heeft zojuist ${monthsFull[m]} ${y} ingediend.\n\nOpen Admin > Goedkeuring maand om te beoordelen.`;
+    
+    if(typeof broadcastToAdmins === 'function') {
+        await broadcastToAdmins(subject, bodyAdmin, 'status');
+    }
+  
+    const bodyUser = `Je hebt ${monthsFull[m]} ${y} ingediend ter goedkeuring.\nJe ontvangt een bericht zodra dit is beoordeeld.`;
+    
+    if(typeof sendSystemMail === 'function') {
+        await sendSystemMail(
+            getActiveUserId(),
+            `Planner ingediend — ${monthsFull[m]} ${y}`,
+            `Je planner voor ${monthsFull[m]} ${y} werd ingediend.`,
+            'status',
+            `plan:${currentUserId}:${y}-${m}`
+        );
+    }
+});
+
+// ==========================================
+// 30. NON BILLABLE UREN
+// ==========================================
+const DEFAULT_NB_CATS = ['Administratie', 'Reistijd', 'Interne Meeting', 'Opleiding', 'Ziekte (Kort)'];
+
+function initNonBillable() {
+  const nbMonthSelect = document.getElementById('nbMonthSelect');
+  const nbYearSelect = document.getElementById('nbYearSelect');
+  const nbDateInput = document.getElementById('nbDateInput');
+
+  if(!nbMonthSelect || !nbYearSelect) return;
+
+  const yNow = new Date().getFullYear();
+  nbYearSelect.innerHTML = '';
+  for (let y = yNow - 2; y <= yNow + 2; y++) {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = y;
+    if (y === yNow) opt.selected = true;
+    nbYearSelect.appendChild(opt);
+  }
+  
+  nbMonthSelect.value = new Date().getMonth();
+  if(nbDateInput) nbDateInput.value = new Date().toISOString().slice(0, 10);
+
+  renderNbCategories();
+
+  nbMonthSelect.addEventListener('change', renderNonBillable);
+  nbYearSelect.addEventListener('change', renderNonBillable);
+}
+
+function renderNbCategories() {
+  const nbCategorySelect = document.getElementById('nbCategorySelect');
+  if(!nbCategorySelect) return;
+  
+  const ud = getCurrentUserData();
+  const cats = ud.nonBillableCategories || DEFAULT_NB_CATS;
+  
+  if (!ud.nonBillableCategories) {
+    ud.nonBillableCategories = cats;
+  }
+
+  nbCategorySelect.innerHTML = '';
+  cats.sort().forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c;
+    nbCategorySelect.appendChild(opt);
+  });
+}
+
+document.getElementById('nbAddCategoryBtn')?.addEventListener('click', async () => {
+  const newCat = prompt("Nieuwe categorie naam:");
+  if (!newCat) return;
+
+  const ud = getCurrentUserData();
+  ud.nonBillableCategories = ud.nonBillableCategories || [...DEFAULT_NB_CATS];
+  
+  if (ud.nonBillableCategories.includes(newCat)) {
+    return toast('Categorie bestaat al', 'warning');
+  }
+
+  ud.nonBillableCategories.push(newCat);
+  await saveUserData();
+  
+  renderNbCategories();
+  const nbCategorySelect = document.getElementById('nbCategorySelect');
+  if(nbCategorySelect) nbCategorySelect.value = newCat;
+  toast(`Categorie '${newCat}' toegevoegd`, 'success');
+});
+
+function renderNonBillable() {
+  const nbYearSelect = document.getElementById('nbYearSelect');
+  const nbMonthSelect = document.getElementById('nbMonthSelect');
+  const nbTableBody = document.getElementById('nbTableBody');
+  const nbTotalDisplay = document.getElementById('nbTotalDisplay');
+  const nbYearTotalLabel = document.getElementById('nbYearTotalLabel');
+  const nbYearTotalDisplay = document.getElementById('nbYearTotalDisplay');
+
+  if(!nbYearSelect || !nbMonthSelect || !nbTableBody) return;
+
+  const y = Number(nbYearSelect.value);
+  const m = Number(nbMonthSelect.value);
+  const ud = getCurrentUserData();
+  
+  const md = ud.monthData?.[y]?.[m];
+  const items = md?.nonBillable || [];
+
+  nbTableBody.innerHTML = '';
+  let monthMins = 0;
+
+  if (items.length === 0) {
+    nbTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Geen non-billable uren in deze maand.</td></tr>';
+  } else {
+    items.sort((a,b) => a.date.localeCompare(b.date));
+
+    items.forEach((item, idx) => {
+      monthMins += (item.minutes || 0);
+      
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${item.date.split('-').reverse().join('-')}</td>
+        <td><span class="badge bg-light text-dark border">${item.cat}</span></td>
+        <td>${item.note || ''}</td>
+        <td class="text-mono">${Math.floor(item.minutes/60)}u ${item.minutes%60}m</td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-danger nb-del-btn" data-idx="${idx}">
+            <span class="material-icons-outlined" style="font-size:16px">delete</span>
+          </button>
+        </td>
+      `;
+      nbTableBody.appendChild(tr);
+    });
+  }
+
+  if(nbTotalDisplay) nbTotalDisplay.textContent = `${Math.floor(monthMins/60)}u ${monthMins%60}min`;
+
+  let yearMins = 0;
+  const yearData = ud.monthData?.[y] || {};
+  
+  for (let i = 0; i < 12; i++) {
+    const mData = yearData[i];
+    if (mData && mData.nonBillable) {
+      mData.nonBillable.forEach(itm => {
+        yearMins += (itm.minutes || 0);
+      });
+    }
+  }
+
+  if (nbYearTotalLabel) nbYearTotalLabel.textContent = y;
+  if (nbYearTotalDisplay) {
+    nbYearTotalDisplay.textContent = `${Math.floor(yearMins/60)}u ${yearMins%60}min`;
+  }
+
+  document.querySelectorAll('.nb-del-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      if(!confirm("Verwijderen?")) return;
+      const idx = Number(e.currentTarget.dataset.idx);
+      items.splice(idx, 1); 
+      await saveUserData();
+      renderNonBillable(); 
+      toast('Item verwijderd', 'success');
+    });
+  });
+}
+
+document.getElementById('nbAddBtn')?.addEventListener('click', async () => {
+  const nbCategorySelect = document.getElementById('nbCategorySelect');
+  const nbDateInput = document.getElementById('nbDateInput');
+  const nbHoursInput = document.getElementById('nbHoursInput');
+  const nbMinutesInput = document.getElementById('nbMinutesInput');
+  const nbNoteInput = document.getElementById('nbNoteInput');
+
+  if(!nbCategorySelect || !nbDateInput) return;
+
+  const cat = nbCategorySelect.value;
+  const date = nbDateInput.value;
+  const h = Number(nbHoursInput?.value) || 0;
+  const min = Number(nbMinutesInput?.value) || 0;
+  const note = nbNoteInput?.value.trim();
+
+  if (!cat) return toast('Selecteer een categorie', 'warning');
+  if (!date) return toast('Kies een datum', 'warning');
+  if (h === 0 && min === 0) return toast('Vul een tijd in', 'warning');
+
+  const totalMinutes = (h * 60) + min;
+
+  const dObj = new Date(date);
+  const y = dObj.getFullYear();
+  const m = dObj.getMonth(); 
+
+  const ud = getCurrentUserData();
+  ud.monthData = ud.monthData || {};
+  ud.monthData[y] = ud.monthData[y] || {};
+  ud.monthData[y][m] = ud.monthData[y][m] || { targetHours:0, targetMinutes:0, rows:{} };
+  
+  if (!ud.monthData[y][m].nonBillable) {
+    ud.monthData[y][m].nonBillable = [];
+  }
+
+  ud.monthData[y][m].nonBillable.push({
+    id: Date.now(), 
+    date: date,
+    cat: cat,
+    minutes: totalMinutes,
+    note: note
+  });
+
+  await saveUserData();
+  
+  if(nbNoteInput) nbNoteInput.value = '';
+  if(nbHoursInput) nbHoursInput.value = '';
+  if(nbMinutesInput) nbMinutesInput.value = '';
+  
+  const nbYearSelect = document.getElementById('nbYearSelect');
+  const nbMonthSelect = document.getElementById('nbMonthSelect');
+  if(nbYearSelect) nbYearSelect.value = y;
+  if(nbMonthSelect) nbMonthSelect.value = m;
+  
+  renderNonBillable();
+  toast('Non-billable uren toegevoegd', 'success');
+});
+
+document.querySelector('a[href="#tab-nonbillable"]')?.addEventListener('shown.bs.tab', () => {
+  renderNbCategories();
+  renderNonBillable();
+});
+
+// ==========================================
+// 31. VERSIEBEHEER (BETA)
+// ==========================================
+function renderVersionControls() {
+    const versionSelect = document.getElementById('versionSelect');
+    if (!versionSelect) return;
+  
+    const y = Number(document.getElementById('yearSelectMain').value);
+    const m = Number(document.getElementById('monthSelectMain').value);
+    const ud = getCurrentUserData();
+    
+    const md = ud.monthData?.[y]?.[m];
+    const versions = md?.versions || {}; 
+  
+    const currentVal = versionSelect.value;
+  
+    versionSelect.innerHTML = '<option value="">-- Huidig (Actief) --</option>';
+    
+    Object.keys(versions).forEach(vName => {
+      const opt = document.createElement('option');
+      opt.value = vName;
+      opt.textContent = vName;
+      versionSelect.appendChild(opt);
+    });
+  
+    if (currentVal && versions[currentVal]) {
+      versionSelect.value = currentVal;
+    }
+}
+  
+document.getElementById('addVersionBtn')?.addEventListener('click', async () => {
+    const name = prompt("Geef deze versie een naam (bv. 'Optie A'):");
+    if (!name) return;
+  
+    const y = Number(document.getElementById('yearSelectMain').value);
+    const m = Number(document.getElementById('monthSelectMain').value);
+    const ud = getCurrentUserData();
+    
+    ud.monthData = ud.monthData || {};
+    ud.monthData[y] = ud.monthData[y] || {};
+    ud.monthData[y][m] = ud.monthData[y][m] || { rows: {} };
+    
+    const md = ud.monthData[y][m];
+    md.versions = md.versions || {};
+  
+    if (md.versions[name] && !confirm(`Versie '${name}' bestaat al. Overschrijven?`)) {
+      return;
+    }
+  
+    const rowsSnapshot = JSON.parse(JSON.stringify(md.rows || {}));
+  
+    md.versions[name] = {
+      timestamp: new Date().toISOString(),
+      rows: rowsSnapshot
+    };
+  
+    await saveUserData();
+    renderVersionControls();
+    const versionSelect = document.getElementById('versionSelect');
+    if(versionSelect) versionSelect.value = name; 
+    toast(`Versie '${name}' opgeslagen`, 'success');
+});
+  
+document.getElementById('versionSelect')?.addEventListener('change', async (e) => {
+    const selectedName = e.target.value;
+    if (!selectedName) return; 
+  
+    if (!confirm(`Wil je het actieve rooster overschrijven met '${selectedName}'?\n(Niet-opgeslagen wijzigingen gaan verloren).`)) {
+      renderVersionControls(); 
+      return;
+    }
+  
+    const y = Number(document.getElementById('yearSelectMain').value);
+    const m = Number(document.getElementById('monthSelectMain').value);
+    const ud = getCurrentUserData();
+    const savedVer = ud.monthData?.[y]?.[m]?.versions?.[selectedName];
+  
+    if (savedVer && savedVer.rows) {
+      ud.monthData[y][m].rows = JSON.parse(JSON.stringify(savedVer.rows));
+      
+      await saveUserData();
+      
+      if(typeof renderMonth === 'function') await renderMonth(y, m);
+      if(typeof updateInputTotals === 'function') updateInputTotals();
+      if(typeof renderHistory === 'function') renderHistory();
+      toast(`Versie '${selectedName}' geladen`, 'info');
+    }
+});
+  
+document.getElementById('delVersionBtn')?.addEventListener('click', async () => {
+    const versionSelect = document.getElementById('versionSelect');
+    const selectedName = versionSelect?.value;
+    if (!selectedName) return toast('Selecteer een versie om te verwijderen', 'warning');
+  
+    if (!confirm(`Versie '${selectedName}' definitief verwijderen?`)) return;
+  
+    const y = Number(document.getElementById('yearSelectMain').value);
+    const m = Number(document.getElementById('monthSelectMain').value);
+    const ud = getCurrentUserData();
+  
+    if (ud.monthData?.[y]?.[m]?.versions?.[selectedName]) {
+      delete ud.monthData[y][m].versions[selectedName];
+      await saveUserData();
+      renderVersionControls();
+      toast('Versie verwijderd', 'success');
+    }
+});
+
+// ==========================================
+// 32. UI FIXES & PAINT MODE
+// ==========================================
+document.addEventListener("DOMContentLoaded", () => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @keyframes pulse-blue {
+        0% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.7); }
+        70% { box-shadow: 0 0 0 6px rgba(13, 110, 253, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0); }
+      }
+      .calendar-day.today {
+        border: 2px solid #0d6efd !important;
+        animation: pulse-blue 2s infinite;
+        z-index: 10;
+        background-color: #fff;
+      }
+      .calendar-day.today .day-number { color: #0d6efd; font-weight: 900; font-size: 1.1em; }
+      
+      .calendar-day.weekend { background-color: #f2f4f8 !important; }
+      body.dark-mode .calendar-day.weekend { background-color: #2b2d31 !important; }
+  
+      @media (min-width: 992px) {
+        .table-responsive, #historyTable, .shift-container, .mobile-scroll-wrapper {
+          overflow: visible !important;
+          max-height: none !important;
+          height: auto !important;
+        }
+        body { overflow-y: auto; }
+      }
+  
+      @media (max-width: 991px) {
+        .mobile-scroll-wrapper, .table-responsive {
+          display: block !important;
+          width: 100% !important;
+          overflow-x: auto !important;
+          -webkit-overflow-scrolling: touch !important;
+          margin-bottom: 1rem;
+          padding-bottom: 5px;
+        }
+        
+        .mobile-scroll-wrapper table, 
+        .table-responsive table,
+        table.table {
+          min-width: 800px !important; 
+          width: auto !important;
+        }
+        
+        table td, table th {
+          white-space: nowrap !important;
+          font-size: 0.85rem !important;
+        }
+  
+        .table th, .table td {
+          display: table-cell !important; 
+        }
+  
+        .quick-icons-wrapper { display: none !important; }
+        .calendar-day { min-height: 50px !important; }
+      }
+    `;
+    document.head.appendChild(style);
+  
+    const wrapTables = () => {
+        const tables = document.querySelectorAll('table');
+        tables.forEach(table => {
+          if (table.closest('.calendar-grid')) return;
+  
+          const parent = table.parentElement;
+          const hasWrapper = parent.classList.contains('mobile-scroll-wrapper') || 
+                             parent.classList.contains('table-responsive');
+          
+          if (!hasWrapper) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'mobile-scroll-wrapper';
+            table.parentNode.insertBefore(wrapper, table);
+            wrapper.appendChild(table);
+          } else {
+            parent.classList.add('mobile-scroll-wrapper');
+          }
+        });
+    };
+  
+    wrapTables();
+    setTimeout(wrapTables, 1000);
+});
+
+function initPaintModeUI() {
+    if (document.getElementById('paintPalette')) return;
+  
+    const style = document.createElement('style');
+    style.innerHTML = `
+      #paintPalette {
+        position: fixed;
+        bottom: 20px; left: 50%; transform: translateX(-50%) translateY(150%);
+        background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);
+        padding: 10px 15px; border-radius: 50px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        display: flex; gap: 12px; z-index: 9999;
+        transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        max-width: 95%; overflow-x: auto; border: 1px solid rgba(0,0,0,0.1);
+      }
+      #paintPalette.active { transform: translateX(-50%) translateY(0); }
+      .paint-option {
+        width: 45px; height: 45px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 20px; cursor: pointer; border: 2px solid transparent;
+        transition: all 0.2s; flex-shrink: 0; position: relative;
+      }
+      .paint-option:hover { transform: scale(1.1); }
+      .paint-option.selected {
+        border-color: #000; transform: scale(1.2); box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      }
+      .paint-option.selected::after {
+        content: '✔'; position: absolute; top: -5px; right: -5px;
+        background: #000; color: #fff; font-size: 10px; width: 16px; height: 16px;
+        border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      }
+      #togglePaintBtn { margin-left: 10px; font-weight: 600; white-space: nowrap; }
+      #togglePaintBtn.active { background-color: #0d6efd; color: white; border-color: #0d6efd; }
+    `;
+    document.head.appendChild(style);
+  
+    const palette = document.createElement('div');
+    palette.id = 'paintPalette';
+    document.body.appendChild(palette);
+  
+    const monthSelector = document.getElementById('monthSelectMain');
+    
+    if (monthSelector && monthSelector.parentNode) {
+        const btn = document.createElement('button');
+        btn.id = 'togglePaintBtn';
+        btn.className = 'btn btn-outline-primary btn-sm d-flex align-items-center gap-2';
+        btn.innerHTML = '<span class="material-icons-outlined" style="font-size:18px">brush</span> <span class="d-none d-sm-inline">Verf</span>';
+        btn.onclick = togglePaintMode;
+        
+        monthSelector.parentNode.appendChild(btn);
+    }
+}
+  
+function togglePaintMode() {
+    isPaintMode = !isPaintMode;
+    
+    const palette = document.getElementById('paintPalette');
+    const btn = document.getElementById('togglePaintBtn');
+    const alertBar = document.getElementById('remainingHoursAlert'); 
+    const ud = getCurrentUserData();
+    
+    if (isPaintMode) {
+      palette.classList.add('active');
+      if(btn) btn.classList.add('active');
+      
+      if(alertBar) alertBar.style.display = 'none';
+  
+      const ySel = document.getElementById('yearSelectMain');
+      const mSel = document.getElementById('monthSelectMain');
+      const viewYear = ySel ? Number(ySel.value) : new Date().getFullYear();
+      const viewMonth = mSel ? Number(mSel.value) : new Date().getMonth();
+      
+      const monthStart = new Date(viewYear, viewMonth, 1);
+      const monthEnd = new Date(viewYear, viewMonth + 1, 0); 
+  
+      palette.innerHTML = '';
+      const allShifts = ud.shifts || {};
+      const favs = (ud.shiftOrder || Object.keys(allShifts)).filter(k => allShifts[k].isFavorite);
+      
+      const ICON_MAP = {
+          'light_mode': '☀️', 'wb_twilight': '🌅', 'bedtime': '🌙', 'schedule': '🕒',
+          'star': '⭐', 'school': '🎓', 'medical_services': '🏥', 'flight': '✈️', 
+          'bench': '🪑', 'feestdag': '🎉', 'teammeeting': '👥', 'niet_ingepland': '❌',
+          'vrij_weekend': '😎'
+      };
+  
+      const eraser = document.createElement('div');
+      eraser.className = 'paint-option';
+      eraser.style.background = '#f8f9fa';
+      eraser.innerHTML = '🗑️'; 
+      eraser.onclick = () => selectPaintOption('eraser', eraser);
+      palette.appendChild(eraser);
+  
+      favs.forEach(k => {
+          const sh = allShifts[k];
+          if (!sh) return;
+  
+          if (sh.startDate && new Date(sh.startDate) > monthEnd) return;
+          if (sh.endDate && new Date(sh.endDate) < monthStart) return;
+  
+          const el = document.createElement('div');
+          el.className = 'paint-option';
+          el.style.backgroundColor = sh.color || '#eee';
+          el.innerHTML = ICON_MAP[sh.icon] || '⭐';
+          el.title = sh.realName;
+          el.onclick = () => selectPaintOption(k, el);
+          palette.appendChild(el);
+      });
+      
+      if (palette.children.length > 1) {
+          selectPaintOption(favs[0] || 'eraser', palette.children[1]);
+      } else {
+          selectPaintOption('eraser', eraser);
+      }
+  
+      toast('Verf-modus AAN', 'info');
+  
+    } else {
+      palette.classList.remove('active');
+      if(btn) btn.classList.remove('active');
+      selectedPaintShiftKey = null;
+  
+      if(alertBar) alertBar.style.display = ''; 
+    }
+}
+  
+function selectPaintOption(key, element) {
+      selectedPaintShiftKey = key;
+      document.querySelectorAll('.paint-option').forEach(el => el.classList.remove('selected'));
+      element.classList.add('selected');
+}
+  
+window.applyPaintShift = async (dateKey) => {
+      if (!selectedPaintShiftKey) return;
+  
+      const [yStr, mStr] = dateKey.split('-');
+      const y = Number(yStr);
+      const m = Number(mStr) - 1;
+      const ud = getCurrentUserData();
+  
+      if (!ud.monthData) ud.monthData = {};
+      if (!ud.monthData[y]) ud.monthData[y] = {};
+      if (!ud.monthData[y][m]) ud.monthData[y][m] = { rows: {} };
+      const md = ud.monthData[y][m];
+  
+      if (selectedPaintShiftKey === 'eraser') {
+          const keys = listDayKeys(md, dateKey);
+          keys.forEach(k => delete md.rows[k]);
+          toast('Dag gewist', 'success');
+      } else {
+          const newShift = ud.shifts[selectedPaintShiftKey];
+          if (!newShift) return;
+  
+          let keys = listDayKeys(md, dateKey);
+          let targetKey = keys.length > 0 ? keys[0] : dateKey; 
+  
+          md.rows[targetKey] = {
+              project: md.rows[targetKey]?.project || '',
+              shift: selectedPaintShiftKey,
+              start: newShift.start || '00:00',
+              end: newShift.end || '00:00',
+              break: newShift.break || 0,
+              minutes: 0, 
+              description: md.rows[targetKey]?.description || ''
+          };
+          
+          const r = md.rows[targetKey];
+          if (typeof minutesBetween === 'function') {
+               r.minutes = minutesBetween(r.start, r.end, r.break);
+          }
+      }
+  
+      const id = getActiveUserId();
+      if (id) {
+          const ref = doc(db, 'users', id);
+          await updateDoc(ref, {
+              [`monthData.${y}.${m}.rows`]: md.rows
+          });
+      }
+  
+      if(typeof renderCalendarGrid === 'function') renderCalendarGrid(y, m);
+      if(typeof updateInputTotals === 'function') updateInputTotals();
+      if(typeof renderHistory === 'function') renderHistory();
+};
+  
+setTimeout(initPaintModeUI, 1000);
+
+document.addEventListener('DOMContentLoaded', () => {
+    const mSel = document.getElementById('monthSelectMain');
+    const ySel = document.getElementById('yearSelectMain');
+
+    const turnOffPaint = () => {
+        if (typeof isPaintMode !== 'undefined' && isPaintMode) {
+            togglePaintMode(); 
+        }
+    };
+
+    if (mSel) mSel.addEventListener('change', turnOffPaint);
+    if (ySel) ySel.addEventListener('change', turnOffPaint);
+});
+
+// ==========================================
+// 33. SCREENSHOT & OVERIGE HELPERS
+// ==========================================
+function initScreenshotButton() {
+    if (document.getElementById('btnScreenshot')) return;
+  
+    const script = document.createElement('script');
+    script.src = "https://html2canvas.hertzen.com/dist/html2canvas.min.js";
+    script.onload = () => { console.log('Screenshot module geladen'); };
+    document.head.appendChild(script);
+  
+    const paintBtn = document.getElementById('togglePaintBtn');
+    if (paintBtn && paintBtn.parentNode) {
+        const btn = document.createElement('button');
+        btn.id = 'btnScreenshot';
+        btn.className = 'btn btn-outline-secondary btn-sm d-flex align-items-center gap-2 ms-1';
+        btn.innerHTML = '<span class="material-icons-outlined" style="font-size:18px">photo_camera</span>';
+        btn.title = "Download als afbeelding";
+        btn.onclick = takeScreenshot;
+        
+        paintBtn.parentNode.insertBefore(btn, paintBtn.nextSibling);
+    }
+}
+  
+async function takeScreenshot() {
+    if (typeof html2canvas === 'undefined') {
+        alert('Even geduld, module laadt nog...');
+        return;
+    }
+  
+    const grid = document.getElementById('monthlyCalendarGrid');
+    if (!grid) return;
+  
+    const mSel = document.getElementById('monthSelectMain');
+    const ySel = document.getElementById('yearSelectMain');
+    const titleText = (mSel && ySel) 
+        ? `${mSel.options[mSel.selectedIndex].text} ${ySel.value}` 
+        : 'Mijn Rooster';
+  
+    toast('Afbeelding maken...', 'info');
+  
+    const originalOverflow = grid.style.overflow;
+    grid.style.overflow = 'visible'; 
+  
+    try {
+        const canvas = await html2canvas(grid, {
+            scale: 2, 
+            backgroundColor: '#ffffff',
+            useCORS: true,
+            
+            onclone: (clonedDoc) => {
+                const icons = clonedDoc.querySelectorAll('.quick-icons-wrapper');
+                icons.forEach(el => el.style.display = 'none');
+                
+                const addButtons = clonedDoc.querySelectorAll('.addLineBtn, .delLineBtn');
+                addButtons.forEach(btn => btn.style.display = 'none');
+  
+                const todayCell = clonedDoc.querySelector('.calendar-day.today');
+                if (todayCell) {
+                    todayCell.classList.remove('today');
+                }
+  
+                const clGrid = clonedDoc.getElementById('monthlyCalendarGrid');
+                const titleDiv = clonedDoc.createElement('div');
+                titleDiv.innerText = titleText;
+                
+                titleDiv.style.gridColumn = "1 / -1"; 
+                titleDiv.style.textAlign = "center";
+                titleDiv.style.fontSize = "24px";
+                titleDiv.style.fontWeight = "bold";
+                titleDiv.style.marginBottom = "15px";
+                titleDiv.style.padding = "10px";
+                titleDiv.style.color = "#333";
+                titleDiv.style.fontFamily = "sans-serif";
+                
+                clGrid.insertBefore(titleDiv, clGrid.firstChild);
+            }
+        });
+  
+        const link = document.createElement('a');
+        link.download = `Rooster-${titleText.replace(/ /g, '-')}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        
+        toast('Afbeelding gedownload!', 'success');
+  
+    } catch (err) {
+        console.error(err);
+        toast('Mislukt', 'error');
+    } finally {
+        grid.style.overflow = originalOverflow;
+    }
+}
+  
+setTimeout(initScreenshotButton, 1500);
+
+document.addEventListener('DOMContentLoaded', () => {
+    const adminBtn = document.getElementById('adminTabBtn');
+    if (adminBtn) {
+      adminBtn.classList.remove('d-none');
+      adminBtn.addEventListener('shown.bs.tab', async () => {
+         if (typeof renderAdminUserSelect === 'function') {
+             await renderAdminUserSelect();
+         }
+         if (typeof renderAdminMonthlyMulti === 'function') {
+             renderAdminMonthlyMulti();
+         }
+      });
+    }
+});
+
+document.getElementById('adminStatusMenu')?.addEventListener('click', async (e) => {
+    const item = e.target.closest('.dropdown-item');
+    if (!item) return;
+    const newStatus = item.dataset.status;
+    e.preventDefault();
+  
+    const y = Number(document.getElementById('yearSelectMain').value);
+    const m = Number(document.getElementById('monthSelectMain').value);
+    const uid = getActiveUserId(); 
+  
+    const iAmAdmin = dataStore.users[currentUserId]?.role === 'admin';
+    if (!iAmAdmin) {
+      toast('Alleen admin.', 'warning');
+      return;
+    }
+  
+    try {
+      if (newStatus === 'approved') {
+        const comment = prompt('Bericht bij goedkeuring:', '');
+        if(typeof approveMonthLogic === 'function') await approveMonthLogic(uid, y, m, comment);
+        toast('Goedgekeurd', 'success');
+      } 
+      else if (newStatus === 'rejected') {
+        const comment = prompt('Reden voor afkeuring:', '');
+        if(typeof rejectMonthLogic === 'function') await rejectMonthLogic(uid, y, m, comment);
+        toast('Afgekeurd (Uren teruggegeven)', 'warning');
+      } 
+      else if (newStatus === 'draft') {
+        if(typeof setMonthStatus === 'function') await setMonthStatus(y, m, 'draft'); 
+        toast('Terug naar concept', 'info');
+      }
+  
+      if(typeof renderMonth === 'function') await renderMonth(y, m);
+      if(typeof updateMonthStatusBadge === 'function') updateMonthStatusBadge();
+      if(typeof updateLeaveBadges === 'function') updateLeaveBadges(); 
+      
+    } catch (err) {
+      console.error(err);
+      toast('Fout bij status wijziging', 'danger');
+    }
+});
+
+document.addEventListener('click', (e) => {
+    const badge = e.target.closest('#leaveBalanceBadge, #schoolLeaveBalanceBadge');
+    if (!badge) return;
+  
+    const iAmAdmin = dataStore.users[currentUserId]?.role === 'admin';
+    if (!iAmAdmin) return;
+  
+    if (badge.id === 'leaveBalanceBadge') {
+      const yrSelect = document.getElementById('quickLeaveYearSelect');
+      if (yrSelect.options.length === 0) {
+        const curY = new Date().getFullYear();
+        for(let y = curY-2; y <= curY+2; y++) {
+          yrSelect.insertAdjacentHTML('beforeend', `<option value="${y}">${y}</option>`);
+        }
+        yrSelect.value = yearSelectMain.value; 
+      }
+      if(typeof loadQuickLeaveValue === 'function') loadQuickLeaveValue();
+    } 
+    else if (badge.id === 'schoolLeaveBalanceBadge') {
+      const schYrSelect = document.getElementById('quickSchoolYearSelect');
+      if (schYrSelect.options.length === 0) {
+        if(typeof buildSchoolYearOptions === 'function') buildSchoolYearOptions(schYrSelect);
+        if(typeof getAcademicYearBounds === 'function') {
+            const { label } = getAcademicYearBounds(Number(yearSelectMain.value), Number(monthSelectMain.value));
+            schYrSelect.value = label;
+        }
+      }
+      if(typeof loadQuickSchoolValue === 'function') loadQuickSchoolValue();
+    }
+});
+
+function loadQuickLeaveValue() {
+    const uid = getActiveUserId();
+    const mins = dataStore.users[uid]?.settings?.leaveAllowanceMinutes || 0;
+    const el = document.getElementById('quickAdminLeaveHours');
+    if(el) el.value = Math.floor(mins / 60) || '';
+}
+  
+function loadQuickSchoolValue() {
+    const uid = getActiveUserId();
+    const el = document.getElementById('quickSchoolYearSelect');
+    const label = el ? el.value : '';
+    const map = dataStore.users[uid]?.settings?.schoolLeaveByYear || {};
+    const mins = map[label] || 0;
+    const inputEl = document.getElementById('quickAdminSchoolHours');
+    if(inputEl) inputEl.value = Math.floor(mins / 60) || '';
+}
+
+document.getElementById('quickLeaveYearSelect')?.addEventListener('change', loadQuickLeaveValue);
+document.getElementById('quickSchoolYearSelect')?.addEventListener('change', loadQuickSchoolValue);
+
+document.getElementById('btnSaveQuickLeave')?.addEventListener('click', async () => {
+    const hours = Number(document.getElementById('quickAdminLeaveHours').value);
+    const uid = getActiveUserId();
+    const ud = dataStore.users[uid];
+    
+    ud.settings = ud.settings || {};
+    ud.settings.leaveAllowanceMinutes = hours * 60;
+  
+    await saveUserData();
+    if(typeof updateLeaveBadges === 'function') updateLeaveBadges();
+    toast('Verlof saldo opgeslagen', 'success');
+});
+  
+document.getElementById('btnSaveQuickSchoolLeave')?.addEventListener('click', async () => {
+    const hours = Number(document.getElementById('quickAdminSchoolHours').value);
+    const label = document.getElementById('quickSchoolYearSelect').value;
+    const uid = getActiveUserId();
+    const ud = dataStore.users[uid];
+  
+    ud.settings = ud.settings || {};
+    ud.settings.schoolLeaveByYear = ud.settings.schoolLeaveByYear || {};
+    ud.settings.schoolLeaveByYear[label] = hours * 60;
+  
+    await saveUserData();
+    if(typeof updateLeaveBadges === 'function') updateLeaveBadges();
+    toast(`Schoolverlof voor ${label} opgeslagen`, 'success');
+});
+
+async function renderUserDataAsAdmin(uid) {
+    if (!dataStore.users[uid]) {
+       const snap = await getDoc(doc(db, 'users', uid));
+       if (snap.exists()) {
+         dataStore.users[uid] = snap.data();
+       }
+    }
+    
+    dataStore.viewUserId = uid;
+    
+    if(typeof renderProjects === 'function') renderProjects();
+    if(typeof renderShifts === 'function') renderShifts();
+    if(typeof populateFilterShiftYears === 'function') populateFilterShiftYears();
+    if(typeof renderProjectFilterForMonth === 'function') renderProjectFilterForMonth();
+    if(typeof generateMonth === 'function') await generateMonth(); 
+    if(typeof renderHistory === 'function') renderHistory();
+    
+    if (typeof hydrateAdminLeaveInputsFor === 'function') {
+      hydrateAdminLeaveInputsFor(uid);
+    }
+  
+    const u = dataStore.users[uid];
+    const name = u ? (u.name || u.email || uid) : "Onbekend";
+    
+    const lblAdmin = document.getElementById('activeUserLabel');
+    if (lblAdmin) lblAdmin.textContent = name;
+    
+    const lblApprove = document.getElementById('approvalActiveUserLabel');
+    if (lblApprove) lblApprove.textContent = name;
+    
+    const settingsName = document.getElementById('adminSettingsName');
+    if (settingsName) settingsName.textContent = name;
+}
+
+function getBelgianHoliday(dateObj) {
+    const year = dateObj.getFullYear();
+    const month = dateObj.getMonth(); 
+    const day = dateObj.getDate();
+    
+    if (month === 0 && day === 1)   return { name: 'Nieuwjaar', emoji: '🥂' };
+    if (month === 0 && day === 6)   return { name: 'Driekoningen', emoji: '👑' }; 
+    if (month === 4 && day === 1)   return { name: 'Dag v/d Arbeid', emoji: '🛠️' };
+    if (month === 6 && day === 11)  return { name: 'Vlaamse Feestdag', emoji: '🦁' }; 
+    if (month === 6 && day === 21)  return { name: 'Nationale Feestdag', emoji: '🇧🇪' };
+    if (month === 7 && day === 15)  return { name: 'O.L.V. Hemelvaart', emoji: '⛪' };
+    if (month === 10 && day === 1)  return { name: 'Allerheiligen', emoji: '🍂' };
+    if (month === 10 && day === 2)  return { name: 'Allerzielen', emoji: '🕯️' }; 
+    if (month === 10 && day === 11) return { name: 'Wapenstilstand', emoji: '🌺' };
+    if (month === 11 && day === 25) return { name: 'Kerstmis', emoji: '🎄' };
+    if (month === 11 && day === 26) return { name: '2e Kerstdag', emoji: '🎄' }; 
+  
+    if (month === 1 && day === 14)  return { name: 'Valentijn', emoji: '❤️' };
+    if (month === 3 && day === 1)   return { name: '1 April', emoji: '🃏' };
+    if (month === 5 && day === 14)   return { name: 'Kaat & Jaider', emoji: '🧑🏽‍❤️‍💋‍👩🏼' };
+    if (month === 5 && day === 26)   return { name: 'Kaat', emoji: '🎂' };
+    if (month === 9 && day === 31)  return { name: 'Halloween', emoji: '🎃' };
+    if (month === 11 && day === 6)  return { name: 'Sinterklaas', emoji: '🎁' };
+    if (month === 11 && day === 7)   return { name: 'Jaider', emoji: '🎂' };
+    if (month === 11 && day === 31) return { name: 'Oudejaarsavond', emoji: '🍾' };
+  
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const monthEaster = Math.floor((h + l - 7 * m + 114) / 31) - 1;
+    const dayEaster = ((h + l - 7 * m + 114) % 31) + 1;
+    
+    const easterDate = new Date(year, monthEaster, dayEaster);
+    const oneDay = 24 * 60 * 60 * 1000;
+    const diffDays = Math.round((dateObj - easterDate) / oneDay);
+  
+    if (diffDays === 0)  return { name: 'Pasen', emoji: '🐣' };
+    if (diffDays === 1)  return { name: 'Paasmaandag', emoji: '🐣' };
+    if (diffDays === 39) return { name: 'O.L.H. Hemelvaart', emoji: '🕊️' };
+    if (diffDays === 49) return { name: 'Pinksteren', emoji: '🕯️' };
+    if (diffDays === 50) return { name: 'Pinkstermaandag', emoji: '🕯️' };
+  
+    if (month === 4) { 
+      const firstDayMay = new Date(year, 4, 1).getDay(); 
+      const offset = firstDayMay === 0 ? 0 : 7 - firstDayMay; 
+      const secondSunday = 1 + offset + 7;
+      if (day === secondSunday) return { name: 'Moederdag', emoji: '💐' };
+    }
+    
+    if (month === 5) { 
+      const firstDayJune = new Date(year, 5, 1).getDay();
+      const offset = firstDayJune === 0 ? 0 : 7 - firstDayJune;
+      const secondSunday = 1 + offset + 7;
+      if (day === secondSunday) return { name: 'Vaderdag', emoji: '👔' };
+    }
+
+    if (month === 0) { 
+      const daySix = new Date(year, 0, 6).getDay(); 
+      let daysToAdd = (1 - daySix + 7) % 7;
+      if (daysToAdd === 0) daysToAdd = 7;
+      
+      const verlorenMaandagDag = 6 + daysToAdd;
+      if (day === verlorenMaandagDag) return { name: 'Verloren maandag', emoji: '🌭' };
+    }
+    return null;
+}
+
+function getSchoolHolidayInfo(year, month) {
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const monthEaster = Math.floor((h + l - 7 * m + 114) / 31) - 1;
+    const dayEaster = ((h + l - 7 * m + 114) % 31) + 1;
+    const easterDate = new Date(year, monthEaster, dayEaster);
+  
+    const ashWed = new Date(easterDate);
+    ashWed.setDate(easterDate.getDate() - 46);
+    const krokusStart = new Date(ashWed);
+    const dayAsh = ashWed.getDay(); 
+    krokusStart.setDate(ashWed.getDate() - (dayAsh - 1)); 
+    const krokusEnd = new Date(krokusStart);
+    krokusEnd.setDate(krokusStart.getDate() + 6);
+  
+    if (month === krokusStart.getMonth() || month === krokusEnd.getMonth()) {
+       if (month === krokusStart.getMonth()) {
+          return { name: 'Krokusvakantie', start: krokusStart, end: krokusEnd, icon: '🎭' };
+       }
+    }
+  
+    let paasStart, paasEnd;
+    const easterMonday = new Date(easterDate);
+    easterMonday.setDate(easterDate.getDate() + 1);
+  
+    if (easterDate.getMonth() === 2 || (easterDate.getMonth() === 3 && easterDate.getDate() <= 15)) {
+        paasStart = new Date(easterMonday);
+        paasEnd = new Date(paasStart);
+        paasEnd.setDate(paasStart.getDate() + 13); 
+    } else {
+        paasEnd = new Date(easterMonday);
+        paasStart = new Date(paasEnd);
+        paasStart.setDate(paasEnd.getDate() - 14); 
+    }
+  
+    if (month === paasStart.getMonth() || month === paasEnd.getMonth()) {
+       if (month === paasStart.getMonth()) {
+           return { name: 'Paasvakantie', start: paasStart, end: paasEnd, icon: '🐣' };
+       }
+    }
+  
+    if (month === 6) return { name: 'Zomervakantie', fullMonth: true, icon: '☀️' };
+    if (month === 7) return { name: 'Zomervakantie', fullMonth: true, icon: '🏖️' };
+  
+    const nov1 = new Date(year, 10, 1);
+    let herfstStart = new Date(nov1);
+    let dayNov1 = nov1.getDay(); 
+    
+    if (dayNov1 === 0) {
+        herfstStart.setDate(nov1.getDate() + 1);
+    } else {
+        herfstStart.setDate(nov1.getDate() - (dayNov1 - 1));
+    }
+    
+    const herfstEnd = new Date(herfstStart);
+    herfstEnd.setDate(herfstStart.getDate() + 6);
+  
+    if (month === 10) { 
+        if (herfstStart.getMonth() === month) {
+           return { name: 'Herfstvakantie', start: herfstStart, end: herfstEnd, icon: '🍂' };
+        }
+        if (month === 9 && herfstStart.getMonth() === 9) {
+           return { name: 'Herfstvakantie', start: herfstStart, end: herfstEnd, icon: '🍂' };
+        }
+    }
+  
+    let referenceYear = year;
+    if (month === 0) referenceYear = year - 1;
+    
+    const xmasRef = new Date(referenceYear, 11, 25);
+    let dayXmas = xmasRef.getDay();
+    if (dayXmas === 0) dayXmas = 7;
+    
+    const kerstStart = new Date(xmasRef);
+    kerstStart.setDate(xmasRef.getDate() - (dayXmas - 1));
+    
+    const kerstEnd = new Date(kerstStart);
+    kerstEnd.setDate(kerstStart.getDate() + 13); 
+  
+    if (month === 11 || month === 0) {
+        const sM = kerstStart.getMonth();
+        const eM = kerstEnd.getMonth();
+        
+        if (sM === month || eM === month) {
+             return { name: 'Kerstvakantie', start: kerstStart, end: kerstEnd, icon: '🎄' };
+        }
+    }
+    
+    return null;
+}
+
+document.addEventListener('DOMContentLoaded', initNonBillable);
