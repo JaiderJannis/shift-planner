@@ -30,7 +30,7 @@
 <!-- Flatpickr CSS -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   
-  <!-- Styling -->
+  <!-- ✅ Vervangen: De inline style is verplaatst naar app-style.css -->
   <link rel="stylesheet" href="app.css">
 
 </head>
@@ -99,7 +99,7 @@
       <option value="">-- Beheer --</option>
     </select>
   </div>
-  <!-- Notificatieknop -->
+  <!-- 🔔 Notificatieknop -->
   <div class="position-relative">
     <button id="notifBtn" class="btn btn-outline-secondary btn-sm position-relative">
       <span class="material-icons-outlined">notifications</span>
@@ -121,7 +121,7 @@
     </div>
   </div>
 
-  <!-- Mijn profiel -->
+  <!-- 🚪 Mijn profiel -->
   <a id="topbarProfileBtn" data-bs-toggle="modal" data-bs-target="#profileModal" href="#" title="Mijn Profiel">
   <img id="topbarProfilePhoto" src="" alt="Profiel" class="rounded-circle" style="width: 32px; height: 32px; object-fit: cover; cursor: pointer; border: 1px solid #dee2e6;">
 </a>
@@ -413,7 +413,6 @@
     <div class="d-flex flex-wrap gap-2 ms-xl-auto">
       <button id="exportPdfBtn" class="btn btn-outline-danger btn-sm">
         <span class="material-icons-outlined align-middle" style="font-size:16px">picture_as_pdf</span> PDF
-      </button>
       <button id="clearMonthBtn" class="btn btn-outline-danger btn-sm" title="Maand leegmaken">
         <span class="material-icons-outlined align-middle" style="font-size:16px">delete_sweep</span> Leegmaken
       </button>
@@ -423,6 +422,7 @@
     </div>
   </div>
 
+  <div class="row g-2 mb-3 align-items-center">
   <div class="row g-2 mb-3 align-items-center">
     <div class="col-auto"><label class="col-form-label col-form-label-sm fw-bold text-muted">Doel:</label></div>
     <div class="col-auto">
@@ -1195,19 +1195,26 @@
   </div>
 </div>
 
-  <!-- Scripts -->
+  <!-- Bootstrap -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- JSPDF -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/nl.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <!-- ✅ SortableJS voor drag & drop -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<!-- Flatpickr JS -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<!-- Flatpickr NL taal -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/nl.js"></script>
+  
+  <!-- ✅ Vervangen: De inline script is verplaatst naar app-script.js -->
   <script type="module" src="app.js"></script>
 
-  <div id="loadingOverlay" class="loading-overlay d-none">
-    <div class="spinner-border text-light" role="status">
-      <span class="visually-hidden">Laden...</span>
-    </div>
-  </div>  
+<!-- 🔄 Loading overlay -->
+<div id="loadingOverlay" class="loading-overlay d-none">
+  <div class="spinner-border text-light" role="status">
+    <span class="visually-hidden">Laden...</span>
+  </div>
+</div>  
 </body>
 </html>
