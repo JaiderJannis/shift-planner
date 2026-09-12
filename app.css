@@ -1,967 +1,589 @@
-:root {
-  --sp-sidebar-w: 260px;
-  --sp-sidebar-w-collapsed: 78px;
-}
-body { background: #f5f7fb; }
-/* Sidebar */
-.sp-sidebar {
-  position: fixed; inset: 0 auto 0 0;
-  width: var(--sp-sidebar-w); background: #0d6efd; color: #fff;
-  padding-top: 64px; transition: width .25s ease, left .25s ease;
-  z-index: 1031;
-}
-.sp-sidebar.collapsed { width: var(--sp-sidebar-w-collapsed); }
-.sp-sidebar .nav-link {
-  color: #fff; display: flex; align-items: center; gap: 10px; padding: 10px 16px;
-  border-radius: .375rem; margin: 2px 10px;
-}
-.sp-sidebar .nav-link.active, .sp-sidebar .nav-link:hover { background: rgba(255,255,255,.18); }
-.sp-sidebar .label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sp-sidebar.collapsed .label { display: none; }
+/* =========================================================
+   SHIFT PLANNER — DESIGN SYSTEM v2
+   Alle IDs/klassen die app.js gebruikt blijven ongewijzigd.
+   Enkel de visuele laag is vernieuwd.
+   ========================================================= */
 
-/* Topbar */
-.sp-topbar { position: fixed; top: 0; left: 0; right: 0; height: 64px; background: #fff; border-bottom: 1px solid #e9edf5; z-index: 1032; }
+:root{
+  --sp-sidebar-w: 268px;
+  --sp-sidebar-w-collapsed: 82px;
 
-/* Main content */
-.sp-main { padding: 86px 20px 24px; margin-left: var(--sp-sidebar-w); transition: margin-left .25s ease; }
-.sp-main.collapsed { margin-left: var(--sp-sidebar-w-collapsed); }
+  --sp-primary: #4f46e5;
+  --sp-primary-dark: #4338ca;
+  --sp-primary-light: #eef2ff;
+  --sp-accent: #06b6d4;
 
-/* Mobile: sidebar overlay */
-@media (max-width: 768px) {
-  .sp-sidebar { left: -100%; }
-  .sp-sidebar.show { left: 0; }
-  .sp-main, .sp-main.collapsed { margin-left: 0; }
+  --sp-bg: #f4f5fb;
+  --sp-surface: #ffffff;
+  --sp-border: #e7e8f2;
+  --sp-text: #1e2130;
+  --sp-text-muted: #767a92;
+
+  --sp-radius-sm: 8px;
+  --sp-radius: 14px;
+  --sp-radius-lg: 20px;
+
+  --sp-shadow-sm: 0 1px 2px rgba(23,24,55,.04), 0 1px 1px rgba(23,24,55,.03);
+  --sp-shadow: 0 8px 24px -8px rgba(30,33,64,.12);
+  --sp-shadow-lg: 0 20px 45px -12px rgba(30,33,64,.22);
+
+  --sp-font: "Plus Jakarta Sans", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
-.table-nowrap td, .table-nowrap th { white-space: nowrap; }
-.text-mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
-.chip {display:inline-flex;align-items:center;gap:6px;padding:.25rem .5rem;border-radius:999px;background:#eef4ff;color:#0d6efd;font-size:.8rem}
-.chip .dot{width:.5rem;height:.5rem;border-radius:50%;background:#0d6efd}
-.drag-handle:hover { color: #0d6efd; transform: scale(1.15); }
-.sortable-chosen { background-color: #f0f8ff !important; }
-.sortable-ghost { opacity: 0.6; }
-#quickTopBtn {
-  border-color: #fd7e14 !important;   /* zachter oranje */
-  color: #fd7e14 !important;
-  transition: all .15s ease;
+*{ box-sizing: border-box; }
+
+html, body {
+  font-family: var(--sp-font);
 }
 
-#quickTopBtn:hover {
-  background-color: #fd7e14 !important;
-  color: #fff !important;
-  transform: scale(1.05);
-}
-@media (max-width: 768px) {
-  #exportPdfBtn {
-    font-size: 0.9rem;
-    padding: 6px 10px;
-  }
-}
-@media (max-width: 768px) {
-  #multiDayShiftBtn {
-    font-size: 0.9rem;
-    padding: 6px 10px;
-  }
-}
-#notifList li.unread {
-  font-weight: 600;
-}
-.sp-topbar .ms-auto {
-  margin-left: auto !important;
-}
-#notifDropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  z-index: 1050; /* hoger dan navbar */
-  display: none;
+body {
+  background: var(--sp-bg);
+  color: var(--sp-text);
+  -webkit-font-smoothing: antialiased;
 }
 
-#notifDropdown.show {
-  display: block !important;
-}
-/* === 🌙 Donkere modus === */
-body.dark-mode {
-  background-color: #1e1e1e !important;
-  color: #eaeaea !important;
-}
+h1,h2,h3,h4,h5,h6, .modal-title, .card-title { font-family: var(--sp-font); font-weight: 700; letter-spacing: -.01em; }
 
-body.dark-mode .sp-topbar {
-  background-color: #2b2b2b !important;
-  border-bottom-color: #444 !important;
-}
+/* subtle custom scrollbar */
+::-webkit-scrollbar{ width: 10px; height: 10px; }
+::-webkit-scrollbar-track{ background: transparent; }
+::-webkit-scrollbar-thumb{ background: #d7d9ec; border-radius: 20px; border: 2px solid var(--sp-bg); }
+::-webkit-scrollbar-thumb:hover{ background: #b9bcdb; }
 
-body.dark-mode .sp-sidebar {
-  background-color: #111 !important;
-}
+/* =========================================================
+   BOOTSTRAP LOOK & FEEL OVERRIDES
+   ========================================================= */
+.btn { border-radius: 10px; font-weight: 600; letter-spacing: .01em; transition: transform .12s ease, box-shadow .12s ease, background-color .15s ease, color .15s ease, border-color .15s ease; }
+.btn:active { transform: translateY(1px); }
+.btn-sm { border-radius: 8px; }
+.btn-primary { background: var(--sp-primary); border-color: var(--sp-primary); }
+.btn-primary:hover, .btn-primary:focus { background: var(--sp-primary-dark); border-color: var(--sp-primary-dark); }
+.btn-outline-primary { color: var(--sp-primary); border-color: var(--sp-primary); }
+.btn-outline-primary:hover { background: var(--sp-primary); border-color: var(--sp-primary); }
+.btn-link { color: var(--sp-primary); }
 
-body.dark-mode .sp-main {
-  background-color: #1e1e1e !important;
-  color: #eaeaea !important;
+.form-control, .form-select {
+  border-radius: 10px;
+  border-color: var(--sp-border);
+  background-color: #fbfbfe;
 }
+.form-control:focus, .form-select:focus {
+  border-color: var(--sp-primary);
+  box-shadow: 0 0 0 .2rem rgba(79,70,229,.15);
+  background-color: #fff;
+}
+.form-control-color { border-radius: 10px; }
 
-body.dark-mode .table {
-  color: #ddd !important;
+.card {
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius);
+  background: var(--sp-surface);
 }
+.card.shadow-sm { box-shadow: var(--sp-shadow-sm) !important; }
+.card-header { background: var(--sp-surface); border-bottom: 1px solid var(--sp-border); border-top-left-radius: var(--sp-radius) !important; border-top-right-radius: var(--sp-radius) !important; }
 
-body.dark-mode .table thead {
-  background-color: #333 !important;
-  color: #fff !important;
-}
-
-body.dark-mode .modal-content {
-  background-color: #2b2b2b !important;
-  color: #eaeaea !important;
-}
-
-body.dark-mode .btn-outline-secondary {
-  color: #eaeaea !important;
-  border-color: #666 !important;
-}
-body.dark-mode .alert-info {
-  background-color: #2b3e50 !important;
-  color: #eaeaea !important;
-  border-color: #3d5065 !important;
-}
-body.dark-mode .alert-success {
-  background-color: #244c2c !important;
-  color: #a8f0a5 !important;
-}
-body.dark-mode .alert-warning {
-  background-color: #4d3a13 !important;
-  color: #ffe7a0 !important;
-}
-body.dark-mode .alert-danger {
-  background-color: #5b1b1b !important;
-  color: #ffbdbd !important;
-}
-/* 🌊 Altijd zwevende resterende uren-balk */
-#remainingHoursAlert {
-  position: fixed !important;
-  bottom: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2000;
-  width: auto;
-  max-width: 90%;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 0.75rem;
-  padding: 8px 16px;
-  font-size: 0.9rem;
-  text-align: center;
-  transition: all 0.3s ease-in-out;
-  opacity: 0.95; /* subtiel transparant */
-}
-/* Verberg de balk met een animatie als een modal open is */
-body.modal-open #remainingHoursAlert {
-  opacity: 0;
-  visibility: hidden;
-  transform: translateX(-50%) translateY(100%); /* Schuif naar beneden */
-}
-/* 📱 Mobiel — iets breder */
-@media (max-width: 768px){
-  #exportPdfBtn,
-  #multiDayShiftBtn,
-  #clearMonthBtn,
-  #submitMonthBtn{
-    --bs-btn-padding-y: .375rem;   /* hoogte (≈ 6px) */
-    --bs-btn-padding-x: .75rem;    /* breedte */
-    --bs-btn-line-height: 1.2;
-    font-size: 1rem;
-    padding: var(--bs-btn-padding-y) var(--bs-btn-padding-x) !important;
-  }
-}
-/* === 🔄 Loading overlay === */
-.loading-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-}
-.main-content, .container {
-  overflow: visible !important;
-}
-/* 📱 Op mobiel: knoppen onder elkaar even breed maken */
-@media (max-width: 768px) {
-  #exportPdfBtn,
-  #multiDayShiftBtn,
-  #clearMonthBtn,
-  #submitMonthBtn{
-    display: block;
-    width: 100%;
-    max-width: 320px;   /* optioneel: begrenst de breedte */
-    margin: 0 auto 0.5rem auto;
-  }
-}
-/* 🔶 Dagen met geplande shift */
-.flatpickr-day.planned-day {
-  background-color: #ffc107 !important; /* geel */
-  color: #000 !important;
-  border-radius: 50% !important;
-  font-weight: 600;
-  border: 2px solid #e0a800 !important;
-}
-.flatpickr-day.selected.planned-day {
-  background-color: #ff9800 !important; /* oranje */
-  color: white !important;
-}
-/* ── Maandstatus badges ─────────────────────────────── */
-.badge-status { font-weight: 600; }
-.badge-draft { background:#e9ecef; color:#495057; }
-.badge-submitted { background:#e7f1ff; color:#0d6efd; }
-.badge-approved { background:#e6f4ea; color:#1e7e34; }
-.badge-rejected { background:#fdecea; color:#842029; }
-/* mini actieknoppen in de invoertabel */
-.btn-line{
-  --bs-btn-padding-y: .15rem;
-  --bs-btn-padding-x: .35rem;
-  --bs-btn-font-size: .75rem;
-  line-height: 1;
-}
-/* Acties-kolom smal + niet afbreken */
-#thActions{ width:1%; white-space:nowrap; }
-td.actions-cell{ white-space:nowrap; }  
-.btn-success { font-weight: 600; }
-.badge.bg-secondary-subtle { background-color: #f1f3f5 !important; color: #495057 !important; }
-body.dark-mode .badge.bg-secondary-subtle { background-color: #2e2e2e !important; color: #ddd !important; }
-/* Compacte projectkaarten (Invoer) */
-#projectSummary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: .5rem;
-}
-
-.project-mini {
-  background: #fff;
-  border: 1px solid #e9edf5;
-  border-radius: .5rem;
-  padding: .5rem .75rem;          /* klein! */
-}
-
-.project-mini .meta { 
-  color: #6c757d; 
-  font-size: .75rem; 
-}
-.project-mini .title { 
-  font-weight: 600; 
-  font-size: .95rem; 
-}
-.project-mini .value { 
-  font-variant-numeric: tabular-nums; 
-  font-weight: 700; 
-}
-
-/* Donkere modus matchen */
-body.dark-mode #projectSummary .project-mini {
-  background: #2b2b2b;
-  border-color: #444;
-  color: #eaeaea;
-}
-body.dark-mode #projectSummary .meta { color: #aaa; }
-/* 🔸 Fade animaties */
-.fade-in {
-  animation: fadeIn 0.3s ease-in forwards;
-}
-
-.fade-out {
-  animation: fadeOut 0.3s ease-out forwards;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes fadeOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-
-/* 🔸 Volledig verbergen */
-.hidden-col {
-  display: none !important;
-}
-/* === Mailbox Mobile Fixes === */
-@media (max-width: 576px) {
-  /* Verberg datum-tekst in de lijst (is zichtbaar in detail) */
-  .mail-meta {
-    display: none;
-  }
-  /* Zorg dat actieknoppen niet te breed worden */
-  #mailListTable .btn {
-    padding: .15rem .3rem;
-    font-size: .8rem;
-  }
-}
-/* Accentkleur-kiezer bolletjes */
-.color-picker-wrap {
-  display: flex;
-  gap: 10px;
-  margin-top: 8px;
-  flex-wrap: wrap;
-}
-.color-dot {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  cursor: pointer;
-  border: 3px solid #fff;
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.2);
-  transition: all 0.15s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-body.dark-mode .color-dot {
-  border-color: #444;
-}
-.color-dot.selected {
-  border-color: #000;
-  box-shadow: 0 0 0 2px rgba(0,0,0,0.5);
-  transform: scale(1.1);
-}
-body.dark-mode .color-dot.selected {
-  border-color: #fff;
-}
-/* Fix voor Flatpickr in een Modal */
-.flatpickr-calendar {
-  z-index: 2051 !important;
-}
-/* === Donkere modus voor Goedkeuring-kaarten === */
-body.dark-mode #approvalYearlyOverview .card {
-  background-color: #2b2b2b !important;
-  border-color: #444 !important;
-  color: #eaeaea !important;
-}
-
-body.dark-mode #approvalYearlyOverview .btn-outline-secondary {
-  color: #eaeaea !important;
-  border-color: #666 !important;
-}
-
-body.dark-mode #approvalYearlyOverview .btn-outline-secondary:hover {
-  background-color: #666 !important;
-  color: #fff !important;
-}
-/* === Verlof Status Iconen === */
-.shift-status-icon {
-  font-size: 16px;
-  vertical-align: middle;
-  margin-left: 4px;
-}
-.status-pending {
-  color: #fd7e14; /* Oranje */
-}
-.status-approved {
-  color: #198754; /* Groen */
-}
-.status-rejected {
-  color: #dc3545; /* Rood */
-}
-/* === ADMIN DASHBOARD STATS === */
-.stat-card {
-  position: relative;
-  padding: 1.25rem;
-  border-radius: .75rem;
-  overflow: hidden;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-}
-.stat-card .stat-value {
-  font-size: 2.25rem;
+.table { --bs-table-bg: transparent; }
+.table thead.table-light th, .table thead th {
+  background: #f6f6fc;
+  color: var(--sp-text-muted);
+  font-size: .74rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
   font-weight: 700;
-  line-height: 1.1;
+  border-bottom: 1px solid var(--sp-border);
 }
-.stat-card .stat-label {
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-.stat-card .stat-icon {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  font-size: 3.5rem;
-  opacity: 0.2;
-  transform: rotate(-10deg);
-}
-.stat-card .btn-link {
-  color: inherit;
-  text-decoration-color: rgba(255,255,255,0.5);
-  font-size: 0.9rem;
-}
+.table td { border-color: var(--sp-border); vertical-align: middle; }
+.table-hover tbody tr:hover { background-color: var(--sp-primary-light); }
+.table-striped > tbody > tr:nth-of-type(odd) > * { background-color: #fafafe; }
+
+.modal-content { border-radius: var(--sp-radius-lg); border: none; box-shadow: var(--sp-shadow-lg); overflow: hidden; }
+.modal-header { border-bottom: 1px solid var(--sp-border); background: #fbfbff; }
+.modal-footer { border-top: 1px solid var(--sp-border); }
+
+.dropdown-menu { border-radius: var(--sp-radius); border: 1px solid var(--sp-border); box-shadow: var(--sp-shadow); padding: .5rem; }
+.dropdown-item { border-radius: 8px; }
+.dropdown-item:hover { background: var(--sp-primary-light); }
+
+.alert { border-radius: var(--sp-radius-sm); border: 1px solid transparent; }
+.badge { font-weight: 600; letter-spacing: .01em; }
+.badge.bg-secondary-subtle { background-color: #f1f2f9 !important; color: var(--sp-text-muted) !important; }
+body.dark-mode .badge.bg-secondary-subtle { background-color: #2e2e2e !important; color: #ddd !important; }
 .bg-warning { background-color: #ffc107 !important; }
 .bg-danger { background-color: #dc3545 !important; }
 .bg-info { background-color: #0dcaf0 !important; }
-/* === BIJLAGE ICOON === */
-.attachment-icon {
-  font-size: 16px;
-  vertical-align: middle;
-  cursor: pointer;
-  color: #6c757d; /* Standaard grijs */
-  transition: color 0.15s ease;
+
+.progress { border-radius: 999px; background: #eceefb; }
+.progress-bar { border-radius: 999px; }
+
+.nav-link { transition: background-color .15s ease, color .15s ease; }
+
+/* =========================================================
+   SIDEBAR
+   ========================================================= */
+.sp-sidebar {
+  position: fixed; inset: 0 auto 0 0;
+  width: var(--sp-sidebar-w);
+  background: linear-gradient(190deg, #201c4d 0%, #171335 65%, #120f29 100%);
+  color: #fff;
+  padding-top: 76px;
+  transition: width .25s ease, left .25s ease;
+  z-index: 1031;
+  box-shadow: 4px 0 24px rgba(10,8,30,.15);
 }
-.attachment-icon:hover {
-  color: #0d6efd; /* Primair kleur bij hover */
+.sp-sidebar.collapsed { width: var(--sp-sidebar-w-collapsed); }
+
+.sp-sidebar .px-3.mb-3 .label {
+  font-weight: 800; font-size: 1.05rem; letter-spacing: -.01em;
 }
-.attachment-icon.has-attachment {
-  color: #0d6efd; /* Blauw als er een bijlage is */
-  transform: rotate(45deg);
-}
-/* === TEAM ROOSTER STYLES === */
-.rooster-wrapper {
+.sp-sidebar .material-icons-outlined { font-size: 21px; }
+
+.sp-sidebar .nav-link {
+  color: rgba(255,255,255,.72);
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 14px;
+  border-radius: 11px;
+  margin: 3px 12px;
+  font-weight: 600;
+  font-size: .92rem;
   position: relative;
-  border: 1px solid #dee2e6;
-  border-radius: 0.375rem;
+}
+.sp-sidebar .nav-link:hover {
+  background: rgba(255,255,255,.08);
+  color: #fff;
+}
+.sp-sidebar .nav-link.active {
+  background: linear-gradient(135deg, var(--sp-primary), #6d5df0);
+  color: #fff;
+  box-shadow: 0 6px 16px -4px rgba(79,70,229,.6);
+}
+.sp-sidebar .label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-sidebar.collapsed .label { display: none; }
+.sp-sidebar.collapsed .nav-link { justify-content: center; margin: 3px 10px; }
+.sp-sidebar.collapsed .px-3.mb-3 .d-flex { justify-content: center; }
+
+/* =========================================================
+   TOPBAR
+   ========================================================= */
+.sp-topbar {
+  position: fixed; top: 0; left: 0; right: 0; height: 68px;
+  background: rgba(255,255,255,.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--sp-border);
+  z-index: 1032;
+}
+.sp-topbar .ms-auto { margin-left: auto !important; }
+.sp-topbar #sidebarToggle, .sp-topbar #sidebarMobile {
+  border-radius: 10px;
 }
 
-/* Header sticky bovenaan */
-.rooster-table thead th {
-  position: sticky;
-  top: 0;
-  background-color: #f8f9fa; /* Lichte achtergrond */
-  z-index: 10; /* Boven de cellen */
-  box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+#topbarProfilePhoto { box-shadow: 0 0 0 2px var(--sp-surface), 0 0 0 3.5px var(--sp-primary-light); }
+
+#notifBtn { border-radius: 10px; }
+#notifDropdown {
+  position: absolute; top: 100%; right: 0;
+  z-index: 1050; display: none;
+  border-radius: var(--sp-radius);
+}
+#notifDropdown.show { display: block !important; }
+#notifList li.unread { font-weight: 700; }
+#notifList li { padding: 6px 4px; border-radius: 8px; }
+#notifList li:hover { background: var(--sp-primary-light); }
+
+#topbarAdminSwitch { background: var(--sp-primary-light); border-radius: 999px; padding: 4px 12px 4px 14px !important; border: none !important; }
+
+/* =========================================================
+   MAIN CONTENT
+   ========================================================= */
+.sp-main { padding: 96px 28px 32px; margin-left: var(--sp-sidebar-w); transition: margin-left .25s ease; }
+.sp-main.collapsed { margin-left: var(--sp-sidebar-w-collapsed); }
+
+@media (max-width: 768px) {
+  .sp-sidebar { left: -100%; }
+  .sp-sidebar.show { left: 0; box-shadow: 8px 0 40px rgba(0,0,0,.35); }
+  .sp-main, .sp-main.collapsed { margin-left: 0; padding: 88px 14px 24px; }
 }
 
-/* Eerste kolom (Namen) sticky links */
-.rooster-table tbody th, 
-.rooster-table thead th:first-child {
-  position: sticky;
-  left: 0;
-  background-color: #fff;
-  z-index: 20; /* Boven de andere headers en cellen */
-  border-right: 2px solid #dee2e6;
-  min-width: 150px;
-  text-align: left;
-  padding-left: 10px;
+/* =========================================================
+   GENERIC UTILITIES (behouden functionaliteit)
+   ========================================================= */
+.table-nowrap td, .table-nowrap th { white-space: nowrap; }
+.text-mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+.chip { display:inline-flex; align-items:center; gap:6px; padding:.3rem .65rem; border-radius:999px; background: var(--sp-primary-light); color: var(--sp-primary); font-size:.8rem; font-weight: 600; }
+.chip .dot { width:.5rem; height:.5rem; border-radius:50%; background: var(--sp-primary); }
+
+.drag-handle:hover { color: var(--sp-primary); transform: scale(1.15); }
+.sortable-chosen { background-color: var(--sp-primary-light) !important; }
+.sortable-ghost { opacity: 0.5; }
+
+#quickTopBtn {
+  border-color: var(--sp-accent) !important;
+  color: var(--sp-accent) !important;
+  transition: all .15s ease;
+  border-radius: 999px;
 }
-.rooster-table thead th:first-child {
-  z-index: 30; /* Allerhoogste (linksboven hoek) */
-  background-color: #e9ecef;
-}
-
-/* Donkere modus fix voor sticky */
-body.dark-mode .rooster-table thead th { background-color: #333; color: #fff; border-color: #555; }
-body.dark-mode .rooster-table tbody th { background-color: #2b2b2b; color: #fff; border-color: #555; }
-body.dark-mode .rooster-table thead th:first-child { background-color: #444; }
-
-/* Cellen styling */
-.rooster-cell {
-  min-width: 40px;
-  height: 40px;
-  font-size: 0.75rem;
-  cursor: default;
-  padding: 0 !important; /* Zodat de hele cel gekleurd kan worden */
-  vertical-align: middle;
-}
-
-/* Inhoud van de cel */
-.rooster-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-/* Kleurtjes voor specifieke shifts */
-.bg-shift-sick { background-color: #ffeeba; color: #856404; } /* Geel/Oranje */
-.bg-shift-leave { background-color: #cff4fc; color: #055160; } /* Lichtblauw */
-.bg-shift-school { background-color: #d1e7dd; color: #0f5132; } /* Groen */
-.bg-shift-normal { background-color: #f8f9fa; color: #212529; } /* Grijs */
-
-body.dark-mode .bg-shift-normal { background-color: #343a40; color: #dee2e6; }
-/* === ROOSTER SHIFT KLEUREN === */
-
-/* 🟧 School = Oranje (zoals gevraagd) */
-.bg-shift-school { 
-  background-color: #fd7e14 !important; /* Bootstrap Orange */
-  color: #fff !important; 
-  font-weight: 600;
-}
-
-/* 🟨 Ziekte = Geel/Goud */
-.bg-shift-sick { 
-  background-color: #ffc107 !important; /* Warning Yellow */
-  color: #000 !important; 
-  font-weight: 600;
-}
-
-/* 🟦 Verlof = Blauw/Cyaan */
-.bg-shift-leave { 
-  background-color: #0dcaf0 !important; 
+#quickTopBtn:hover {
+  background-color: var(--sp-accent) !important;
   color: #fff !important;
-  font-weight: 600;
+  transform: scale(1.05);
 }
 
-/* 🌅 Vroege = Zacht Geel */
-.bg-shift-vroege { 
-  background-color: #fff3cd !important; 
-  color: #856404 !important; 
-  font-weight: 600;
+@media (max-width: 768px) {
+  #exportPdfBtn, #multiDayShiftBtn { font-size: 0.9rem; padding: 6px 10px; }
 }
 
-/* 🌇 Late = Zacht Blauw */
-.bg-shift-late { 
-  background-color: #cfe2ff !important; 
-  color: #084298 !important; 
+/* ── Donkere modus ─────────────────────────────────────── */
+body.dark-mode { background-color: #14141c !important; color: #e7e7f0 !important; }
+body.dark-mode .sp-topbar { background-color: rgba(24,24,33,.9) !important; border-bottom-color: #2a2a38 !important; }
+body.dark-mode .sp-sidebar { background: linear-gradient(190deg, #16141f 0%, #0e0d16 100%) !important; }
+body.dark-mode .sp-main { background-color: #14141c !important; color: #e7e7f0 !important; }
+body.dark-mode .card { background-color: #1c1c27 !important; border-color: #2a2a38 !important; color: #e7e7f0 !important; }
+body.dark-mode .form-control, body.dark-mode .form-select { background-color: #22222f !important; border-color: #33333f !important; color: #e7e7f0 !important; }
+body.dark-mode .table { color: #ddd !important; }
+body.dark-mode .table thead, body.dark-mode .table thead.table-light th { background-color: #22222f !important; color: #cfcfe0 !important; }
+body.dark-mode .table-striped > tbody > tr:nth-of-type(odd) > * { background-color: #1e1e2a !important; }
+body.dark-mode .table-hover tbody tr:hover { background-color: #262635 !important; }
+body.dark-mode .modal-content { background-color: #1c1c27 !important; color: #e7e7f0 !important; }
+body.dark-mode .modal-header, body.dark-mode .modal-footer { border-color: #2a2a38 !important; background: #1c1c27 !important; }
+body.dark-mode .dropdown-menu { background-color: #1c1c27 !important; border-color: #2a2a38 !important; }
+body.dark-mode .dropdown-item { color: #e7e7f0 !important; }
+body.dark-mode .dropdown-item:hover { background: #262635 !important; }
+body.dark-mode .btn-outline-secondary { color: #e7e7f0 !important; border-color: #444 !important; }
+body.dark-mode .alert-info { background-color: #1c2b3e !important; color: #cfe6ff !important; border-color: #2c4460 !important; }
+body.dark-mode .alert-success { background-color: #16301d !important; color: #a8f0a5 !important; }
+body.dark-mode .alert-warning { background-color: #3a2d10 !important; color: #ffe7a0 !important; }
+body.dark-mode .alert-danger { background-color: #3a1414 !important; color: #ffbdbd !important; }
+
+/* ── Zwevende resterende-uren balk ─────────────────────── */
+#remainingHoursAlert {
+  position: fixed !important;
+  bottom: 1.25rem; left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000; width: auto; max-width: 92%;
+  box-shadow: var(--sp-shadow-lg);
+  border: 1px solid rgba(0,0,0,.06);
+  border-radius: 999px;
+  padding: 10px 22px;
+  font-size: 0.9rem;
   font-weight: 600;
+  text-align: center;
+  transition: all 0.3s ease-in-out;
+  opacity: 0.97;
+}
+body.modal-open #remainingHoursAlert { opacity: 0; visibility: hidden; transform: translateX(-50%) translateY(120%); }
+
+@media (max-width: 768px) {
+  #exportPdfBtn, #multiDayShiftBtn, #clearMonthBtn, #submitMonthBtn {
+    --bs-btn-padding-y: .375rem; --bs-btn-padding-x: .75rem; --bs-btn-line-height: 1.2;
+    font-size: 1rem; padding: var(--bs-btn-padding-y) var(--bs-btn-padding-x) !important;
+    display: block; width: 100%; max-width: 320px; margin: 0 auto 0.5rem auto;
+  }
 }
 
-/* 🌙 Nacht = Donker/Paars */
-.bg-shift-nacht { 
-  background-color: #e0cffc !important; 
-  color: #3700b3 !important; 
-  font-weight: 600;
+/* ── Loading overlay ────────────────────────────────────── */
+.loading-overlay {
+  position: fixed; inset: 0;
+  background: rgba(20,20,32,.55);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2000;
 }
+.main-content, .container { overflow: visible !important; }
 
-/* ☁️ Default / Overige = Grijs */
-.bg-shift-normal { 
-  background-color: #e9ecef; 
-  color: #495057; 
-  font-weight: 600;
+/* ── Flatpickr ──────────────────────────────────────────── */
+.flatpickr-calendar { z-index: 2051 !important; border-radius: var(--sp-radius) !important; box-shadow: var(--sp-shadow-lg) !important; }
+.flatpickr-day.planned-day {
+  background-color: #ffd166 !important; color: #3a2b00 !important;
+  border-radius: 50% !important; font-weight: 700;
+  border: 2px solid #f5a300 !important;
 }
+.flatpickr-day.selected.planned-day { background-color: var(--sp-primary) !important; color: #fff !important; border-color: var(--sp-primary-dark) !important; }
 
-/* Donkere modus fix */
-body.dark-mode .bg-shift-normal { background-color: #343a40; color: #dee2e6; }
-/* === ANTI-FLASH: Verberg app tot login check klaar is === */
+/* ── Maandstatus badges ─────────────────────────────────── */
+.badge-status { font-weight: 700; padding: .45em .85em; border-radius: 999px; }
+.badge-draft { background:#eceefb; color:#575c86; }
+.badge-submitted { background:#e0e7ff; color:#4338ca; }
+.badge-approved { background:#dcfce7; color:#15803d; }
+.badge-rejected { background:#fee2e2; color:#b91c1c; }
 
-/* 1. Zolang de body de class 'auth-checked' NIET heeft, verberg de interface */
+.btn-line { --bs-btn-padding-y: .15rem; --bs-btn-padding-x: .4rem; --bs-btn-font-size: .75rem; line-height: 1; border-radius: 6px; }
+#thActions { width:1%; white-space:nowrap; }
+td.actions-cell { white-space:nowrap; }
+.btn-success { font-weight: 700; }
+
+/* ── Projectkaarten (Invoer) ────────────────────────────── */
+#projectSummary { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .65rem; }
+.project-mini {
+  background: var(--sp-surface);
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius-sm);
+  padding: .65rem .9rem;
+  box-shadow: var(--sp-shadow-sm);
+}
+.project-mini .meta { color: var(--sp-text-muted); font-size: .75rem; }
+.project-mini .title { font-weight: 700; font-size: .95rem; }
+.project-mini .value { font-variant-numeric: tabular-nums; font-weight: 800; color: var(--sp-primary); }
+body.dark-mode #projectSummary .project-mini { background: #1c1c27; border-color: #2a2a38; color: #e7e7f0; }
+body.dark-mode #projectSummary .meta { color: #9a9ab5; }
+
+/* ── Animaties ──────────────────────────────────────────── */
+.fade-in { animation: fadeIn 0.3s ease-in forwards; }
+.fade-out { animation: fadeOut 0.3s ease-out forwards; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+.hidden-col { display: none !important; }
+
+/* ── Mailbox mobiel ─────────────────────────────────────── */
+@media (max-width: 576px) {
+  .mail-meta { display: none; }
+  #mailListTable .btn { padding: .15rem .3rem; font-size: .8rem; }
+}
+#mailFolderNav .btn { border-radius: 999px !important; }
+#mailFolderNav .btn:first-child { margin-right: 4px; }
+
+/* ── Accentkleur-kiezer ─────────────────────────────────── */
+.color-picker-wrap { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.color-dot {
+  width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.12), var(--sp-shadow-sm);
+  transition: all 0.15s ease;
+  display: flex; align-items: center; justify-content: center;
+}
+.color-dot:hover { transform: scale(1.12); }
+body.dark-mode .color-dot { border-color: #2a2a38; }
+.color-dot.selected { border-color: #000; box-shadow: 0 0 0 2px rgba(0,0,0,.5); transform: scale(1.12); }
+body.dark-mode .color-dot.selected { border-color: #fff; }
+
+/* ── Goedkeuring dark mode ──────────────────────────────── */
+body.dark-mode #approvalYearlyOverview .card { background-color: #1c1c27 !important; border-color: #2a2a38 !important; color: #e7e7f0 !important; }
+body.dark-mode #approvalYearlyOverview .btn-outline-secondary { color: #e7e7f0 !important; border-color: #444 !important; }
+body.dark-mode #approvalYearlyOverview .btn-outline-secondary:hover { background-color: #444 !important; color: #fff !important; }
+
+/* ── Verlof status iconen ───────────────────────────────── */
+.shift-status-icon { font-size: 16px; vertical-align: middle; margin-left: 4px; }
+.status-pending { color: #f59e0b; }
+.status-approved { color: #16a34a; }
+.status-rejected { color: #dc2626; }
+
+/* ── Admin dashboard stat-kaarten ───────────────────────── */
+.stat-card {
+  position: relative; padding: 1.35rem; border-radius: var(--sp-radius);
+  overflow: hidden; box-shadow: var(--sp-shadow-sm);
+  border: 1px solid var(--sp-border);
+}
+.stat-card .stat-value { font-size: 2.25rem; font-weight: 800; line-height: 1.1; }
+.stat-card .stat-label { font-size: 0.9rem; font-weight: 600; opacity: .9; }
+.stat-card .stat-icon { position: absolute; top: 1rem; right: 1rem; font-size: 3.5rem; opacity: 0.18; transform: rotate(-10deg); }
+.stat-card .btn-link { color: inherit; text-decoration-color: rgba(255,255,255,.5); font-size: 0.9rem; }
+
+/* ── Bijlage-icoon ──────────────────────────────────────── */
+.attachment-icon { font-size: 16px; vertical-align: middle; cursor: pointer; color: var(--sp-text-muted); transition: color .15s ease; }
+.attachment-icon:hover { color: var(--sp-primary); }
+.attachment-icon.has-attachment { color: var(--sp-primary); transform: rotate(45deg); }
+
+/* =========================================================
+   TEAM ROOSTER
+   ========================================================= */
+.rooster-wrapper { position: relative; border: 1px solid var(--sp-border); border-radius: var(--sp-radius); overflow: hidden; }
+.rooster-table thead th {
+  position: sticky; top: 0; background-color: #f6f6fc; z-index: 10;
+  box-shadow: 0 1px 0 var(--sp-border);
+}
+.rooster-table tbody th, .rooster-table thead th:first-child {
+  position: sticky; left: 0; background-color: #fff; z-index: 20;
+  border-right: 2px solid var(--sp-border); min-width: 150px; text-align: left; padding-left: 12px;
+  font-weight: 700;
+}
+.rooster-table thead th:first-child { z-index: 30; background-color: #eceefb; }
+
+body.dark-mode .rooster-table thead th { background-color: #22222f; color: #fff; border-color: #33333f; }
+body.dark-mode .rooster-table tbody th { background-color: #1c1c27; color: #fff; border-color: #33333f; }
+body.dark-mode .rooster-table thead th:first-child { background-color: #2a2a38; }
+
+.rooster-cell { min-width: 42px; height: 42px; font-size: 0.75rem; cursor: default; padding: 0 !important; vertical-align: middle; }
+.rooster-content { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; white-space: nowrap; overflow: hidden; border-radius: 6px; margin: 2px; }
+
+/* Shift-kleuren (rooster) */
+.bg-shift-school { background-color: #fd7e14 !important; color: #fff !important; font-weight: 700; }
+.bg-shift-sick { background-color: #ffc107 !important; color: #1a1300 !important; font-weight: 700; }
+.bg-shift-leave { background-color: #06b6d4 !important; color: #fff !important; font-weight: 700; }
+.bg-shift-vroege { background-color: #fff3cd !important; color: #856404 !important; font-weight: 700; }
+.bg-shift-late { background-color: #cfe2ff !important; color: #084298 !important; font-weight: 700; }
+.bg-shift-nacht { background-color: #e0cffc !important; color: #3700b3 !important; font-weight: 700; }
+.bg-shift-normal { background-color: #eceefb; color: #4a4e6c; font-weight: 700; }
+body.dark-mode .bg-shift-normal { background-color: #2a2a38; color: #dee2e6; }
+
+/* =========================================================
+   ANTI-FLASH (auth check)
+   ========================================================= */
 body:not(.auth-checked) #sidebar,
 body:not(.auth-checked) .sp-topbar,
 body:not(.auth-checked) .sp-main {
   display: none !important;
 }
-
-/* 2. Zolang de body de class 'auth-checked' NIET heeft, FORCEER de loader */
 body:not(.auth-checked) #loadingOverlay {
-  display: flex !important; /* Overschrijft d-none */
-  opacity: 1 !important;
-  visibility: visible !important;
-  background-color: #f5f7fb; /* Zelfde kleur als achtergrond */
-  z-index: 9999;
+  display: flex !important; opacity: 1 !important; visibility: visible !important;
+  background-color: var(--sp-bg); z-index: 9999;
 }
-/* Kalender Grid Layout */
+
+/* =========================================================
+   MAAND-KALENDER (Invoer tab)
+   ========================================================= */
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  background-color: #dee2e6;
+  background-color: var(--sp-border);
   gap: 1px;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
+  border: 1px solid var(--sp-border);
+  border-radius: 0 0 var(--sp-radius) var(--sp-radius);
   overflow: hidden;
+  width: 100%;
 }
 
 .calendar-header {
-  background: #f8f9fa;
-  padding: 10px 5px;
+  background: #f6f6fc;
   text-align: center;
-  font-weight: bold;
+  font-weight: 700;
   font-size: 0.75rem;
   text-transform: uppercase;
-  color: #6c757d;
+  letter-spacing: .06em;
+  padding: 10px 5px;
+  color: var(--sp-text-muted);
 }
 
 .calendar-day {
   background: #fff;
-  min-height: 100px;
+  min-height: 108px;
   padding: 8px;
   position: relative;
-  transition: background 0.2s;
+  cursor: pointer;
+  transition: background .2s ease;
+  display: flex;
+  flex-direction: column;
 }
+.calendar-day:hover { background-color: var(--sp-primary-light); }
+.calendar-day.weekend { background-color: #fbfbfe; }
+.calendar-day.disabled { background-color: #f4f4fa; opacity: 0.5; }
+.calendar-day.today { box-shadow: inset 0 0 0 2px var(--sp-primary); border-radius: 4px; }
 
-.calendar-day.weekend { background-color: #fcfcfc; }
-.calendar-day.disabled { background-color: #f1f3f5; opacity: 0.5; }
+.day-number { font-weight: 800; font-size: 0.85rem; color: #b6b8d1; margin-bottom: 5px; }
+.calendar-day.today .day-number { color: var(--sp-primary); }
 
-.day-number {
-  font-weight: 800;
-  font-size: 0.85rem;
-  color: #adb5bd;
-  margin-bottom: 5px;
-}
-
-/* De + knop die verschijnt bij hover */
 .day-add-btn {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.2s;
-  border-radius: 50%;
+  position: absolute; top: 5px; right: 5px; width: 24px; height: 24px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.2s; border-radius: 50%;
 }
+.calendar-day:hover .day-add-btn { opacity: 1; }
 
-.calendar-day:hover .day-add-btn {
-  opacity: 1;
+.day-actions {
+  position: absolute; top: 5px; right: 5px;
+  display: flex; gap: 4px; opacity: 0.25; transition: opacity 0.2s;
 }
+.calendar-day:hover .day-actions { opacity: 1; }
 
-/* De shiften in de kalender */
+.quick-icon { font-size: 18px !important; cursor: pointer; transition: transform 0.1s ease-in-out; }
+.quick-icon:hover { transform: scale(1.35); }
+
 .cal-shift-item {
   font-size: 0.7rem;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 5px;
   margin-bottom: 3px;
-  border-left: 3px solid rgba(0,0,0,0.2);
+  border-left: 3px solid rgba(0,0,0,.2);
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
-  color: #000;
-}
-.day-actions {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  display: flex;
-  gap: 2px;
-  opacity: 0.3; /* Lichtjes zichtbaar */
-  transition: opacity 0.2s;
-}
-
-.calendar-day:hover .day-actions {
-  opacity: 1; /* Volledig zichtbaar bij hover */
-}
-
-.quick-icon {
-  font-size: 18px !important;
-  cursor: pointer;
-  transition: transform 0.1s;
-}
-
-.quick-icon:hover {
-  transform: scale(1.3);
-}
-/* Kalender Grid Layout */
-/* --- Desktop & Basis --- */
-.calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr); /* 7 gelijke kolommen */
-  background-color: #dee2e6;
-  gap: 1px;
-  border: 1px solid #dee2e6;
-  width: 100%; /* Forceer dat het binnen de container blijft */
-}
-
-.calendar-header {
-  background: #f8f9fa;
-  text-align: center;
-  font-weight: bold;
-  font-size: 0.8rem;
-  padding: 5px 0;
-  color: #6c757d;
-}
-
-.calendar-day {
-  background: #fff;
-  min-height: 100px; /* Hoogte op PC */
-  padding: 5px;
-  position: relative;
-  cursor: pointer;
-}
-
-.calendar-day:hover { background-color: #f0f8ff; }
-.calendar-day.weekend { background-color: #fcfcfc; }
-
-/* Shift balkjes (Desktop) */
-.cal-shift-item {
-  font-size: 0.7rem;
-  padding: 1px 4px;
-  margin-bottom: 2px;
-  border-radius: 3px;
-  background: #eee;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* --- MOBIELE AANPASSINGEN (Zodat het past!) --- */
-@media (max-width: 768px) {
-  .calendar-day {
-    min-height: 60px; /* Minder hoog */
-    padding: 1px !important; /* Minimale padding */
-    overflow: hidden; /* Voorkom uitrekken */
-  }
-
-  .calendar-header {
-    font-size: 0.7rem; /* Kleinere letters */
-    padding: 2px 0;
-    overflow: hidden;
-  }
-  
-  .day-number {
-    font-size: 0.7rem;
-    font-weight: bold;
-    margin-left: 2px;
-  }
-
-  /* Shift balkjes op mobiel: Héél compact */
-  .cal-shift-item {
-    font-size: 8px; /* Kleinere tekst */
-    padding: 0 2px;
-    height: 14px;
-    line-height: 14px;
-  }
-  
-  /* Verberg icoontjes op mobiel als ze in de weg zitten, 
-     of maak ze heel klein */
-  .quick-icon {
-    font-size: 10px !important;
-  }
-}
-.day-number {
-  font-weight: 800;
-  font-size: 0.85rem;
-  color: #adb5bd;
-  margin-bottom: 5px;
-}
-
-/* Snel-invoer acties */
-.day-actions {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  display: flex;
-  gap: 4px;
-  opacity: 0.2; /* Subtiel zichtbaar */
-  transition: opacity 0.2s;
-}
-
-.calendar-day:hover .day-actions {
-  opacity: 1; /* Volledig zichtbaar bij hover */
-}
-
-.quick-icon {
-  font-size: 18px !important;
-  cursor: pointer;
-  transition: transform 0.1s ease-in-out;
-}
-
-.quick-icon:hover {
-  transform: scale(1.4);
-}
-
-.cal-shift-item {
-  font-size: 0.65rem;
-  padding: 2px 6px;
-  border-radius: 4px;
-  margin-bottom: 3px;
-  border-left: 3px solid rgba(0,0,0,0.2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 700;
   color: #000;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-}
-/* --- MOBIELE AANPASSINGEN --- */
-@media (max-width: 768px) {
-  /* Maak de kalender cellen compacter */
-  .calendar-day {
-    min-height: 65px; /* Minder hoog */
-    padding: 2px;
-  }
-
-  /* Het nummer van de dag kleiner */
-  .day-number {
-    font-size: 0.75rem;
-  }
-
-  /* De icoontjes (zon/maan) iets dichter bij elkaar */
-  .day-actions {
-    position: static; /* Niet meer in de hoek vastgeplakt */
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 2px;
-  }
-  
-  .quick-icon {
-    font-size: 14px !important; /* Kleiner icoon */
-    padding: 2px;
-  }
-
-  /* De tekstbalkjes van de shiften */
-  .cal-shift-item {
-    font-size: 0.6rem; /* Kleinere tekst */
-    padding: 1px 3px;
-    margin-bottom: 1px;
-    height: auto;
-  }
-  
-  /* Verberg de "Maandoverzicht" titel op heel kleine schermen */
-  .card-header h6 {
-    display: none;
-  }
-}
-/* Tabel optimalisatie */
-.table-responsive {
-  max-height: 500px;
-  overflow-y: auto;
+  box-shadow: 0 1px 2px rgba(23,24,55,.06);
 }
 
-/* Verberg onnodige kolommen in de details tabel op mobiel */
-@media (max-width: 992px) {
-  /* Verberg Start, Einde, Pauze, Duur, Actie en Shift kolom in de tabel */
-  /* We houden alleen Datum, Project, Omschrijving en Bijlage over */
-  .table th:nth-child(1), .table td:nth-child(1), /* Actie */
-  .table th:nth-child(2), .table td:nth-child(2), /* Dag */
-  .table th:nth-child(5), .table td:nth-child(5), /* Shift */
-  .table th:nth-child(6), .table td:nth-child(6), /* Start */
-  .table th:nth-child(7), .table td:nth-child(7), /* Einde */
-  .table th:nth-child(8), .table td:nth-child(8), /* Pauze */
-  .table th:nth-child(11), .table td:nth-child(11) /* Duur */
-  {
-    display: none; 
-  }
-}
-
-/* Zorg dat de omschrijving kolom niet te breed wordt */
-.table input.form-control {
-  min-width: 80px;
-}
-/* --- MOBIELE AANPASSINGEN VOOR ICOONTJES --- */
-@media (max-width: 768px) {
-  
-  /* 1. De container van de icoontjes strak in de hoek */
-  .quick-icons-wrapper {
-    top: 0;
-    right: 0;
-    gap: 0; /* Geen ruimte tussen de icoontjes */
-    max-width: 100%; /* Voorkom dat ze buiten het vakje vallen */
-  }
-
-  /* 2. Het icoontje zelf: Veel kleiner maken */
-  .quick-icon-btn {
-  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif; /* Zorgt voor mooie emojis */
-  font-size: 14px !important; /* Iets groter voor leesbaarheid */
+.quick-icons-wrapper { position: absolute; top: 4px; right: 4px; display: flex; gap: 2px; }
+.quick-icon-btn {
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 14px !important;
   line-height: 1;
   cursor: pointer;
-  background: rgba(255,255,255,0.85); /* Iets wittere achtergrond */
+  background: rgba(255,255,255,.9);
   border-radius: 50%;
   padding: 3px;
   transition: transform 0.2s;
-  border: 1px solid rgba(0,0,0,0.05);
-  
-  /* Centtreren */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
+  border: 1px solid rgba(0,0,0,.05);
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
 }
+.quick-icon-btn:hover { transform: scale(1.25); background: #fff; box-shadow: var(--sp-shadow-sm); z-index: 20; }
 
-.quick-icon-btn:hover {
-  transform: scale(1.25);
-  background: #fff;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-  z-index: 20;
-}
-
-/* Mobiele aanpassingen voor emojis */
-@media (max-width: 768px) {
-  .quick-icon-btn {
-    font-size: 12px !important; /* Iets kleiner op mobiel */
-    width: 18px;
-    height: 18px;
-    padding: 0;
-  }
-  
-  .quick-icons-wrapper {
-    gap: 1px; /* Klein beetje ruimte tussen emojis */
-  }
-}
-
-  /* Zorg dat het dag-cijfer klein blijft zodat het niet botst */
-  .day-number {
-    font-size: 0.65rem;
-    margin: 1px;
-  }
-
-  /* De tekstbalkjes (shiften) eronder ook compact houden */
-  .cal-shift-item {
-    font-size: 8px;
-    padding: 0 2px;
-    line-height: 1.2;
-  }
-}
-/* Styling voor de feestdag tekst */
 .holiday-badge {
   margin-top: auto;
-  font-size: 0.8rem;      /* Standaard grootte (Desktop) */
+  font-size: 0.8rem;
   text-align: center;
   color: #c2185b;
   padding: 4px 0 2px 0;
   width: 100%;
   display: block;
-  font-weight: 500;
-
-  /* ✅ Zorgt voor de puntjes (...) als het te lang is */
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
 }
 
-/* ✅ Specifiek voor mobiel (schermen kleiner dan 768px) */
-@media (max-width: 768px) {
-  .holiday-badge {
-    font-size: 0.6rem;    /* Stuk kleiner lettertype */
-    padding: 1px 0;       /* Minder witruimte */
-    line-height: 1.1;
-  }
-}
-/* Schoolvakantie Label (naast de maandtitel) */
 .school-holiday-tag {
-  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); /* Zacht blauw verloop */
-  color: #0d47a1; /* Donkerblauw tekst */
+  background: linear-gradient(135deg, var(--sp-primary-light) 0%, #dde3ff 100%);
+  color: var(--sp-primary-dark);
   font-size: 0.85rem;
-  font-weight: 500;
-  padding: 5px 12px;
-  border-radius: 50px; /* Mooie ronde pil-vorm */
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 999px;
   display: inline-flex;
   align-items: center;
-  gap: 6px; /* Ruimte tussen icoon en tekst */
-  margin-left: 15px; /* Ruimte links van de titel */
-  box-shadow: 0 2px 4px rgba(13, 71, 161, 0.1);
-  border: 1px solid rgba(13, 71, 161, 0.1);
+  gap: 6px;
+  margin-left: 15px;
+  box-shadow: var(--sp-shadow-sm);
+  border: 1px solid rgba(79,70,229,.12);
   vertical-align: middle;
   animation: fadeIn 0.5s ease-in-out;
 }
+.school-holiday-tag span.material-icons-outlined { font-size: 16px; }
 
-.school-holiday-tag span.material-icons-outlined {
-  font-size: 16px; /* Icoon iets kleiner */
-}
+.calendar-day.school-holiday-bg { background-color: #eef2ff !important; }
+.calendar-day.school-holiday-bg.today { background-color: #fff3cd !important; box-shadow: inset 0 0 0 2px #ffc107; }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-5px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Op mobiel zetten we het eronder in plaats van ernaast */
+/* ── Kalender: mobiele aanpassingen ─────────────────────── */
 @media (max-width: 768px) {
-  .school-holiday-tag {
-    display: table; /* Of flex */
-    margin: 5px auto 10px auto; /* Centreren onder titel */
-    font-size: 0.75rem;
+  .calendar-day { min-height: 66px; padding: 2px; overflow: hidden; }
+  .calendar-header { font-size: 0.68rem; padding: 6px 0; overflow: hidden; }
+  .day-number { font-size: 0.68rem; font-weight: 800; margin: 1px; }
+  .cal-shift-item { font-size: 8px; padding: 0 2px; line-height: 1.2; height: auto; margin-bottom: 1px; }
+  .quick-icon { font-size: 12px !important; }
+  .quick-icons-wrapper { gap: 1px; }
+  .quick-icon-btn { font-size: 12px !important; width: 18px; height: 18px; padding: 0; }
+  .day-actions { position: static; display: flex; justify-content: flex-end; margin-bottom: 2px; }
+  .holiday-badge { font-size: 0.6rem; padding: 1px 0; line-height: 1.1; }
+  .school-holiday-tag { display: table; margin: 5px auto 10px auto; font-size: 0.75rem; }
+  .card-header h6 { display: none; }
+}
+
+/* =========================================================
+   TABELLEN — algemene responsive gedrag
+   ========================================================= */
+.table-responsive { max-height: 520px; overflow-y: auto; border-radius: var(--sp-radius-sm); }
+
+@media (max-width: 992px) {
+  /* Verberg secundaire kolommen in de details-tabel op mobiel */
+  .table th:nth-child(1), .table td:nth-child(1),
+  .table th:nth-child(2), .table td:nth-child(2),
+  .table th:nth-child(5), .table td:nth-child(5),
+  .table th:nth-child(6), .table td:nth-child(6),
+  .table th:nth-child(7), .table td:nth-child(7),
+  .table th:nth-child(8), .table td:nth-child(8),
+  .table th:nth-child(11), .table td:nth-child(11) {
+    display: none;
   }
 }
-/* Achtergrondkleur voor schooldagen in vakantie (Ma-Vr) */
-.calendar-day.school-holiday-bg {
-  background-color: #e3f2fd !important; /* Lichtblauw van de badge */
-}
-
-/* Zorg dat de weekend-kleur (indien je die hebt) of 'vandaag' nog steeds zichtbaar is/werkt */
-.calendar-day.school-holiday-bg.today {
-  background-color: #fff3cd !important; /* Vandaag blijft geel-achtig */
-  border: 2px solid #ffc107;
-}
+.table input.form-control { min-width: 80px; }
