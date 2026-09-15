@@ -296,7 +296,7 @@ function renderHome() {
   if (elT) elT.textContent = fmt(target);
   if (elD) elD.textContent = `${diff>=0?'+':''}${fmt(Math.abs(diff))}`;
 
-  const bar = document.getElementById('homeMonthProgress');
+const bar = document.getElementById('homeMonthProgress');
   const barLbl = document.getElementById('homeMonthProgressLabel');
   if (bar) {
     bar.style.width = `${pct}%`;
@@ -304,6 +304,45 @@ function renderHome() {
     bar.classList.remove('bg-success','bg-warning');
     bar.classList.add(planned >= target && target>0 ? 'bg-success' : 'bg-warning');
     if (barLbl) barLbl.textContent = `${pct}%`;
+  }
+
+  const stageStartISO = '2026-09-28';
+  const stageEndISO = '2027-01-31';
+  const targetStageMins = 450 * 60; // 450 uur voor werkplekleren PXL
+  const stageTakenMins = sumTakenMinutesForRange(stageStartISO, stageEndISO, ['Stage']);
+  const stagePct = targetStageMins > 0 ? Math.min(100, Math.round((stageTakenMins / targetStageMins) * 100)) : 0;
+
+  let stageContainer = document.getElementById('stageProgressContainer');
+  if (!stageContainer) {
+      // Zoek de wrapper van de maandelijkse voortgang om de nieuwe balk onder te zetten
+      const monthProgressWrap = document.getElementById('homeMonthProgress')?.closest('.card-body') || document.getElementById('homeMonthProgress')?.parentElement?.parentElement;
+      if (monthProgressWrap) {
+          stageContainer = document.createElement('div');
+          stageContainer.id = 'stageProgressContainer';
+          stageContainer.className = 'mt-4 pt-3 border-top'; // Zorgt voor een nette visuele scheiding
+          monthProgressWrap.appendChild(stageContainer);
+      }
+  }
+  
+  if (stageContainer) {
+      stageContainer.innerHTML = `
+          <div class="d-flex justify-content-between align-items-end mb-1">
+              <div>
+                  <h6 class="mb-0">Voortgang Stage</h6>
+                  <small class="text-muted">28/09/2026 t/m 31/01/2027</small>
+              </div>
+              <div class="text-end line-height-sm">
+                  <div class="fw-bold text-dark"><span>${fmt(stageTakenMins)}</span></div>
+                  <div class="text-muted small">van 450u 0min</div>
+              </div>
+          </div>
+          <div class="progress" style="height: 20px;">
+              <div class="progress-bar ${stageTakenMins >= targetStageMins ? 'bg-success' : 'bg-info'}" role="progressbar" 
+                   style="width: ${stagePct}%;" aria-valuenow="${stagePct}" aria-valuemin="0" aria-valuemax="100">
+                  <span class="px-2">${stagePct}%</span>
+              </div>
+          </div>
+      `;
   }
 
   // status badge
