@@ -279,10 +279,15 @@ function renderHome() {
   if (monthNameEl) monthNameEl.textContent = `${monthsFull[m]} ${y}`;
 
   // totals
-  const planned = Object.values(md.rows || {}).reduce((s, r) => {
+const planned = Object.values(md.rows || {}).reduce((s, r) => {
   if (r.status && r.status !== 'approved') {
     return s; // Tel niet mee (pending/rejected)
   }
+  // Check of het stage is
+  const shiftDef = ud.shifts?.[r.shift];
+  const realName = shiftDef ? (shiftDef.realName || r.shift) : r.shift;
+  if (realName === 'Stage') return s; // Stage NIET meetellen!
+
   return s + (Number(r.minutes) || 0);
 }, 0);
   const target  = (Number(md.targetHours)||0)*60 + (Number(md.targetMinutes)||0);
@@ -2464,9 +2469,11 @@ function updateInputTotals(){
   const md = ud.monthData?.[y]?.[m] || { targetHours:0, targetMinutes:0, rows:{} };
 
   // 1. Maand-totaal berekenen (balk onderaan)
-  const total = Object.values(md.rows || {}).reduce((s, r) => {
-    // Ook hier: Tel alles mee, tenzij expliciet afgekeurd
+const total = Object.values(md.rows || {}).reduce((s, r) => {
     if (r.status === 'rejected') return s; 
+    const shiftDef = ud.shifts?.[r.shift];
+    const realName = shiftDef ? (shiftDef.realName || r.shift) : r.shift;
+    if (realName === 'Stage') return s; // Stage NIET meetellen!
     return s + (Number(r.minutes) || 0);
   }, 0);
 
@@ -2663,8 +2670,11 @@ function renderHistory() {
 
     const target = (md.targetHours||0)*60 + (md.targetMinutes||0);
     const rows = md.rows || {};
-    const planned = Object.values(rows).reduce((s, r) => {
+const planned = Object.values(rows).reduce((s, r) => {
       if (r.status && r.status !== 'approved') return s; 
+      const shiftDef = ud.shifts?.[r.shift];
+      const realName = shiftDef ? (shiftDef.realName || r.shift) : r.shift;
+      if (realName === 'Stage') return s; // Stage NIET meetellen!
       return s + (r.minutes || 0);
     }, 0);
 
@@ -3526,7 +3536,13 @@ document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
   });
 
   // === Samenvatting onder tabel ===
-  const total = Object.values(md.rows).reduce((s, r) => s + (r.minutes || 0), 0);
+  // === Samenvatting onder tabel ===
+  const total = Object.values(md.rows).reduce((s, r) => {
+    const shiftDef = ud.shifts?.[r.shift];
+    const realName = shiftDef ? (shiftDef.realName || r.shift) : r.shift;
+    if (realName === 'Stage') return s; // Stage NIET meetellen!
+    return s + (r.minutes || 0);
+  }, 0);
   const doel = ((md.targetHours || 0) * 60) + (md.targetMinutes || 0);
   const diff = total - doel;
   const fmt = v => `${Math.floor(v / 60)}u ${v % 60}m`;
@@ -4046,10 +4062,13 @@ function updateRemainingHours() {
   }
 
   const doel = (monthData.targetHours || 0) * 60 + (monthData.targetMinutes || 0);
-  const gepland = Object.values(monthData.rows || {}).reduce((s, r) => {
+const gepland = Object.values(monthData.rows || {}).reduce((s, r) => {
   if (r.status && r.status !== 'approved') {
     return s; // Tel niet mee
   }
+  const shiftDef = ud.shifts?.[r.shift];
+  const realName = shiftDef ? (shiftDef.realName || r.shift) : r.shift;
+  if (realName === 'Stage') return s; // Stage NIET meetellen!
   return s + (r.minutes || 0);
 }, 0);
   const verschil = doel - gepland;
