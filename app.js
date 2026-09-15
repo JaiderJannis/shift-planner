@@ -1173,6 +1173,7 @@ function renderShifts() {
       <option value="teammeeting" ${sh.icon === 'teammeeting' ? 'selected' : ''}>👥</option>
       <option value="niet_ingepland" ${sh.icon === 'niet_ingepland' ? 'selected' : ''}>❌</option>
       <option value="vrij_weekend" ${sh.icon === 'vrij_weekend' ? 'selected' : ''}>😎</option>
+      <option value="stage" ${sh.icon === 'stage' ? 'selected' : ''}>🏫</option>
     `;
 
     // Tabelrij opbouwen
@@ -1819,7 +1820,7 @@ function renderCalendarGrid(year, month) {
         'light_mode': '☀️', 'wb_twilight': '🌅', 'bedtime': '🌙', 'schedule': '🕒',
         'star': '⭐', 'school': '🎓', 'medical_services': '🏥', 'flight': '✈️',
         'bench': '🪑', 'feestdag': '🎉', 'teammeeting': '👥', 'niet_ingepland': '❌',
-        'vrij_weekend': '😎'
+        'vrij_weekend': '😎', 'stage': '🏫'
       };
       const emoji = ICON_MAP[sh.icon] || '⭐';
       const hoverText = sh.realName || sh.key;
@@ -2204,6 +2205,7 @@ function renderProfileShiftSettings() {
           <option value="teammeeting" ${sh.icon === 'teammeeting' ? 'selected' : ''}>👥 Teammeeting</option>
           <option value="niet_ingepland" ${sh.icon === 'niet_ingepland' ? 'selected' : ''}>❌ Niet ingepland</option>
           <option value="vrij_weekend" ${sh.icon === 'vrij_weekend' ? 'selected' : ''}>😎 Vrij weekend</option>  
+          <option value="stage" ${sh.icon === 'stage' ? 'selected' : ''}>🏫 Stage</option>  
         </select>
       </td>
       <td class="text-center">
@@ -2336,7 +2338,7 @@ async function populateShiftSelectForRow(tr, rowKey){
       saveCell(year, month, rowKey, r, tr);
       debouncedSave();
     } 
-    else if (['Schoolverlof','School'].includes(realName)) {
+    else if (['Schoolverlof','School', 'Stage'].includes(realName)) {
       ensureProjectExists('PXL Verpleegkunde Hasselt');
       r.project = 'PXL Verpleegkunde Hasselt';
       saveCell(year, month, rowKey, r, tr);
@@ -2597,6 +2599,7 @@ function renderHistory() {
     { key: 'leave', title: 'Verlof' },
     { key: 'sick', title: 'Ziekte' },
     { key: 'bench', title: 'Bench' },
+    { key: 'stage', title: 'Stage' },
     { key: 'school', title: 'Schoolverlof' },
     { key: 'holiday', title: 'Feestdag' }
   ];
@@ -2613,7 +2616,7 @@ function renderHistory() {
 
   // body
   let bodyHtml = '<tbody>';
-  let totals = { target:0, planned:0, diff:0, leave:0, sick:0, school:0, holiday:0, bench:0 };
+  let totals = { target:0, planned:0, diff:0, leave:0, sick:0, school:0, holiday:0, bench:0, stage:0 };
 
   for (let m = 0; m < 12; m++) {
     const md = ud.monthData?.[year]?.[m] || { targetHours:0, targetMinutes:0, rows:{} };
@@ -2626,7 +2629,7 @@ function renderHistory() {
       return s + (r.minutes || 0);
     }, 0);
 
-    let leave = 0, sick = 0, school = 0, holiday = 0, bench = 0;
+    let leave = 0, sick = 0, school = 0, holiday = 0, bench = 0, stage = 0;
     
     Object.values(rows).forEach(r => {
       if (r.status === 'rejected') return;
@@ -2641,6 +2644,7 @@ function renderHistory() {
       if (realName === 'Schoolverlof' || realName === 'School') school += Number(r.minutes)||0;
       if (realName === 'Feestdag') holiday += Number(r.minutes)||0;
       if (realName === 'Bench') bench += Number(r.minutes)||0;
+      if (realName === 'Stage') stage += Number(r.minutes)||0;
     });
     const diff = planned - target;
 
@@ -2654,6 +2658,7 @@ function renderHistory() {
       totals.school += school;
       totals.holiday += holiday;
       totals.bench += bench;
+      totals.stage += stage;
     }
 
     const rowMap = {
@@ -2664,6 +2669,7 @@ function renderHistory() {
       leave: isExcluded ? '-' : `${Math.floor(leave/60)}u ${leave%60}min`,
       sick: isExcluded ? '-' : `${Math.floor(sick/60)}u ${sick%60}min`,
       bench: isExcluded ? '-' : `${Math.floor(bench/60)}u ${bench%60}min`,
+      stage: isExcluded ? '-' : `${Math.floor(stage/60)}u ${stage%60}min`,
       school: isExcluded ? '-' : `${Math.floor(school/60)}u ${school%60}min`,
       holiday: isExcluded ? '-' : `${Math.floor(holiday/60)}u ${holiday%60}min`
     };
@@ -2697,6 +2703,7 @@ function renderHistory() {
     leave: `${Math.floor(totals.leave/60)}u ${totals.leave%60}min`,
     sick: `${Math.floor(totals.sick/60)}u ${totals.sick%60}min`,
     bench: `${Math.floor(totals.bench/60)}u ${totals.bench%60}min`,
+    stage: `${Math.floor(totals.stage/60)}u ${totals.stage%60}min`,
     school: `${Math.floor(totals.school/60)}u ${totals.school%60}min`,
     holiday: `${Math.floor(totals.holiday/60)}u ${totals.holiday%60}min`
   };
@@ -3895,7 +3902,7 @@ for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) 
   if (d > today) continue;
 
   // ⛔ Vrije shifts overslaan
-  const skipShifts = ['Vrij weekend', 'Verlof', 'Ziekte', 'Feestdag', 'Schoolverlof', 'School', 'Bench'];
+  const skipShifts = ['Vrij weekend', 'Verlof', 'Ziekte', 'Feestdag', 'Schoolverlof', 'School', 'Bench', 'Stage'];
   const shiftName = (r?.shift || '').trim();
   const isEmpty = !shiftName;
   const isSkipped = skipShifts.includes(shiftName);
@@ -6216,6 +6223,7 @@ function getShiftStyle(shiftName, userShifts = null) {
   if (['ziekte', 'ziek'].includes(sLower))       return { class: 'bg-shift-sick',   letter: letter || 'Z', label: 'Ziekte', isGlobal: true };
   if (['verlof', 'feestdag'].includes(sLower))   return { class: 'bg-shift-leave',  letter: 'V', label: 'Verlof', isGlobal: true }; 
   if (['school', 'schoolverlof'].includes(sLower)) return { class: 'bg-shift-school', letter: 'S', label: 'School', isGlobal: true };
+  if (['stage', 'stage'].includes(sLower)) return { class: 'bg-shift-stage', letter: 'St', label: 'Stage', isGlobal: true };
   if (sLower === 'bench')                        return { class: '', letter: '-', label: 'Bench', isGlobal: true };
 
   // 4. Semi-vaste kleuren
@@ -7219,7 +7227,7 @@ function togglePaintMode() {
         'light_mode': '☀️', 'wb_twilight': '🌅', 'bedtime': '🌙', 'schedule': '🕒',
         'star': '⭐', 'school': '🎓', 'medical_services': '🏥', 'flight': '✈️', 
         'bench': '🪑', 'feestdag': '🎉', 'teammeeting': '👥', 'niet_ingepland': '❌',
-        'vrij_weekend': '😎'
+        'vrij_weekend': '😎', 'stage': '🏫'
     };
 
     // 1. Gummetje
