@@ -2382,7 +2382,7 @@ async function populateShiftSelectForRow(tr, rowKey){
       saveCell(year, month, rowKey, r, tr);
       debouncedSave();
     } 
-    else if (['Schoolverlof','School', 'Stage'].includes(realName)) {
+    else if (['Schoolverlof','School'].includes(realName)) {
       ensureProjectExists('PXL Verpleegkunde Hasselt');
       r.project = 'PXL Verpleegkunde Hasselt';
       saveCell(year, month, rowKey, r, tr);
