@@ -226,10 +226,29 @@ function canAddMultiForProject(projectName) {
 function listDayKeys(monthData, dateKey) {
   if (!monthData || !monthData.rows) return [];
   
-  // Filter alle keys die BEGINNEN met de datum string
-  return Object.keys(monthData.rows)
-    .filter(k => k === dateKey || k.startsWith(dateKey + '_'))
-    .sort(); // Sorteer zodat ze netjes op volgorde staan
+  // Verzamel alle keys die bij deze specifieke datum horen (incl. extra regels)
+  const keys = Object.keys(monthData.rows).filter(k => 
+    k === dateKey || 
+    k.startsWith(dateKey + '_') || 
+    k.startsWith(dateKey + '#')
+  );
+
+  // Sorteer chronologisch op het STARTUUR van de shift
+  return keys.sort((a, b) => {
+    const rowA = monthData.rows[a];
+    const rowB = monthData.rows[b];
+    
+    // Als er nog geen tijd is ingevuld (lege regel), zet deze dan onderaan
+    const startA = (rowA && rowA.start && rowA.start !== '') ? rowA.start : "24:00";
+    const startB = (rowB && rowB.start && rowB.start !== '') ? rowB.start : "24:00";
+    
+    // Vergelijk de tijden
+    if (startA < startB) return -1;
+    if (startA > startB) return 1;
+    
+    // Als ze exact tegelijk starten, behoud dan de originele volgorde
+    return a.localeCompare(b);
+  });
 }
 function nextLineIndex(md, baseKey) {
   const keys = listDayKeys(md, baseKey);
