@@ -190,7 +190,6 @@ const SHIFT_ICONS = {
 
 // --- Vaak gebruikte schermelementen ---
 const sidebar = document.getElementById('sidebar');
-const main = document.getElementById('main');
 const logoutBtn = document.getElementById('logoutBtn');
 const monthSelectMain = document.getElementById('monthSelectMain');
 const yearSelectMain = document.getElementById('yearSelectMain');
@@ -926,10 +925,6 @@ function bindAuth() {
     // Persoonlijke voorkeuren
     const ud = getCurrentUserData();
     if (ud?.settings?.accentColor) applyAccentColor(ud.settings.accentColor);
-    if (ud?.settings?.sidebarCollapsed) {
-      sidebar?.classList.add('collapsed');
-      main?.classList.add('collapsed');
-    }
 
     initSelectors();
     renderAll();
@@ -975,24 +970,48 @@ function setDarkMode(on) {
   localStorage.setItem('darkMode', on);
 }
 
-/** Paginatitel en actieve knoppen in de onderbalk/het Meer-blad bijwerken. */
+/** Paginatitel bijwerken (het actieve menu-item regelt Bootstrap zelf). */
 function syncNavState(hash) {
   const link = document.querySelector(`#navTabs a[href="${hash}"]`);
   const title = link?.dataset.title || 'Shift Planner';
   const titleEl = document.getElementById('pageTitle');
   if (titleEl) titleEl.textContent = title;
   document.title = `${title} · Shift Planner`;
-  const inMore = !['#tab-home', '#tab-invoer', '#tab-historiek'].includes(hash);
-  document.querySelectorAll('.sp-bottombar .tab-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tab === hash || (inMore && btn.id === 'bottomMoreBtn'));
-  });
+}
+
+/** Het zwevende hoofdmenu openen of sluiten. */
+function setMenuOpen(open) {
+  const toggle = document.getElementById('menuToggle');
+  const backdrop = document.getElementById('menuBackdrop');
+  if (!sidebar || !toggle) return;
+  sidebar.classList.toggle('open', open);
+  sidebar.setAttribute('aria-hidden', String(!open));
+  toggle.setAttribute('aria-expanded', String(open));
+  toggle.setAttribute('aria-label', open ? 'Menu sluiten' : 'Menu openen');
+  toggle.querySelector('.material-icons-outlined').textContent = open ? 'close' : 'menu';
+  if (backdrop) backdrop.hidden = !open;
+  document.body.classList.toggle('menu-open', open);
+  if (open) sidebar.focus({ preventScroll: true });
 }
 
 function bindLayout() {
-  document.getElementById('sidebarToggle')?.addEventListener('click', () => {
-    sidebar.classList.toggle('collapsed');
-    main.classList.toggle('collapsed');
+  // Zwevend menu: hamburgerknop, sluitknop, klik ernaast en Escape
+  document.getElementById('menuToggle')?.addEventListener('click', () => {
+    setMenuOpen(!sidebar.classList.contains('open'));
   });
+  document.getElementById('menuClose')?.addEventListener('click', () => setMenuOpen(false));
+  document.getElementById('menuBackdrop')?.addEventListener('click', () => setMenuOpen(false));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+      setMenuOpen(false);
+      document.getElementById('menuToggle')?.focus();
+    }
+  });
+  // Na het kiezen van een pagina of Profiel klapt het menu dicht
+  sidebar.addEventListener('click', e => {
+    if (e.target.closest('.nav-link')) setMenuOpen(false);
+  });
+  document.getElementById('topQuickBtn')?.addEventListener('click', () => openQuickInput());
 
   // Logo "Shift Planner" → Home
   document.querySelector('#sidebar a.label[href="#tab-home"]')?.addEventListener('click', e => {
@@ -1008,16 +1027,10 @@ function bindLayout() {
     });
   });
 
-  // Onderbalk en Meer-blad (iPhone)
+  // Knoppen elders in de app die naar een pagina springen
   document.addEventListener('click', e => {
     const btn = e.target.closest('[data-tab]');
-    if (!btn) return;
-    showTab(btn.dataset.tab);
-    bootstrap.Offcanvas.getInstance(document.getElementById('moreSheet'))?.hide();
-  });
-  document.getElementById('bottomQuickBtn')?.addEventListener('click', () => openQuickInput());
-  document.querySelector('#moreSheet [data-bs-target="#profileModal"]')?.addEventListener('click', () => {
-    bootstrap.Offcanvas.getInstance(document.getElementById('moreSheet'))?.hide();
+    if (btn) showTab(btn.dataset.tab);
   });
 
   // Acties-menu sluiten na het kiezen van een actie (het menu blijft open bij het kiezen van een versie)
@@ -1077,10 +1090,15 @@ function renderMeter(el, planned, target, opts = {}) {
 
   let delta = '';
   if (!target) delta = '<span class="meter-delta">Geen doel ingesteld</span>';
-  else if (diff > 0) delta = `<span class="meter-delta short">nog ${fmt(diff)}</span>`;
+  else if (diff > 0)
+    delta = `<span class="meter-delta short">nog ${fmt(diff)}<span class="hide-xs"> te kort</span></span>`;
   else delta = `<span class="meter-delta done">${diff === 0 ? 'doel bereikt' : `${fmt(-diff)} extra`}</span>`;
 
+  // Rood = nog uren te kort, groen = doel gehaald of overuren (stage blijft neutraal)
+  const state = !target || opts.compact ? '' : diff > 0 ? 'short' : 'over';
   el.classList.toggle('compact', !!opts.compact);
+  el.classList.toggle('is-short', state === 'short');
+  el.classList.toggle('is-done', state === 'over');
   el.innerHTML = `
     ${opts.title ? `<h3>${opts.title}</h3>` : ''}
     <div class="meter-figures">
@@ -1090,7 +1108,7 @@ function renderMeter(el, planned, target, opts = {}) {
     </div>
     <div class="meter-ruler" style="--tick:${tick.toFixed(2)}%" role="progressbar" aria-valuemin="0"
          aria-valuemax="${target}" aria-valuenow="${planned}" aria-label="${fmt(planned)} van ${fmt(target)}">
-      <div class="fill${target && planned >= target ? ' over' : ''}" style="width:${pct.toFixed(1)}%"></div>
+      <div class="fill${state ? ` ${state}` : ''}" style="width:${pct.toFixed(1)}%"></div>
     </div>
     ${opts.caption === false ? '' : '<p class="meter-caption">Elk streepje is 8 uur.</p>'}`;
 }
@@ -2000,7 +2018,7 @@ function updateInputTotals() {
   renderProjectSummary();
 }
 
-/** Urenmeter bovenaan Invoer: doel, gepland en wat er nog rest. */
+/** Zwevende urenmeter in Invoer: doel, gepland en wat er nog rest (rood/groen). */
 function updateRemainingHours() {
   const el = document.getElementById('remainingHoursAlert');
   if (!el) return;
@@ -4123,7 +4141,7 @@ const mailSenderName = m =>
 
 function updateUnreadBadges(unread) {
   const n = Math.max(0, Number(unread) || 0);
-  ['mailUnreadBadge', 'mailSidebarBadge', 'mailMoreBadge'].forEach(id => {
+  ['mailUnreadBadge', 'mailSidebarBadge'].forEach(id => {
     const badge = document.getElementById(id);
     if (!badge) return;
     badge.textContent = n;
@@ -5121,9 +5139,6 @@ function loadProfileTab() {
   document.getElementById('profilePhoto').src = user.photoURL || DEFAULT_AVATAR;
   document.getElementById('profileDarkModeToggle').checked = document.documentElement.dataset.bsTheme === 'dark';
 
-  const sidebarToggle = document.getElementById('profileSidebarToggle');
-  if (sidebarToggle) sidebarToggle.checked = !!ud.settings?.sidebarCollapsed;
-
   const defaultTabSelect = document.getElementById('profileDefaultTab');
   if (defaultTabSelect) defaultTabSelect.value = ud.settings?.defaultTab || '#tab-home';
 
@@ -5175,12 +5190,6 @@ function bindProfile() {
     await saveMySettings();
     toast(message, 'success');
   };
-
-  document.getElementById('profileSidebarToggle')?.addEventListener('change', async e => {
-    sidebar.classList.toggle('collapsed', e.target.checked);
-    main.classList.toggle('collapsed', e.target.checked);
-    await setMySetting('sidebarCollapsed', e.target.checked, 'Sidebar-voorkeur opgeslagen');
-  });
 
   document.getElementById('profileDefaultTab')?.addEventListener('change', async e => {
     await setMySetting('defaultTab', e.target.value, 'Standaard opstart-tabblad opgeslagen');

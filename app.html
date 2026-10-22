@@ -34,12 +34,13 @@
 </head>
 <body>
 
-  <!-- Zijbalk (computer/tablet) -->
-  <aside id="sidebar" class="sp-sidebar" aria-label="Hoofdmenu">
+  <!-- Zwevend menu (opent via de hamburgerknop linksboven) -->
+  <div id="menuBackdrop" class="menu-backdrop" hidden></div>
+  <aside id="sidebar" class="sp-menu" aria-label="Hoofdmenu" aria-hidden="true" tabindex="-1">
     <div class="brand">
       <a class="label brand-name" href="#tab-home"><span class="brand-mark" aria-hidden="true"></span>Shift Planner</a>
-      <button id="sidebarToggle" class="btn-icon" type="button" title="Menu in- of uitklappen" aria-label="Menu in- of uitklappen">
-        <span class="material-icons-outlined">left_panel_close</span>
+      <button id="menuClose" class="btn-icon" type="button" aria-label="Menu sluiten">
+        <span class="material-icons-outlined">close</span>
       </button>
     </div>
     <nav class="nav flex-column" id="navTabs">
@@ -79,15 +80,27 @@
       </a>
     </div>
     </nav>
+    <div class="menu-footer">
+      <button type="button" class="nav-link w-100" data-bs-toggle="modal" data-bs-target="#profileModal">
+        <span class="material-icons-outlined" aria-hidden="true">person</span><span class="label">Profiel en instellingen</span>
+      </button>
+    </div>
   </aside>
 
   <div id="main" class="sp-shell">
     <!-- Topbalk -->
     <header class="sp-topbar">
+      <button id="menuToggle" class="menu-fab" type="button" aria-label="Menu openen" aria-expanded="false" aria-controls="sidebar">
+        <span class="material-icons-outlined">menu</span>
+        <span id="mailBottomBadge" class="dot-badge d-none"></span>
+      </button>
       <h1 id="pageTitle" class="page-title">Home</h1>
       <span id="saveStatus" class="save-status" role="status" aria-live="polite"></span>
       <div class="topbar-tools">
         <div id="topbarAdminSwitch" class="admin-switch d-none"></div>
+        <button id="topQuickBtn" class="btn btn-primary quick-btn" type="button" aria-label="Shift invullen">
+          <span class="material-icons-outlined">add</span><span class="hide-xs">Shift</span>
+        </button>
         <div class="position-relative">
           <button id="notifBtn" class="btn-icon" type="button" aria-label="Meldingen">
             <span class="material-icons-outlined">notifications</span>
@@ -306,7 +319,7 @@
     </div>
   </div>
 
-  <div id="remainingHoursAlert" class="meter d-none"></div>
+  <div id="remainingHoursAlert" class="meter floating-meter d-none" role="status"></div>
 
   <div class="month-settings">
     <label class="target-field">
@@ -582,47 +595,6 @@
 
       </div>
     </main>
-  </div>
-
-  <!-- Onderbalk (iPhone) -->
-  <nav class="sp-bottombar" aria-label="Hoofdmenu">
-    <button type="button" class="tab-btn active" data-tab="#tab-home"><span class="material-icons-outlined">home</span>Home</button>
-    <button type="button" class="tab-btn" data-tab="#tab-invoer"><span class="material-icons-outlined">calendar_month</span>Invoer</button>
-    <button type="button" class="tab-btn tab-add" id="bottomQuickBtn" aria-label="Shift invullen"><span class="material-icons-outlined">add</span></button>
-    <button type="button" class="tab-btn" data-tab="#tab-historiek"><span class="material-icons-outlined">insights</span>Historiek</button>
-    <button type="button" class="tab-btn" id="bottomMoreBtn" data-bs-toggle="offcanvas" data-bs-target="#moreSheet"><span class="material-icons-outlined">menu</span>Meer<span id="mailBottomBadge" class="dot-badge d-none"></span></button>
-  </nav>
-
-  <div class="offcanvas offcanvas-bottom more-sheet" tabindex="-1" id="moreSheet" aria-labelledby="moreSheetTitle">
-    <div class="offcanvas-header">
-      <h5 class="offcanvas-title" id="moreSheetTitle">Meer</h5>
-      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Sluiten"></button>
-    </div>
-    <div class="offcanvas-body">
-      <div class="more-grid">
-      <button type="button" class="more-item" data-tab="#tab-shifts">
-        <span class="material-icons-outlined" aria-hidden="true">schedule</span>Shiften
-      </button>
-      <button type="button" class="more-item" data-tab="#tab-projects">
-        <span class="material-icons-outlined" aria-hidden="true">work_outline</span>Projecten
-      </button>
-      <button type="button" class="more-item" data-tab="#tab-mail">
-        <span class="material-icons-outlined" aria-hidden="true">mail</span>Mailbox<span id="mailMoreBadge" class="nav-badge d-none">0</span>
-      </button>
-      <button type="button" class="more-item" data-tab="#tab-nonbillable">
-        <span class="material-icons-outlined" aria-hidden="true">timer_off</span>Non-billable
-      </button>
-      <button type="button" class="more-item" data-tab="#tab-converter">
-        <span class="material-icons-outlined" aria-hidden="true">calculate</span>Converter
-      </button>
-      <button type="button" class="more-item admin-only" data-tab="#tab-team-rooster">
-        <span class="material-icons-outlined" aria-hidden="true">groups</span>Team-rooster
-      </button>
-        <button type="button" class="more-item" data-bs-toggle="modal" data-bs-target="#profileModal">
-          <span class="material-icons-outlined" aria-hidden="true">person</span>Profiel
-        </button>
-      </div>
-    </div>
   </div>
 
   <!-- MODALS -->
@@ -928,10 +900,6 @@
                   <label class="form-check-label" for="profileDarkModeToggle">Donkere modus</label>
                 </div>
 
-                <div class="form-check form-switch fs-5 mt-2">
-                  <input class="form-check-input" type="checkbox" role="switch" id="profileSidebarToggle">
-                  <label class="form-check-label" for="profileSidebarToggle">Sidebar standaard ingeklapt</label>
-                </div>
 
                 <hr class="my-4">
 
