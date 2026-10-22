@@ -171,22 +171,50 @@ const SPECIAL_PROJECT_MAP = {
   Schoolverlof: 'PXL Verpleegkunde Hasselt'
 };
 
-const SHIFT_ICONS = {
-  light_mode: '☀️',
-  wb_twilight: '🌅',
-  bedtime: '🌙',
-  schedule: '🕒',
-  star: '⭐',
-  school: '🎓',
-  medical_services: '🏥',
-  flight: '✈️',
-  bench: '🪑',
-  feestdag: '🎉',
-  teammeeting: '👥',
-  niet_ingepland: '❌',
-  vrij_weekend: '😎',
-  stage: '🏫'
+// Iconen voor shiften: sleutel → [emoji, naam]. Bestaande sleutels nooit hernoemen (staan in Firebase).
+const SHIFT_ICON_LIST = {
+  light_mode: ['☀️', 'Zon (vroege)'],
+  wb_twilight: ['🌅', 'Schemer'],
+  dag: ['🌤️', 'Dag'],
+  avond: ['🌆', 'Avond'],
+  bedtime: ['🌙', 'Maan (nacht)'],
+  slaap: ['💤', 'Slaapdienst'],
+  schedule: ['🕒', 'Klok'],
+  kort: ['⏱️', 'Korte dienst'],
+  star: ['⭐', 'Ster'],
+  hart: ['❤️', 'Zorg'],
+  stethoscoop: ['🩺', 'Verpleging'],
+  spuit: ['💉', 'Spuiten/zorg'],
+  pil: ['💊', 'Medicatie'],
+  ambulance: ['🚑', 'Spoed'],
+  oudere: ['👵', 'Ouderenzorg'],
+  baby: ['👶', 'Kraam/kinderen'],
+  brein: ['🧠', 'Psychiatrie'],
+  thuiszorg: ['🏠', 'Thuiszorg'],
+  auto: ['🚗', 'Verplaatsing'],
+  oproep: ['📟', 'Oproepbaar'],
+  telefoon: ['📞', 'Telefoondienst'],
+  school: ['🎓', 'School'],
+  stage: ['🏫', 'Stage'],
+  opleiding: ['📚', 'Opleiding'],
+  examen: ['📝', 'Examen/taak'],
+  laptop: ['💻', 'Administratie'],
+  teammeeting: ['👥', 'Teammeeting'],
+  medical_services: ['🏥', 'Ziekte'],
+  ziek: ['🤒', 'Ziek'],
+  flight: ['✈️', 'Verlof'],
+  vakantie: ['🏖️', 'Vakantie'],
+  vrij_weekend: ['😎', 'Vrij weekend'],
+  feestdag: ['🎉', 'Feestdag'],
+  verjaardag: ['🎂', 'Verjaardag'],
+  sport: ['🏃', 'Sport'],
+  koffie: ['☕', 'Pauze'],
+  bench: ['🪑', 'Bench'],
+  niet_ingepland: ['❌', 'Niet ingepland']
 };
+const SHIFT_ICONS = Object.fromEntries(Object.entries(SHIFT_ICON_LIST).map(([k, [emoji]]) => [k, emoji]));
+/** Hoeveel favoriete icoontjes er per dag zichtbaar zijn; de rest zit achter "⋯". */
+const QUICK_ICONS_VISIBLE = 5;
 
 // --- Vaak gebruikte schermelementen ---
 const sidebar = document.getElementById('sidebar');
@@ -1663,25 +1691,10 @@ const filterShiftYear = document.getElementById('filterShiftYear');
 
 /** Opties voor de icoon-keuze bij een shift. */
 function shiftIconOptions(selected, withLabels = false) {
-  const labels = {
-    light_mode: 'Zon',
-    wb_twilight: 'Schemer',
-    bedtime: 'Maan',
-    schedule: 'Klok',
-    school: 'School',
-    medical_services: 'Ziekte',
-    flight: 'Verlof',
-    bench: 'Bench',
-    feestdag: 'Feestdag',
-    teammeeting: 'Teammeeting',
-    niet_ingepland: 'Niet ingepland',
-    vrij_weekend: 'Vrij weekend',
-    stage: 'Stage'
-  };
-  return Object.entries(labels)
+  return Object.entries(SHIFT_ICON_LIST)
     .map(
-      ([value, label]) =>
-        `<option value="${value}" ${selected === value ? 'selected' : ''}>${SHIFT_ICONS[value]}${withLabels ? ' ' + label : ''}</option>`
+      ([value, [emoji, label]]) =>
+        `<option value="${value}" ${selected === value ? 'selected' : ''}>${emoji}${withLabels ? ' ' + label : ''}</option>`
     )
     .join('');
 }
@@ -2655,13 +2668,19 @@ function renderCalendarGrid(year, month) {
       : '';
 
     // Favoriete shiften als klik-icoontjes (alleen als de shift op deze datum geldig is)
-    const quickIconsHtml = favorites
-      .filter(sh => isDateWithin(baseKey, sh.startDate, sh.endDate))
-      .map(
-        sh =>
-          `<span class="quick-icon-btn" data-shift="${escapeHtml(sh.key)}" title="${escapeHtml(sh.realName || sh.key)}">${SHIFT_ICONS[sh.icon] || '⭐'}</span>`
-      )
-      .join('');
+    // Meer dan 5? Dan 5 icoontjes + een "⋯"-knop met de rest.
+    const dayFavs = favorites.filter(sh => isDateWithin(baseKey, sh.startDate, sh.endDate));
+    const visibleFavs = dayFavs.length > QUICK_ICONS_VISIBLE ? dayFavs.slice(0, QUICK_ICONS_VISIBLE) : dayFavs;
+    const quickIconsHtml =
+      visibleFavs
+        .map(
+          sh =>
+            `<span class="quick-icon-btn" data-shift="${escapeHtml(sh.key)}" title="${escapeHtml(sh.realName || sh.key)}">${SHIFT_ICONS[sh.icon] || '⭐'}</span>`
+        )
+        .join('') +
+      (dayFavs.length > visibleFavs.length
+        ? `<button type="button" class="quick-icon-btn quick-more-btn" title="Meer shiften" aria-label="Meer shiften" aria-haspopup="menu">⋯</button>`
+        : '');
 
     // Ingevulde shiften (max. 3 zichtbaar)
     const dayKeys = listDayKeys(md, baseKey).filter(k => md.rows[k]?.shift);
@@ -2710,13 +2729,60 @@ function renderCalendarGrid(year, month) {
     dayEl.querySelectorAll('.quick-icon-btn').forEach(btn => {
       btn.onclick = e => {
         e.stopPropagation();
-        applyShiftDirectly(baseKey, btn.dataset.shift);
+        if (btn.classList.contains('quick-more-btn'))
+          openQuickMoreMenu(btn, baseKey, dayFavs.slice(QUICK_ICONS_VISIBLE));
+        else applyShiftDirectly(baseKey, btn.dataset.shift);
       };
     });
 
     grid.appendChild(dayEl);
   }
 }
+
+/** Zwevend menuutje met de overige favoriete shiften van een dag ("⋯"-knop). */
+function openQuickMoreMenu(anchor, baseKey, shifts) {
+  closeQuickMoreMenu();
+  const menu = document.createElement('div');
+  menu.id = 'quickMoreMenu';
+  menu.className = 'quick-more-menu';
+  menu.setAttribute('role', 'menu');
+  menu.innerHTML = shifts
+    .map(
+      sh => `<button type="button" role="menuitem" data-shift="${escapeHtml(sh.key)}">
+        <span class="qm-icon">${SHIFT_ICONS[sh.icon] || '⭐'}</span>
+        <span class="qm-name">${escapeHtml(sh.realName || sh.key)}</span>
+        <span class="qm-time">${sh.start && sh.end && !(sh.start === '00:00' && sh.end === '00:00') ? `${escapeHtml(sh.start)}–${escapeHtml(sh.end)}` : ''}</span>
+      </button>`
+    )
+    .join('');
+  document.body.appendChild(menu);
+  const r = anchor.getBoundingClientRect();
+  const w = menu.offsetWidth;
+  const h = menu.offsetHeight;
+  const left = Math.min(Math.max(8, r.right - w), window.innerWidth - w - 8);
+  const top = r.bottom + 6 + h > window.innerHeight ? r.top - h - 6 : r.bottom + 6;
+  menu.style.left = `${left}px`;
+  menu.style.top = `${Math.max(8, top)}px`;
+  menu.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-shift]');
+    if (!btn) return;
+    e.stopPropagation();
+    closeQuickMoreMenu();
+    applyShiftDirectly(baseKey, btn.dataset.shift);
+  });
+  menu.querySelector('button')?.focus({ preventScroll: true });
+  setTimeout(() => {
+    document.addEventListener('click', closeQuickMoreMenu, { once: true });
+    window.addEventListener('scroll', closeQuickMoreMenu, { once: true, passive: true });
+  });
+}
+
+function closeQuickMoreMenu() {
+  document.getElementById('quickMoreMenu')?.remove();
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeQuickMoreMenu();
+});
 
 /** Nieuwe rij-sleutel voor een dag: de datum zelf, of 'datum#2', 'datum#3', … als er al iets staat. */
 function newRowKeyForDay(md, baseKey) {
