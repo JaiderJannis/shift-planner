@@ -11,6 +11,9 @@ const firebaseConfig = {
   appId: "1:719441527396:web:de87d6f950fe23702a5571"
 };
 
+// App op het beginscherm: offline-ondersteuning
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: './' }).catch(() => {});
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();

@@ -3,11 +3,6 @@
   "short_name": "Shifts",
   "icons": [
     {
-      "src": "favicon-32x32.png",
-      "sizes": "32x32",
-      "type": "image/png"
-    },
-    {
       "src": "apple-touch-icon-180x180.png",
       "sizes": "180x180",
       "type": "image/png"
@@ -21,11 +16,43 @@
       "src": "favicon-512x512.png",
       "sizes": "512x512",
       "type": "image/png"
+    },
+    {
+      "src": "favicon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "theme_color": "#F4F6F5",
   "background_color": "#F4F6F5",
   "display": "standalone",
-  "start_url": "index.html",
-  "orientation": "portrait-primary"
+  "start_url": "index.html?bron=beginscherm",
+  "orientation": "portrait-primary",
+  "id": "./",
+  "scope": "./",
+  "lang": "nl",
+  "description": "Plan en registreer je shiften, verlof en stage-uren.",
+  "shortcuts": [
+    {
+      "name": "Shift invullen",
+      "url": "app.html#snel",
+      "icons": [
+        {
+          "src": "favicon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Invoer",
+      "url": "app.html#invoer",
+      "icons": [
+        {
+          "src": "favicon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
 }

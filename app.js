@@ -22,10 +22,10 @@
  *   §18  HISTORIEK — Jaaroverzicht per maand.
  *   §19  CONVERTER — Uren/minuten ↔ decimale uren.
  *   §20  NON-BILLABLE — Niet-factureerbare uren per maand.
- *   §21  MAILBOX — Berichten tussen gebruikers en admins.
+ *   §21  CHAT — Chat tussen gebruikers en admins.
  *   §22  MELDINGEN — In-app meldingen, automatische herinneringen en push/browser-meldingen.
  *   §23  PROFIEL — Profiel-popup: naam, thema, voorkeuren en export.
- *   §24  ADMIN — Gebruiker wisselen in de topbalk, rechten en team-rooster.
+ *   §24  ADMIN — Gebruiker wisselen in de topbalk en rechten.
  *   §25  START — koppelt alle knoppen en start de app.
  *
  * Alle event-koppelingen staan per sectie in een bind…()-functie;
@@ -307,15 +307,6 @@ function normTs(ts) {
   if (typeof ts?.toDate === 'function') return ts.toDate().toISOString();
   if (typeof ts === 'string') return ts;
   return '';
-}
-
-function formatWhen(ts) {
-  if (!ts) return '';
-  try {
-    return new Date(ts).toLocaleString('nl-BE');
-  } catch {
-    return '';
-  }
 }
 
 // ======================================================================
@@ -870,11 +861,10 @@ function initSelectors() {
   monthSelectMain.value = String(new Date().getMonth());
 }
 
-/** Admin-onderdelen tonen voor admins (team-rooster + gebruikerswissel in de topbalk). */
+/** Admin-onderdelen tonen voor admins (gebruikerswissel in de topbalk). */
 function revealAdminIfNeeded() {
   if (!isAdmin()) return;
   document.body.classList.add('is-admin');
-  document.getElementById('adminRoosterTabBtn')?.classList.remove('d-none');
   initTopbarAdminSwitcher();
 }
 
@@ -943,6 +933,7 @@ function bindAuth() {
 
     // Opstart-tabblad uit het profiel
     if (ud?.settings?.defaultTab) showTab(ud.settings.defaultTab);
+    handleLaunchShortcut();
   });
 
   logoutBtn?.addEventListener('click', async () => {
@@ -1197,8 +1188,95 @@ function renderHome() {
       : '<p class="empty">Geen lopende projecten vandaag.</p>';
   }
 
+  renderHomeWeek();
   loadHomeNotifications();
   initAnnouncements();
+}
+
+// --- Mijn week ---
+
+let homeWeekOffset = 0; // 0 = deze week, 1 = volgende week
+const fmtShort = mins => `${Math.floor(mins / 60)}u${String(mins % 60).padStart(2, '0')}`;
+
+/** Lokale datum als YYYY-MM-DD. */
+const isoOf = d =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** Weekoverzicht op Home: maandag t/m zondag met de shiften per dag. */
+function renderHomeWeek() {
+  const list = document.getElementById('homeWeek');
+  if (!list) return;
+  const ud = getCurrentUserData();
+  const shifts = ud.shifts || {};
+  const today = todayISO();
+  const monday = new Date();
+  monday.setHours(12, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7) + homeWeekOffset * 7);
+
+  let workMinutes = 0;
+  let stageMinutes = 0;
+  let workDays = 0;
+  const items = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    const iso = isoOf(d);
+    const md = ud.monthData?.[d.getFullYear()]?.[d.getMonth()];
+    const keys = listDayKeys(md, iso).filter(k => md.rows[k]?.shift);
+    if (keys.length) workDays++;
+    const holiday = getBelgianHoliday(d);
+    const chips = keys
+      .map(k => {
+        const r = md.rows[k];
+        const sh = shifts[r.shift] || {};
+        const mins = Number(r.minutes) || 0;
+        const counts = !r.status || r.status === 'approved';
+        if (counts && isStageRow(r, ud)) stageMinutes += mins;
+        else if (counts) workMinutes += mins;
+        const time =
+          r.start && r.end && !(r.start === '00:00' && r.end === '00:00') ? `${r.start}–${r.end}` : fmtShort(mins);
+        return `<span class="week-shift" style="--shift-color:${escapeHtml(sh.color || '#e9ecef')}">
+          <strong>${escapeHtml(sh.realName || r.shift)}${r.status === 'pending' ? ' ⏳' : ''}</strong><span>${escapeHtml(time)}</span></span>`;
+      })
+      .join('');
+    const dayName = daysFull[d.getDay()];
+    items.push(`
+      <li class="week-day${iso === today ? ' today' : ''}${iso < today ? ' past' : ''}${d.getDay() % 6 === 0 ? ' weekend' : ''}">
+        <button type="button" class="week-day-btn" data-date="${iso}" aria-label="${dayName} ${toDisplayDate(iso)} bekijken">
+          <span class="week-date"><span class="wd">${dayName.slice(0, 2)}</span><span class="dn">${d.getDate()}</span></span>
+          <span class="week-shifts">${chips || `<span class="week-free">${holiday ? `${holiday.emoji} ${escapeHtml(holiday.name)}` : 'Vrij'}</span>`}</span>
+          <span class="material-icons-outlined week-chev" aria-hidden="true">chevron_right</span>
+        </button>
+      </li>`);
+  }
+  list.innerHTML = items.join('');
+
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const range = `${monday.getDate()} ${monthsFull[monday.getMonth()].slice(0, 3).toLowerCase()} – ${sunday.getDate()} ${monthsFull[sunday.getMonth()].slice(0, 3).toLowerCase()}`;
+  const summary = document.getElementById('homeWeekSummary');
+  if (summary) {
+    summary.innerHTML = `${range} · <strong>${fmtShort(workMinutes)}</strong> gepland${
+      stageMinutes ? ` · ${fmtShort(stageMinutes)} stage` : ''
+    } · ${workDays} ${workDays === 1 ? 'dag' : 'dagen'} ingevuld`;
+  }
+}
+
+function bindHomeWeek() {
+  document.querySelector('.week-switch')?.addEventListener('click', e => {
+    const btn = e.target.closest('.week-tab');
+    if (!btn) return;
+    homeWeekOffset = Number(btn.dataset.week);
+    document.querySelectorAll('.week-tab').forEach(b => {
+      b.classList.toggle('active', b === btn);
+      b.setAttribute('aria-selected', String(b === btn));
+    });
+    renderHomeWeek();
+  });
+  document.getElementById('homeWeek')?.addEventListener('click', e => {
+    const btn = e.target.closest('.week-day-btn');
+    if (btn) openDayEditor(btn.dataset.date);
+  });
 }
 
 // --- Team-mededelingen (prikbord) ---
@@ -1260,6 +1338,7 @@ function bindHome() {
   });
 
   document.getElementById('homeBtnGoInvoer')?.addEventListener('click', () => showTab('#tab-invoer'));
+  bindHomeWeek();
 
   // Mededeling verwijderen (admin)
   window.deleteAnnouncement = async id => {
@@ -4157,30 +4236,20 @@ function bindNonBillable() {
 }
 
 // ======================================================================
-// §21  MAILBOX
-// Berichten tussen gebruikers en admins.
+// §21  CHAT
+// Chat tussen gebruikers en admins (op de opslag van de vroegere mailbox).
 // ======================================================================
 
-// Gewone gebruiker: users/{uid}/mailbox. Admin: inbox = gedeelde 'admin_mail', verzonden = eigen mailbox.
-const mailListBody = document.getElementById('mailListBody');
-const mailDetail = document.getElementById('mailDetail');
-const mailToSelect = document.getElementById('mailToSelect');
-const mailSubjectInput = document.getElementById('mailSubjectInput');
-const mailBodyInput = document.getElementById('mailBodyInput');
+// De chat gebruikt dezelfde opslag als de vroegere mailbox, zodat de Firestore-regels gelijk blijven:
+// - gebruiker: users/{uid}/mailbox (eigen berichten, antwoorden van admins en systeemberichten)
+// - admin: 'admin_mail' (berichten van gebruikers) + users/{adminUid}/mailbox (eigen antwoorden)
 
 let mailboxUnsubInbox = null;
 let mailboxUnsubSent = null;
 let mailboxCacheInbox = [];
 let mailboxCacheSent = [];
-let mailboxCache = []; // alle berichten samen
-let mailFolder = 'inbox'; // 'inbox' | 'sent'
-let composeThreadId = null; // bij antwoorden: zelfde gesprek
-
-/** Afzender-uid van een bericht (admin_mail gebruikt 'fromUserId'). */
-const mailSenderUid = m => m.from?.uid || m.fromUserId || '';
-/** Leesbare afzender. */
-const mailSenderName = m =>
-  m.system ? 'Shift Planner (noreply)' : m.fromName || m.from?.name || m.fromEmail || m.from?.email || '—';
+let chatPeer = null; // admin: uid van het open gesprek ('__system' = meldingen)
+const SYSTEM_PEER = '__system';
 
 function updateUnreadBadges(unread) {
   const n = Math.max(0, Number(unread) || 0);
@@ -4190,145 +4259,65 @@ function updateUnreadBadges(unread) {
     badge.textContent = n;
     badge.classList.toggle('d-none', n === 0);
   });
-  // Op de iPhone: bolletje op "Meer"
+  // Bolletje op de hamburgerknop
   document.getElementById('mailBottomBadge')?.classList.toggle('d-none', n === 0);
 }
 
-/* ---------- mailbox listen ---------- */
+/* ---------- luisteren ---------- */
 function listenMailbox(uid) {
-  // 1. Stop vorige listeners
   if (mailboxUnsubInbox) mailboxUnsubInbox();
   if (mailboxUnsubSent) mailboxUnsubSent();
+  mailboxUnsubInbox = mailboxUnsubSent = null;
   mailboxCacheInbox = [];
   mailboxCacheSent = [];
 
-  const me = dataStore.users[uid];
-  const iAmAdmin = (me?.role || 'user') === 'admin';
+  const iAmAdmin = (dataStore.users[uid]?.role || 'user') === 'admin';
+  const toItems = (snap, source) =>
+    snap.docs.map(d => {
+      const data = d.data();
+      return { _id: d.id, ...data, _tsIso: normTs(data.timestamp) || new Date().toISOString(), _source: source };
+    });
 
+  /** Browsermelding voor nieuwe, ongelezen berichten van iemand anders (niet bij de eerste lading). */
+  const notifyNew = (snap, isIncoming) => {
+    snap.docChanges().forEach(change => {
+      if (change.type !== 'added') return;
+      const d = change.doc.data();
+      if (d.read || !isIncoming(d)) return;
+      const sender = d.system ? 'Shift Planner' : d.fromName || d.from?.name || 'Admin';
+      sendBrowserNotification(`Nieuw bericht van ${sender}`, chatSnippet(d));
+    });
+  };
+
+  let first = true;
   if (iAmAdmin) {
-    // --- ADMIN: Luistert naar TWEE bronnen ---
-
-    // Bron 1: De 'admin_mail' collectie (voor de Inbox)
-    const inboxColRef = collection(db, 'admin_mail');
-    const qyInbox = query(inboxColRef, orderBy('timestamp', 'desc'), limit(200));
-
-    let isFirstLoadAdmin = true; // 🛑 Vlag om meldingen bij opstarten te blokkeren
-
-    mailboxUnsubInbox = onSnapshot(qyInbox, snap => {
-      // A. NOTIFICATIE LOOP (Nieuw)
-      if (!isFirstLoadAdmin) {
-        snap.docChanges().forEach(change => {
-          if (change.type === 'added') {
-            const d = change.doc.data();
-            // Als het ongelezen is, stuur melding
-            if (!d.read) {
-              const sender = d.fromName || d.from?.name || 'Onbekend';
-              const subject = d.subject || '(Geen onderwerp)';
-
-              // Stuur browser melding
-              sendBrowserNotification(`Nieuw bericht van ${sender}`, subject);
-            }
-          }
-        });
+    mailboxUnsubInbox = onSnapshot(
+      query(collection(db, 'admin_mail'), orderBy('timestamp', 'desc'), limit(300)),
+      snap => {
+        if (!first) notifyNew(snap, () => true);
+        first = false;
+        mailboxCacheInbox = toItems(snap, 'admin_mail');
+        renderChat();
       }
-
-      // B. Lijst opbouwen
-      mailboxCacheInbox = snap.docs.map(d => {
-        const data = d.data();
-        return { _id: d.id, ...data, _tsIso: normTs(data.timestamp), _source: 'admin_mail' };
-      });
-
-      mergeAndRenderMail();
-
-      isFirstLoadAdmin = false; // 🛑 Vlag uitzetten na eerste keer
-    });
-
-    // Bron 2: Hun EIGEN mailbox (voor Verzonden items) -> Geen notificaties nodig
-    const sentColRef = collection(db, 'users', uid, 'mailbox');
-    const qySent = query(sentColRef, orderBy('timestamp', 'desc'), limit(200));
-    mailboxUnsubSent = onSnapshot(qySent, snap => {
-      mailboxCacheSent = snap.docs.map(d => ({
-        _id: d.id,
-        ...d.data(),
-        _tsIso: normTs(d.data().timestamp),
-        _source: 'user_mailbox'
-      }));
-      mergeAndRenderMail();
-    });
-  } else {
-    // --- GEWONE USER: Luistert naar ÉÉN bron ---
-    const userColRef = collection(db, 'users', uid, 'mailbox');
-    const qyUser = query(userColRef, orderBy('timestamp', 'desc'), limit(200));
-
-    let isFirstLoadUser = true; // 🛑 Vlag om meldingen bij opstarten te blokkeren
-
-    mailboxUnsubInbox = onSnapshot(qyUser, snap => {
-      // A. NOTIFICATIE LOOP (Nieuw)
-      if (!isFirstLoadUser) {
-        snap.docChanges().forEach(change => {
-          if (change.type === 'added') {
-            const d = change.doc.data();
-
-            // Check: bericht voor mij? ongelezen? niet van mijzelf?
-            const isForMe = d.to?.uid === uid || d.to?.type === 'user';
-            const notFromMe = d.from?.uid !== uid;
-
-            if (!d.read && isForMe && notFromMe) {
-              const sender = d.system ? 'Shift Planner' : d.from?.name || 'Admin';
-              const subject = d.subject || '(Geen onderwerp)';
-
-              // Stuur browser melding
-              sendBrowserNotification(`Nieuw bericht van ${sender}`, subject);
-            }
-          }
-        });
+    );
+    mailboxUnsubSent = onSnapshot(
+      query(collection(db, 'users', uid, 'mailbox'), orderBy('timestamp', 'desc'), limit(300)),
+      snap => {
+        mailboxCacheSent = toItems(snap, 'user_mailbox');
+        renderChat();
       }
-
-      // B. BESTAANDE UI LOGICA
-      mailboxCacheInbox = snap.docs.map(d => ({
-        _id: d.id,
-        ...d.data(),
-        _tsIso: normTs(d.data().timestamp),
-        _source: 'user_mailbox'
-      }));
-      mailboxCacheSent = [];
-      mergeAndRenderMail();
-
-      isFirstLoadUser = false; // 🛑 Vlag uitzetten
-    });
-  }
-}
-
-function prepareComposeOptions() {
-  mailToSelect.innerHTML = '';
-  if (isAdmin()) {
-    // admin → kies user (excl admins)
-    const opt0 = document.createElement('option');
-    opt0.value = '';
-    opt0.textContent = 'Kies gebruiker…';
-    mailToSelect.appendChild(opt0);
-    Object.entries(dataStore.users).forEach(([uid, u]) => {
-      if ((u.role || 'user') === 'admin') return;
-      const o = document.createElement('option');
-      o.value = `user:${uid}`;
-      o.textContent = u.name || u.email || uid;
-      mailToSelect.appendChild(o);
-    });
+    );
   } else {
-    // user → admins
-    const o = document.createElement('option');
-    o.value = 'admin-group';
-    o.textContent = 'Admins';
-    mailToSelect.appendChild(o);
+    mailboxUnsubInbox = onSnapshot(
+      query(collection(db, 'users', uid, 'mailbox'), orderBy('timestamp', 'desc'), limit(300)),
+      snap => {
+        if (!first) notifyNew(snap, d => d.from?.uid !== uid);
+        first = false;
+        mailboxCacheInbox = toItems(snap, 'user_mailbox');
+        renderChat();
+      }
+    );
   }
-}
-
-function prepareComposeToCounterparty(m) {
-  prepareComposeOptions();
-  mailToSelect.value = isAdmin() ? `user:${mailSenderUid(m)}` : 'admin-group';
-  mailSubjectInput.value = m.subject?.startsWith('Re: ') ? m.subject : `Re: ${m.subject || ''}`;
-  mailBodyInput.value = '';
-  composeThreadId = m.threadId || `conv:${mailSenderUid(m) || currentUserId}`;
 }
 
 /* ---------- send helpers ---------- */
@@ -4346,7 +4335,7 @@ async function sendSystemMail(uid, subject, body, kind = 'notification', threadI
   });
 }
 
-async function sendUserMessageToAdmins(subject, body, threadId = `conv:${currentUserId}`) {
+async function sendUserMessageToAdmins(subject, body, threadId = `conv:${currentUserId}`, kind = 'message') {
   const meUid = currentUserId;
   const me = dataStore.users[meUid];
   const meName = me?.name || me?.email || meUid;
@@ -4356,7 +4345,7 @@ async function sendUserMessageToAdmins(subject, body, threadId = `conv:${current
   await addDoc(collection(db, 'users', meUid, 'mailbox'), {
     threadId,
     system: false,
-    kind: 'message',
+    kind,
     from: { uid: meUid, name: meName, role: 'user' },
     to: { type: 'admin-group' },
     subject,
@@ -4377,6 +4366,7 @@ async function sendUserMessageToAdmins(subject, body, threadId = `conv:${current
     body: body,
     timestamp: serverTimestamp(),
     read: false, // Ongelezen voor de admin
+    kind,
     threadId: threadId // Behoud threadId voor context
   });
 }
@@ -4418,7 +4408,7 @@ async function broadcastToAdmins(subject, body, kind = 'status') {
   });
 }
 
-async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
+async function sendAdminReplyToUser(adminUid, userUid, subject, body, kind = 'message') {
   const admin = dataStore.users[adminUid];
   const threadId = `conv:${userUid}`;
 
@@ -4426,7 +4416,7 @@ async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
   await addDoc(collection(db, 'users', adminUid, 'mailbox'), {
     threadId,
     system: false,
-    kind: 'message',
+    kind,
     from: { uid: adminUid, name: admin?.name || admin?.email || 'Admin', role: 'admin' },
     to: { type: 'user-id', uid: userUid },
     subject,
@@ -4439,7 +4429,7 @@ async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
   await addDoc(collection(db, 'users', userUid, 'mailbox'), {
     threadId,
     system: false,
-    kind: 'message',
+    kind,
     from: { uid: adminUid, name: admin?.name || admin?.email || 'Admin', role: 'admin' },
     to: { type: 'user', uid: userUid },
     subject,
@@ -4479,400 +4469,274 @@ ${row.attachmentURL ? `\n- BIJLAGE: ${row.attachmentURL}` : ''}
   });
 }
 
-/* ---------- actions ---------- */
-async function markMailRead(messageId, val = true) {
-  const uid = currentUserId;
+/* ---------- berichten ordenen ---------- */
 
-  // 1. Zoek het bericht in je lokale geheugen
-  const msg = mailboxCache.find(m => m._id === messageId);
-  if (!msg) return; // Het is al weg, stop.
-
-  // 2. Bepaal waar het bericht zou moeten staan in de database
-  let docRef;
-  if (msg._source === 'admin_mail') {
-    docRef = doc(db, 'admin_mail', messageId);
-  } else {
-    docRef = doc(db, 'users', uid, 'mailbox', messageId);
-  }
-
-  try {
-    // 3. Probeer de status te updaten naar 'gelezen'
-    await updateDoc(docRef, { read: !!val });
-  } catch (err) {
-    // 4. Vang de fout op als het bericht niet bestaat
-    if (err.code === 'not-found') {
-      // GEBRUIKERSVRIENDELIJKE MELDING:
-      toast('Dit bericht is niet meer gevonden en wordt verwijderd.', 'warning');
-
-      // Verwijder het spookbericht uit alle lokale lijsten
-      mailboxCache = mailboxCache.filter(x => x._id !== messageId);
-      mailboxCacheInbox = mailboxCacheInbox.filter(x => x._id !== messageId);
-      mailboxCacheSent = mailboxCacheSent.filter(x => x._id !== messageId);
-
-      // Ververs de lijst op het scherm
-      renderMailList();
-
-      // Maak het lees-scherm leeg als dat bericht open stond
-      const detailEl = document.getElementById('mailDetail');
-      if (detailEl && detailEl.dataset.openId === messageId) {
-        detailEl.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
-      }
-      return;
-    } else {
-      // Echte fouten (zoals geen internet/permissie) wel loggen
-      console.error('Fout bij markMailRead:', err);
-    }
-  }
-
-  // 5. Als alles goed ging: update lokaal ook naar 'gelezen'
-  const m = mailboxCache.find(x => x._id === messageId);
-  if (m) m.read = !!val;
-  renderMailList();
+/** Korte tekst van een bericht (voor meldingen en het gesprekkenoverzicht). */
+function chatSnippet(m) {
+  const text = (m.kind === 'chat' ? m.body : m.subject || m.body || '').replace(/\s+/g, ' ').trim();
+  return text.length > 70 ? `${text.slice(0, 70)}…` : text;
 }
 
-async function deleteMail(messageId) {
-  const uid = currentUserId;
-
-  // Bron opzoeken (admin_mail of eigen mailbox)
-  const msg = mailboxCache.find(m => m._id === messageId);
-  if (!msg) return; // Bericht al weg
-
-  let docRef;
-  if (msg._source === 'admin_mail') {
-    docRef = doc(db, 'admin_mail', messageId);
-  } else {
-    docRef = doc(db, 'users', uid, 'mailbox', messageId);
-  }
-
-  await deleteDoc(docRef); // 👈 Gebruik het juiste pad
-
-  // Cache updates (lokaal)
-  mailboxCache = mailboxCache.filter(x => x._id !== messageId);
-  mailboxCacheInbox = mailboxCacheInbox.filter(x => x._id !== messageId);
-  mailboxCacheSent = mailboxCacheSent.filter(x => x._id !== messageId);
-
-  renderMailList();
-  if (mailDetail.dataset?.openId === messageId) {
-    mailDetail.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
-    delete mailDetail.dataset.openId;
-  }
-}
-
-function mergeAndRenderMail() {
-  // Voeg de twee caches (inbox en sent) samen
-  const combined = new Map();
+/** Alle berichten als chat-items: wie is de gesprekspartner en is het van mij? */
+function chatItems() {
+  const me = currentUserId;
+  const admin = isAdmin();
+  const items = [];
   [...mailboxCacheInbox, ...mailboxCacheSent].forEach(m => {
-    combined.set(m._id, m);
+    // Automatische meldingen staan al bij het belletje; niet dubbel in de chat
+    if (m.system && m.kind === 'notification') return;
+    let peer;
+    let mine = false;
+    if (m._source === 'admin_mail') peer = m.fromUserId || '?';
+    else if (m.system) peer = SYSTEM_PEER;
+    else if (m.from?.uid === me) {
+      mine = true;
+      peer = admin ? m.to?.uid || '?' : 'admins';
+    } else peer = admin ? m.from?.uid || '?' : 'admins';
+    if (!admin && peer === SYSTEM_PEER) peer = 'admins'; // gebruiker: systeemberichten in hetzelfde gesprek
+    items.push({ ...m, _peer: peer, _mine: mine });
   });
-  mailboxCache = Array.from(combined.values());
-  renderMailList();
+  return items.sort((a, b) => a._tsIso.localeCompare(b._tsIso));
 }
 
-/* ---------- render ---------- */
-function filteredMessages() {
-  const uid = currentUserId; // mailbox is altijd van de ingelogde gebruiker
-  const items = mailboxCache.slice().sort((a, b) => (b._tsIso || '').localeCompare(a._tsIso || ''));
+const isUnreadIncoming = m => !m._mine && m.read === false;
 
-  if (mailFolder === 'sent') {
-    // verzonden = door mij (niet system)
-    return items.filter(m => m.from?.uid === uid && !m.system);
-  }
-  // inbox = alles dat NIET door mij is gestuurd óf system
-  return items.filter(m => m.from?.uid !== uid || m.system);
+/** Gesprekken voor de admin: alle gebruikers + wie er al berichten stuurde. */
+function chatConversations(items) {
+  const convs = new Map();
+  const add = (peer, name) => {
+    if (!convs.has(peer)) convs.set(peer, { peer, name, last: null, unread: 0 });
+    return convs.get(peer);
+  };
+  Object.entries(dataStore.users).forEach(([uid, u]) => {
+    if ((u.role || 'user') !== 'admin') add(uid, u.name || u.email || uid);
+  });
+  items.forEach(m => {
+    const name =
+      m._peer === SYSTEM_PEER
+        ? 'Shift Planner'
+        : dataStore.users[m._peer]?.name || m.fromName || dataStore.users[m._peer]?.email || 'Onbekend';
+    const c = add(m._peer, name);
+    c.last = m;
+    if (isUnreadIncoming(m)) c.unread++;
+  });
+  return [...convs.values()].sort(
+    (a, b) => (b.last?._tsIso || '').localeCompare(a.last?._tsIso || '') || a.name.localeCompare(b.name)
+  );
 }
 
-function renderMailList() {
-  const msgs = filteredMessages();
-  mailListBody.innerHTML = '';
+/* ---------- tekenen ---------- */
+const chatTime = iso => new Date(iso).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' });
+function chatDayLabel(iso) {
+  const d = new Date(iso);
+  const today = new Date();
+  const yest = new Date();
+  yest.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return 'Vandaag';
+  if (d.toDateString() === yest.toDateString()) return 'Gisteren';
+  return d.toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+/** Tekst veilig tonen, met klikbare links. */
+const chatText = t =>
+  escapeHtml(t || '').replace(
+    /https?:\/\/[^\s<]+/g,
+    url => `<a href="${url}" target="_blank" rel="noopener">${url}</a>`
+  );
+const initials = name =>
+  (name || '?')
+    .split(/\s+/)
+    .map(p => p[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 
-  let unread = 0;
-  msgs.forEach(m => {
-    if (!m.read && mailFolder === 'inbox') unread++;
-  });
+function renderChat() {
+  const items = chatItems();
+  const admin = isAdmin();
+  updateUnreadBadges(items.filter(isUnreadIncoming).length);
 
-  updateUnreadBadges(unread);
-
-  msgs.forEach(m => {
-    let displayName = '—';
-    if (mailFolder === 'sent') {
-      // In Verzonden map, toon de 'To' (Naar)
-      if (m.to?.type === 'admin-group') {
-        displayName = 'Admins';
-      } else if (m.to?.uid && dataStore.users[m.to.uid]) {
-        displayName = dataStore.users[m.to.uid].name || dataStore.users[m.to.uid].email; // Admin naar user
-      } else if (m.to?.name) {
-        displayName = m.to.name;
-      } else {
-        displayName = 'Onbekend';
-      }
-    } else {
-      displayName = mailSenderName(m);
+  const listEl = document.getElementById('chatConvList');
+  const shell = document.getElementById('chatShell');
+  let thread;
+  if (admin) {
+    const convs = chatConversations(items);
+    if (!chatPeer && convs.length && window.matchMedia('(min-width: 992px)').matches) chatPeer = convs[0].peer;
+    if (listEl) {
+      listEl.innerHTML = convs
+        .map(
+          c => `
+        <button type="button" class="chat-conv${c.peer === chatPeer ? ' active' : ''}" data-peer="${escapeHtml(c.peer)}">
+          <span class="chat-avatar${c.peer === SYSTEM_PEER ? ' sys' : ''}">${escapeHtml(initials(c.name))}</span>
+          <span class="chat-conv-text">
+            <span class="chat-conv-top"><strong>${escapeHtml(c.name)}</strong>${c.last ? `<small>${chatDayLabel(c.last._tsIso) === 'Vandaag' ? chatTime(c.last._tsIso) : new Date(c.last._tsIso).toLocaleDateString('nl-BE', { day: 'numeric', month: 'short' })}</small>` : ''}</span>
+            <span class="chat-conv-last">${c.last ? `${c.last._mine ? 'Jij: ' : ''}${escapeHtml(chatSnippet(c.last))}` : '<em>Nog geen berichten</em>'}</span>
+          </span>
+          ${c.unread ? `<span class="nav-badge">${c.unread}</span>` : ''}
+        </button>`
+        )
+        .join('');
     }
+    shell?.classList.toggle('show-thread', !!chatPeer);
+    const conv = convs.find(c => c.peer === chatPeer);
+    thread = chatPeer ? items.filter(m => m._peer === chatPeer) : [];
+    document.getElementById('chatTitle').textContent = conv?.name || 'Kies een gesprek';
+    document.getElementById('chatSub').textContent =
+      chatPeer === SYSTEM_PEER ? 'Automatische meldingen' : dataStore.users[chatPeer]?.email || '';
+    document.getElementById('chatAvatar').textContent = initials(conv?.name || '?');
+  } else {
+    thread = items;
+  }
+  const canWrite = !admin || (chatPeer && chatPeer !== SYSTEM_PEER);
+  document.getElementById('chatForm')?.classList.toggle('d-none', !canWrite);
 
-    const tr = document.createElement('tr');
-    tr.className = m.read ? '' : 'fw-semibold';
-    tr.innerHTML = `
-      <td>${escapeHtml(displayName)}</td>
-      <td><a href="#" class="js-open" data-id="${m._id}">${escapeHtml(m.subject || '(geen onderwerp)')}</a></td>
-      <td class="text-end"><span class="mail-meta">${formatWhen(m._tsIso)}</span></td>
-      <td class="text-end">
-        <button class="btn btn-sm ${m.read ? 'btn-outline-secondary' : 'btn-outline-primary'} me-1 js-toggle" data-id="${m._id}">
-          ${m.read ? 'Ongelezen' : 'Gelezen'}
-        </button>
-        <button class="btn btn-sm btn-outline-danger js-del" data-id="${m._id}">
-          <span class="material-icons-outlined" style="font-size:16px">delete</span>
-        </button>
-      </td>
-    `;
-    mailListBody.appendChild(tr);
+  const box = document.getElementById('chatMessages');
+  if (!box) return;
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  if (!thread.length) {
+    box.innerHTML = `<div class="chat-empty"><span class="material-icons-outlined">forum</span><p>${
+      admin && !chatPeer ? 'Kies links een gesprek.' : 'Nog geen berichten. Stuur gerust een eerste bericht.'
+    }</p></div>`;
+  } else {
+    let lastDay = '';
+    box.innerHTML = thread
+      .map(m => {
+        const day = chatDayLabel(m._tsIso);
+        const sep = day !== lastDay ? `<div class="chat-day">${day}</div>` : '';
+        lastDay = day;
+        const subject =
+          m.kind !== 'chat' && m.subject ? `<strong class="chat-subject">${escapeHtml(m.subject)}</strong>` : '';
+        const body = m.kind !== 'chat' && m.subject === m.body ? '' : chatText(m.body);
+        if (m.system && !admin) {
+          return `${sep}<div class="chat-notice" data-id="${m._id}">${subject}<span>${body}</span><small>${chatTime(m._tsIso)}</small></div>`;
+        }
+        const who =
+          !m._mine && admin
+            ? ''
+            : !m._mine
+              ? `<span class="chat-who">${escapeHtml(m.from?.name || 'Admin')}</span>`
+              : '';
+        return `${sep}<div class="chat-row${m._mine ? ' mine' : ''}">
+          <div class="chat-bubble${isUnreadIncoming(m) ? ' unread' : ''}" data-id="${m._id}" tabindex="0">
+            ${who}${subject}<span class="chat-body">${body}</span>
+            <span class="chat-meta">${chatTime(m._tsIso)}${m._mine ? ' <span class="material-icons-outlined">done_all</span>' : ''}</span>
+            <button type="button" class="chat-del" data-id="${m._id}" aria-label="Bericht verwijderen"><span class="material-icons-outlined">delete</span></button>
+          </div>
+        </div>`;
+      })
+      .join('');
+  }
+  if (nearBottom || box.dataset.peer !== String(chatPeer)) box.scrollTop = box.scrollHeight;
+  box.dataset.peer = String(chatPeer);
+
+  // Open gesprek = gelezen
+  if (document.getElementById('tab-mail')?.classList.contains('active')) markThreadRead(thread);
+}
+
+/** Ongelezen inkomende berichten van het open gesprek als gelezen markeren. */
+function markThreadRead(thread) {
+  thread.filter(isUnreadIncoming).forEach(m => {
+    m.read = true;
+    updateDoc(chatDocRef(m), { read: true }).catch(err => console.warn('Gelezen markeren mislukt', err));
   });
 }
 
-function openMail(m) {
-  if (!m) return;
-  if (!m.read) {
-    markMailRead(m._id, true);
-    m.read = true;
-  }
-
-  const fromName = escapeHtml(mailSenderName(m));
-  const actions = `
-    <div class="d-flex gap-2">
-      <button class="btn btn-outline-secondary btn-sm js-mark-unread" data-id="${m._id}">Markeer ongelezen</button>
-      <button class="btn btn-outline-danger btn-sm js-del" data-id="${m._id}">
-        <span class="material-icons-outlined" style="font-size:16px">delete</span>
-      </button>
-      ${m.system ? '' : '<button class="btn btn-outline-primary btn-sm js-reply" data-id="' + m._id + '"><span class="material-icons-outlined">reply</span> Antwoorden</button>'}
-    </div>`;
-
-  mailDetail.innerHTML = `
-    <div class="d-flex justify-content-between align-items-start">
-      <div>
-        <div class="fw-semibold">${escapeHtml(m.subject || '(geen onderwerp)')}</div>
-        <div class="mail-meta">Van: ${fromName} • ${formatWhen(m._tsIso)}</div>
-      </div>
-      ${actions}
-    </div>
-    <hr class="my-2">
-    <div style="white-space:pre-wrap">${escapeHtml(m.body || '')}</div>
-  `;
-  mailDetail.dataset.openId = m._id;
+function chatDocRef(m) {
+  return m._source === 'admin_mail' ? doc(db, 'admin_mail', m._id) : doc(db, 'users', currentUserId, 'mailbox', m._id);
 }
 
-/* ---------- once-only UI binding ---------- */
+/* ---------- versturen ---------- */
+async function sendChatMessage(text) {
+  const subject = text.length > 60 ? `${text.slice(0, 60)}…` : text;
+  if (isAdmin()) {
+    if (!chatPeer || chatPeer === SYSTEM_PEER) return;
+    await sendAdminReplyToUser(currentUserId, chatPeer, subject, text, 'chat');
+  } else {
+    await sendUserMessageToAdmins(subject, text, `conv:${currentUserId}`, 'chat');
+  }
+}
+
+/* ---------- koppelen ---------- */
 function bindMailboxUIOnce() {
   if (mailUIBound) return;
   mailUIBound = true;
 
-  const nav = document.getElementById('mailFolderNav');
-  const compBtn = document.getElementById('mailComposeBtn');
-  const refBtn = document.getElementById('mailRefreshBtn');
-  const cancBtn = document.getElementById('mailCancelBtn');
-  const sndBtn = document.getElementById('mailSendBtn');
-  const delAllBtn = document.getElementById('mailDeleteAllBtn');
-  const markAllBtn = document.getElementById('mailMarkAllReadBtn');
-  const compCard = document.getElementById('mailComposeCard');
-
-  // Folder switch
-  nav?.addEventListener('click', e => {
-    const btn = e.target.closest('button[data-folder]');
-    if (!btn) return;
-    mailFolder = btn.dataset.folder; // 'inbox' or 'sent'
-
-    const inboxBtn = document.getElementById('mailTabInbox');
-    const sentBtn = document.getElementById('mailTabSent');
-
-    if (mailFolder === 'sent') {
-      inboxBtn.classList.remove('active', 'btn-outline-primary');
-      inboxBtn.classList.add('btn-outline-secondary');
-      sentBtn.classList.add('active', 'btn-outline-primary');
-      sentBtn.classList.remove('btn-outline-secondary');
-    } else {
-      inboxBtn.classList.add('active', 'btn-outline-primary');
-      inboxBtn.classList.remove('btn-outline-secondary');
-      sentBtn.classList.remove('active', 'btn-outline-primary');
-      sentBtn.classList.add('btn-outline-secondary');
-    }
-
-    const titleEl = document.getElementById('mailListTitle');
-    if (titleEl) titleEl.textContent = mailFolder === 'sent' ? 'Verzonden' : 'Inbox';
-
-    renderMailList();
-    const detailEl = document.getElementById('mailDetail');
-    if (detailEl) detailEl.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
-  });
-
-  // Compose
-  compBtn?.addEventListener('click', () => {
-    compCard?.classList.toggle('d-none');
-    if (!compCard?.classList.contains('d-none')) {
-      prepareComposeOptions();
-      const subj = document.getElementById('mailSubjectInput');
-      const body = document.getElementById('mailBodyInput');
-      if (subj) subj.value = '';
-      if (body) body.value = '';
-      composeThreadId = null;
+  const form = document.getElementById('chatForm');
+  const input = document.getElementById('chatInput');
+  const sendBtn = document.getElementById('chatSendBtn');
+  const grow = () => {
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(input.scrollHeight, 140)}px`;
+    sendBtn.disabled = !input.value.trim();
+  };
+  input?.addEventListener('input', grow);
+  input?.addEventListener('keydown', e => {
+    // Enter verstuurt op de computer; op de iPhone geeft Enter een nieuwe regel
+    if (e.key === 'Enter' && !e.shiftKey && !window.matchMedia('(pointer: coarse)').matches) {
+      e.preventDefault();
+      form.requestSubmit();
     }
   });
-
-  cancBtn?.addEventListener('click', () => {
-    compCard?.classList.add('d-none');
-    composeThreadId = null;
-  });
-
-  sndBtn?.addEventListener('click', async () => {
-    const toSelect = document.getElementById('mailToSelect');
-    const subjInput = document.getElementById('mailSubjectInput');
-    const bodyInput = document.getElementById('mailBodyInput');
-
-    const toVal = toSelect?.value;
-    const subject = (subjInput?.value || '').trim();
-    const body = (bodyInput?.value || '').trim();
-
-    if (!toVal || !subject || !body) return toast('Vul aan: geadresseerde, onderwerp en bericht', 'warning');
-
-    const meUid = currentUserId; // afzender is altijd de ingelogde gebruiker
+  form?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    grow();
     try {
-      if (isAdmin()) {
-        const userUid = toVal.startsWith('user:') ? toVal.split(':')[1] : null;
-        if (!userUid) return toast('Kies gebruiker', 'warning');
-        await sendAdminReplyToUser(meUid, userUid, subject, body);
-        toast('Bericht verzonden aan gebruiker', 'success');
-      } else {
-        await sendUserMessageToAdmins(subject, body, composeThreadId || `conv:${meUid}`);
-        toast('Bericht verzonden aan admins', 'success');
-      }
-      compCard?.classList.add('d-none');
-      composeThreadId = null;
-    } catch (e) {
-      console.error(e);
+      await sendChatMessage(text);
+      const box = document.getElementById('chatMessages');
+      if (box) box.scrollTop = box.scrollHeight;
+    } catch (err) {
+      console.error(err);
+      input.value = text;
+      grow();
       toast('Versturen mislukt', 'danger');
     }
   });
 
-  // Refresh
-  refBtn?.addEventListener('click', () => {
-    if (currentUserId) listenMailbox(currentUserId);
+  document.getElementById('chatConvList')?.addEventListener('click', e => {
+    const btn = e.target.closest('.chat-conv');
+    if (!btn) return;
+    chatPeer = btn.dataset.peer;
+    renderChat();
+    input?.focus({ preventScroll: true });
+  });
+  document.getElementById('chatBackBtn')?.addEventListener('click', () => {
+    chatPeer = null;
+    renderChat();
   });
 
-  // Delete All
-  delAllBtn?.addEventListener('click', async () => {
-    const uid = currentUserId;
-    if (!uid) return;
-    const folderName = mailFolder === 'sent' ? 'verzonden items' : 'inbox';
-    const messagesToDelete = filteredMessages();
-
-    if (messagesToDelete.length === 0) return toast(`Er zijn geen berichten in je ${folderName}.`, 'info');
-    if (
-      !confirm(
-        `Weet je zeker dat je alle ${messagesToDelete.length} berichten in je ${folderName} permanent wilt verwijderen?`
-      )
-    )
-      return;
-
-    try {
-      const deletions = messagesToDelete.map(m => {
-        let docRef;
-        if (m._source === 'admin_mail') {
-          docRef = doc(db, 'admin_mail', m._id);
-        } else {
-          docRef = doc(db, 'users', uid, 'mailbox', m._id);
-        }
-        return deleteDoc(docRef);
-      });
-      await Promise.all(deletions);
-      toast(`Alle berichten verwijderd.`, 'success');
-      const detailEl = document.getElementById('mailDetail');
-      if (detailEl) {
-        detailEl.innerHTML = '<div class="text-muted small">Selecteer een bericht…</div>';
-        delete detailEl.dataset.openId;
+  // Tik op een bericht: verwijderknop tonen
+  const box = document.getElementById('chatMessages');
+  box?.addEventListener('click', async e => {
+    const del = e.target.closest('.chat-del');
+    if (del) {
+      const m = chatItems().find(x => x._id === del.dataset.id);
+      if (!m || !confirm('Dit bericht verwijderen?')) return;
+      try {
+        await deleteDoc(chatDocRef(m));
+        mailboxCacheInbox = mailboxCacheInbox.filter(x => x._id !== m._id);
+        mailboxCacheSent = mailboxCacheSent.filter(x => x._id !== m._id);
+        renderChat();
+      } catch (err) {
+        console.error(err);
+        toast('Verwijderen mislukt', 'danger');
       }
-    } catch (err) {
-      console.error('Fout:', err);
-      toast('Er ging iets mis.', 'danger');
+      return;
     }
-  });
-
-  // Mark All Read
-  markAllBtn?.addEventListener('click', async () => {
-    const uid = currentUserId;
-    if (!uid) return;
-    if (!confirm('Alle berichten in de inbox als gelezen markeren?')) return;
-
-    const unreadInbox = mailboxCache.filter(m => (m.from?.uid !== uid || m.system) && m.read === false);
-    if (unreadInbox.length === 0) return toast('Geen ongelezen berichten', 'info');
-
-    try {
-      const updates = unreadInbox.map(m => {
-        let docRef;
-        if (m._source === 'admin_mail') {
-          docRef = doc(db, 'admin_mail', m._id);
-        } else {
-          docRef = doc(db, 'users', uid, 'mailbox', m._id);
-        }
-        return updateDoc(docRef, { read: true });
-      });
-      await Promise.all(updates);
-      toast(`Gemarkeerd als gelezen`, 'success');
-    } catch (err) {
-      console.error('Fout:', err);
-      toast('Er ging iets mis.', 'danger');
-    }
-  });
-
-  // Lijst en Detail click listeners (Delegation)
-  const listBody = document.getElementById('mailListBody');
-  listBody?.addEventListener('click', async e => {
-    const aOpen = e.target.closest('a.js-open');
-    const bTog = e.target.closest('button.js-toggle');
-    const bDel = e.target.closest('button.js-del');
-
-    if (aOpen) {
-      e.preventDefault();
-      const msg =
-        filteredMessages().find(x => x._id === aOpen.dataset.id) || mailboxCache.find(x => x._id === aOpen.dataset.id);
-      if (msg) openMail(msg);
-    } else if (bTog) {
-      const id = bTog.dataset.id;
-      const msg = mailboxCache.find(x => x._id === id);
-      await markMailRead(id, !msg?.read);
-    } else if (bDel) {
-      const id = bDel.dataset.id;
-      if (!confirm('Dit bericht verwijderen?')) return;
-      await deleteMail(id);
-      toast('Bericht verwijderd', 'success');
-    }
-  });
-
-  const detailEl = document.getElementById('mailDetail');
-  detailEl?.addEventListener('click', e => {
-    const markUn = e.target.closest('.js-mark-unread');
-    const delBtn = e.target.closest('.js-del');
-    const reply = e.target.closest('.js-reply');
-
-    if (markUn) {
-      markMailRead(markUn.dataset.id, false);
-      toast('Gemarkeerd als ongelezen', 'success');
-    } else if (delBtn) {
-      if (!confirm('Dit bericht verwijderen?')) return;
-      deleteMail(delBtn.dataset.id).then(() => toast('Bericht verwijderd', 'success'));
-    } else if (reply) {
-      const id = reply.dataset.id;
-      const msg = mailboxCache.find(x => x._id === id);
-      if (!msg) return;
-      compCard?.classList.remove('d-none');
-      prepareComposeToCounterparty(msg);
-      // Scroll naar compose
-      if (compCard) window.scrollTo({ top: compCard.offsetTop - 80, behavior: 'smooth' });
-    }
+    if (e.target.closest('a')) return;
+    const bubble = e.target.closest('.chat-bubble');
+    box.querySelectorAll('.chat-bubble.show-actions').forEach(b => b !== bubble && b.classList.remove('show-actions'));
+    bubble?.classList.toggle('show-actions');
   });
 }
 
 function bindMail() {
-  // activeer bij login / gebruikerswissel
   document.querySelector('a[href="#tab-mail"]')?.addEventListener('shown.bs.tab', () => {
     bindMailboxUIOnce();
-    if (currentUserId) listenMailbox(currentUserId);
+    renderChat();
+    const box = document.getElementById('chatMessages');
+    if (box) box.scrollTop = box.scrollHeight;
   });
 }
 
@@ -5031,7 +4895,7 @@ async function autoCheckNotifications() {
   }
 }
 
-/** Melding maken (max. één keer per dag dezelfde tekst) + kopie als systeembericht in de mailbox. */
+/** Melding maken (max. één keer per dag dezelfde tekst); die verschijnt bij het belletje, niet in de chat. */
 async function createUniqueNotification(uid, text) {
   const colRef = collection(db, 'users', uid, 'notifications');
   const dayKey = todayISO();
@@ -5039,10 +4903,9 @@ async function createUniqueNotification(uid, text) {
   if (!snap.empty) return;
 
   await addDoc(colRef, { text, timestamp: new Date().toISOString(), dateKey: dayKey, read: false });
-  await sendSystemMail(uid, 'Notificatie', text, 'notification');
 }
 
-/** Melding + bericht naar een gebruiker bij een projectwijziging door een admin. */
+/** Melding naar een gebruiker bij een projectwijziging door een admin. */
 async function notifyProjectChange(userId, type, projectName, newEndDate = null) {
   const text =
     type === 'added'
@@ -5052,7 +4915,6 @@ async function notifyProjectChange(userId, type, projectName, newEndDate = null)
   const dayKey = todayISO();
   const snap = await getDocs(query(colRef, where('text', '==', text), where('dateKey', '==', dayKey)));
   if (snap.empty) await addDoc(colRef, { text, timestamp: new Date().toISOString(), dateKey: dayKey, read: false });
-  await sendSystemMail(userId, 'Projectupdate', text, 'notification');
 }
 
 const notificationsSupported = () => 'Notification' in window;
@@ -5275,7 +5137,7 @@ function bindProfile() {
 
 // ======================================================================
 // §24  ADMIN
-// Gebruiker wisselen in de topbalk, rechten en team-rooster.
+// Gebruiker wisselen in de topbalk en rechten.
 // ======================================================================
 
 /** Keuzelijst + knoppen (rol, schoolverlof, verwijderen) in de topbalk voor admins. */
@@ -5422,181 +5284,65 @@ function applySchoolLeaveVisibility() {
   renderHistory();
 }
 
-// --- Team-rooster ---
+// --- App op het beginscherm ---
 
-/** Vaste pastelkleur op basis van een tekst. */
-function stringToColor(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  return `hsl(${Math.abs(hash % 360)}, 70%, 80%)`;
-}
+let deferredInstallPrompt = null;
 
-/** Kleur/afkorting van een shift in het team-rooster. */
-function getShiftStyle(shiftKey, userShifts = {}) {
-  const shiftDef = userShifts?.[shiftKey] || null;
-  const name = shiftDef?.realName || shiftKey;
-  const sLower = name.toLowerCase();
-  const letter = shiftDef?.shortName || name.substring(0, 2).toUpperCase();
-
-  // Eigen kleur gaat voor (#e9ecef = standaard grijs)
-  if (shiftDef?.color && shiftDef.color !== '#e9ecef') {
-    return {
-      class: '',
-      style: `background-color: ${shiftDef.color}; color: #000; font-weight:600; border:1px solid rgba(0,0,0,0.1);`,
-      letter,
-      label: name,
-      isGlobal: false
-    };
+/** Offline-ondersteuning + uitleg om de app op het beginscherm te zetten. */
+function initInstallable() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: './' }).catch(() => {});
   }
-
-  // Vaste kleuren voor bekende shiften
-  if (['ziekte', 'ziek'].includes(sLower)) return { class: 'bg-shift-sick', letter, label: 'Ziekte', isGlobal: true };
-  if (['verlof', 'feestdag'].includes(sLower))
-    return { class: 'bg-shift-leave', letter: 'V', label: 'Verlof', isGlobal: true };
-  if (['school', 'schoolverlof'].includes(sLower))
-    return { class: 'bg-shift-school', letter: 'S', label: 'School', isGlobal: true };
-  if (sLower === 'stage') return { class: 'bg-shift-stage', letter: 'St', label: 'Stage', isGlobal: true };
-  if (sLower === 'bench') return { class: '', letter: '-', label: 'Bench', isGlobal: true };
-  if (sLower.includes('vroege')) return { class: 'bg-shift-vroege', letter, label: 'Vroege', isGlobal: true };
-  if (sLower.includes('late')) return { class: 'bg-shift-late', letter, label: 'Late', isGlobal: true };
-  if (sLower.includes('nacht')) return { class: 'bg-shift-nacht', letter, label: 'Nacht', isGlobal: true };
-  if (sLower.includes('vrij weekend'))
-    return { class: 'bg-shift-normal', letter: 'Vw', label: 'Vrij weekend', isGlobal: true };
-  if (sLower.includes('dag')) return { class: 'bg-shift-dag', letter, label: 'Dagdienst', isGlobal: true };
-
-  return {
-    class: '',
-    style: `background-color: ${stringToColor(name)}; color: #333; font-weight:600;`,
-    letter,
-    label: name,
-    isGlobal: false
-  };
-}
-
-function initRoosterSelectors() {
-  const rMonth = document.getElementById('roosterMonth');
-  const rYear = document.getElementById('roosterYear');
-  if (!rMonth || !rYear) return;
-
-  if (rMonth.options.length === 0) {
-    rMonth.innerHTML = monthsFull.map((m, i) => `<option value="${i}">${m}</option>`).join('');
-    rMonth.value = new Date().getMonth();
+  const hint = document.getElementById('installHint');
+  if (!hint) return;
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  let dismissed = false;
+  try {
+    dismissed = localStorage.getItem('installHintDismissed') === '1';
+  } catch {
+    /* geen opslag beschikbaar */
   }
-  if (rYear.options.length === 0) {
-    const yNow = new Date().getFullYear();
-    for (let y = yNow - 1; y <= yNow + 2; y++) {
-      rYear.insertAdjacentHTML('beforeend', `<option value="${y}" ${y === yNow ? 'selected' : ''}>${y}</option>`);
-    }
-  }
-  rMonth.onchange = renderTeamRooster;
-  rYear.onchange = renderTeamRooster;
+  if (standalone || dismissed) return;
 
-  const refreshBtn = document.getElementById('refreshRoosterBtn');
-  if (refreshBtn) {
-    refreshBtn.onclick = async () => {
-      toast('Rooster verversen...', 'info');
-      await loadAllUsers();
-      renderTeamRooster();
-    };
-  }
-}
+  const ua = navigator.userAgent;
+  const isIos = /iphone|ipad|ipod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  if (isIos) hint.classList.remove('d-none');
 
-/** Team-rooster: per gebruiker een rij, per dag de (eerste) shift + legende. */
-function renderTeamRooster() {
-  const rBody = document.getElementById('roosterBody');
-  const rHead = document.getElementById('roosterHeaderRow');
-  const rLegend = document.getElementById('roosterLegendContainer');
-  if (!rBody || !rHead) return;
-
-  const year = Number(document.getElementById('roosterYear').value);
-  const month = Number(document.getElementById('roosterMonth').value);
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const globalShifts = new Map();
-  const userSpecificShifts = new Map();
-
-  let headerHtml = '<th style="min-width:150px; background:#fff; position:sticky; left:0; z-index:30;">Werknemer</th>';
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dayIndex = new Date(year, month, d).getDay();
-    const isWeekend = dayIndex === 0 || dayIndex === 6;
-    headerHtml += `
-      <th class="${isWeekend ? 'bg-light text-muted' : ''}" style="min-width:35px; font-weight:normal; font-size:0.8rem;">
-        <div>${d}</div><div>${daysFull[dayIndex].charAt(0)}</div>
-      </th>`;
-  }
-  rHead.innerHTML = headerHtml;
-
-  rBody.innerHTML = '';
-  Object.values(dataStore.users)
-    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-    .forEach(u => {
-      const userName = escapeHtml(u.name || (u.email || '').split('@')[0] || '?');
-      const rows = u.monthData?.[year]?.[month]?.rows || {};
-      let rowHtml = `<th style="background:#fff; position:sticky; left:0; z-index:20;">${userName}</th>`;
-
-      for (let d = 1; d <= daysInMonth; d++) {
-        const key = dateKey(year, month, d);
-        const firstKey = listDayKeys({ rows }, key).find(k => rows[k]?.shift);
-        const rowData = firstKey ? rows[firstKey] : null;
-        let cell = '<td class="rooster-cell"><div class="rooster-content"></div></td>';
-
-        if (rowData) {
-          const style = getShiftStyle(rowData.shift, u.shifts);
-          const tooltip = escapeHtml(`${style.label} (${rowData.start} - ${rowData.end})`);
-          cell = `<td class="rooster-cell ${style.class}" style="${style.style || ''}" title="${tooltip}"><div class="rooster-content">${escapeHtml(style.letter)}</div></td>`;
-          if (style.letter !== '-') {
-            if (style.isGlobal) globalShifts.set(style.label, style);
-            else {
-              if (!userSpecificShifts.has(userName)) userSpecificShifts.set(userName, new Map());
-              userSpecificShifts.get(userName).set(style.label, style);
-            }
-          }
-        }
-        rowHtml += cell;
-      }
-      const tr = document.createElement('tr');
-      tr.innerHTML = rowHtml;
-      rBody.appendChild(tr);
-    });
-
-  if (!rLegend) return;
-  const badge = (s, extra = '') =>
-    `<span class="badge ${s.class || ''} border text-dark" style="font-weight:normal; font-size:0.75rem; ${s.style || ''}">${escapeHtml(s.letter)}${extra}</span>`;
-  let legendHtml = '';
-  if (globalShifts.size) {
-    legendHtml +=
-      '<div class="mb-2"><small class="text-muted fw-bold">Algemeen:</small><div class="d-flex flex-wrap gap-3 small mt-1">' +
-      [...globalShifts.values()]
-        .sort((a, b) => a.label.localeCompare(b.label))
-        .map(s => `<div class="d-flex align-items-center gap-1">${badge(s)} <span>${escapeHtml(s.label)}</span></div>`)
-        .join('') +
-      '</div></div>';
-  }
-  if (userSpecificShifts.size) {
-    if (globalShifts.size) legendHtml += '<hr class="my-2">';
-    legendHtml +=
-      '<div class="mb-2"><small class="text-muted fw-bold">Specifiek per gebruiker:</small><div class="row g-2 mt-1">';
-    userSpecificShifts.forEach((shiftsMap, userName) => {
-      const badges = [...shiftsMap.values()]
-        .sort((a, b) => a.label.localeCompare(b.label))
-        .map(s => badge(s, ` = ${escapeHtml(s.label)}`))
-        .join(' ');
-      legendHtml += `
-        <div class="col-12 col-md-auto">
-          <div class="d-flex align-items-center flex-wrap gap-2 small bg-light p-1 px-2 rounded border">
-            <strong class="text-nowrap me-1">${userName}:</strong> ${badges}
-          </div>
-        </div>`;
-    });
-    legendHtml += '</div></div>';
-  }
-  rLegend.innerHTML = legendHtml || '<small class="text-muted fst-italic">Geen shiften gepland deze maand.</small>';
-}
-
-function bindAdmin() {
-  document.querySelector('#navTabs a[href="#tab-team-rooster"]')?.addEventListener('shown.bs.tab', () => {
-    initRoosterSelectors();
-    renderTeamRooster();
+  // Android/Chrome/Edge: echte installatieknop
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    document.getElementById('installHowTo').textContent = 'Opent sneller, schermvullend en ook zonder internet.';
+    document.getElementById('installBtn')?.classList.remove('d-none');
+    hint.classList.remove('d-none');
   });
+  document.getElementById('installBtn')?.addEventListener('click', async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice.catch(() => null);
+    deferredInstallPrompt = null;
+    hint.classList.add('d-none');
+  });
+  window.addEventListener('appinstalled', () => hint.classList.add('d-none'));
+  document.getElementById('installClose')?.addEventListener('click', () => {
+    hint.classList.add('d-none');
+    try {
+      localStorage.setItem('installHintDismissed', '1');
+    } catch {
+      /* geen opslag beschikbaar */
+    }
+  });
+}
+
+/** Snelkoppelingen van het app-icoon (lang indrukken): #snel en #invoer. */
+function handleLaunchShortcut() {
+  const hash = location.hash;
+  if (!hash) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  if (hash === '#snel') {
+    showTab('#tab-invoer');
+    openQuickInput();
+  } else if (hash === '#invoer') showTab('#tab-invoer');
 }
 
 // ======================================================================
@@ -5620,7 +5366,7 @@ function initApp() {
   bindMail();
   bindNotifications();
   bindProfile();
-  bindAdmin();
+  initInstallable();
 }
 
 initApp();

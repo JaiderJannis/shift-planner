@@ -24,7 +24,7 @@
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
-  <link rel="stylesheet" href="app.css?v=20261022d">
+  <link rel="stylesheet" href="app.css?v=20261022e">
   <!-- Accentkleur (gevuld door app.js); na Bootstrap zodat de gekozen kleur voorrang krijgt -->
   <style id="accent-color-overrides"></style>
   <script>
@@ -72,11 +72,8 @@
       </a>
     </div>
     <div class="nav-group"><span class="nav-group-title">Team</span>
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-mail" data-title="Mailbox">
-        <span class="material-icons-outlined" aria-hidden="true">mail</span><span class="label">Mailbox</span><span id="mailSidebarBadge" class="nav-badge d-none">0</span>
-      </a>
-      <a class="nav-link d-none" id="adminRoosterTabBtn" data-bs-toggle="tab" href="#tab-team-rooster" data-title="Team-rooster">
-        <span class="material-icons-outlined" aria-hidden="true">groups</span><span class="label">Team-rooster</span>
+      <a class="nav-link" data-bs-toggle="tab" href="#tab-mail" data-title="Chat">
+        <span class="material-icons-outlined" aria-hidden="true">chat</span><span class="label">Chat</span><span id="mailSidebarBadge" class="nav-badge d-none">0</span>
       </a>
     </div>
     </nav>
@@ -153,6 +150,28 @@
     </div>
   </div>
 
+  <div id="installHint" class="install-hint d-none" role="note">
+    <img src="apple-touch-icon-180x180.png" alt="" width="44" height="44">
+    <div class="install-text">
+      <strong>Zet Shift Planner op je beginscherm</strong>
+      <span id="installHowTo">Tik onderaan op <span class="material-icons-outlined" aria-label="Deel">ios_share</span> en kies <b>Zet op beginscherm</b>.</span>
+    </div>
+    <button id="installBtn" class="btn btn-primary btn-sm d-none" type="button">Installeren</button>
+    <button id="installClose" class="btn-icon" type="button" aria-label="Niet meer tonen"><span class="material-icons-outlined">close</span></button>
+  </div>
+
+  <div class="panel week-panel">
+    <div class="panel-head">
+      <h2 class="panel-title">Mijn week</h2>
+      <div class="week-switch" role="tablist" aria-label="Week kiezen">
+        <button type="button" class="week-tab active" data-week="0" role="tab" aria-selected="true">Deze week</button>
+        <button type="button" class="week-tab" data-week="1" role="tab" aria-selected="false">Volgende week</button>
+      </div>
+    </div>
+    <p id="homeWeekSummary" class="week-summary"></p>
+    <ol id="homeWeek" class="week-list"></ol>
+  </div>
+
   <div class="home-grid">
     <div class="panel">
       <div class="panel-head">
@@ -174,39 +193,6 @@
       <div class="project-list" id="homeProjects"></div>
     </div>
   </div>
-</section>
-<section id="tab-team-rooster" class="tab-pane fade">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <p class="page-lead mb-0">Wie werkt wanneer, per maand.</p>
-    <div class="d-flex gap-2">
-      <select id="roosterMonth" class="form-select form-select-sm" style="width:120px;">
-        </select>
-      <select id="roosterYear" class="form-select form-select-sm" style="width:100px;">
-        </select>
-      <button id="refreshRoosterBtn" class="btn btn-outline-primary btn-sm">
-        <span class="material-icons-outlined">refresh</span>
-      </button>
-    </div>
-  </div>
-
-  <div class="card border-0 shadow-sm">
-    <div class="card-body p-0">
-      <div class="table-responsive rooster-wrapper" style="max-height: 80vh;">
-        <table class="table table-bordered table-sm mb-0 text-center align-middle rooster-table">
-          <thead class="table-light text-secondary small">
-            <tr id="roosterHeaderRow">
-              </tr>
-          </thead>
-          <tbody id="roosterBody">
-            </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div id="roosterLegendContainer" class="mt-3 pt-2 border-top">
-    </div>
-
 </section>
 <section id="tab-projects" class="tab-pane fade">
   <div class="page-head">
@@ -420,87 +406,27 @@
       </div>
 </section>
 <section id="tab-mail" class="tab-pane fade">
-        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-          
-
-          <div class="d-flex flex-wrap gap-2 align-items-center">
-            <div id="mailFolderNav" class="btn-group btn-group-sm" role="group" aria-label="mail tabs">
-              <button id="mailTabInbox" type="button" class="btn btn-outline-primary active" data-folder="inbox">Inbox</button>
-              <button id="mailTabSent" type="button" class="btn btn-outline-secondary" data-folder="sent">Verzonden</button>
-            </div>
-            <button id="mailRefreshBtn" class="btn btn-outline-secondary btn-sm" type="button" title="Vernieuwen">
-              <span class="material-icons-outlined">refresh</span>
-            </button>
-            <button id="mailComposeBtn" class="btn btn-primary btn-sm d-flex align-items-center gap-1" type="button">
-              <span class="material-icons-outlined">edit</span>
-              <span class="d-none d-sm-inline">Nieuw bericht</span>
-            </button>
-          </div>
-        </div>
-
-        <div id="mailComposeCard" class="card p-3 mb-3 d-none">
-          <div class="row g-2">
-            <div class="col-md-3">
-              <label class="form-label">Aan</label>
-              <select id="mailToSelect" class="form-select">
-                </select>
-            </div>
-            <div class="col-md-9">
-              <label class="form-label">Onderwerp</label>
-              <input id="mailSubjectInput" class="form-control" placeholder="Onderwerp">
-            </div>
-            <div class="col-12">
-              <label class="form-label">Bericht</label>
-              <textarea id="mailBodyInput" rows="5" class="form-control" placeholder="Typ je bericht..."></textarea>
-            </div>
-            <div class="col-12 d-flex gap-2">
-              <button id="mailSendBtn" class="btn btn-success">Versturen</button>
-              <button id="mailCancelBtn" class="btn btn-outline-secondary">Annuleren</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="row g-3">
-          <div class="col-12 col-lg-5">
-            <div class="card border-0 shadow-sm">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <h6 class="mb-0" id="mailListTitle">Inbox</h6>
-                  <div class="d-flex gap-2 align-items-center">
-                    <button id="mailMarkAllReadBtn" class="btn btn-outline-secondary btn-sm">Alles gelezen</button>
-                    <button id="mailDeleteAllBtn" class="btn btn-outline-danger btn-sm">Alles verwijderen</button>
-                    <span id="mailUnreadChip" class="badge bg-danger d-none">0</span>
-                  </div>
-                </div>
-                <div class="table-responsive" style="max-height:420px; overflow:auto;">
-                  <table class="table table-hover align-middle mb-0" id="mailListTable">
-                    <thead class="table-light">
-                      <tr>
-                        <th>Van / Naar</th>
-                        <th>Onderwerp</th>
-                        <th class="text-end">Datum</th>
-                        <th class="text-end">Acties</th>
-                      </tr>
-                    </thead>
-                    <tbody id="mailListBody"></tbody>
-                  </table>
-                </div>
-                <div class="text-center mt-2">
-                  <button id="mailLoadMoreBtn" class="btn btn-outline-secondary btn-sm d-none">Meer laden</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-12 col-lg-7">
-            <div class="card border-0 shadow-sm">
-              <div class="card-body" id="mailDetail">
-                <div class="text-muted small">Selecteer een bericht…</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+  <div id="chatShell" class="chat-shell">
+    <aside class="chat-list admin-only" aria-label="Gesprekken">
+      <div class="chat-list-head">Gesprekken</div>
+      <div id="chatConvList" class="chat-conv-list"></div>
+    </aside>
+    <div class="chat-thread panel p-0">
+      <div class="chat-head">
+        <button id="chatBackBtn" class="btn-icon chat-back" type="button" aria-label="Terug naar gesprekken"><span class="material-icons-outlined">arrow_back</span></button>
+        <span id="chatAvatar" class="chat-avatar" aria-hidden="true">A</span>
+        <div class="chat-head-text"><strong id="chatTitle">Admins</strong><small id="chatSub">Stel hier je vragen over je uren of verlof.</small></div>
+      </div>
+      <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
+      <form id="chatForm" class="chat-composer" autocomplete="off">
+        <textarea id="chatInput" rows="1" class="form-control" placeholder="Typ een bericht…" aria-label="Bericht"></textarea>
+        <button id="chatSendBtn" class="chat-send" type="submit" aria-label="Versturen" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-2.5-6.5L4 12z"/></svg>
+        </button>
+      </form>
+    </div>
+  </div>
+</section>
 <section id="tab-nonbillable" class="tab-pane fade">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <p class="page-lead mb-0">Uren die je niet aan een klant aanrekent, zoals administratie of opleiding.</p>
@@ -916,7 +842,7 @@
                     <option value="#tab-historiek">Historiek</option>
                     <option value="#tab-converter">Converter</option>
                     <option value="#tab-nonbillable">Non-billable</option>
-                    <option value="#tab-mail">Mailbox</option>
+                    <option value="#tab-mail">Chat</option>
                   </select>
                 </div>
 
@@ -1028,7 +954,7 @@
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/nl.js"></script>
-  <script type="module" src="app.js?v=20261022d"></script>
+  <script type="module" src="app.js?v=20261022e"></script>
 
   <div id="loadingOverlay" class="loading-overlay d-none">
     <span class="brand-mark big" aria-hidden="true"></span>
