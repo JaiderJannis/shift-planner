@@ -387,29 +387,41 @@ body.modal-open .floating-meter, body.paint-mode .floating-meter, body.menu-open
 .week-tab.active { background: var(--surface); color: var(--accent-strong); box-shadow: 0 1px 3px rgba(21, 48, 45, 0.12); }
 .week-summary { color: var(--muted); font-size: 0.9rem; margin: 0 0 10px; }
 .week-summary strong { color: var(--ink); }
-.week-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.week-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .week-day-btn {
-  width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
-  padding: 8px 10px; border: 0; border-radius: var(--radius); background: none; color: var(--ink);
+  width: 100%; height: 100%; min-height: 132px; display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+  padding: 8px 6px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); text-align: left;
 }
-.week-day-btn:hover { background: var(--surface-2); }
-.week-date { width: 42px; flex: none; display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
-.week-date .wd { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; font-weight: 700; }
-.week-date .dn { font-family: var(--font-display); font-weight: 800; font-size: 1.25rem; }
-.week-day.today .week-date { background: var(--accent); color: #fff; border-radius: 12px; padding: 4px 0; }
-.week-day.today .week-date .wd { color: rgba(255, 255, 255, 0.85); }
-.week-day.today .week-day-btn { background: var(--accent-soft); }
-.week-day.past:not(.today) { opacity: 0.6; }
-.week-shifts { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.week-day-btn:hover { border-color: var(--accent); }
+.week-cell.weekend .week-day-btn { background: var(--surface-2); }
+.week-date { display: flex; flex-direction: column; align-items: center; line-height: 1.1; padding: 3px 0; border-radius: 10px; }
+.week-date .wd { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; font-weight: 700; }
+.week-date .dn { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; }
+.week-cell.today .week-day-btn { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.week-cell.today .week-date { background: var(--accent); color: #fff; }
+.week-cell.today .week-date .wd { color: rgba(255, 255, 255, 0.85); }
+.week-cell.past:not(.today) .week-day-btn { opacity: 0.6; }
+.week-shifts { display: flex; flex-direction: column; gap: 4px; }
 .week-shift {
-  display: inline-flex; align-items: baseline; gap: 8px; padding: 4px 10px 4px 8px; border-radius: 10px;
-  background: var(--shift-color); border-left: 4px solid color-mix(in srgb, var(--shift-color) 60%, #15302d);
-  color: #15302d; font-size: 0.9rem;
+  display: block; padding: 4px 6px; border-radius: 8px;
+  background: var(--shift-color); border-left: 3px solid color-mix(in srgb, var(--shift-color) 55%, #15302d);
+  color: #15302d; font-size: 0.82rem; line-height: 1.2; overflow: hidden;
 }
-.week-shift span { font-variant-numeric: tabular-nums; opacity: 0.8; font-size: 0.85rem; }
-.week-free { color: var(--muted); font-size: 0.9rem; }
-.week-day.weekend .week-free { font-style: italic; }
-.week-chev { color: var(--muted); font-size: 20px; }
+.week-shift strong { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.week-shift .name-short { display: none; }
+.week-shift .t { font-variant-numeric: tabular-nums; font-size: 0.78rem; opacity: 0.8; }
+.week-shift .t + .t::before { content: '– '; }
+.week-free { text-align: center; font-size: 1.1rem; }
+@media (max-width: 767.98px) {
+  .week-grid { gap: 3px; }
+  .week-day-btn { padding: 6px 2px; min-height: 112px; gap: 4px; border-radius: 10px; }
+  .week-date .dn { font-size: 1.05rem; }
+  .week-shift { padding: 3px 3px 3px 4px; border-left-width: 2px; font-size: 0.72rem; border-radius: 6px; align-items: center; text-align: center; }
+  .week-shift .name-long { display: none; }
+  .week-shift .name-short { display: inline; }
+  .week-shift .t { display: block; font-size: 0.66rem; letter-spacing: -0.02em; }
+  .week-shift .t + .t::before { content: ''; }
+}
 
 /* ---------- 7. Invoer & kalender ---------- */
 .invoer-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }

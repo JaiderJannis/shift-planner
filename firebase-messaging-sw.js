@@ -25,8 +25,8 @@ messaging.onBackgroundMessage(payload => {
 // - bibliotheken en lettertypes (CDN): uit de cache, op de achtergrond bijwerken
 // Firestore-data gaat hier niet door; die heeft een eigen offline-cache.
 // ---------------------------------------------------------------------
-const CACHE = 'shift-planner-v1';
-const APP_SHELL = ['./', 'index.html', 'index.css', 'index.js', 'app.html', 'app.css', 'app.js', 'manifest.json', 'favicon-192x192.png', 'apple-touch-icon-180x180.png'];
+const CACHE = 'shift-planner-v2';
+const APP_SHELL = ['./', 'index.html', 'index.css', 'index.js', 'app.html', 'app.css', 'app.js', 'manifest.json', 'favicon-192x192.png', 'apple-touch-icon-180x180.png', 'favicon.svg'];
 const CDN_HOSTS = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com', 'www.gstatic.com', 'cdnjs.cloudflare.com', 'unpkg.com'];
 
 self.addEventListener('install', event => {

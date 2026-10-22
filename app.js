@@ -1233,19 +1233,22 @@ function renderHomeWeek() {
         const counts = !r.status || r.status === 'approved';
         if (counts && isStageRow(r, ud)) stageMinutes += mins;
         else if (counts) workMinutes += mins;
-        const time =
-          r.start && r.end && !(r.start === '00:00' && r.end === '00:00') ? `${r.start}–${r.end}` : fmtShort(mins);
-        return `<span class="week-shift" style="--shift-color:${escapeHtml(sh.color || '#e9ecef')}">
-          <strong>${escapeHtml(sh.realName || r.shift)}${r.status === 'pending' ? ' ⏳' : ''}</strong><span>${escapeHtml(time)}</span></span>`;
+        const name = sh.realName || r.shift;
+        const short = sh.shortName || name.slice(0, 2);
+        const hasTime = r.start && r.end && !(r.start === '00:00' && r.end === '00:00');
+        const title = `${name}${hasTime ? ` ${r.start}–${r.end}` : ''} (${fmtShort(mins)})`;
+        return `<span class="week-shift" style="--shift-color:${escapeHtml(sh.color || '#e9ecef')}" title="${escapeHtml(title)}">
+          <strong><span class="name-long">${escapeHtml(name)}</span><span class="name-short">${escapeHtml(short)}</span>${r.status === 'pending' ? ' ⏳' : ''}</strong>
+          ${hasTime ? `<span class="t">${escapeHtml(r.start)}</span><span class="t">${escapeHtml(r.end)}</span>` : `<span class="t">${fmtShort(mins)}</span>`}
+        </span>`;
       })
       .join('');
     const dayName = daysFull[d.getDay()];
     items.push(`
-      <li class="week-day${iso === today ? ' today' : ''}${iso < today ? ' past' : ''}${d.getDay() % 6 === 0 ? ' weekend' : ''}">
+      <li class="week-cell${iso === today ? ' today' : ''}${iso < today ? ' past' : ''}${d.getDay() % 6 === 0 ? ' weekend' : ''}">
         <button type="button" class="week-day-btn" data-date="${iso}" aria-label="${dayName} ${toDisplayDate(iso)} bekijken">
           <span class="week-date"><span class="wd">${dayName.slice(0, 2)}</span><span class="dn">${d.getDate()}</span></span>
-          <span class="week-shifts">${chips || `<span class="week-free">${holiday ? `${holiday.emoji} ${escapeHtml(holiday.name)}` : 'Vrij'}</span>`}</span>
-          <span class="material-icons-outlined week-chev" aria-hidden="true">chevron_right</span>
+          <span class="week-shifts">${chips || (holiday ? `<span class="week-free" title="${escapeHtml(holiday.name)}">${holiday.emoji}</span>` : '')}</span>
         </button>
       </li>`);
   }
