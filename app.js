@@ -5214,35 +5214,48 @@ function initTopbarAdminSwitcher() {
   const container = document.getElementById('topbarAdminSwitch');
   if (!container) return;
 
+  // Topbalk: compacte knop "gebruiker kiezen" (onzichtbare select erover, zodat de iPhone zijn eigen keuzelijst toont)
   container.innerHTML = `
-    <div class="d-flex align-items-center gap-2">
-      <select id="topbarUserSelect" class="form-select form-select-sm" aria-label="Gebruiker bekijken"></select>
-      <div id="topbarControls" class="d-none d-flex align-items-center gap-2 border-start ps-2 ms-1">
-        <select id="topbarRoleSelect" class="form-select form-select-sm" style="width: auto;" title="Rol wijzigen">
-          <option value="user">User</option>
-          <option value="admin">Admin</option>
-        </select>
-        <button id="topbarSchoolBtn" class="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center"
-                style="width: 32px; height: 31px;" title="Schoolverlof Aan/Uit">
-          <span class="material-icons-outlined" style="font-size:18px">school</span>
-        </button>
-        <button id="topbarDeleteBtn" class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center"
-                style="width: 32px; height: 31px;" title="Gebruiker verwijderen">
-          <span class="material-icons-outlined" style="font-size:18px">person_remove</span>
-        </button>
-      </div>
-    </div>
-  `;
+    <label class="user-pick" title="Gebruiker bekijken">
+      <span class="material-icons-outlined" aria-hidden="true">group</span>
+      <span id="userPickName" class="user-pick-name">Mijzelf</span>
+      <span class="material-icons-outlined user-pick-caret" aria-hidden="true">expand_more</span>
+      <select id="topbarUserSelect" aria-label="Gebruiker bekijken"></select>
+    </label>`;
+
+  // Balk onder de topbalk zolang je iemand anders bekijkt: naam + beheerknoppen
+  let banner = document.getElementById('viewBanner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'viewBanner';
+    banner.className = 'view-banner d-none';
+    document.querySelector('.sp-topbar')?.after(banner);
+  }
+  banner.innerHTML = `
+    <span class="material-icons-outlined" aria-hidden="true">visibility</span>
+    <span class="view-banner-text">Je bekijkt <strong id="viewBannerName"></strong></span>
+    <div id="topbarControls" class="view-banner-tools">
+      <select id="topbarRoleSelect" class="form-select form-select-sm" title="Rol wijzigen" aria-label="Rol">
+        <option value="user">User</option>
+        <option value="admin">Admin</option>
+      </select>
+      <button id="topbarSchoolBtn" class="btn btn-sm btn-outline-secondary icon-sq" type="button" title="Schoolverlof aan/uit" aria-label="Schoolverlof aan/uit">
+        <span class="material-icons-outlined">school</span>
+      </button>
+      <button id="topbarDeleteBtn" class="btn btn-sm btn-outline-danger icon-sq" type="button" title="Gebruiker verwijderen" aria-label="Gebruiker verwijderen">
+        <span class="material-icons-outlined">person_remove</span>
+      </button>
+      <button id="viewBannerBack" class="btn btn-sm btn-primary" type="button">Terug naar mij</button>
+    </div>`;
   container.classList.remove('d-none');
 
   const select = document.getElementById('topbarUserSelect');
-  const controls = document.getElementById('topbarControls');
   const roleSelect = document.getElementById('topbarRoleSelect');
   const schoolBtn = document.getElementById('topbarSchoolBtn');
   const deleteBtn = document.getElementById('topbarDeleteBtn');
 
   const refreshUserList = () => {
-    select.innerHTML = '<option value="">-- Mijzelf --</option>';
+    select.innerHTML = '<option value="">Mijzelf</option>';
     Object.entries(dataStore.users)
       .filter(([uid]) => uid !== currentUserId)
       .sort((a, b) => (a[1].name || '').localeCompare(b[1].name || ''))
@@ -5257,15 +5270,24 @@ function initTopbarAdminSwitcher() {
 
   const updateControlState = uid => {
     const u = uid && dataStore.users[uid];
-    controls.classList.toggle('d-none', !u);
+    const name = u ? u.name || u.email || uid : 'Mijzelf';
+    banner.classList.toggle('d-none', !u);
+    container.classList.toggle('viewing-other', !!u);
+    document.getElementById('userPickName').textContent = name;
+    document.getElementById('viewBannerName').textContent = name;
     if (!u) return;
     roleSelect.value = u.role || 'user';
     const schoolEnabled = u.settings?.schoolLeaveEnabled !== false;
-    schoolBtn.className = `btn btn-sm ${schoolEnabled ? 'btn-success text-white' : 'btn-outline-secondary'} d-flex align-items-center justify-content-center`;
+    schoolBtn.className = `btn btn-sm icon-sq ${schoolEnabled ? 'btn-success text-white' : 'btn-outline-secondary'}`;
   };
 
   refreshUserList();
   updateControlState(select.value);
+
+  document.getElementById('viewBannerBack').onclick = () => {
+    select.value = '';
+    select.dispatchEvent(new Event('change'));
+  };
 
   // Andere gebruiker bekijken/bewerken
   select.onchange = async () => {
