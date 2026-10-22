@@ -3657,6 +3657,46 @@ async function applyPaintShift(baseKey) {
   await commitMonth(y, m);
 }
 
+/**
+ * html2canvas kent geen moderne kleurnotaties (color-mix → "color(srgb …)").
+ * In de kopie voor de schermafbeelding zetten we die om naar gewone rgba().
+ */
+const COLOR_PROPS = [
+  'color',
+  'background-color',
+  'background-image',
+  'border-top-color',
+  'border-right-color',
+  'border-bottom-color',
+  'border-left-color',
+  'outline-color',
+  'box-shadow',
+  'text-decoration-color'
+];
+function toRgba(value) {
+  return value.replace(
+    /color\(srgb\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)(?:\s*\/\s*([\d.e-]+))?\)/g,
+    (_, r, g, b, a) => {
+      const c = v => Math.round(Math.min(1, Math.max(0, Number(v))) * 255);
+      return `rgba(${c(r)}, ${c(g)}, ${c(b)}, ${a === undefined ? 1 : Number(a)})`;
+    }
+  );
+}
+function flattenModernColors(doc) {
+  const view = doc.defaultView;
+  doc.querySelectorAll('*').forEach(el => {
+    const cs = view.getComputedStyle(el);
+    COLOR_PROPS.forEach(prop => {
+      const v = cs.getPropertyValue(prop);
+      if (v && /color\(|color-mix|oklch|oklab|lab\(|lch\(/.test(v)) {
+        const fixed = toRgba(v);
+        const fallback = prop === 'background-image' || prop === 'box-shadow' ? 'none' : 'transparent';
+        el.style.setProperty(prop, /color\(|color-mix|okl|lab\(|lch\(/.test(fixed) ? fallback : fixed, 'important');
+      }
+    });
+  });
+}
+
 /** html2canvas pas laden wanneer het nodig is. */
 function loadHtml2Canvas() {
   if (window.html2canvas) return Promise.resolve();
@@ -3685,6 +3725,7 @@ async function takeScreenshot() {
       backgroundColor: '#ffffff',
       useCORS: true,
       onclone: clonedDoc => {
+        flattenModernColors(clonedDoc);
         clonedDoc.querySelectorAll('.quick-icons-wrapper').forEach(el => (el.style.display = 'none'));
         clonedDoc.querySelector('.calendar-day.today')?.classList.remove('today');
 
