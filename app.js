@@ -977,6 +977,8 @@ function syncNavState(hash) {
   const titleEl = document.getElementById('pageTitle');
   if (titleEl) titleEl.textContent = title;
   document.title = `${title} · Shift Planner`;
+  // Op Home geen "+ Shift"-knop in de topbalk
+  document.getElementById('topQuickBtn')?.classList.toggle('d-none', hash === '#tab-home');
 }
 
 /** Het zwevende hoofdmenu openen of sluiten. */
