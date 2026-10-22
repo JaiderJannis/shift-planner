@@ -9,8 +9,6 @@
 <link rel="icon" type="image/png" sizes="192x192" href="favicon-192x192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="favicon-512x512.png">
 <link rel="shortcut icon" href="favicon.ico">
-<!-- ===== Stylesheet ===== -->
-<style id="accent-color-overrides"></style>
 
 <!-- Apple (iPhone/iPad) -->
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
@@ -30,8 +28,9 @@
 <!-- Flatpickr CSS -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   
-  <!-- ✅ Vervangen: De inline style is verplaatst naar app-style.css -->
   <link rel="stylesheet" href="app.css">
+  <!-- Accentkleur (gevuld door app.js); staat na Bootstrap zodat de gekozen kleur voorrang krijgt -->
+  <style id="accent-color-overrides"></style>
 
 </head>
 <body>
@@ -41,7 +40,7 @@
     <div class="px-3 mb-3">
   <div class="d-flex align-items-center gap-2 ps-2">
     <span class="material-icons-outlined">event_note</span>
-    <a class="label text-white text-decoration-none" data-bs-toggle="tab" href="#tab-home">
+    <a class="label text-white text-decoration-none" href="#tab-home">
       Shift Planner
     </a>
   </div>
@@ -317,7 +316,7 @@
         </div>
 
         <div class="alert alert-info small">
-          Tip: je kan de volgorde bewaren via de “volgorde opslaan”-knop (drag & drop is browser-afhankelijk in tabellen; alternatief: gebruik sorteerknoppen).
+          Tip: sleep een shift aan het <span class="material-icons-outlined align-middle" style="font-size:16px">drag_indicator</span>-handvat om de volgorde te wijzigen; die wordt meteen bewaard.
         </div>
       </section>
 
@@ -413,6 +412,7 @@
     <div class="d-flex flex-wrap gap-2 ms-xl-auto">
       <button id="exportPdfBtn" class="btn btn-outline-danger btn-sm">
         <span class="material-icons-outlined align-middle" style="font-size:16px">picture_as_pdf</span> PDF
+      </button>
       <button id="clearMonthBtn" class="btn btn-outline-danger btn-sm" title="Maand leegmaken">
         <span class="material-icons-outlined align-middle" style="font-size:16px">delete_sweep</span> Leegmaken
       </button>
@@ -422,7 +422,6 @@
     </div>
   </div>
 
-  <div class="row g-2 mb-3 align-items-center">
   <div class="row g-2 mb-3 align-items-center">
     <div class="col-auto"><label class="col-form-label col-form-label-sm fw-bold text-muted">Doel:</label></div>
     <div class="col-auto">
@@ -495,28 +494,7 @@
         </div>
 
         <div class="table-responsive">
-          <table id="historyTable" class="table table-striped table-hover align-middle table-nowrap">
-            <thead class="table-light">
-              <tr>
-                <th>Maand</th><th>Doel uren</th><th>Gepland</th><th>Verschil</th>
-                <th>Verlof</th><th>Ziekte</th><th>Schoolverlof</th><th>Feestdag</th><th>Bench</th>
-              </tr>
-            </thead>
-            <tbody id="historyBody"></tbody>
-            <tfoot class="table-light">
-              <tr>
-                <th>Totaal</th>
-                <th id="totDoel">0u 0min</th>
-                <th id="totGepland">0u 0min</th>
-                <th id="totVerschil">0u 0min</th>
-                <th id="totVerlof">0u 0min</th>
-                <th id="totZiekte">0u 0min</th>
-                <th id="totSchool">0u 0min</th>
-                <th id="totFeest">0u 0min</th>
-                <th id="totBench">0u 0min</th>
-              </tr>
-            </tfoot>
-          </table>
+          <table id="historyTable" class="table table-striped table-hover align-middle table-nowrap"></table>
         </div>
       </section>
 
@@ -714,51 +692,7 @@
     </table>
   </div>
 </section>
-<!-- ADMIN -->
-<section id="tab-admin" class="tab-pane fade">
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <h5 class="mb-0">Admin beheer</h5>
-    <div class="text-secondary small">
-      Actief: <strong id="activeUserLabel">-</strong>
-    </div>
-  </div>
 
- <div class="tab-pane fade" id="tab-admin" role="tabpanel">
-  <div class="row g-4">
-    
-    <div class="col-12">
-        <div class="alert alert-light border d-flex align-items-center gap-2">
-            <span class="material-icons-outlined text-primary">settings</span>
-            <h5 class="mb-0">
-                Instellingen bewerken voor: 
-                <span id="adminSettingsName" class="text-muted">Mijzelf</span>
-            </h5>
-        </div>
-        <small class="text-muted ms-1">
-           Gebruik de balk bovenaan (naast het belletje) om een andere gebruiker te kiezen, te verwijderen of rechten te geven.
-        </small>
-    </div>
-
-    <div class="col-md-6">
-       <div class="card shadow-sm h-100">
-          </div>
-    </div>
-
-    <div class="col-md-6 school-leave-section">
-       </div>
-    
-    </div>
-</div>
-</div>
-      </div>
-    </div>
-  </div>
-
-      </div>
-    </div>
-  </div>
-</div>
-</section>
 
     </div>
   </main>
@@ -927,7 +861,7 @@
             <span id="currentAttachmentName">-</span>
             <div>
               <a id="downloadAttachmentBtn" href="#" target="_blank" class="btn btn-sm btn-success">Download</a>
-              <button id="deleteAttachmentBtn" class_="btn btn-sm btn-danger">Verwijder</button>
+              <button id="deleteAttachmentBtn" class="btn btn-sm btn-danger">Verwijder</button>
             </div>
           </div>
         </div>
@@ -1001,34 +935,6 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
         <button type="button" id="saveAnnouncementBtn" class="btn btn-primary">Plaatsen</button>
-      </div>
-    </div>
-  </div>
-</div>
-<div class="modal fade" id="projectModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Project Beheren</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div class="mb-3">
-          <label class="form-label">Projectnaam</label>
-          <input type="text" id="newProjectName" class="form-control" placeholder="Bijv. Werk, Prive, Klant X">
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Kleur label</label>
-          <input type="color" id="newProjectColor" class="form-control form-control-color" value="#0d6efd">
-        </div>
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" id="newProjectArchived">
-          <label class="form-check-label" for="newProjectArchived">Archiveren (niet meer tonen in lijsten)</label>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
-        <button type="button" class="btn btn-primary" id="addProjectBtn">Opslaan</button>
       </div>
     </div>
   </div>
@@ -1207,7 +1113,6 @@
 <!-- Flatpickr NL taal -->
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/nl.js"></script>
   
-  <!-- ✅ Vervangen: De inline script is verplaatst naar app-script.js -->
   <script type="module" src="app.js"></script>
 
 <!-- 🔄 Loading overlay -->

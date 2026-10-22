@@ -70,13 +70,11 @@ import {
 import {
   getStorage,
   ref,
-  uploadBytes,
   getDownloadURL,
   deleteObject,
   uploadBytesResumable
 } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js';
 
-// 2. Firebase config
 const firebaseConfig = {
   apiKey: 'AIzaSyB8uHwRXCe1iV7z6T80YPxEbeB64qdMpNY',
   authDomain: 'shift-planner-dc7ad.firebaseapp.com',
@@ -87,35 +85,33 @@ const firebaseConfig = {
   measurementId: 'G-7Q630776V6'
 };
 
-// 3. INITIALISEER FIREBASE EERST
 const app = initializeApp(firebaseConfig);
-
-// 4. Initialiseer nu pas de andere services met de 'app' variabele
 const db = getFirestore(app);
-
 const auth = getAuth(app);
-
 const storage = getStorage(app);
 
-const messaging = getMessaging(app);
+// Push-berichten worden niet door elke browser ondersteund (bv. Safari op iPhone
+// zonder "Zet op beginscherm"). Zonder deze try/catch start de hele app dan niet.
+let messaging = null;
+try {
+  messaging = getMessaging(app);
+} catch (err) {
+  console.warn('Push-meldingen niet beschikbaar in deze browser:', err?.message || err);
+}
 
 // ======================================================================
 // §02  STATE & CONSTANTEN
 // Globale toestand van de app, vaste waarden en vaak gebruikte schermelementen.
 // ======================================================================
 
-// ======= State =======
-let currentUserId = null;
-
+// --- Toestand ---
+let currentUserId = null; // ingelogde gebruiker
 let mailUIBound = false;
-
 let notificationInterval = null;
-
-// --- NIEUWE VARIABELEN HIER NAARTOE VERPLAATST ---
 let isPaintMode = false;
-
 let selectedPaintShiftKey = null;
 
+// users: alle geladen gebruikers (admin ziet iedereen), viewUserId: gebruiker die een admin bekijkt
 const dataStore = {
   users: {},
   currentUser: null,
@@ -123,18 +119,13 @@ const dataStore = {
 };
 
 let saveTimer = null;
-
 const debouncedSave = () => {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    saveUserData();
-    console.log('DB: Data opgeslagen (met vertraging).');
-  }, 2000);
+  saveTimer = setTimeout(() => saveUserData(), 2000);
 };
 
-// ======= UI helpers =======
+// --- Vaste waarden ---
 const daysFull = ['Zondag', 'Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag'];
-
 const monthsFull = [
   'Januari',
   'Februari',
@@ -150,12 +141,11 @@ const monthsFull = [
   'December'
 ];
 
-const LEAVE_SHIFT_NAMES = ['Verlof'];
+const LEAVE_SHIFT_NAMES = ['Verlof']; // telt mee als "verlof"
+const SCHOOL_LEAVE_SHIFT_NAMES = ['Schoolverlof']; // telt mee als "schoolverlof"
+const LEAVE_TYPES = ['Verlof', 'Schoolverlof', 'Ziekte', 'Feestdag'];
 
-// telt mee als "verlof"
-const SCHOOL_LEAVE_SHIFT_NAMES = ['Schoolverlof'];
-
-// --- helpers: mapping & automatische projecttoewijzing ---
+// Shiften die automatisch aan een vast project gekoppeld worden
 const SPECIAL_PROJECT_MAP = {
   Verlof: 'Eght Care',
   Ziekte: 'Eght Care',
@@ -164,29 +154,34 @@ const SPECIAL_PROJECT_MAP = {
   Schoolverlof: 'PXL Verpleegkunde Hasselt'
 };
 
-// ======= Elements =======
+const SHIFT_ICONS = {
+  light_mode: '☀️',
+  wb_twilight: '🌅',
+  bedtime: '🌙',
+  schedule: '🕒',
+  star: '⭐',
+  school: '🎓',
+  medical_services: '🏥',
+  flight: '✈️',
+  bench: '🪑',
+  feestdag: '🎉',
+  teammeeting: '👥',
+  niet_ingepland: '❌',
+  vrij_weekend: '😎',
+  stage: '🏫'
+};
+
+// --- Vaak gebruikte schermelementen ---
 const sidebar = document.getElementById('sidebar');
-
 const main = document.getElementById('main');
-
 const logoutBtn = document.getElementById('logoutBtn');
-
-// Invoer elements
 const monthSelectMain = document.getElementById('monthSelectMain');
-
 const yearSelectMain = document.getElementById('yearSelectMain');
-
 const projectFilterSelect = document.getElementById('projectFilterSelect');
-
 const monthTargetHours = document.getElementById('monthTargetHours');
-
 const monthTargetMinutes = document.getElementById('monthTargetMinutes');
-
 const tbody = document.getElementById('tbody');
-
-// Quick input
 const quickDate = document.getElementById('quickDate');
-
 const quickShift = document.getElementById('quickShift');
 
 // ======================================================================
@@ -194,7 +189,16 @@ const quickShift = document.getElementById('quickShift');
 // Kleine hulpfuncties zonder app-logica (datums, opmaak, meldingen).
 // ======================================================================
 
-// telt mee als "schoolverlof"
+/** Maakt tekst veilig om in HTML te zetten (voorkomt dat berichten code uitvoeren). */
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 const toast = (msg, type = 'primary') => {
   const el = document.createElement('div');
   el.className = `toast align-items-center text-bg-${type} border-0 position-fixed bottom-0 end-0 m-3`;
@@ -208,6 +212,12 @@ const toast = (msg, type = 'primary') => {
 };
 
 const dateKey = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+/** Datum van vandaag als 'YYYY-MM-DD' in lokale tijd (toISOString geeft UTC → rond middernacht de verkeerde dag). */
+const todayISO = () => {
+  const d = new Date();
+  return dateKey(d.getFullYear(), d.getMonth(), d.getDate());
+};
 
 const toDisplayDate = iso => (!iso ? '-' : iso.split('-').reverse().join('-'));
 
@@ -225,8 +235,12 @@ const minutesBetween = (s, e, b) => {
   return mins;
 };
 
+/**
+ * Ligt een datum binnen een periode? Werkt ook met rij-sleutels zoals
+ * '2026-10-05#2' of '2026-10-05_1715…' (alleen de eerste 10 tekens tellen).
+ */
 const isDateWithin = (iso, start, end) => {
-  const d = iso?.replaceAll('-', '');
+  const d = iso?.slice(0, 10).replaceAll('-', '');
   if (!d) return false;
   const s = start ? start.replaceAll('-', '') : null;
   const e = end ? end.replaceAll('-', '') : null;
@@ -235,7 +249,6 @@ const isDateWithin = (iso, start, end) => {
   return true;
 };
 
-// ===== HOME DASHBOARD =====
 function fmt(mins) {
   return `${Math.floor(mins / 60)}u ${mins % 60}min`;
 }
@@ -245,7 +258,11 @@ function fmtMins(mins) {
   return `${Math.floor(a / 60)}u ${a % 60}min`;
 }
 
-// helpers bovenin
+/** Verschil met teken: '+2u 0min', '-1u 30min' of '0u 0min'. */
+function fmtDiff(mins) {
+  return `${mins > 0 ? '+' : mins < 0 ? '-' : ''}${fmtMins(mins)}`;
+}
+
 function getISOWeekParts(date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const day = d.getUTCDay() || 7; // ma=1..zo=7
@@ -260,7 +277,7 @@ function isoWeekId(date) {
   return `${year}-W${String(week).padStart(2, '0')}`;
 }
 
-// ✅ HIER TOEVOEGEN: Helper om Hex naar RGB om te zetten (voor CSS variabelen)
+/** Hex-kleur naar 'r, g, b' (voor CSS-variabelen). */
 function hexToRgb(hex) {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -268,9 +285,7 @@ function hexToRgb(hex) {
   return `${r}, ${g}, ${b}`;
 }
 
-// reply flow
-
-/* ---------- helpers ---------- */
+/** Firestore-tijdstempel of ISO-string naar ISO-string. */
 function normTs(ts) {
   if (!ts) return '';
   if (typeof ts?.toDate === 'function') return ts.toDate().toISOString();
@@ -319,22 +334,13 @@ async function ensureUserDoc(user) {
   }
 }
 
+/** Gebruiker wiens data getoond/bewerkt wordt (admin kan iemand anders kiezen in de topbalk). */
 function getActiveUserId() {
-  // NIEUW: Kijk eerst naar de variabele die de Topbar instelt
-  if (dataStore.viewUserId) return dataStore.viewUserId;
-
-  // OUD: Dit mag weg of blijven als fallback, maar mag niet crashen
-  const oldSelect = document.getElementById('adminUserSelect');
-  if (oldSelect && oldSelect.value) return oldSelect.value;
-
-  // FALLBACK: Gewoon de ingelogde gebruiker
-  return currentUserId;
+  return dataStore.viewUserId || currentUserId;
 }
 
-// ======= Data loading/saving =======
 async function loadAllUsers() {
-  const meRef = doc(db, 'users', currentUserId);
-  const meSnap = await getDoc(meRef);
+  const meSnap = await getDoc(doc(db, 'users', currentUserId));
   const me = meSnap.data();
   dataStore.users = {};
   if (me.role === 'admin') {
@@ -349,10 +355,21 @@ async function loadAllUsers() {
 async function saveUserData() {
   const id = getActiveUserId();
   if (!id) return;
-  const ref = doc(db, 'users', id);
-  await setDoc(ref, dataStore.users[id], { merge: true });
+  await setDoc(doc(db, 'users', id), dataStore.users[id], { merge: true });
 }
 
+/**
+ * Eén maand volledig wegschrijven (vervangt de maand in de databank).
+ * Nodig bij verwijderen: saveUserData() voegt samen en laat verwijderde rijen staan.
+ */
+async function saveMonth(y, m) {
+  const id = getActiveUserId();
+  const md = dataStore.users[id]?.monthData?.[y]?.[m];
+  if (!id || !md) return;
+  await updateDoc(doc(db, 'users', id), { [`monthData.${y}.${m}`]: md });
+}
+
+/** Data van de actieve gebruiker (zie getActiveUserId). */
 function getCurrentUserData() {
   const id = getActiveUserId();
   if (!id) return { shifts: {}, monthData: {}, projects: [], shiftOrder: [] };
@@ -360,10 +377,9 @@ function getCurrentUserData() {
   return dataStore.users[id];
 }
 
-/* ---------- compose ---------- */
+/** Is de INGELOGDE gebruiker admin? (niet de gebruiker die bekeken wordt) */
 function isAdmin() {
-  const me = dataStore.users[getActiveUserId()];
-  return (me?.role || 'user') === 'admin';
+  return dataStore.users[currentUserId]?.role === 'admin';
 }
 
 // ======================================================================
@@ -376,34 +392,80 @@ function isValidProject(name) {
   return !!(ud.projects || []).find(p => p.name === name);
 }
 
+/** Leesbare naam van een shift. Shift-sleutels kunnen een project-suffix hebben, bv. 'Ziekte (Eght Care)'. */
+function shiftRealName(shiftKey, ud = getCurrentUserData()) {
+  const key = String(shiftKey || '').trim();
+  return String(ud?.shifts?.[key]?.realName || key).trim();
+}
+
 function autoProjectForShift(shiftName) {
   return SPECIAL_PROJECT_MAP[shiftName] || null;
 }
 
-// ✅ Is deze rij een stage-shift? (telt NIET mee in de gewone uren)
-// Stage = shift met naam "Stage", shift met stage-icoon, of shift/rij gekoppeld aan een project met "stage" in de naam.
 function isStageProjectName(name) {
   return /stage/i.test(String(name || ''));
 }
 
+/**
+ * Is deze rij een stage-shift? Stage-uren tellen NIET mee in de gewone uren.
+ * Stage = shift met naam "Stage", shift met stage-icoon, of shift/rij gekoppeld
+ * aan een project met "stage" in de naam.
+ */
 function isStageRow(r, ud) {
   if (!r) return false;
   ud = ud || getCurrentUserData();
   const sID = String(r.shift || '').trim();
   const shiftDef = ud?.shifts?.[sID];
-  const realName = String(shiftDef ? shiftDef.realName || sID : sID).trim();
-  if (realName.toLowerCase() === 'stage' || sID.toLowerCase() === 'stage') return true;
+  if (shiftRealName(sID, ud).toLowerCase() === 'stage' || sID.toLowerCase() === 'stage') return true;
   if (shiftDef?.icon === 'stage') return true;
   if (isStageProjectName(shiftDef?.project)) return true;
   if (isStageProjectName(r.project)) return true;
   return false;
 }
 
-// ===== per gebruiker per maand =====
-function ensureUserMonthlyMap(ud) {
-  ud.settings ||= {};
-  ud.settings.multiByMonth ||= {}; // { 'YYYY-MM': true }
-  return ud.settings.multiByMonth;
+/**
+ * "Geplande" minuten van een maand: alles behalve stage en behalve verlof
+ * dat nog in aanvraag of afgekeurd is. Overal dezelfde regel (home, invoer,
+ * historiek, PDF, meldingen).
+ */
+function plannedMinutes(rows, ud = getCurrentUserData()) {
+  return Object.values(rows || {}).reduce((sum, r) => {
+    if (!r) return sum;
+    if (r.status && r.status !== 'approved') return sum;
+    if (isStageRow(r, ud)) return sum;
+    return sum + (Number(r.minutes) || 0);
+  }, 0);
+}
+
+/** Zit de maand op slot? (ingediend/goedgekeurd). Admins mogen altijd bewerken. */
+function isMonthLocked(y, m) {
+  if (isAdmin()) return false;
+  const status = getMonthStatus(y, m);
+  return status === 'submitted' || status === 'approved';
+}
+
+/** Toont een melding en geeft true terug als de maand op slot zit. */
+function warnIfLocked(y, m) {
+  if (!isMonthLocked(y, m)) return false;
+  toast('Deze maand is ingediend of goedgekeurd en kan niet meer aangepast worden.', 'warning');
+  return true;
+}
+
+/**
+ * Vult het project in voor een nieuwe rij op basis van de shift (vaste koppelingen
+ * zoals Verlof → Eght Care gaan voor).
+ * Gebruikt door snelle invoer, kalender-iconen, verfmodus en meerdere dagen.
+ */
+function applyShiftDefaults(row, shiftKey, ud = getCurrentUserData()) {
+  const realName = shiftRealName(shiftKey, ud);
+  const special = autoProjectForShift(realName);
+  if (special) {
+    ensureProjectExists(special);
+    row.project = special;
+  } else {
+    row.project = ud.shifts?.[shiftKey]?.project || row.project || '';
+  }
+  return row;
 }
 
 function userAllowsMultiMonth(ud, year, month) {
@@ -493,7 +555,7 @@ function saveCell(year, month, key, r, tr) {
   ud.monthData[year][month].rows[key] = { ...r, minutes: r.minutes || minutesBetween(r.start, r.end, r.break) };
 }
 
-// === Verlof / Schoolverlof instellingen en badges ===
+// --- Verlof & schoolverlof ---
 
 function getLeaveAllowanceMinutes() {
   const ud = getCurrentUserData();
@@ -507,69 +569,35 @@ function getSchoolLeaveAllowanceMinutes(y, m) {
   return Number(map[label]) || 0;
 }
 
-function sumTakenMinutesFor(year, shiftNames) {
+/** Minuten van rijen die bij één van de shiftnamen horen ('Stage' herkent ook stageprojecten). */
+function sumRowsMatching(shiftNames, filterKey) {
   const ud = getCurrentUserData();
   let total = 0;
-  const months = ud.monthData?.[year] || {};
-
-  Object.values(months).forEach(md => {
-    if (md.status === 'rejected') return;
-
-    Object.values(md?.rows || {}).forEach(r => {
-      const sID = (r?.shift || '').trim(); // Dit is de ID (bv. "Verlof (Project)")
-      if (!sID) return;
-
-      // 1. Haal de shift-instellingen op
-      const shiftDef = ud.shifts?.[sID];
-
-      // 2. Bepaal de 'schone' naam (realName).
-      // Als die niet bestaat, val terug op de ID.
-      const realName = shiftDef ? shiftDef.realName || sID : sID;
-
-      // 3. Check of de REALNAME (of de ID) in de lijst met verlofnamen staat
-      if (shiftNames.includes(realName) || shiftNames.includes(sID)) {
-        // Tellen als niet afgekeurd
-        if (!r.status || r.status !== 'rejected') {
-          total += Number(r.minutes) || 0;
-        }
-      }
-    });
-  });
-
-  return total;
-}
-
-// Vervang de functie sumTakenMinutesForRange (rond regel 2385)
-function sumTakenMinutesForRange(startISO, endISO, shiftNames) {
-  const ud = getCurrentUserData();
-  let total = 0;
-
   for (const months of Object.values(ud.monthData || {})) {
     for (const md of Object.values(months || {})) {
-      if (md.status === 'rejected') continue;
-
-      for (const [key, r] of Object.entries(md?.rows || {})) {
+      if (!md || md.status === 'rejected') continue;
+      for (const [key, r] of Object.entries(md.rows || {})) {
         const sID = (r?.shift || '').trim();
-        if (!sID) continue;
-
-        // 1. Haal de 'schone' naam op
-        const shiftDef = ud.shifts?.[sID];
-        const realName = shiftDef ? shiftDef.realName || sID : sID;
-
-        // 2. Check naam (stage ook herkennen via project/icoon)
-        const stageMatch = shiftNames.includes('Stage') && isStageRow(r, ud);
-        if (shiftNames.includes(realName) || shiftNames.includes(sID) || stageMatch) {
-          // 3. Check datum en status
-          if (isDateWithin(key, startISO, endISO)) {
-            if (!r.status || r.status !== 'rejected') {
-              total += Number(r.minutes) || 0;
-            }
-          }
-        }
+        if (!sID || r.status === 'rejected' || !filterKey(key)) continue;
+        const matches =
+          shiftNames.includes(shiftRealName(sID, ud)) ||
+          shiftNames.includes(sID) ||
+          (shiftNames.includes('Stage') && isStageRow(r, ud));
+        if (matches) total += Number(r.minutes) || 0;
       }
     }
   }
   return total;
+}
+
+/** Opgenomen minuten in een kalenderjaar (bv. verlof). */
+function sumTakenMinutesFor(year, shiftNames) {
+  return sumRowsMatching(shiftNames, key => key.startsWith(`${year}-`));
+}
+
+/** Opgenomen minuten tussen twee datums (bv. schoolverlof per schooljaar, stage-uren). */
+function sumTakenMinutesForRange(startISO, endISO, shiftNames) {
+  return sumRowsMatching(shiftNames, key => isDateWithin(key, startISO, endISO));
 }
 
 // === Schooljaar helpers ===
@@ -634,22 +662,7 @@ function getBelgianHoliday(dateObj) {
   if (month === 11 && day === 31) return { name: 'Oudejaarsavond', emoji: '🍾' };
 
   // --- 3. VARIABELE DATUMS (PASEN & CO) ---
-  const a = year % 19;
-  const b = Math.floor(year / 100);
-  const c = year % 100;
-  const d = Math.floor(b / 4);
-  const e = b % 4;
-  const f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3);
-  const h = (19 * a + b - d - g + 15) % 30;
-  const i = Math.floor(c / 4);
-  const k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h - k) % 7;
-  const m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const monthEaster = Math.floor((h + l - 7 * m + 114) / 31) - 1;
-  const dayEaster = ((h + l - 7 * m + 114) % 31) + 1;
-
-  const easterDate = new Date(year, monthEaster, dayEaster);
+  const easterDate = easterSunday(year);
 
   // Verschil in dagen berekenen
   const oneDay = 24 * 60 * 60 * 1000;
@@ -694,9 +707,8 @@ function getBelgianHoliday(dateObj) {
   return null;
 }
 
-// Hulpfunctie: Bereken Vlaamse Schoolvakanties
-function getSchoolHolidayInfo(year, month) {
-  // Pasen berekenen
+/** Paaszondag (Gregoriaanse kalender, algoritme van Meeus/Jones/Butcher). */
+function easterSunday(year) {
   const a = year % 19;
   const b = Math.floor(year / 100);
   const c = year % 100;
@@ -709,120 +721,74 @@ function getSchoolHolidayInfo(year, month) {
   const k = c % 4;
   const l = (32 + 2 * e + 2 * i - h - k) % 7;
   const m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const monthEaster = Math.floor((h + l - 7 * m + 114) / 31) - 1;
-  const dayEaster = ((h + l - 7 * m + 114) % 31) + 1;
-  const easterDate = new Date(year, monthEaster, dayEaster);
+  const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month, day);
+}
 
-  // 1. KROKUSVAKANTIE (Week van Aswoensdag)
-  const ashWed = new Date(easterDate);
-  ashWed.setDate(easterDate.getDate() - 46);
-  const krokusStart = new Date(ashWed);
-  // Terug naar de maandag van die week
-  const dayAsh = ashWed.getDay(); // 3 = woensdag
-  krokusStart.setDate(ashWed.getDate() - (dayAsh - 1));
-  const krokusEnd = new Date(krokusStart);
-  krokusEnd.setDate(krokusStart.getDate() + 6);
+function addDays(date, n) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  d.setDate(d.getDate() + n);
+  return d;
+}
 
-  if (month === krokusStart.getMonth() || month === krokusEnd.getMonth()) {
-    // Check of de startdatum in deze maand ligt
-    // We tonen het label in de maand waarin de vakantie START (of grotendeels valt)
-    if (month === krokusStart.getMonth()) {
-      return { name: 'Krokusvakantie', start: krokusStart, end: krokusEnd, icon: '🎭' };
-    }
-  }
+/** Maandag van de week waarin een datum valt. */
+function mondayOf(date) {
+  const dow = date.getDay() || 7; // ma=1 … zo=7
+  return addDays(date, 1 - dow);
+}
 
-  // 2. PAASVAKANTIE (De complexe regel!)
-  let paasStart, paasEnd;
-  const easterMonday = new Date(easterDate);
-  easterMonday.setDate(easterDate.getDate() + 1);
+/** Vlaamse schoolvakanties die in een bepaald jaar beginnen. */
+function flemishSchoolHolidays(year) {
+  const easter = easterSunday(year);
 
-  // REGEL: Als Pasen in Maart valt OF in April vóór de 15e -> Vakantie start Paasmaandag
-  if (easterDate.getMonth() === 2 || (easterDate.getMonth() === 3 && easterDate.getDate() <= 15)) {
-    // Start op Paasmaandag
-    paasStart = new Date(easterMonday);
-    paasEnd = new Date(paasStart);
-    paasEnd.setDate(paasStart.getDate() + 13); // 2 weken
+  // Krokusvakantie: week van Aswoensdag (46 dagen voor Pasen)
+  const krokusStart = mondayOf(addDays(easter, -46));
+
+  // Paasvakantie: start 1e maandag van april; Pasen in maart → start paasmaandag;
+  // Pasen na 15 april → start 2e maandag vóór Pasen (en loopt t/m paasmaandag).
+  let paasStart;
+  let paasEnd;
+  if (easter.getMonth() === 2) {
+    paasStart = addDays(easter, 1);
+    paasEnd = addDays(paasStart, 13);
+  } else if (easter.getDate() > 15) {
+    paasStart = addDays(easter, -13);
+    paasEnd = addDays(easter, 1);
   } else {
-    // Laat Pasen (> 15 april): Vakantie eindigt op Paasmaandag (dus begint 2 weken eerder)
-    paasEnd = new Date(easterMonday);
-    paasStart = new Date(paasEnd);
-    paasStart.setDate(paasEnd.getDate() - 14); // 14 dagen terugtellen
+    const april1 = new Date(year, 3, 1);
+    paasStart = addDays(april1, (8 - (april1.getDay() || 7)) % 7);
+    paasEnd = addDays(paasStart, 13);
   }
 
-  if (month === paasStart.getMonth() || month === paasEnd.getMonth()) {
-    // Toon label in de startmaand (of als start eind vorige maand was, toon in deze maand als het doorloopt)
-    // Simpelheidshalve: toon als start in deze maand is
-    if (month === paasStart.getMonth()) {
-      return { name: 'Paasvakantie', start: paasStart, end: paasEnd, icon: '🐣' };
-    }
-    // Als vakantie start in Maart maar maand is April, toon het ook in April?
-    // Nee, meestal staat het label bij de startdatum.
-  }
-
-  // 3. ZOMERVAKANTIE
-  if (month === 6) return { name: 'Zomervakantie', fullMonth: true, icon: '☀️' };
-  if (month === 7) return { name: 'Zomervakantie', fullMonth: true, icon: '🏖️' };
-
-  // 4. HERFSTVAKANTIE (Week van 1 nov)
-  // Regel: Begint maandag van de week waarin 1 nov valt.
-  // Uitzondering: Als 1 nov op zondag valt, begint het de maandag erna (2 nov).
+  // Herfstvakantie: week van 1 november (valt 1 nov op zondag → de week erna)
   const nov1 = new Date(year, 10, 1);
-  let herfstStart = new Date(nov1);
-  let dayNov1 = nov1.getDay(); // 0=zo, 1=ma...
+  const herfstStart = nov1.getDay() === 0 ? addDays(nov1, 1) : mondayOf(nov1);
 
-  if (dayNov1 === 0) {
-    // 1 nov is zondag -> start maandag 2 nov
-    herfstStart.setDate(nov1.getDate() + 1);
-  } else {
-    // Anders: terug naar maandag van die week
-    herfstStart.setDate(nov1.getDate() - (dayNov1 - 1));
-  }
+  // Kerstvakantie: 2 weken vanaf de maandag van de week met 25 december;
+  // valt Kerstmis op zaterdag of zondag → vanaf de maandag erna.
+  const xmas = new Date(year, 11, 25);
+  const kerstStart = xmas.getDay() === 6 || xmas.getDay() === 0 ? mondayOf(addDays(xmas, 7)) : mondayOf(xmas);
 
-  const herfstEnd = new Date(herfstStart);
-  herfstEnd.setDate(herfstStart.getDate() + 6);
+  return [
+    { name: 'Krokusvakantie', start: krokusStart, end: addDays(krokusStart, 6), icon: '🎭' },
+    { name: 'Paasvakantie', start: paasStart, end: paasEnd, icon: '🐣' },
+    { name: 'Zomervakantie', start: new Date(year, 6, 1), end: new Date(year, 7, 31), icon: '☀️', summer: true },
+    { name: 'Herfstvakantie', start: herfstStart, end: addDays(herfstStart, 6), icon: '🍂' },
+    { name: 'Kerstvakantie', start: kerstStart, end: addDays(kerstStart, 13), icon: '🎄' }
+  ];
+}
 
-  if (month === 10) {
-    // November (of eind oktober)
-    if (herfstStart.getMonth() === month) {
-      return { name: 'Herfstvakantie', start: herfstStart, end: herfstEnd, icon: '🍂' };
-    }
-    // Als start in Oktober is (bijv 28 okt)
-    if (month === 9 && herfstStart.getMonth() === 9) {
-      return { name: 'Herfstvakantie', start: herfstStart, end: herfstEnd, icon: '🍂' };
-    }
-  }
-
-  // 5. KERSTVAKANTIE
-  const xmas = new Date(year, 11, 25); // 25 dec van DIT jaar (of vorig jaar als we in jan zitten?)
-
-  // Hier zit een listigheidje: Als we in Januari kijken (month 0), moeten we kijken naar de Kerst van VORIG jaar.
-  let referenceYear = year;
-  if (month === 0) referenceYear = year - 1;
-
-  const xmasRef = new Date(referenceYear, 11, 25);
-  let dayXmas = xmasRef.getDay();
-  if (dayXmas === 0) dayXmas = 7;
-
-  const kerstStart = new Date(xmasRef);
-  kerstStart.setDate(xmasRef.getDate() - (dayXmas - 1));
-
-  const kerstEnd = new Date(kerstStart);
-  kerstEnd.setDate(kerstStart.getDate() + 13); // 2 weken
-
-  // Check of de vakantie overlapt met de huidige maand (Dec of Jan)
-  if (month === 11 || month === 0) {
-    // Check overlap
-    // Simpele check: start de vakantie in deze maand? OF eindigt hij in deze maand?
-    const sM = kerstStart.getMonth();
-    const eM = kerstEnd.getMonth();
-
-    if (sM === month || eM === month) {
-      // Voor het label geven we gewoon 'Kerstvakantie' terug
-      return { name: 'Kerstvakantie', start: kerstStart, end: kerstEnd, icon: '🎄' };
-    }
-  }
-
-  return null;
+/** Schoolvakantie die (deels) in deze maand valt, of null. */
+function getSchoolHolidayInfo(year, month) {
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 0);
+  const hit = [...flemishSchoolHolidays(year - 1), ...flemishSchoolHolidays(year)].find(
+    v => v.start <= monthEnd && v.end >= monthStart
+  );
+  if (!hit) return null;
+  if (hit.summer) return { name: hit.name, fullMonth: true, icon: month === 7 ? '🏖️' : '☀️' };
+  return hit;
 }
 
 // ======================================================================
@@ -830,67 +796,29 @@ function getSchoolHolidayInfo(year, month) {
 // Inloggen, eerste rendering en alles opnieuw tekenen.
 // ======================================================================
 
-// ======= UI init =======
 function initSelectors() {
-  const yearSelect = document.getElementById('yearSelectMain');
-  const monthSelect = document.getElementById('monthSelectMain');
+  if (!yearSelectMain || !monthSelectMain) return;
 
-  // 🛑 VEILIGHEIDSCHECK: Als de elementen er niet zijn, stop direct.
-  if (!yearSelect || !monthSelect) {
-    console.warn('initSelectors: Kon yearSelectMain of monthSelectMain niet vinden.');
-    return;
-  }
-
-  // Jaren vullen
   const yNow = new Date().getFullYear();
-  yearSelect.innerHTML = '';
+  yearSelectMain.innerHTML = '';
   for (let y = yNow - 2; y <= yNow + 3; y++) {
     const opt = document.createElement('option');
     opt.value = y;
     opt.textContent = y;
     if (y === yNow) opt.selected = true;
-    yearSelect.appendChild(opt);
+    yearSelectMain.appendChild(opt);
   }
-
-  // Huidige maand selecteren
-  const mNow = new Date().getMonth();
-  monthSelect.value = String(mNow);
+  monthSelectMain.value = String(new Date().getMonth());
 }
 
-// FIX: FOUTMELDING NULL (Veilige check)
-async function revealAdminIfNeeded() {
-  const id = getActiveUserId();
-  if (!id) return;
-
-  const meSnap = await getDoc(doc(db, 'users', id));
-  if (!meSnap.exists()) return;
-
-  const role = meSnap.data().role;
-
-  if (role === 'admin') {
-    // We gebruiken '?.list' (optional chaining) of een if-check
-    // zodat hij NIET crasht als je de knoppen hebt verwijderd.
-
-    const btnAdmin = document.getElementById('adminTabBtn');
-    if (btnAdmin) btnAdmin.classList.remove('d-none');
-
-    const btnAppr = document.getElementById('adminApprovalTabBtn');
-    if (btnAppr) btnAppr.classList.remove('d-none');
-
-    const btnLeave = document.getElementById('adminLeaveTabBtn');
-    if (btnLeave) btnLeave.classList.remove('d-none');
-
-    const btnHome = document.getElementById('adminHomeTabBtn');
-    if (btnHome) btnHome.classList.remove('d-none');
-
-    const btnRooster = document.getElementById('adminRoosterTabBtn');
-    if (btnRooster) btnRooster.classList.remove('d-none');
-    // Activeer de wisselaar naast de bel
-    initTopbarAdminSwitcher();
-  }
+/** Admin-onderdelen tonen voor admins (team-rooster + gebruikerswissel in de topbalk). */
+function revealAdminIfNeeded() {
+  if (!isAdmin()) return;
+  document.getElementById('adminRoosterTabBtn')?.classList.remove('d-none');
+  initTopbarAdminSwitcher();
 }
 
-// ======= Render all =======
+/** Alles opnieuw tekenen voor de actieve gebruiker. */
 function renderAll() {
   renderProjects();
   renderShifts();
@@ -902,105 +830,68 @@ function renderAll() {
   renderHome();
 }
 
+/** Tabblad openen via de zijbalk-link (werkt ook vanuit andere knoppen). */
+function showTab(hash) {
+  const link = document.querySelector(`#navTabs a[href="${hash}"]`);
+  if (link) bootstrap.Tab.getOrCreateInstance(link).show();
+}
+
+const DEFAULT_AVATAR =
+  'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0iY3VycmVudENvbG9yIiBjbGFzcz0iYmkgYmktcGVyc29uLWZpbGwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTMgMTQgczEtMiAyLTIgMiAyIDIgMiAyLTItMi0yem01LTAiLz48cGF0aCBkPSJNODguNUM4IDcuNjcgNy4zMyA3IDYuNSA3UzUgNy42NyA1IDguNSA1LjY3IDEwIDYuNSAxMFM4IDkuMzMgOCA4LjV6bS0yIDBjMCAxLjExLS44OSAyLTIgMnMtMi0uODktMi0yIC44OS0yIDItMiAyIC44OSAyIDJ6bS0yLTNjLTMuMTQ2IDAtNS41IDIuNTM2LTUuNSA1LjVWMTloMTJ2LTIuNWMwLTIuOTY0LTIuMzU0LTUuNS01LjUtNS41eiIvPjwvc3ZnPg==';
+
 function bindAuth() {
-  // ======= Auth =======
   onAuthStateChanged(auth, async user => {
-    // Stop alle intervals als we uitloggen
     if (notificationInterval) clearInterval(notificationInterval);
 
-    // ✅ Kleur laden (instant)
+    // Accentkleur meteen toepassen (voorkomt knipperen)
     const savedColor = localStorage.getItem('accentColor');
-    if (savedColor) {
-      applyAccentColor(savedColor);
-    }
+    if (savedColor) applyAccentColor(savedColor);
 
-    // 1. GEEN GEBRUIKER? REDIRECT!
+    // Niet ingelogd → naar de loginpagina
     if (!user) {
       window.location.replace('index.html');
-      return; // Stop hier
+      return;
     }
 
-    // 2. WEL EEN GEBRUIKER? TOON DE APP!
     document.body.classList.add('auth-checked');
-    requestNotificationPermission();
     currentUserId = user.uid;
 
-    // --- Veilige update van gebruikersnaam ---
-    const nameEl = document.getElementById('currentUserName');
-    if (nameEl) {
-      nameEl.textContent = user.displayName || user.email;
-    }
-
-    // --- Profielfoto in topbar ---
     const topPhotoEl = document.getElementById('topbarProfilePhoto');
-    if (topPhotoEl && user.photoURL) {
-      topPhotoEl.src = user.photoURL;
-    } else if (topPhotoEl) {
-      // Fallback
-      topPhotoEl.src =
-        'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0iY3VycmVudENvbG9yIiBjbGFzcz0iYmkgYmktcGVyc29uLWZpbGwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTMgMTQgczEtMiAyLTIgMiAyIDIgMiAyLTItMi0yem01LTAiLz48cGF0aCBkPSJNODguNUM4IDcuNjcgNy4zMyA3IDYuNSA3UzUgNy42NyA1IDguNSA1LjY3IDEwIDYuNSAxMFM4IDkuMzMgOCA4LjV6bS0yIDBjMCAxLjExLS44OSAyLTIgMnMtMi0uODktMi0yIC44OS0yIDItMiAyIC44OSAyIDJ6bS0yLTNjLTMuMTQ2IDAtNS41IDIuNTM2LTUuNSA1LjVWMTloMTJ2LTIuNWMwLTIuOTY0LTIuMzU0LTUuNS01LjUtNS41eiIvPjwvc3ZnPg==';
-    }
+    if (topPhotoEl) topPhotoEl.src = user.photoURL || DEFAULT_AVATAR;
 
     await ensureUserDoc(user);
     await loadAllUsers();
 
-    // ✅ Sidebar & accentkleur
+    // Persoonlijke voorkeuren
     const ud = getCurrentUserData();
-    if (ud?.settings?.accentColor) {
-      applyAccentColor(ud.settings.accentColor);
-    }
-
+    if (ud?.settings?.accentColor) applyAccentColor(ud.settings.accentColor);
     if (ud?.settings?.sidebarCollapsed) {
-      const sb = document.getElementById('sidebar');
-      const mn = document.getElementById('main');
-      if (sb) sb.classList.add('collapsed');
-      if (mn) mn.classList.add('collapsed');
+      sidebar?.classList.add('collapsed');
+      main?.classList.add('collapsed');
     }
 
     initSelectors();
     renderAll();
-    await revealAdminIfNeeded();
+    revealAdminIfNeeded();
     updateMonthStatusBadge();
-    updateLeaveBadges();
-    renderHome();
     enableNotifications(user.uid);
 
-    // HIER ZAT DE FOUT: De '});' die hier stond is verwijderd
-    // Zodat de code hieronder nog steeds toegang heeft tot 'user'
+    // Meldingen: live lijst + dagelijkse automatische controle
+    listenToNotifications(user.uid);
+    await autoCheckNotifications();
+    notificationInterval = setInterval(autoCheckNotifications, 24 * 60 * 60 * 1000);
 
-    // --- NIEUWE NOTIFICATIE LOGICA ---
-    listenToNotifications(user.uid); // Start de listener
-
-    // 🕒 Start automatische meldingensysteem
-    await autoCheckNotifications(); // 1. Direct uitvoeren na login
-
-    // 🔁 Herhaal automatisch elke 24 uur (86400000 ms)
-    notificationInterval = setInterval(async () => {
-      await autoCheckNotifications();
-    }, 86400000);
-    // --- EINDE NIEUWE LOGICA ---
-
-    // --- NIEUWE MAILBOX LOGICA ---
+    // Mailbox
     bindMailboxUIOnce();
     listenMailbox(user.uid);
-    // --- EINDE NIEUWE LOGICA ---
 
-    // ✅ Opstart-tabblad instellen
-    try {
-      if (ud?.settings?.defaultTab) {
-        const tabLink = document.querySelector(`a[href="${ud.settings.defaultTab}"]`);
-        if (tabLink) {
-          bootstrap.Tab.getOrCreateInstance(tabLink).show();
-        }
-      }
-    } catch (e) {
-      console.warn('Kon standaard tab niet laden:', e);
-    }
+    // Opstart-tabblad uit het profiel
+    if (ud?.settings?.defaultTab) showTab(ud.settings.defaultTab);
   });
 
   logoutBtn?.addEventListener('click', async () => {
     await signOut(auth);
-    window.location.href = 'index.html'; // 👈 redirect in plaats van reload
+    window.location.href = 'index.html';
   });
 }
 
@@ -1009,7 +900,7 @@ function bindAuth() {
 // Zijbalk, accentkleur, donkere modus en mobiele weergave.
 // ======================================================================
 
-// ✅ HIER TOEVOEGEN: Functie die de kleur daadwerkelijk toepast
+/** Past de gekozen accentkleur toe op de hele app. */
 function applyAccentColor(hex) {
   if (!hex) return; // Geen kleur, doe niets
 
@@ -1114,165 +1005,47 @@ function applyAccentColor(hex) {
 }
 
 function bindLayout() {
-  document.getElementById('sidebarToggle').addEventListener('click', () => {
+  document.getElementById('sidebarToggle')?.addEventListener('click', () => {
     sidebar.classList.toggle('collapsed');
     main.classList.toggle('collapsed');
   });
 
-  document.getElementById('sidebarMobile').addEventListener('click', () => {
+  document.getElementById('sidebarMobile')?.addEventListener('click', () => {
     sidebar.classList.toggle('show');
   });
 
-  // close sidebar on nav click (mobile)
+  // Op mobiel de zijbalk sluiten na het kiezen van een tabblad
   document.querySelectorAll('#navTabs .nav-link').forEach(a => {
     a.addEventListener('click', () => sidebar.classList.remove('show'));
   });
 
-  // 4. Schakelaar: Donkere Modus (NIEUW)
-  // Eerst controleren bij het laden van de pagina
-  const prefersDark = localStorage.getItem('darkMode') === 'true';
-
-  if (prefersDark) document.body.classList.add('dark-mode');
-
-  // 5. UI FIXES (MOBIELE SCROLL + ALLE KOLOMMEN TONEN)
-  document.addEventListener('DOMContentLoaded', () => {
-    const style = document.createElement('style');
-    style.innerHTML = `
-    /* --- A. VANDAAG ANIMATIE & WEEKEND --- */
-    @keyframes pulse-blue {
-      0% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.7); }
-      70% { box-shadow: 0 0 0 6px rgba(13, 110, 253, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0); }
-    }
-    .calendar-day.today {
-      border: 2px solid #0d6efd !important;
-      animation: pulse-blue 2s infinite;
-      z-index: 10;
-      background-color: #fff;
-    }
-    .calendar-day.today .day-number { color: #0d6efd; font-weight: 900; font-size: 1.1em; }
-    
-    .calendar-day.weekend { background-color: #f2f4f8 !important; }
-    body.dark-mode .calendar-day.weekend { background-color: #2b2d31 !important; }
-
-    /* --- B. DESKTOP (> 992px) --- */
-    @media (min-width: 992px) {
-      .table-responsive, #historyTable, .shift-container, .mobile-scroll-wrapper {
-        overflow: visible !important;
-        max-height: none !important;
-        height: auto !important;
-      }
-      body { overflow-y: auto; }
-    }
-
-    /* --- C. MOBIEL (< 992px) - DE HARDE FIX --- */
-    @media (max-width: 991px) {
-      /* 1. Forceer scrollen */
-      .mobile-scroll-wrapper, .table-responsive {
-        display: block !important;
-        width: 100% !important;
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-        margin-bottom: 1rem;
-        padding-bottom: 5px;
-      }
-      
-      /* 2. Forceer tabel breedte */
-      .mobile-scroll-wrapper table, 
-      .table-responsive table,
-      table.table {
-        min-width: 800px !important; 
-        width: auto !important;
-      }
-      
-      /* 3. Zorg dat tekst op 1 regel blijft */
-      table td, table th {
-        white-space: nowrap !important;
-        font-size: 0.85rem !important;
-      }
-
-      /* 4. 🔥 DEZE REGEL IS NIEUW: FORCEER ALLE KOLOMMEN TERUG 🔥 */
-      /* Dit overschrijft de code die kolommen verstopte */
-      .table th, .table td {
-        display: table-cell !important; 
-      }
-
-      /* Icoontjes in kalender weg */
-      .quick-icons-wrapper { display: none !important; }
-      .calendar-day { min-height: 50px !important; }
-    }
-  `;
-    document.head.appendChild(style);
-
-    // 2. JS: Pak alle tabellen in een scroll-doosje
-    const wrapTables = () => {
-      const tables = document.querySelectorAll('table');
-      tables.forEach(table => {
-        if (table.closest('.calendar-grid')) return;
-
-        const parent = table.parentElement;
-        const hasWrapper =
-          parent.classList.contains('mobile-scroll-wrapper') || parent.classList.contains('table-responsive');
-
-        if (!hasWrapper) {
-          const wrapper = document.createElement('div');
-          wrapper.className = 'mobile-scroll-wrapper';
-          table.parentNode.insertBefore(wrapper, table);
-          wrapper.appendChild(table);
-        } else {
-          parent.classList.add('mobile-scroll-wrapper');
-        }
-      });
-    };
-
-    wrapTables();
-    setTimeout(wrapTables, 1000);
+  // Logo "Shift Planner" → Home (via de echte nav-link, anders crasht Bootstrap)
+  document.querySelector('#sidebar a.label[href="#tab-home"]')?.addEventListener('click', e => {
+    e.preventDefault();
+    showTab('#tab-home');
+    sidebar.classList.remove('show');
   });
 
-  // 💡 Laat de balk zweven — FIX: Extra scrollruimte en positie
-  document.addEventListener('DOMContentLoaded', () => {
-    const alertBox = document.getElementById('remainingHoursAlert');
-    if (!alertBox) return;
+  // Donkere modus (per toestel bewaard)
+  if (localStorage.getItem('darkMode') === 'true') document.body.classList.add('dark-mode');
 
-    // 1. BELANGRIJK: Voeg lege ruimte toe onderaan de hele pagina (120px).
-    // Hierdoor kun je de tabel 'voorbij' de zwevende balk scrollen,
-    // en zijn de onderste regels (30/31e) gewoon zichtbaar en klikbaar.
-    document.body.style.paddingBottom = '120px';
-
-    // 2. Zet de balk vast onderaan het scherm
-    Object.assign(alertBox.style, {
-      position: 'fixed',
-      bottom: '15px', // Iets van de rand af
-      left: '50%',
-      transform: 'translateX(-50%)',
-      zIndex: '2000',
-      width: 'auto',
-      maxWidth: '95%', // Zorgt dat hij op mobiel niet buiten beeld valt
-      boxShadow: '0 4px 10px rgba(0,0,0,0.2)', // Mooie schaduw zodat hij loskomt van de tabel
-      borderRadius: '50px' // Netter uiterlijk (pil-vorm)
+  // Tabellen op mobiel horizontaal laten scrollen
+  const wrapTables = () => {
+    document.querySelectorAll('table').forEach(table => {
+      if (table.closest('.calendar-grid')) return;
+      const parent = table.parentElement;
+      if (parent.classList.contains('mobile-scroll-wrapper') || parent.classList.contains('table-responsive')) {
+        parent.classList.add('mobile-scroll-wrapper');
+        return;
+      }
+      const wrapper = document.createElement('div');
+      wrapper.className = 'mobile-scroll-wrapper';
+      table.parentNode.insertBefore(wrapper, table);
+      wrapper.appendChild(table);
     });
-  });
-
-  // ✅ Fix: resterende uren-balk altijd onderaan direct bij laden
-  document.addEventListener('DOMContentLoaded', () => {
-    const alertBox = document.getElementById('remainingHoursAlert');
-    if (!alertBox) return;
-
-    // Direct forceren
-    alertBox.style.position = 'fixed';
-    alertBox.style.bottom = '1rem';
-    alertBox.style.left = '50%';
-    alertBox.style.transform = 'translateX(-50%)';
-    alertBox.style.zIndex = '2000';
-
-    // Hercontrole na 0,5s (voor het geval DOM later rendert)
-    setTimeout(() => {
-      alertBox.style.position = 'fixed';
-      alertBox.style.bottom = '1rem';
-      alertBox.style.left = '50%';
-      alertBox.style.transform = 'translateX(-50%)';
-    }, 500);
-  });
+  };
+  wrapTables();
+  setTimeout(wrapTables, 1000);
 }
 
 // ======================================================================
@@ -1280,32 +1053,22 @@ function bindLayout() {
 // Dashboard, voortgang en team-mededelingen.
 // ======================================================================
 
-// ✅ DEZE FUNCTIE IS NU "GRATIS" EN LEEST UIT DE CACHE
+/** Laatste 5 meldingen op Home (uit het geheugen, geen extra databank-lezing). */
 function loadHomeNotifications() {
-  try {
-    if (!currentUserId) return;
-    const listEl = document.getElementById('homeNotifList');
-    if (!listEl) return;
+  const listEl = document.getElementById('homeNotifList');
+  if (!currentUserId || !listEl) return;
 
-    // Haal de eerste 5 meldingen op uit de dataStore (die al geladen is)
-    const notifications = dataStore.notifications.slice(0, 5);
-
-    listEl.innerHTML = '';
-    if (notifications.length === 0) {
-      listEl.innerHTML = '<li class="text-muted small">Geen meldingen.</li>';
-      return;
-    }
-
-    notifications.forEach(n => {
-      const when = n.timestamp ? new Date(n.timestamp).toLocaleString('nl-BE') : '';
-      listEl.insertAdjacentHTML(
-        'beforeend',
-        `<li class="small mb-1">${n.text}<br><span class="text-muted">${when}</span></li>`
-      );
-    });
-  } catch (e) {
-    console.error(e);
+  const notifications = dataStore.notifications.slice(0, 5);
+  if (notifications.length === 0) {
+    listEl.innerHTML = '<li class="text-muted small">Geen meldingen.</li>';
+    return;
   }
+  listEl.innerHTML = notifications
+    .map(n => {
+      const when = n.timestamp ? new Date(n.timestamp).toLocaleString('nl-BE') : '';
+      return `<li class="small mb-1">${escapeHtml(n.text)}<br><span class="text-muted">${when}</span></li>`;
+    })
+    .join('');
 }
 
 function renderHome() {
@@ -1321,18 +1084,8 @@ function renderHome() {
   const monthNameEl = document.getElementById('homeMonthName');
   if (monthNameEl) monthNameEl.textContent = `${monthsFull[m]} ${y}`;
 
-  // totals
-  const planned = Object.values(md.rows || {}).reduce((s, r) => {
-    if (r.status && r.status !== 'approved') {
-      return s; // Tel niet mee (pending/rejected)
-    }
-    // Check of het stage is
-    const shiftDef = ud.shifts?.[r.shift];
-    const realName = shiftDef ? shiftDef.realName || r.shift : r.shift;
-    if (isStageRow(r, ud)) return s; // Stage NIET meetellen!
-
-    return s + (Number(r.minutes) || 0);
-  }, 0);
+  // totalen (zelfde regel als Invoer/Historiek: zonder stage en zonder niet-goedgekeurd verlof)
+  const planned = plannedMinutes(md.rows, ud);
   const target = (Number(md.targetHours) || 0) * 60 + (Number(md.targetMinutes) || 0);
   const diff = planned - target;
   const pct = target > 0 ? Math.min(100, Math.round((planned / target) * 100)) : 0;
@@ -1342,7 +1095,7 @@ function renderHome() {
   const elD = document.getElementById('homeMonthDiff');
   if (elP) elP.textContent = fmt(planned);
   if (elT) elT.textContent = fmt(target);
-  if (elD) elD.textContent = `${diff >= 0 ? '+' : ''}${fmt(Math.abs(diff))}`;
+  if (elD) elD.textContent = fmtDiff(diff);
 
   const bar = document.getElementById('homeMonthProgress');
   const barLbl = document.getElementById('homeMonthProgressLabel');
@@ -1354,9 +1107,10 @@ function renderHome() {
     if (barLbl) barLbl.textContent = `${pct}%`;
   }
 
+  // Stage-voortgang (werkplekleren PXL)
   const stageStartISO = '2026-09-28';
   const stageEndISO = '2027-01-31';
-  const targetStageMins = 450 * 60; // 450 uur voor werkplekleren PXL
+  const targetStageMins = 450 * 60;
   const stageTakenMins = sumTakenMinutesForRange(stageStartISO, stageEndISO, ['Stage']);
   const stagePct = targetStageMins > 0 ? Math.min(100, Math.round((stageTakenMins / targetStageMins) * 100)) : 0;
 
@@ -1454,10 +1208,10 @@ function renderHome() {
   }
 
   // actieve projecten (vandaag)
-  const todayISO = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const projWrap = document.getElementById('homeProjects');
   if (projWrap) {
-    const list = (ud.projects || []).filter(p => isDateWithin(todayISO, p.start || null, p.end || null));
+    const list = (ud.projects || []).filter(p => isDateWithin(today, p.start || null, p.end || null));
     if (!list.length) {
       projWrap.innerHTML = '<div class="text-muted small">Geen actieve projecten vandaag.</div>';
     } else {
@@ -1466,7 +1220,7 @@ function renderHome() {
           p => `
         <div class="col-12 col-sm-6 col-md-4">
           <div class="border rounded p-2 h-100">
-            <div class="fw-semibold">${p.name}</div>
+            <div class="fw-semibold">${escapeHtml(p.name)}</div>
             <div class="text-muted small">${toDisplayDate(p.start)} – ${toDisplayDate(p.end)}</div>
           </div>
         </div>`
@@ -1475,39 +1229,28 @@ function renderHome() {
     }
   }
 
-  // laatste meldingen
+  // laatste meldingen + mededelingen
   loadHomeNotifications();
   initAnnouncements();
 }
 
-// 📢 PRIKBORD LOGICA
+// --- Team-mededelingen (prikbord) ---
 
-// 📢 PRIKBORD LOGICA
+let announcementsUnsub = null;
 
-// 1. Functie om het prikbord te starten
+/** Toont de "+"-knop voor admins en start (één keer) de live lijst. */
 function initAnnouncements() {
-  const btn = document.getElementById('addAnnouncementBtn');
   const list = document.getElementById('announcementList');
-
   if (!list) return;
-
-  // Check of huidige gebruiker admin is -> Toon knop
-  const ud = getCurrentUserData();
-  if (ud?.role === 'admin') {
-    btn?.classList.remove('d-none');
-  }
-
-  // Start de live listener
-  loadAnnouncements();
+  document.getElementById('addAnnouncementBtn')?.classList.toggle('d-none', !isAdmin());
+  if (!announcementsUnsub) loadAnnouncements();
 }
 
-// 2. Data ophalen (Live) en renderen
 function loadAnnouncements() {
   const list = document.getElementById('announcementList');
-  // Zorg dat collection, query, etc. geïmporteerd zijn bovenaan!
   const q = query(collection(db, 'announcements'), orderBy('timestamp', 'desc'), limit(3));
 
-  onSnapshot(q, snapshot => {
+  announcementsUnsub = onSnapshot(q, snapshot => {
     if (snapshot.empty) {
       list.innerHTML = '<small class="text-muted fst-italic">Geen mededelingen.</small>';
       return;
@@ -1516,31 +1259,21 @@ function loadAnnouncements() {
     list.innerHTML = '';
     snapshot.forEach(docSnap => {
       const a = docSnap.data();
-      let dateStr = '-';
-      if (a.timestamp) {
-        dateStr = new Date(a.timestamp).toLocaleDateString('nl-BE', {
-          day: 'numeric',
-          month: 'short'
-        });
-      }
-
-      // Kleur bepalen (met fallback naar wit/light)
-      const colorClass = a.color ? `alert-${a.color}` : 'alert-light';
+      const dateStr = a.timestamp
+        ? new Date(a.timestamp).toLocaleDateString('nl-BE', { day: 'numeric', month: 'short' })
+        : '-';
+      const colorClass = /^[a-z]+$/.test(a.color || '') ? `alert-${a.color}` : 'alert-light';
+      const deleteBtn = isAdmin()
+        ? `<button class="btn btn-link text-danger p-0 ms-2" onclick="deleteAnnouncement('${docSnap.id}')" style="text-decoration:none;">&times;</button>`
+        : '';
 
       const div = document.createElement('div');
       div.className = `alert ${colorClass} border mb-2 p-2 d-flex justify-content-between align-items-start shadow-sm`;
-
-      // Admin mag verwijderen
-      const deleteBtn =
-        getCurrentUserData()?.role === 'admin'
-          ? `<button class="btn btn-link text-danger p-0 ms-2" onclick="deleteAnnouncement('${docSnap.id}')" style="text-decoration:none;">&times;</button>`
-          : '';
-
       div.innerHTML = `
         <div class="w-100">
-          <div class="fw-bold text-dark" style="font-size: 0.95rem;">${a.text}</div>
+          <div class="fw-bold text-dark" style="font-size: 0.95rem;">${escapeHtml(a.text)}</div>
           <div class="text-muted d-flex justify-content-between mt-1" style="font-size: 0.75rem;">
-            <span>${a.author}</span>
+            <span>${escapeHtml(a.author)}</span>
             <span>${dateStr}</span>
           </div>
         </div>
@@ -1561,12 +1294,9 @@ function bindHome() {
     new bootstrap.Modal(document.getElementById('shiftModal')).show();
   });
 
-  document.getElementById('homeBtnGoInvoer')?.addEventListener('click', () => {
-    const a = document.querySelector('a[href="#tab-invoer"]');
-    if (a) new bootstrap.Tab(a).show();
-  });
+  document.getElementById('homeBtnGoInvoer')?.addEventListener('click', () => showTab('#tab-invoer'));
 
-  // 3. Verwijder actie
+  // Mededeling verwijderen (admin)
   window.deleteAnnouncement = async id => {
     if (!confirm('Verwijder dit bericht?')) return;
     try {
@@ -1578,10 +1308,10 @@ function bindHome() {
     }
   };
 
-  // 4. Knop: Open de Modal (reset kleur naar wit)
+  // Nieuwe mededeling: popup leegmaken en openen
   document.getElementById('addAnnouncementBtn')?.addEventListener('click', () => {
-    const ud = getCurrentUserData();
-    const myName = ud.name || ud.email || 'Admin';
+    const me = dataStore.users[currentUserId] || {};
+    const myName = me.name || me.email || 'Admin';
 
     document.getElementById('announcementInputText').value = '';
     document.getElementById('announcementCustomAuthor').value = '';
@@ -1598,7 +1328,7 @@ function bindHome() {
     new bootstrap.Modal(document.getElementById('announcementModal')).show();
   });
 
-  // 5. Dropdown 'Anders' logica
+  // Afzender 'Anders, namelijk…'
   document.getElementById('announcementAuthorSelect')?.addEventListener('change', e => {
     const customDiv = document.getElementById('announcementCustomAuthorDiv');
     if (e.target.value === 'custom') {
@@ -1609,7 +1339,7 @@ function bindHome() {
     }
   });
 
-  // 6. Opslaan knop (Inclusief kleur!)
+  // Mededeling plaatsen
   document.getElementById('saveAnnouncementBtn')?.addEventListener('click', async () => {
     const text = document.getElementById('announcementInputText').value.trim();
     const selectVal = document.getElementById('announcementAuthorSelect').value;
@@ -1623,8 +1353,8 @@ function bindHome() {
     if (!text) return toast('Typ eerst een bericht', 'warning');
 
     if (selectVal === 'me') {
-      const ud = getCurrentUserData();
-      authorName = ud.name || ud.email || 'Admin';
+      const me = dataStore.users[currentUserId] || {};
+      authorName = me.name || me.email || 'Admin';
     } else if (selectVal === 'custom') {
       authorName = document.getElementById('announcementCustomAuthor').value.trim();
       if (!authorName) return toast('Vul een afzender in', 'warning');
@@ -1657,40 +1387,40 @@ function bindHome() {
 
 let editingProjectIndex = null;
 
-// ======= Projects =======
-// ======= Projects =======
+/** Hernoemt een project overal (shiften en ingevulde dagen), zodat koppelingen blijven werken. */
+function renameProjectEverywhere(ud, oldName, newName) {
+  Object.values(ud.shifts || {}).forEach(sh => {
+    if (sh.project === oldName) sh.project = newName;
+  });
+  Object.values(ud.monthData || {}).forEach(months =>
+    Object.values(months || {}).forEach(md =>
+      Object.values(md?.rows || {}).forEach(r => {
+        if (r?.project === oldName) r.project = newName;
+      })
+    )
+  );
+}
+
 function renderProjects() {
   const ud = getCurrentUserData();
   const projectTableBody = document.getElementById('projectTableBody');
   const newShiftProjectSelect = document.getElementById('newShiftProjectSelect');
   const projectFilterSelect = document.getElementById('projectFilterSelect');
 
-  // 🔒 SECURITY CHECK: Ben ik Admin?
-  const loggedInUser = dataStore.users[currentUserId];
-  const iAmAdmin = loggedInUser && loggedInUser.role === 'admin';
-
-  // 1. "Nieuw Project" knop verbergen/tonen
-  // We zoeken de knop binnen de projects tab die de modal opent
-  const btnNew = document.querySelector('#tab-projects button[data-bs-target="#projectModal"]');
-  if (btnNew) {
-    if (iAmAdmin) {
-      btnNew.classList.remove('d-none');
-    } else {
-      btnNew.classList.add('d-none');
-    }
-  }
+  // Alleen admins mogen projecten toevoegen/wijzigen
+  const iAmAdmin = isAdmin();
+  document.querySelector('#tab-projects button[data-bs-target="#projectModal"]')?.classList.toggle('d-none', !iAmAdmin);
 
   if (!projectTableBody) return;
 
-  // Sorteren op startdatum
-  const list = (ud.projects || []).slice().sort((a, b) => {
-    const as = a.start ? new Date(a.start) : new Date('01-01-1900');
-    const bs = b.start ? new Date(b.start) : new Date('01-01-1900');
-    if (as.getTime() !== bs.getTime()) return as - bs;
-    const ae = a.end ? new Date(a.end) : new Date('31-12-9999');
-    const be = b.end ? new Date(b.end) : new Date('31-12-9999');
-    return ae - be;
-  });
+  // Sorteren op startdatum, dan einddatum (ISO-datums kunnen als tekst vergeleken worden)
+  const list = (ud.projects || [])
+    .slice()
+    .sort(
+      (a, b) =>
+        (a.start || '0000-01-01').localeCompare(b.start || '0000-01-01') ||
+        (a.end || '9999-12-31').localeCompare(b.end || '9999-12-31')
+    );
 
   // Tabel en dropdowns resetten
   projectTableBody.innerHTML = '';
@@ -1701,7 +1431,6 @@ function renderProjects() {
     const tr = document.createElement('tr');
     if (p.allowMulti === undefined) p.allowMulti = false;
 
-    // 🔒 Bepaal Actie-kolom inhoud
     let actionsHtml = '';
     if (iAmAdmin) {
       actionsHtml = `
@@ -1721,12 +1450,11 @@ function renderProjects() {
       actionsHtml = `<span class="text-muted small material-icons-outlined" style="font-size:16px; opacity:0.5;">lock</span>`;
     }
 
-    // We bouwen de rij op
     tr.innerHTML = `
       <td>
         <div class="d-flex align-items-center">
             <div>
-                <strong class="text-dark">${p.name}</strong>
+                <strong class="text-dark">${escapeHtml(p.name)}</strong>
             </div>
         </div>
       </td>
@@ -1738,7 +1466,7 @@ function renderProjects() {
 
     projectTableBody.appendChild(tr);
 
-    // Dropdowns vullen (Dit blijft werken voor iedereen zodat ze shiften kunnen koppelen)
+    // Dropdowns vullen (voor iedereen, zodat shiften gekoppeld kunnen worden)
     if (newShiftProjectSelect) {
       const o1 = document.createElement('option');
       o1.value = p.name;
@@ -1753,7 +1481,7 @@ function renderProjects() {
     }
   });
 
-  // ✨ NIEUW: Auto-datum invullen bij kiezen project in Shift Modal
+  // Shift-popup: periode van het gekozen project automatisch invullen
   if (newShiftProjectSelect) {
     newShiftProjectSelect.onchange = () => {
       const selectedName = newShiftProjectSelect.value;
@@ -1772,7 +1500,7 @@ function renderProjects() {
     };
   }
 
-  // Button acties koppelen (Alleen als admin, anders zijn er geen knoppen)
+  // Knoppen (alleen aanwezig voor admins)
   if (iAmAdmin) {
     projectTableBody.querySelectorAll('button').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -1792,9 +1520,10 @@ function renderProjects() {
           document.querySelector('#projectModal .modal-title').textContent = 'Project Bewerken';
           new bootstrap.Modal(document.getElementById('projectModal')).show();
         } else if (action === 'extend') {
-          const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', toDisplayDate(p.end) || '');
+          const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', p.end ? toDisplayDate(p.end) : '');
           if (!v) return;
-          p.end = fromDisplayDate(v);
+          if (!/^\d{2}-\d{2}-\d{4}$/.test(v.trim())) return toast('Gebruik het formaat DD-MM-YYYY', 'warning');
+          p.end = fromDisplayDate(v.trim());
           await saveUserData();
           renderProjects();
           renderProjectFilterForMonth();
@@ -1815,16 +1544,9 @@ function renderProjects() {
 }
 
 function bindProjects() {
-  // --- NIEUWE LOGICA: OPSLAAN VIA MODAL ---
-  // (Vervangt de oude addProjectBtn logica)
-
+  // Project opslaan (nieuw of bewerkt)
   document.getElementById('saveProjectBtn')?.addEventListener('click', async () => {
-    // 🔒 SECURITY CHECK
-    const loggedInUser = dataStore.users[currentUserId];
-    if (!loggedInUser || loggedInUser.role !== 'admin') {
-      return toast('Alleen beheerders mogen projecten aanpassen.', 'danger');
-    }
-    // Haal waarden uit de modal inputs
+    if (!isAdmin()) return toast('Alleen beheerders mogen projecten aanpassen.', 'danger');
     const nameInput = document.getElementById('modalProjectName');
     const startInput = document.getElementById('modalProjectStart');
     const endInput = document.getElementById('modalProjectEnd');
@@ -1836,24 +1558,17 @@ function bindProjects() {
     ud.projects = ud.projects || [];
 
     if (editingProjectIndex !== null) {
-      // === UPDATE BESTAAND PROJECT ===
+      // Bestaand project bijwerken
       const existing = ud.projects[editingProjectIndex];
-
-      // Check of naam gewijzigd is (voor notificatie)
       const oldName = existing.name;
-      const nameChanged = oldName !== name;
-
-      // Update waarden
       existing.name = name;
       existing.start = startInput.value || null;
       existing.end = endInput.value || null;
-
-      // Als de naam veranderd is, moeten we misschien bestaande shiften/uren ook updaten?
-      // Voor nu laten we dat zo (shiften slaan de projectnaam op als string).
-
+      if (oldName !== name) renameProjectEverywhere(ud, oldName, name);
       toast('Project gewijzigd', 'success');
     } else {
-      // === NIEUW PROJECT TOEVOEGEN ===
+      if (ud.projects.some(p => p.name === name)) return toast('Er bestaat al een project met deze naam', 'warning');
+      // Nieuw project
       ud.projects.push({
         name: name,
         start: startInput.value || null,
@@ -1873,32 +1588,20 @@ function bindProjects() {
 
     await saveUserData();
 
-    // Resetten en sluiten wordt afgehandeld door de 'hidden.bs.modal' listener hieronder
-    const modalEl = document.getElementById('projectModal');
-    const modal = bootstrap.Modal.getInstance(modalEl);
-    modal.hide();
+    // Popup sluiten (velden worden leeggemaakt in 'hidden.bs.modal' hieronder)
+    bootstrap.Modal.getInstance(document.getElementById('projectModal'))?.hide();
 
     renderProjects();
     renderProjectFilterForMonth();
+    renderShifts();
   });
 
-  // Zorg dat de velden leeg zijn als je de modal opent
+  // Popup leegmaken na sluiten, zodat "Nieuw project" weer leeg opent
   document.getElementById('projectModal')?.addEventListener('hidden.bs.modal', () => {
-    // 1. Velden leegmaken
-    const nameInput = document.getElementById('modalProjectName');
-    const startInput = document.getElementById('modalProjectStart');
-    const endInput = document.getElementById('modalProjectEnd');
-    const multiInput = document.getElementById('modalProjectMulti');
-
-    if (nameInput) nameInput.value = '';
-    if (startInput) startInput.value = '';
-    if (endInput) endInput.value = '';
-    if (multiInput) multiInput.checked = false;
-
-    // 2. Reset de 'edit modus' variabele
+    document.getElementById('modalProjectName').value = '';
+    document.getElementById('modalProjectStart').value = '';
+    document.getElementById('modalProjectEnd').value = '';
     editingProjectIndex = null;
-
-    // 3. Zet de titel terug naar 'Nieuw Project' (voor de volgende keer)
     const title = document.querySelector('#projectModal .modal-title');
     if (title) title.textContent = 'Nieuw Project';
   });
@@ -1909,12 +1612,54 @@ function bindProjects() {
 // Shiftbeheer: lijst, volgorde, opslaan.
 // ======================================================================
 
-// Tabs: Shifts
 const filterShiftYear = document.getElementById('filterShiftYear');
 
-const newShiftProjectSelect = document.getElementById('newShiftProjectSelect');
+/** Opties voor de icoon-keuze bij een shift. */
+function shiftIconOptions(selected, withLabels = false) {
+  const labels = {
+    light_mode: 'Zon',
+    wb_twilight: 'Schemer',
+    bedtime: 'Maan',
+    schedule: 'Klok',
+    school: 'School',
+    medical_services: 'Ziekte',
+    flight: 'Verlof',
+    bench: 'Bench',
+    feestdag: 'Feestdag',
+    teammeeting: 'Teammeeting',
+    niet_ingepland: 'Niet ingepland',
+    vrij_weekend: 'Vrij weekend',
+    stage: 'Stage'
+  };
+  return Object.entries(labels)
+    .map(
+      ([value, label]) =>
+        `<option value="${value}" ${selected === value ? 'selected' : ''}>${SHIFT_ICONS[value]}${withLabels ? ' ' + label : ''}</option>`
+    )
+    .join('');
+}
 
-// FIX: SLEPEN & SORTEREN (Drag & Drop hersteld)
+/** Past de shift-sleutel aan in alle ingevulde dagen (bij hernoemen van een shift). */
+function renameShiftKeyEverywhere(ud, oldKey, newKey) {
+  Object.values(ud.monthData || {}).forEach(months =>
+    Object.values(months || {}).forEach(md =>
+      Object.values(md?.rows || {}).forEach(r => {
+        if (r?.shift === oldKey) r.shift = newKey;
+      })
+    )
+  );
+}
+
+async function saveShiftsToDb(ud) {
+  const id = getActiveUserId();
+  if (id) await updateDoc(doc(db, 'users', id), { shifts: ud.shifts, shiftOrder: ud.shiftOrder });
+}
+
+function refreshCalendarIfVisible() {
+  const y = Number(yearSelectMain?.value);
+  const m = Number(monthSelectMain?.value);
+  if (y && !isNaN(m)) renderCalendarGrid(y, m);
+}
 
 function renderShifts() {
   const ud = getCurrentUserData();
@@ -1932,25 +1677,7 @@ function renderShifts() {
     if (id) updateDoc(doc(db, 'users', id), { shiftOrder: order });
   }
 
-  const filterShiftYear = document.getElementById('filterShiftYear');
   const selectedYear = filterShiftYear?.value ? Number(filterShiftYear.value) : null;
-  const isAdminUser = ud.role === 'admin';
-
-  // UI Checks (voor shortcode/color columns in modal, niet tabel)
-  const divShort = document.getElementById('divShiftShort');
-  const divColor = document.getElementById('divShiftColor');
-  const divName = document.getElementById('divShiftName');
-  if (divShort && divColor && divName) {
-    if (isAdminUser) {
-      divShort.classList.remove('d-none');
-      divColor.classList.remove('d-none');
-      divName.className = 'col-md-5';
-    } else {
-      divShort.classList.add('d-none');
-      divColor.classList.add('d-none');
-      divName.className = 'col-md-9';
-    }
-  }
 
   // Tabel leegmaken
   const shiftTableBody = document.getElementById('shiftTableBody');
@@ -1975,9 +1702,8 @@ function renderShifts() {
     const tr = document.createElement('tr');
     tr.dataset.key = name; // Nodig voor het sorteren!
 
-    // Variabelen
     const projectBadge = sh.project
-      ? `<span class="badge bg-light text-dark border">${sh.project}</span>`
+      ? `<span class="badge bg-light text-dark border">${escapeHtml(sh.project)}</span>`
       : '<span class="text-muted small">-</span>';
 
     const periodText =
@@ -1985,22 +1711,7 @@ function renderShifts() {
         ? `<small>${toDisplayDate(sh.startDate) || '...'} <span class="text-muted">t/m</span> ${toDisplayDate(sh.endDate) || '...'}</small>`
         : '<span class="text-muted small">-</span>';
 
-    // ✅ HTML voor Icoon Selectie
-    const iconOptions = `
-      <option value="light_mode" ${sh.icon === 'light_mode' ? 'selected' : ''}>☀️</option>
-      <option value="wb_twilight" ${sh.icon === 'wb_twilight' ? 'selected' : ''}>🌅</option>
-      <option value="bedtime" ${sh.icon === 'bedtime' ? 'selected' : ''}>🌙</option>
-      <option value="schedule" ${sh.icon === 'schedule' ? 'selected' : ''}>🕒</option>
-      <option value="school" ${sh.icon === 'school' ? 'selected' : ''}>🎓</option>
-      <option value="medical_services" ${sh.icon === 'medical_services' ? 'selected' : ''}>🏥</option>
-      <option value="flight" ${sh.icon === 'flight' ? 'selected' : ''}>✈️</option>
-      <option value="bench" ${sh.icon === 'bench' ? 'selected' : ''}>🪑</option>
-      <option value="feestdag" ${sh.icon === 'feestdag' ? 'selected' : ''}>🎉</option>
-      <option value="teammeeting" ${sh.icon === 'teammeeting' ? 'selected' : ''}>👥</option>
-      <option value="niet_ingepland" ${sh.icon === 'niet_ingepland' ? 'selected' : ''}>❌</option>
-      <option value="vrij_weekend" ${sh.icon === 'vrij_weekend' ? 'selected' : ''}>😎</option>
-      <option value="stage" ${sh.icon === 'stage' ? 'selected' : ''}>🏫</option>
-    `;
+    const iconOptions = shiftIconOptions(sh.icon);
 
     // Tabelrij opbouwen
     tr.innerHTML = `
@@ -2009,8 +1720,8 @@ function renderShifts() {
             <span class="handle material-icons-outlined text-muted me-2" style="cursor: grab; font-size: 18px;">drag_indicator</span>
             <span class="dot" style="background:${sh.color || '#ccc'}; width:12px; height:12px; display:inline-block; border-radius:50%; margin-right:10px;"></span>
             <div>
-                <strong class="text-dark">${sh.realName || name}</strong>
-                ${sh.shortName ? `<div class="small text-muted">${sh.shortName}</div>` : ''}
+                <strong class="text-dark">${escapeHtml(sh.realName || name)}</strong>
+                ${sh.shortName ? `<div class="small text-muted">${escapeHtml(sh.shortName)}</div>` : ''}
             </div>
         </div>
       </td>
@@ -2021,14 +1732,14 @@ function renderShifts() {
       <td>${projectBadge}</td>
 
       <td class="text-center">
-        <select class="form-select form-select-sm shift-icon-select" data-key="${name}" style="width: 70px; margin: auto;">
+        <select class="form-select form-select-sm shift-icon-select" style="width: 70px; margin: auto;">
           ${iconOptions}
         </select>
       </td>
 
       <td class="text-center">
         <div class="form-check form-switch d-flex justify-content-center">
-          <input class="form-check-input shift-fav-toggle" type="checkbox" data-key="${name}" ${sh.isFavorite ? 'checked' : ''}>
+          <input class="form-check-input shift-fav-toggle" type="checkbox" ${sh.isFavorite ? 'checked' : ''}>
         </div>
       </td>
 
@@ -2043,24 +1754,25 @@ function renderShifts() {
       </td>
     `;
 
-    // --- Events voor Knoppen (Bewerken, Verwijderen, Kopiëren) ---
-    // (Blijft hetzelfde als voorheen)
+    // Verwijderen / kopiëren / bewerken
     tr.querySelector('.btn-del').onclick = async () => {
       if (!confirm(`Shift "${sh.realName || name}" verwijderen?`)) return;
       delete ud.shifts[name];
       ud.shiftOrder = ud.shiftOrder.filter(n => n !== name);
-      const id = getActiveUserId();
-      if (id) await updateDoc(doc(db, 'users', id), { shifts: ud.shifts, shiftOrder: ud.shiftOrder });
+      await saveShiftsToDb(ud);
       renderShifts();
       toast('Verwijderd', 'success');
     };
 
     tr.querySelector('.btn-copy').onclick = async () => {
-      const copyName = name + ' (Kopie)';
-      ud.shifts[copyName] = { ...sh, realName: (sh.realName || name) + ' (Kopie)' };
-      ud.shiftOrder.push(copyName);
-      const id = getActiveUserId();
-      if (id) await updateDoc(doc(db, 'users', id), { shifts: ud.shifts, shiftOrder: ud.shiftOrder });
+      // Unieke naam: "X (Kopie)", "X (Kopie 2)", …
+      let n = 1;
+      let copyKey = `${name} (Kopie)`;
+      while (ud.shifts[copyKey]) copyKey = `${name} (Kopie ${++n})`;
+      const copyReal = `${sh.realName || name} (Kopie${n > 1 ? ' ' + n : ''})`;
+      ud.shifts[copyKey] = { ...sh, realName: copyReal };
+      ud.shiftOrder.push(copyKey);
+      await saveShiftsToDb(ud);
       renderShifts();
       toast('Gekopieerd', 'success');
     };
@@ -2085,38 +1797,26 @@ function renderShifts() {
       new bootstrap.Modal(modalEl).show();
     };
 
-    // --- ✅ NIEUW: Events voor Icoon & Favoriet ---
-    // Direct opslaan bij wijziging
+    // Icoon en favoriet: meteen opslaan en kalender verversen
     tr.querySelector('.shift-icon-select').onchange = async e => {
-      const key = e.target.dataset.key;
-      ud.shifts[key].icon = e.target.value;
-      await saveUserData(); // Sla op in DB
-
-      // Ververs kalender direct als die zichtbaar is
-      const y = Number(document.getElementById('yearSelectMain')?.value);
-      const m = Number(document.getElementById('monthSelectMain')?.value);
-      if (y && !isNaN(m)) renderCalendarGrid(y, m);
+      ud.shifts[name].icon = e.target.value;
+      await saveUserData();
+      refreshCalendarIfVisible();
     };
 
     tr.querySelector('.shift-fav-toggle').onchange = async e => {
-      const key = e.target.dataset.key;
-      ud.shifts[key].isFavorite = e.target.checked;
-      await saveUserData(); // Sla op in DB
-
-      // Ververs kalender
-      const y = Number(document.getElementById('yearSelectMain')?.value);
-      const m = Number(document.getElementById('monthSelectMain')?.value);
-      if (y && !isNaN(m)) renderCalendarGrid(y, m);
+      ud.shifts[name].isFavorite = e.target.checked;
+      await saveUserData();
+      refreshCalendarIfVisible();
     };
 
     shiftTableBody.appendChild(tr);
   });
 
-  // START DE SORTEER FUNCTIE (Drag & Drop)
   initShiftSortable();
 }
 
-// Hulpfunctie om sorteren mogelijk te maken
+/** Volgorde aanpassen met slepen (via het ⋮⋮-handvat). */
 function initShiftSortable() {
   const el = document.getElementById('shiftTableBody');
   if (!el || el.dataset.sortableInitialized) return;
@@ -2129,11 +1829,10 @@ function initShiftSortable() {
     ghostClass: 'bg-light',
     onEnd: async function () {
       const ud = getCurrentUserData();
-      const newOrder = [];
-      el.querySelectorAll('tr').forEach(row => {
-        if (row.dataset.key) newOrder.push(row.dataset.key);
-      });
-
+      const visible = [...el.querySelectorAll('tr')].map(row => row.dataset.key).filter(Boolean);
+      // Shiften die door de jaarfilter verborgen zijn, behouden hun plaats achteraan
+      const hidden = (ud.shiftOrder || []).filter(k => !visible.includes(k));
+      const newOrder = [...visible, ...hidden];
       ud.shiftOrder = newOrder;
 
       // Opslaan
@@ -2177,20 +1876,15 @@ function populateFilterShiftYears() {
       filterShiftYear.value = currentYear;
     }
 
-    // 🔥 FIX: Ververs de lijst direct, zodat de filtering (2026) werkt!
     renderShifts();
   }
 }
 
 function bindShifts() {
-  // 2. OPSLAAN KNOP (Veilige versie zonder 'const' conflict)
-  const saveBtnUnique = document.getElementById('addShiftBtn');
-
-  if (saveBtnUnique) {
-    const newBtn = saveBtnUnique.cloneNode(true);
-    saveBtnUnique.parentNode.replaceChild(newBtn, saveBtnUnique);
-
-    newBtn.addEventListener('click', async () => {
+  // Shift opslaan (nieuw of bewerkt)
+  const saveShiftBtn = document.getElementById('addShiftBtn');
+  if (saveShiftBtn) {
+    saveShiftBtn.addEventListener('click', async () => {
       const newShiftName = document.getElementById('newShiftName');
       const visibleName = newShiftName.value.trim();
       const projectVal = document.getElementById('newShiftProjectSelect').value || '';
@@ -2210,15 +1904,22 @@ function bindShifts() {
       ud.shifts = ud.shifts || {};
       ud.shiftOrder = ud.shiftOrder || [];
 
-      // Oude verwijderen bij naamwijziging
+      // Icoon en favoriet van de bestaande shift behouden
+      const previous = (oldKey && ud.shifts[oldKey]) || ud.shifts[uniqueKey] || {};
+
+      // Andere naam of project → nieuwe sleutel; ingevulde dagen meeverhuizen
       if (oldKey && oldKey !== uniqueKey) {
+        if (ud.shifts[uniqueKey] && !confirm(`Er bestaat al een shift "${uniqueKey}". Overschrijven?`)) return;
         delete ud.shifts[oldKey];
         const idx = ud.shiftOrder.indexOf(oldKey);
         if (idx !== -1) ud.shiftOrder[idx] = uniqueKey;
+        ud.shiftOrder = ud.shiftOrder.filter((k, i, arr) => arr.indexOf(k) === i);
+        renameShiftKeyEverywhere(ud, oldKey, uniqueKey);
       }
 
-      // Nieuwe opslaan
       ud.shifts[uniqueKey] = {
+        ...(previous.icon ? { icon: previous.icon } : {}),
+        ...(previous.isFavorite ? { isFavorite: true } : {}),
         realName: visibleName,
         shortName: document.getElementById('newShiftShort')?.value.trim() || '',
         color: document.getElementById('newShiftColor')?.value || '#e9ecef',
@@ -2232,16 +1933,11 @@ function bindShifts() {
 
       if (!ud.shiftOrder.includes(uniqueKey)) ud.shiftOrder.push(uniqueKey);
 
-      // FORCEER UPDATE
-      const id = getActiveUserId();
-      if (id) {
-        await updateDoc(doc(db, 'users', id), {
-          shifts: ud.shifts,
-          shiftOrder: ud.shiftOrder
-        });
-      }
+      await saveShiftsToDb(ud);
+      if (oldKey && oldKey !== uniqueKey) await saveUserData(); // hernoemde dagen bewaren
 
       renderShifts();
+      refreshCalendarIfVisible();
       bootstrap.Modal.getInstance(modalEl).hide();
       delete modalEl.dataset.editingKey;
 
@@ -2255,7 +1951,12 @@ function bindShifts() {
     });
   }
 
-  filterShiftYear.addEventListener('change', () => renderShifts());
+  // Nieuwe shift: popup leeg openen (niet met de gegevens van de vorige bewerking)
+  document.getElementById('shiftModal')?.addEventListener('hidden.bs.modal', e => {
+    delete e.target.dataset.editingKey;
+  });
+
+  filterShiftYear?.addEventListener('change', () => renderShifts());
 }
 
 // ======================================================================
@@ -2263,106 +1964,70 @@ function bindShifts() {
 // Maandkeuze, doelen, totalen, status, saldo-badges, versies en PDF.
 // ======================================================================
 
-// 🔀 STAP 2: VERSIE BEHEER LOGICA
-
 const versionSelect = document.getElementById('versionSelect');
-
 const addVersionBtn = document.getElementById('addVersionBtn');
-
 const delVersionBtn = document.getElementById('delVersionBtn');
 
+const STATUS_LABELS = { draft: 'Concept', submitted: 'Ingediend', approved: 'Goedgekeurd', rejected: 'Afgekeurd' };
+
+/** Status-badge van de maand + welke knoppen zichtbaar zijn. */
 function updateMonthStatusBadge() {
   const y = Number(yearSelectMain.value);
   const m = Number(monthSelectMain.value);
   const status = getMonthStatus(y, m);
   const badge = document.getElementById('monthStatusBadge');
-  const submitBtn = document.getElementById('submitMonthBtn');
-
   if (!badge) return;
 
-  // 1. Badge tekst en kleur (zoals voorheen)
-  badge.className = 'badge badge-status';
-  if (status === 'draft') {
-    badge.classList.add('badge-draft');
-    badge.textContent = 'Concept';
-  }
-  if (status === 'submitted') {
-    badge.classList.add('badge-submitted');
-    badge.textContent = 'Ingediend';
-  }
-  if (status === 'approved') {
-    badge.classList.add('badge-approved');
-    badge.textContent = 'Goedgekeurd';
-  }
-  if (status === 'rejected') {
-    badge.classList.add('badge-rejected');
-    badge.textContent = 'Afgekeurd';
-  }
+  const admin = isAdmin();
+  badge.className = `badge badge-status badge-${status}${admin ? ' dropdown-toggle' : ''}`;
+  badge.textContent = STATUS_LABELS[status] || status;
+  // Alleen admins kunnen de status via het menu wijzigen
+  if (admin) badge.setAttribute('data-bs-toggle', 'dropdown');
+  else badge.removeAttribute('data-bs-toggle');
+  badge.style.cursor = admin ? 'pointer' : 'default';
 
-  // 2. BEPALEN WIE ER KIJKT (De Fix)
-  // We kijken naar de rol van de ECHTE ingelogde user (currentUserId),
-  // niet naar de user die we aan het bekijken zijn.
-  const loggedInUser = dataStore.users[currentUserId];
-  const iAmAdmin = loggedInUser && loggedInUser.role === 'admin';
-
-  // 3. Verberg knoppen ALLEEN als:
-  // - De status 'submitted' of 'approved' is
-  // - EN de kijker GEEN admin is.
-  const hide = (status === 'submitted' || status === 'approved') && !iAmAdmin;
-
-  // 4. Knoppen aanpassen
-  if (submitBtn) {
-    // Als admin zie je de knop altijd, maar we kunnen hem uitschakelen als hij al 'approved' is
-    // om verwarring te voorkomen, of gewoon altijd tonen.
-    // Volgens jouw wens: "Admin moet knoppen altijd zien".
-
-    // We verbergen hem alleen voor gewone users als hij vaststaat.
-    submitBtn.classList.toggle('d-none', hide);
-    submitBtn.disabled = hide;
-  }
-
-  // De knop "Invoer meerdere dagen"
-  const mBtn = document.getElementById('multiDayShiftBtn');
-
-  if (mBtn) {
-    mBtn.classList.toggle('d-none', hide);
-    mBtn.disabled = hide;
+  // Ingediende/goedgekeurde maand: knoppen verbergen voor gewone gebruikers
+  const hide = isMonthLocked(y, m);
+  for (const id of ['submitMonthBtn', 'multiDayShiftBtn', 'clearMonthBtn']) {
+    const btn = document.getElementById(id);
+    if (!btn) continue;
+    btn.classList.toggle('d-none', hide);
+    btn.disabled = hide;
   }
 }
 
-// ======= Invoer (maand) =======
+/** Projectfilter: enkel projecten die in de gekozen maand actief zijn. */
 function renderProjectFilterForMonth() {
   const ud = getCurrentUserData();
-  const y = Number(yearSelectMain.value),
-    m = Number(monthSelectMain.value);
-  const daysInMonth = new Date(y, m + 1, 0).getDate();
-  const monthStart = `${y}-${String(m + 1).padStart(2, '0')}-01`.replaceAll('-', '');
-  const monthEnd = `${y}-${String(m + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`.replaceAll('-', '');
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const monthStart = dateKey(y, m, 1);
+  const monthEnd = dateKey(y, m, new Date(y, m + 1, 0).getDate());
+  const previous = projectFilterSelect.value;
 
   projectFilterSelect.innerHTML = '<option value="">Alle projecten</option>';
-
-  const list = (ud.projects || []).slice().sort((a, b) => {
-    const as = a.start ? new Date(a.start) : new Date('1900-01-01');
-    const bs = b.start ? new Date(b.start) : new Date('1900-01-01');
-    if (as.getTime() !== bs.getTime()) return as - bs;
-    return (a.name || '').localeCompare(b.name || '');
-  });
-
-  list.forEach(p => {
-    const ps = (p.start || '0000-01-01').replaceAll('-', '');
-    const pe = (p.end || '9999-12-31').replaceAll('-', '');
-    if (ps <= monthEnd && pe >= monthStart) {
+  (ud.projects || [])
+    .slice()
+    .sort(
+      (a, b) =>
+        (a.start || '0000-01-01').localeCompare(b.start || '0000-01-01') || (a.name || '').localeCompare(b.name || '')
+    )
+    .filter(p => (p.start || '0000-01-01') <= monthEnd && (p.end || '9999-12-31') >= monthStart)
+    .forEach(p => {
       const o = document.createElement('option');
       o.value = p.name;
       o.textContent = p.name;
       projectFilterSelect.appendChild(o);
-    }
-  });
+    });
+
+  // Gekozen filter behouden als dat project ook in deze maand bestaat
+  if ([...projectFilterSelect.options].some(o => o.value === previous)) projectFilterSelect.value = previous;
 }
 
+/** Gekozen maand (opnieuw) opbouwen en alle afhankelijke onderdelen verversen. */
 async function generateMonth() {
-  const y = Number(yearSelectMain.value),
-    m = Number(monthSelectMain.value);
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
   const ud = getCurrentUserData();
   ud.monthData = ud.monthData || {};
   ud.monthData[y] = ud.monthData[y] || {};
@@ -2374,114 +2039,68 @@ async function generateMonth() {
   renderVersionControls();
 }
 
-// ✅ Automatische koppeling van project aan shift bij herladen
+/** Vaste projectkoppeling (bv. Verlof → Eght Care) invullen als die ontbreekt. Geeft true als er iets wijzigde. */
 function autoAssignProjectIfNeeded(r) {
-  const sp = autoProjectForShift(r.shift);
-  if (sp && (!r.project || r.project === '' || !isValidProject(r.project))) {
+  const sp = autoProjectForShift(shiftRealName(r.shift));
+  if (sp && (!r.project || !isValidProject(r.project))) {
     ensureProjectExists(sp);
     r.project = sp;
+    return true;
   }
+  return false;
 }
 
+/** Alle tellers van de Invoer-pagina verversen. */
 function updateInputTotals() {
-  const y = Number(yearSelectMain.value),
-    m = Number(monthSelectMain.value);
-  const ud = getCurrentUserData();
-  const md = ud.monthData?.[y]?.[m] || { targetHours: 0, targetMinutes: 0, rows: {} };
-
-  // 1. Maand-totaal berekenen (balk onderaan)
-  const total = Object.values(md.rows || {}).reduce((s, r) => {
-    if (r.status === 'rejected') return s;
-    const shiftDef = ud.shifts?.[r.shift];
-    const realName = shiftDef ? shiftDef.realName || r.shift : r.shift;
-    if (isStageRow(r, ud)) return s; // Stage NIET meetellen!
-    return s + (Number(r.minutes) || 0);
-  }, 0);
-
-  const target = (md.targetHours || 0) * 60 + (md.targetMinutes || 0);
-
-  // 2. Footer balk updaten
   updateRemainingHours();
-
-  // 3. ✅ BADGES UPDATEN (Dit zorgt dat het getal bovenaan verspringt)
-  if (typeof updateLeaveBadges === 'function') {
-    updateLeaveBadges();
-  }
-
-  // 4. Project samenvatting updaten
-  if (typeof renderProjectSummary === 'function') {
-    renderProjectSummary();
-  }
+  updateLeaveBadges();
+  renderProjectSummary();
 }
 
-// 🎯 Resterende uren-teller
+/** Zwevende balk onderaan: doel, gepland en resterend. */
 function updateRemainingHours() {
   const alertBox = document.getElementById('remainingHoursAlert');
   if (!alertBox) return;
 
-  const year = parseInt(yearSelectMain.value);
-  const month = parseInt(monthSelectMain.value);
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
   const ud = getCurrentUserData();
-  const monthData = ud?.monthData?.[year]?.[month];
-  if (!monthData) {
+  const md = ud?.monthData?.[y]?.[m];
+  if (!md) {
     alertBox.classList.add('d-none');
     return;
   }
 
-  const doel = (monthData.targetHours || 0) * 60 + (monthData.targetMinutes || 0);
-  const gepland = Object.values(monthData.rows || {}).reduce((s, r) => {
-    if (r.status && r.status !== 'approved') {
-      return s; // Tel niet mee
-    }
-    const shiftDef = ud.shifts?.[r.shift];
-    const realName = shiftDef ? shiftDef.realName || r.shift : r.shift;
-    if (isStageRow(r, ud)) return s; // Stage NIET meetellen!
-    return s + (r.minutes || 0);
-  }, 0);
+  const doel = (Number(md.targetHours) || 0) * 60 + (Number(md.targetMinutes) || 0);
+  const gepland = plannedMinutes(md.rows, ud);
   const verschil = doel - gepland;
-  const pct = doel > 0 ? Math.round((gepland / doel) * 100) : 0;
 
-  // 🔹 Bereken tekst voor resterende of extra uren
-  let resterendTekst = '';
-  if (verschil > 0) {
-    const uren = Math.floor(verschil / 60);
-    const min = verschil % 60;
-    resterendTekst = `🕓 <b>Resterend:</b> ${uren}u ${min}min`;
-  } else if (verschil < 0) {
-    const extra = Math.abs(verschil);
-    const uren = Math.floor(extra / 60);
-    const min = extra % 60;
-    resterendTekst = `✅ <b>Meer uren:</b> ${uren}u ${min}min`;
-  } else {
-    resterendTekst = `✅ <b>Doel exact behaald!</b>`;
-  }
+  const resterendTekst =
+    verschil > 0
+      ? `🕓 <b>Resterend:</b> ${fmt(verschil)}`
+      : verschil < 0
+        ? `✅ <b>Meer uren:</b> ${fmt(-verschil)}`
+        : `✅ <b>Doel exact behaald!</b>`;
 
-  // 🔹 Kleur aanpassen volgens voortgang
   alertBox.classList.remove('alert-danger', 'alert-success');
-  if (gepland >= doel) {
-    alertBox.classList.add('alert-success'); // groen
-  } else {
-    alertBox.classList.add('alert-danger'); // rood
-  }
-
-  // 🔹 HTML samenstellen
+  alertBox.classList.add(gepland >= doel ? 'alert-success' : 'alert-danger');
   alertBox.innerHTML = `
-    🎯 <b>Doel:</b> ${Math.floor(doel / 60)}u ${doel % 60}min 
-    &nbsp;|&nbsp; ⏱ <b>Gepland:</b> ${Math.floor(gepland / 60)}u ${gepland % 60}min 
+    🎯 <b>Doel:</b> ${fmt(doel)}
+    &nbsp;|&nbsp; ⏱ <b>Gepland:</b> ${fmt(gepland)}
     &nbsp;|&nbsp; ${resterendTekst}
   `;
   alertBox.classList.remove('d-none');
 }
 
+/** Kaartjes met het totaal per project voor de gekozen maand. */
 function renderProjectSummary() {
-  const y = Number(yearSelectMain.value);
-  const m = Number(monthSelectMain.value);
-  const ud = getCurrentUserData();
-  const md = ud.monthData?.[y]?.[m];
   const wrap = document.getElementById('projectSummary');
   if (!wrap) return;
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const md = getCurrentUserData().monthData?.[y]?.[m];
 
-  if (!md || !md.rows || !Object.keys(md.rows).length) {
+  if (!md?.rows || !Object.keys(md.rows).length) {
     wrap.innerHTML = '<div class="alert alert-light border small mb-0">Geen data in deze maand.</div>';
     return;
   }
@@ -2489,62 +2108,51 @@ function renderProjectSummary() {
   const filterProject = projectFilterSelect.value || '';
   const perProject = {};
   for (const r of Object.values(md.rows)) {
-    if (!r) continue;
-
-    if (r.status && r.status !== 'approved') {
-      continue; // Tel niet mee
-    }
-
+    if (!r || (r.status && r.status !== 'approved')) continue;
     const p = r.project || '—';
     if (filterProject && p !== filterProject) continue;
-    perProject[p] = (perProject[p] || 0) + (r.minutes || 0);
+    perProject[p] = (perProject[p] || 0) + (Number(r.minutes) || 0);
   }
 
   const cards = Object.entries(perProject)
     .sort((a, b) => b[1] - a[1])
-    .map(([name, minutes]) => {
-      const h = Math.floor(minutes / 60),
-        min = minutes % 60;
-      return `
+    .map(
+      ([name, minutes]) => `
         <div class="project-mini">
-          <div class="title">${name}</div>
+          <div class="title">${escapeHtml(name)}</div>
           <div class="meta">Totaal in maand</div>
-          <div class="value">${h}u ${min}m</div>
-        </div>`;
-    });
+          <div class="value">${Math.floor(minutes / 60)}u ${minutes % 60}m</div>
+        </div>`
+    );
 
   wrap.innerHTML = cards.length
     ? cards.join('')
     : '<div class="alert alert-light border small mb-0">Geen projecten voor huidig filter.</div>';
 }
 
-// === Verlof / Schoolverlof badges (met schooljaar-logica) ===
+/** Saldo-badges: verlof (kalenderjaar) en schoolverlof (schooljaar 1/9–31/8). */
 function updateLeaveBadges() {
   const badgeLeave = document.getElementById('leaveBalanceBadge');
   const badgeSchool = document.getElementById('schoolLeaveBalanceBadge');
-
   const y = Number(yearSelectMain.value);
   const m = Number(monthSelectMain.value);
+  const colorFor = remaining => (remaining < 0 ? 'bg-danger' : remaining === 0 ? 'bg-warning text-dark' : 'bg-success');
 
-  // ---- Gewoon verlof (kalenderjaar) ----
   if (badgeLeave) {
-    const allowance = getLeaveAllowanceMinutes(); // Haalt instelling op
+    const allowance = getLeaveAllowanceMinutes();
     if (!allowance) {
       badgeLeave.textContent = 'Verlof saldo: — (stel in)';
       badgeLeave.className = 'badge bg-secondary-subtle text-dark ms-2';
     } else {
-      const taken = sumTakenMinutesFor(y, LEAVE_SHIFT_NAMES);
-      const remaining = allowance - taken;
-      const over = remaining < 0;
-
-      badgeLeave.textContent = over
-        ? `Verlof saldo: -${fmtMins(remaining)} (overschreden)`
-        : `Verlof saldo: ${fmtMins(remaining)} over`;
-      badgeLeave.className = `badge ms-2 ${over ? 'bg-danger' : remaining === 0 ? 'bg-warning text-dark' : 'bg-success'}`;
+      const remaining = allowance - sumTakenMinutesFor(y, LEAVE_SHIFT_NAMES);
+      badgeLeave.textContent =
+        remaining < 0
+          ? `Verlof saldo: -${fmtMins(remaining)} (overschreden)`
+          : `Verlof saldo: ${fmtMins(remaining)} over`;
+      badgeLeave.className = `badge ms-2 ${colorFor(remaining)}`;
     }
   }
 
-  // ---- Schoolverlof (schooljaar 1/9–31/8) ----
   if (badgeSchool) {
     const allowance = getSchoolLeaveAllowanceMinutes(y, m);
     if (!allowance) {
@@ -2552,264 +2160,239 @@ function updateLeaveBadges() {
       badgeSchool.className = 'badge bg-secondary-subtle text-dark ms-2';
     } else {
       const { startISO, endISO, label } = getAcademicYearBounds(y, m);
-      const taken = sumTakenMinutesForRange(startISO, endISO, SCHOOL_LEAVE_SHIFT_NAMES);
-      const remaining = allowance - taken;
-      const over = remaining < 0;
-
-      badgeSchool.textContent = over
-        ? `Schoolverlof saldo: -${fmtMins(remaining)} (overschreden) — ${label}`
-        : `Schoolverlof saldo: ${fmtMins(remaining)} over — ${label}`;
-      badgeSchool.className = `badge ms-2 ${over ? 'bg-danger' : remaining === 0 ? 'bg-warning text-dark' : 'bg-success'}`;
+      const remaining = allowance - sumTakenMinutesForRange(startISO, endISO, SCHOOL_LEAVE_SHIFT_NAMES);
+      badgeSchool.textContent =
+        remaining < 0
+          ? `Schoolverlof saldo: -${fmtMins(remaining)} (overschreden) — ${label}`
+          : `Schoolverlof saldo: ${fmtMins(remaining)} over — ${label}`;
+      badgeSchool.className = `badge ms-2 ${colorFor(remaining)}`;
     }
   }
 }
 
-// ✅ NIEUW: Centrale Logica voor Goedkeuring
-// (Deze plak je BOVEN de 'adminApproveBtn' listener)
+/**
+ * Admin: status van een maand van een gebruiker wijzigen en de gebruiker
+ * een bericht sturen (met kopie in de "Verzonden" map van de admin).
+ */
+async function setMonthStatusFor(uid, y, m, status, comment = '') {
+  const adminId = currentUserId;
+  const adminName = auth.currentUser?.displayName || dataStore.users[adminId]?.name || 'Admin';
 
-async function approveMonthLogic(userToApproveId, y, m, comment) {
-  // 1. Haal de ECHTE admin info op
-  const adminId = auth.currentUser.uid;
-  const adminName = auth.currentUser.displayName || 'Admin';
-  const adminRole = dataStore.users[adminId]?.role || 'admin';
-
-  // 2. Status update
   const prev = dataStore.viewUserId;
-  dataStore.viewUserId = userToApproveId; // Tijdelijk wisselen
-  await setMonthStatus(y, m, 'approved');
-  dataStore.viewUserId = prev; // Terugzetten
+  dataStore.viewUserId = uid;
+  await setMonthStatus(y, m, status);
+  dataStore.viewUserId = prev;
 
-  // 3. ✉️ Mail naar user
-  const subject = `[Planner] Goedgekeurd — ${monthsFull[m]} ${y}`;
-  const body = `Je planner voor ${monthsFull[m]} ${y} werd goedgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
-  const threadId = `plan:${userToApproveId}:${y}-${m}`;
+  if (status === 'draft') return;
 
-  await addDoc(collection(db, 'users', userToApproveId, 'mailbox'), {
-    threadId,
-    system: true,
+  const word = status === 'approved' ? 'Goedgekeurd' : 'Afgekeurd';
+  const subject = `[Planner] ${word} — ${monthsFull[m]} ${y}`;
+  const body = `Je planner voor ${monthsFull[m]} ${y} werd ${word.toLowerCase()}.${comment ? `\n\nOpmerking:\n${comment}` : ''}`;
+  const message = {
+    threadId: `plan:${uid}:${y}-${m}`,
     kind: 'status',
-    from: { uid: adminId, name: adminName, role: adminRole },
-    to: { uid: userToApproveId, type: 'user' },
+    from: { uid: adminId, name: adminName, role: 'admin' },
+    to: { uid, type: 'user' },
     subject,
     body,
-    read: false,
     timestamp: serverTimestamp()
-  });
-
-  // 4. ✉️ Kopie in admin's "Verzonden" map
-  await addDoc(collection(db, 'users', adminId, 'mailbox'), {
-    threadId,
-    system: false,
-    kind: 'status',
-    from: { uid: adminId, name: adminName, role: adminRole },
-    to: { uid: userToApproveId, type: 'user' },
-    subject,
-    body,
-    read: true,
-    timestamp: serverTimestamp()
-  });
+  };
+  await addDoc(collection(db, 'users', uid, 'mailbox'), { ...message, system: true, read: false });
+  await addDoc(collection(db, 'users', adminId, 'mailbox'), { ...message, system: false, read: true });
 }
 
-async function rejectMonthLogic(userToRejectId, y, m, comment) {
-  // 1. Haal de ECHTE admin info op
-  const adminId = auth.currentUser.uid;
-  const adminName = auth.currentUser.displayName || 'Admin';
-  const adminRole = dataStore.users[adminId]?.role || 'admin';
-
-  // 2. Status update
-  const prev = dataStore.viewUserId;
-  dataStore.viewUserId = userToRejectId; // Tijdelijk wisselen
-  await setMonthStatus(y, m, 'rejected');
-  dataStore.viewUserId = prev; // Terugzetten
-
-  // 3. ✉️ Mail naar user
-  const subject = `[Planner] Afgekeurd — ${monthsFull[m]} ${y}`;
-  const body = `Je planner voor ${monthsFull[m]} ${y} werd afgekeurd.${comment ? `\n\nReden:\n${comment}` : ''}`;
-  const threadId = `plan:${userToRejectId}:${y}-${m}`;
-
-  await addDoc(collection(db, 'users', userToRejectId, 'mailbox'), {
-    threadId,
-    system: true,
-    kind: 'status',
-    from: { uid: adminId, name: adminName, role: adminRole },
-    to: { uid: userToRejectId, type: 'user' },
-    subject,
-    body,
-    read: false,
-    timestamp: serverTimestamp()
-  });
-
-  // 4. ✉️ Kopie in admin's "Verzonden" map
-  await addDoc(collection(db, 'users', adminId, 'mailbox'), {
-    threadId,
-    system: false,
-    kind: 'status',
-    from: { uid: adminId, name: adminName, role: adminRole },
-    to: { uid: userToRejectId, type: 'user' },
-    subject,
-    body,
-    read: true,
-    timestamp: serverTimestamp()
-  });
-}
-
-// 1. Dropdown vullen met opgeslagen versies
+/** Dropdown met opgeslagen versies van de maand. */
 function renderVersionControls() {
-  // VEILIGHEIDS CHECK: Zoek het element NU pas op
-  const versionSelect = document.getElementById('versionSelect');
   if (!versionSelect) return;
-
-  const y = Number(document.getElementById('yearSelectMain').value);
+  const y = Number(yearSelectMain.value);
   const m = Number(monthSelectMain.value);
-  const ud = getCurrentUserData();
-
-  // Controleer of er versies zijn opgeslagen voor deze maand
-  const md = ud.monthData?.[y]?.[m];
-  const versions = md?.versions || {};
-
-  // Huidige keuze onthouden
+  const versions = getCurrentUserData().monthData?.[y]?.[m]?.versions || {};
   const currentVal = versionSelect.value;
 
-  // Dropdown resetten
   versionSelect.innerHTML = '<option value="">-- Huidig (Actief) --</option>';
-
-  // Versies toevoegen aan dropdown
   Object.keys(versions).forEach(vName => {
     const opt = document.createElement('option');
     opt.value = vName;
     opt.textContent = vName;
     versionSelect.appendChild(opt);
   });
-
-  // Als de geselecteerde versie nog bestaat, selecteer die weer
-  if (currentVal && versions[currentVal]) {
-    versionSelect.value = currentVal;
-  }
+  if (currentVal && versions[currentVal]) versionSelect.value = currentVal;
 }
 
-// Helpers om waarden te laden bij wissel van jaar in de dropdown
+// Admin-snelmenu onder de saldo-badges
 function loadQuickLeaveValue() {
-  const uid = getActiveUserId();
-  const year = document.getElementById('quickLeaveYearSelect').value;
-  // Let op: Verlof wordt momenteel globaal opgeslagen in settings.
-  // Als je dit per jaar wilt, moet je de data-structuur in Firebase aanpassen.
-  const mins = dataStore.users[uid]?.settings?.leaveAllowanceMinutes || 0;
+  // Verlof-saldo wordt (nog) niet per jaar bewaard, maar als één instelling
+  const mins = dataStore.users[getActiveUserId()]?.settings?.leaveAllowanceMinutes || 0;
   document.getElementById('quickAdminLeaveHours').value = Math.floor(mins / 60) || '';
 }
 
 function loadQuickSchoolValue() {
-  const uid = getActiveUserId();
   const label = document.getElementById('quickSchoolYearSelect').value;
-  const map = dataStore.users[uid]?.settings?.schoolLeaveByYear || {};
-  const mins = map[label] || 0;
-  document.getElementById('quickAdminSchoolHours').value = Math.floor(mins / 60) || '';
+  const map = dataStore.users[getActiveUserId()]?.settings?.schoolLeaveByYear || {};
+  document.getElementById('quickAdminSchoolHours').value = Math.floor((map[label] || 0) / 60) || '';
+}
+
+/** PDF-export van de gekozen maand. */
+function exportMonthPdf() {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+
+  const m = Number(monthSelectMain.value);
+  const y = Number(yearSelectMain.value);
+  const monthName = monthsFull[m];
+  const ud = getCurrentUserData();
+  const md = ud.monthData?.[y]?.[m];
+
+  if (!md?.rows || Object.keys(md.rows).length === 0) return toast('Geen data voor deze maand', 'warning');
+
+  // Kop
+  const pageWidth = pdf.internal.pageSize.width;
+  pdf.setFillColor(13, 110, 253);
+  pdf.rect(0, 0, pageWidth, 25, 'F');
+  pdf.setFontSize(16);
+  pdf.setTextColor(255, 255, 255);
+  pdf.text('Shift Planner', 14, 15);
+  pdf.setFontSize(11);
+  pdf.text(`${monthName} ${y}`, pageWidth - 50, 15);
+  pdf.setTextColor(0, 0, 0);
+  pdf.setFontSize(9);
+  pdf.text(`Gebruiker: ${ud.name || ud.email || '-'}`, 14, 32);
+
+  // Tabel (lege rijen overslaan)
+  const body = Object.entries(md.rows)
+    .filter(([, r]) => r?.shift)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, r]) => {
+      const mins = Number(r.minutes) || 0;
+      const status = r.status === 'pending' ? ' (aanvraag)' : r.status === 'rejected' ? ' (afgekeurd)' : '';
+      return [
+        toDisplayDate(key.slice(0, 10)),
+        r.project || '-',
+        shiftRealName(r.shift, ud) + status,
+        r.start || '',
+        r.end || '',
+        r.break || 0,
+        `${Math.floor(mins / 60)}u ${mins % 60}m`,
+        r.omschrijving || r.description || ''
+      ];
+    });
+
+  pdf.autoTable({
+    head: [['Datum', 'Project', 'Shift', 'Start', 'Einde', 'Pauze', 'Duur', 'Omschrijving']],
+    body,
+    startY: 43,
+    theme: 'grid',
+    styles: { fontSize: 8, cellPadding: 1.5, lineWidth: 0.1 },
+    headStyles: { fillColor: [13, 110, 253], textColor: 255 },
+    alternateRowStyles: { fillColor: [248, 249, 252] },
+    margin: { left: 8, right: 8 },
+    tableWidth: 'auto',
+    columnStyles: {
+      0: { cellWidth: 20 },
+      1: { cellWidth: 30 },
+      2: { cellWidth: 25 },
+      3: { cellWidth: 15 },
+      4: { cellWidth: 15 },
+      5: { cellWidth: 12 },
+      6: { cellWidth: 18 },
+      7: { cellWidth: 'auto' }
+    },
+    didDrawPage: () => {
+      pdf.setFontSize(8);
+      pdf.setTextColor(120);
+      pdf.text(`Pagina ${pdf.internal.getNumberOfPages()}`, pageWidth - 30, pdf.internal.pageSize.height - 8);
+    }
+  });
+
+  // Samenvatting (zelfde berekening als in de app)
+  const total = plannedMinutes(md.rows, ud);
+  const doel = (Number(md.targetHours) || 0) * 60 + (Number(md.targetMinutes) || 0);
+  const short = v => `${Math.floor(v / 60)}u ${v % 60}m`;
+  const endY = pdf.lastAutoTable.finalY + 6;
+  pdf.setFontSize(11);
+  pdf.setTextColor(13, 110, 253);
+  pdf.text('Maandoverzicht', 14, endY);
+  pdf.setTextColor(0, 0, 0);
+  pdf.setFontSize(9);
+  pdf.text(`Doel: ${short(doel)}`, 20, endY + 5);
+  pdf.text(`Gepland: ${short(total)}`, 20, endY + 10);
+  pdf.text(`Verschil: ${(total - doel >= 0 ? '+' : '-') + short(Math.abs(total - doel))}`, 20, endY + 15);
+
+  pdf.save(`Shiftplanning_${ud.name || 'gebruiker'}_${monthName}_${y}.pdf`);
+  toast('PDF geëxporteerd', 'success');
 }
 
 function bindMonth() {
-  // live target updates
-  monthTargetHours.addEventListener('input', async () => {
-    const y = Number(yearSelectMain.value),
-      m = Number(monthSelectMain.value);
-    const ud = getCurrentUserData();
-    ud.monthData[y][m].targetHours = Number(monthTargetHours.value) || 0;
+  const currentYM = () => [Number(yearSelectMain.value), Number(monthSelectMain.value)];
+  const ensureMonth = (ud, y, m) => {
+    ud.monthData ||= {};
+    ud.monthData[y] ||= {};
+    ud.monthData[y][m] ||= { targetHours: 0, targetMinutes: 0, rows: {} };
+    return ud.monthData[y][m];
+  };
+
+  // Maanddoel (uren/minuten) live bijwerken
+  const onTargetInput = () => {
+    const [y, m] = currentYM();
+    const md = ensureMonth(getCurrentUserData(), y, m);
+    md.targetHours = Number(monthTargetHours.value) || 0;
+    md.targetMinutes = Number(monthTargetMinutes.value) || 0;
     debouncedSave();
     updateInputTotals();
     renderHistory();
-  });
+    renderHome();
+  };
+  monthTargetHours.addEventListener('input', onTargetInput);
+  monthTargetMinutes.addEventListener('input', onTargetInput);
 
-  monthTargetMinutes.addEventListener('input', async () => {
-    const y = Number(yearSelectMain.value),
-      m = Number(monthSelectMain.value);
-    const ud = getCurrentUserData();
-    ud.monthData[y][m].targetMinutes = Number(monthTargetMinutes.value) || 0;
+  // Maand uitsluiten van historiek
+  document.getElementById('excludeHistoryToggle')?.addEventListener('change', e => {
+    const [y, m] = currentYM();
+    ensureMonth(getCurrentUserData(), y, m).excludeFromHistory = e.target.checked;
     debouncedSave();
-    updateInputTotals();
     renderHistory();
-  });
-
-  // Schakelaar: Maand uitsluiten van historiek
-  document.getElementById('excludeHistoryToggle')?.addEventListener('change', async e => {
-    const y = Number(yearSelectMain.value);
-    const m = Number(monthSelectMain.value);
-    const ud = getCurrentUserData();
-
-    ud.monthData[y] = ud.monthData[y] || {};
-    ud.monthData[y][m] = ud.monthData[y][m] || { targetHours: 0, targetMinutes: 0, rows: {} };
-
-    // Sla de status op in de database
-    ud.monthData[y][m].excludeFromHistory = e.target.checked;
-
-    debouncedSave();
-    renderHistory(); // Update historiek direct
-
     toast(e.target.checked ? 'Maand telt niet meer mee in historiek' : 'Maand telt weer mee in historiek', 'info');
   });
 
+  // Maand / jaar / projectfilter wisselen
   projectFilterSelect.addEventListener('change', () => {
-    renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+    renderMonth(...currentYM());
     updateInputTotals();
-    renderProjectSummary();
   });
 
-  yearSelectMain.addEventListener('change', async () => {
+  const onMonthChange = async () => {
     renderProjectFilterForMonth();
     await generateMonth();
-    updateLeaveBadges();
-    renderProjectSummary();
-  });
+  };
+  yearSelectMain.addEventListener('change', onMonthChange);
+  monthSelectMain.addEventListener('change', onMonthChange);
 
-  monthSelectMain.addEventListener('change', async () => {
-    renderProjectFilterForMonth();
-    generateMonth();
-  });
-
-  // 🗑️ Maak leeg knop (Invoer tabblad)
+  // Maand leegmaken
   document.getElementById('clearMonthBtn')?.addEventListener('click', async () => {
-    const y = Number(yearSelectMain.value);
-    const m = Number(monthSelectMain.value);
-
-    // 1. Check of de maand op slot zit (behalve voor admin)
-    const status = getMonthStatus(y, m);
-    const ud = getCurrentUserData();
-    const loggedInUser = dataStore.users[currentUserId];
-    const iAmAdmin = loggedInUser && loggedInUser.role === 'admin';
-
-    // Als gebruiker geen admin is, en status is submitted of approved -> stop.
-    if (!iAmAdmin && (status === 'submitted' || status === 'approved')) {
-      return toast('Deze maand is vergrendeld en kan niet worden leeggemaakt.', 'warning');
-    }
-
-    // 2. Bevestiging vragen
+    const [y, m] = currentYM();
+    if (warnIfLocked(y, m)) return;
     if (
       !confirm(
         `Weet je zeker dat je ALLE shifts voor ${monthsFull[m]} ${y} wilt verwijderen? Dit kan niet ongedaan worden gemaakt.`
       )
-    ) {
+    )
       return;
-    }
 
-    // 3. Data wissen
-    if (ud.monthData && ud.monthData[y] && ud.monthData[y][m]) {
-      ud.monthData[y][m].rows = {}; // Alle rijen wissen
-      ud.monthData[y][m].status = 'draft'; // Status terug naar concept
-    }
+    const md = ensureMonth(getCurrentUserData(), y, m);
+    md.rows = {};
+    md.status = 'draft';
+    await saveMonth(y, m);
 
-    // 4. Opslaan en verversen
-    await saveUserData();
-
-    // UI updates
-    renderMonth(y, m);
+    await renderMonth(y, m);
     updateInputTotals();
     renderHistory();
     renderHome();
-
     toast(`Planning voor ${monthsFull[m]} ${y} is leeggemaakt.`, 'success');
   });
 
-  // User: Indienen
+  // Gebruiker: maand indienen
   document.getElementById('submitMonthBtn')?.addEventListener('click', async () => {
-    const y = Number(yearSelectMain.value);
-    const m = Number(monthSelectMain.value);
+    const [y, m] = currentYM();
     const status = getMonthStatus(y, m);
     if (status === 'approved') return toast('Maand is al goedgekeurd', 'info');
     if (status === 'submitted') return toast('Maand is al ingediend', 'info');
@@ -2817,330 +2400,171 @@ function bindMonth() {
     await setMonthStatus(y, m, 'submitted');
     toast('Maand ingediend ter goedkeuring', 'success');
 
-    // ✉️ Mail naar admins + bevestiging naar user
+    // Bericht naar de admins + bevestiging voor de gebruiker
     const ud = getCurrentUserData();
-    const who = ud.name || ud.email || currentUserId;
-    const subject = `[Planner] Ingediend — ${who} — ${monthsFull[m]} ${y}`;
-    const bodyAdmin = `${who} heeft zojuist ${monthsFull[m]} ${y} ingediend.\n\nOpen Admin > Goedkeuring maand om te beoordelen.`;
-    await broadcastToAdmins(subject, bodyAdmin, 'status');
-
-    const bodyUser = `Je hebt ${monthsFull[m]} ${y} ingediend ter goedkeuring.\nJe ontvangt een bericht zodra dit is beoordeeld.`;
+    const who = ud.name || ud.email || getActiveUserId();
+    await broadcastToAdmins(
+      `[Planner] Ingediend — ${who} — ${monthsFull[m]} ${y}`,
+      `${who} heeft zojuist ${monthsFull[m]} ${y} ingediend.\n\nKies deze gebruiker in de topbalk, open Invoer en wijzig de status via de statusbadge.`,
+      'status'
+    );
     await sendSystemMail(
       getActiveUserId(),
       `Planner ingediend — ${monthsFull[m]} ${y}`,
-      `Je planner voor ${monthsFull[m]} ${y} werd ingediend.`,
+      `Je planner voor ${monthsFull[m]} ${y} werd ingediend. Je krijgt een bericht zodra die beoordeeld is.`,
       'status',
-      `plan:${currentUserId}:${y}-${m}`
+      `plan:${getActiveUserId()}:${y}-${m}`
     );
   });
 
-  // Goedkeur status
+  // Admin: status wijzigen via de statusbadge
   document.getElementById('adminStatusMenu')?.addEventListener('click', async e => {
     const item = e.target.closest('.dropdown-item');
     if (!item) return;
-    const newStatus = item.dataset.status;
     e.preventDefault();
+    if (!isAdmin()) return toast('Alleen admins kunnen de status wijzigen.', 'warning');
 
-    const y = Number(document.getElementById('yearSelectMain').value);
-    const m = Number(document.getElementById('monthSelectMain').value);
-    const uid = getActiveUserId();
-
-    const iAmAdmin = dataStore.users[currentUserId]?.role === 'admin';
-    if (!iAmAdmin) {
-      toast('Alleen admin.', 'warning');
-      return;
-    }
-
+    const [y, m] = currentYM();
+    const newStatus = item.dataset.status;
     try {
       if (newStatus === 'approved') {
-        const comment = prompt('Bericht bij goedkeuring:', '');
-        await approveMonthLogic(uid, y, m, comment);
+        const comment = prompt('Bericht bij goedkeuring (optioneel):', '');
+        if (comment === null) return;
+        await setMonthStatusFor(getActiveUserId(), y, m, 'approved', comment);
         toast('Goedgekeurd', 'success');
       } else if (newStatus === 'rejected') {
-        const comment = prompt('Reden voor afkeuring:', '');
-        await rejectMonthLogic(uid, y, m, comment);
-        toast('Afgekeurd (Uren teruggegeven)', 'warning');
+        const comment = prompt('Reden voor afkeuring (optioneel):', '');
+        if (comment === null) return;
+        await setMonthStatusFor(getActiveUserId(), y, m, 'rejected', comment);
+        toast('Afgekeurd', 'warning');
       } else if (newStatus === 'draft') {
-        // Zet maand status terug naar draft
-        await setMonthStatus(y, m, 'draft');
+        await setMonthStatusFor(getActiveUserId(), y, m, 'draft');
         toast('Terug naar concept', 'info');
       }
-
-      // Update de tabel
       await renderMonth(y, m);
-      updateMonthStatusBadge();
-
-      // ✅ BELANGRIJK: Update nu direct de verlof-saldo badges!
-      updateLeaveBadges();
+      updateInputTotals();
+      renderHome();
     } catch (err) {
       console.error(err);
       toast('Fout bij status wijziging', 'danger');
     }
   });
 
-  // ✅ 1. Initialiseer de dropdowns en laad de data
+  // Admin: saldo instellen via klik op de saldo-badges
   document.addEventListener('click', e => {
     const badge = e.target.closest('#leaveBalanceBadge, #schoolLeaveBalanceBadge');
-    if (!badge) return;
-
-    const iAmAdmin = dataStore.users[currentUserId]?.role === 'admin';
-    if (!iAmAdmin) return;
-
-    const uid = getActiveUserId();
-    const ud = dataStore.users[uid];
+    if (!badge || !isAdmin()) return;
 
     if (badge.id === 'leaveBalanceBadge') {
       const yrSelect = document.getElementById('quickLeaveYearSelect');
-      // Vul jaren in (huidig jaar +/- 2)
       if (yrSelect.options.length === 0) {
         const curY = new Date().getFullYear();
         for (let y = curY - 2; y <= curY + 2; y++) {
           yrSelect.insertAdjacentHTML('beforeend', `<option value="${y}">${y}</option>`);
         }
-        yrSelect.value = yearSelectMain.value; // zet op actieve jaar van de planner
+        yrSelect.value = yearSelectMain.value;
       }
       loadQuickLeaveValue();
-    } else if (badge.id === 'schoolLeaveBalanceBadge') {
+    } else {
       const schYrSelect = document.getElementById('quickSchoolYearSelect');
       if (schYrSelect.options.length === 0) {
         buildSchoolYearOptions(schYrSelect);
-        const { label } = getAcademicYearBounds(Number(yearSelectMain.value), Number(monthSelectMain.value));
-        schYrSelect.value = label;
+        schYrSelect.value = getAcademicYearBounds(...currentYM()).label;
       }
       loadQuickSchoolValue();
     }
   });
 
-  // Event listeners voor jaar-wissels binnen de dropdowns
   document.getElementById('quickLeaveYearSelect')?.addEventListener('change', loadQuickLeaveValue);
-
   document.getElementById('quickSchoolYearSelect')?.addEventListener('change', loadQuickSchoolValue);
 
-  // ✅ 2. Opslaan knoppen
   document.getElementById('btnSaveQuickLeave')?.addEventListener('click', async () => {
-    const hours = Number(document.getElementById('quickAdminLeaveHours').value);
-    const uid = getActiveUserId();
-    const ud = dataStore.users[uid];
-
-    ud.settings = ud.settings || {};
-    ud.settings.leaveAllowanceMinutes = hours * 60;
-
+    if (!isAdmin()) return;
+    const ud = getCurrentUserData();
+    ud.settings ||= {};
+    ud.settings.leaveAllowanceMinutes =
+      Math.max(0, Number(document.getElementById('quickAdminLeaveHours').value) || 0) * 60;
     await saveUserData();
     updateLeaveBadges();
+    renderHome();
     toast('Verlof saldo opgeslagen', 'success');
   });
 
   document.getElementById('btnSaveQuickSchoolLeave')?.addEventListener('click', async () => {
-    const hours = Number(document.getElementById('quickAdminSchoolHours').value);
+    if (!isAdmin()) return;
     const label = document.getElementById('quickSchoolYearSelect').value;
-    const uid = getActiveUserId();
-    const ud = dataStore.users[uid];
-
-    ud.settings = ud.settings || {};
-    ud.settings.schoolLeaveByYear = ud.settings.schoolLeaveByYear || {};
-    ud.settings.schoolLeaveByYear[label] = hours * 60;
-
+    const ud = getCurrentUserData();
+    ud.settings ||= {};
+    ud.settings.schoolLeaveByYear ||= {};
+    ud.settings.schoolLeaveByYear[label] =
+      Math.max(0, Number(document.getElementById('quickAdminSchoolHours').value) || 0) * 60;
     await saveUserData();
     updateLeaveBadges();
+    renderHome();
     toast(`Schoolverlof voor ${label} opgeslagen`, 'success');
   });
 
-  // 2. Nieuwe versie opslaan (Huidige staat -> Versie X)
+  // Versies: huidige maand bewaren als versie
   addVersionBtn?.addEventListener('click', async () => {
-    const name = prompt("Geef deze versie een naam (bv. 'Optie A'):");
+    const name = prompt("Geef deze versie een naam (bv. 'Optie A'):")?.trim();
     if (!name) return;
+    const [y, m] = currentYM();
+    const md = ensureMonth(getCurrentUserData(), y, m);
+    md.versions ||= {};
+    if (md.versions[name] && !confirm(`Versie '${name}' bestaat al. Overschrijven?`)) return;
 
-    const y = Number(yearSelectMain.value);
-    const m = Number(monthSelectMain.value);
-    const ud = getCurrentUserData();
-
-    // Zorg dat de map structuur bestaat
-    ud.monthData = ud.monthData || {};
-    ud.monthData[y] = ud.monthData[y] || {};
-    ud.monthData[y][m] = ud.monthData[y][m] || { rows: {} };
-
-    const md = ud.monthData[y][m];
-    md.versions = md.versions || {};
-
-    // Waarschuwing als naam al bestaat
-    if (md.versions[name] && !confirm(`Versie '${name}' bestaat al. Overschrijven?`)) {
-      return;
-    }
-
-    // KOPIE MAKEN (Heel belangrijk: deep copy zodat ze losgekoppeld zijn)
-    const rowsSnapshot = JSON.parse(JSON.stringify(md.rows || {}));
-
-    md.versions[name] = {
-      timestamp: new Date().toISOString(),
-      rows: rowsSnapshot
-    };
-
-    await saveUserData();
+    md.versions[name] = { timestamp: new Date().toISOString(), rows: structuredClone(md.rows || {}) };
+    await saveMonth(y, m);
     renderVersionControls();
     versionSelect.value = name;
     toast(`Versie '${name}' opgeslagen`, 'success');
   });
 
-  // 3. Versie laden (Versie X -> Huidige staat)
+  // Versies: een bewaarde versie terugzetten
   versionSelect?.addEventListener('change', async () => {
     const selectedName = versionSelect.value;
-    if (!selectedName) return; // 'Huidig' gekozen, doe niets
-
+    if (!selectedName) return;
+    const [y, m] = currentYM();
+    if (warnIfLocked(y, m)) return renderVersionControls();
     if (
       !confirm(
         `Wil je het actieve rooster overschrijven met '${selectedName}'?\n(Niet-opgeslagen wijzigingen gaan verloren).`
       )
     ) {
-      renderVersionControls(); // Reset dropdown
+      versionSelect.value = '';
       return;
     }
 
-    const y = Number(yearSelectMain.value);
-    const m = Number(monthSelectMain.value);
-    const ud = getCurrentUserData();
-    const savedVer = ud.monthData?.[y]?.[m]?.versions?.[selectedName];
+    const md = getCurrentUserData().monthData?.[y]?.[m];
+    const savedVer = md?.versions?.[selectedName];
+    if (!savedVer?.rows) return;
+    md.rows = structuredClone(savedVer.rows);
+    await saveMonth(y, m);
 
-    if (savedVer && savedVer.rows) {
-      // Overschrijf de actieve data met de versie data
-      ud.monthData[y][m].rows = JSON.parse(JSON.stringify(savedVer.rows));
-
-      await saveUserData();
-
-      // Alles verversen
-      renderMonth(y, m);
-      updateInputTotals();
-      renderHistory();
-      toast(`Versie '${selectedName}' geladen`, 'info');
-    }
+    await renderMonth(y, m);
+    updateInputTotals();
+    renderHistory();
+    renderHome();
+    toast(`Versie '${selectedName}' geladen`, 'info');
   });
 
-  // 4. Versie verwijderen
+  // Versies: verwijderen
   delVersionBtn?.addEventListener('click', async () => {
     const selectedName = versionSelect.value;
     if (!selectedName) return toast('Selecteer een versie om te verwijderen', 'warning');
-
     if (!confirm(`Versie '${selectedName}' definitief verwijderen?`)) return;
 
-    const y = Number(yearSelectMain.value);
-    const m = Number(monthSelectMain.value);
-    const ud = getCurrentUserData();
-
-    if (ud.monthData?.[y]?.[m]?.versions?.[selectedName]) {
-      delete ud.monthData[y][m].versions[selectedName];
-      await saveUserData();
-      renderVersionControls();
-      toast('Versie verwijderd', 'success');
-    }
+    const [y, m] = currentYM();
+    const md = getCurrentUserData().monthData?.[y]?.[m];
+    if (!md?.versions?.[selectedName]) return;
+    delete md.versions[selectedName];
+    await saveMonth(y, m);
+    versionSelect.value = '';
+    renderVersionControls();
+    toast('Versie verwijderd', 'success');
   });
 
-  // ✅ Plaats DIT hier:
-  document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-
-    const monthIndex = Number(document.getElementById('monthSelectMain').value);
-    const year = document.getElementById('yearSelectMain').value;
-    const monthName = monthsFull[monthIndex];
-    const ud = getCurrentUserData();
-    const md = ud.monthData?.[year]?.[monthIndex];
-
-    if (!md || !md.rows || Object.keys(md.rows).length === 0) {
-      return toast('Geen data voor deze maand', 'warning');
-    }
-    // === Header met branding ===
-    const pageWidth = doc.internal.pageSize.width;
-    doc.setFillColor(13, 110, 253);
-    doc.rect(0, 0, pageWidth, 25, 'F');
-    doc.setFontSize(16);
-    doc.setTextColor(255, 255, 255);
-    doc.text('Shift Planner', 14, 15);
-    doc.setFontSize(11);
-    doc.text(`${monthName} ${year}`, pageWidth - 50, 15);
-
-    // Gebruikersinfo
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(9);
-    doc.text(`Gebruiker: ${ud.name || ud.email || '-'}`, 14, 32);
-
-    // === Data voorbereiden ===
-    const body = Object.entries(md.rows)
-      .sort(([a], [b]) => a.localeCompare(b)) // chronologisch sorteren
-      .map(([key, r]) => {
-        const date = key.split('-').reverse().join('-');
-        const duration = `${Math.floor(r.minutes / 60)}u ${r.minutes % 60}m`;
-        return [
-          date,
-          r.project || '-',
-          r.shift || '-',
-          r.start || '',
-          r.end || '',
-          r.break || 0,
-          duration,
-          r.omschrijving || ''
-        ];
-      });
-
-    // === AutoTable met compacte styling ===
-    doc.autoTable({
-      head: [['Datum', 'Project', 'Shift', 'Start', 'Einde', 'Pauze', 'Duur', 'Omschrijving']],
-      body,
-      startY: 43,
-      theme: 'grid',
-      styles: {
-        fontSize: 8,
-        cellPadding: 1.5,
-        lineWidth: 0.1
-      },
-      headStyles: { fillColor: [13, 110, 253], textColor: 255 },
-      alternateRowStyles: { fillColor: [248, 249, 252] },
-      margin: { left: 8, right: 8 },
-      tableWidth: 'auto',
-      columnStyles: {
-        0: { cellWidth: 20 }, // datum
-        1: { cellWidth: 30 }, // project
-        2: { cellWidth: 25 }, // shift
-        3: { cellWidth: 15 }, // start
-        4: { cellWidth: 15 }, // einde
-        5: { cellWidth: 12 }, // pauze
-        6: { cellWidth: 18 }, // duur
-        7: { cellWidth: 'auto' } // omschrijving
-      },
-      didDrawPage: data => {
-        const pageCount = doc.internal.getNumberOfPages();
-        const pageHeight = doc.internal.pageSize.height;
-        doc.setFontSize(8);
-        doc.setTextColor(120);
-        doc.text(`Pagina ${pageCount}`, pageWidth - 30, pageHeight - 8);
-      }
-    });
-
-    // === Samenvatting onder tabel ===
-    // === Samenvatting onder tabel ===
-    const total = Object.values(md.rows).reduce((s, r) => {
-      const shiftDef = ud.shifts?.[r.shift];
-      const realName = shiftDef ? shiftDef.realName || r.shift : r.shift;
-      if (isStageRow(r, ud)) return s; // Stage NIET meetellen!
-      return s + (r.minutes || 0);
-    }, 0);
-    const doel = (md.targetHours || 0) * 60 + (md.targetMinutes || 0);
-    const diff = total - doel;
-    const fmt = v => `${Math.floor(v / 60)}u ${v % 60}m`;
-    const endY = doc.lastAutoTable.finalY + 6;
-
-    doc.setFontSize(11);
-    doc.setTextColor(13, 110, 253);
-    doc.text('Maandoverzicht', 14, endY);
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(9);
-    doc.text(`Doel: ${fmt(doel)}`, 20, endY + 5);
-    doc.text(`Gepland: ${fmt(total)}`, 20, endY + 10);
-    doc.text(`Verschil: ${(diff >= 0 ? '+' : '-') + fmt(Math.abs(diff))}`, 20, endY + 15);
-
-    // === PDF genereren ===
-    const filename = `Shiftplanning_${ud.name || 'gebruiker'}_${monthName}_${year}.pdf`;
-    doc.save(filename);
-    toast('PDF geëxporteerd', 'success');
-  });
+  document.getElementById('exportPdfBtn')?.addEventListener('click', exportMonthPdf);
 }
 
 // ======================================================================
@@ -3148,37 +2572,26 @@ function bindMonth() {
 // Kalenderweergave, dag-popup en snelle iconen.
 // ======================================================================
 
-// Functie om de kalender te tekenen met de gekozen iconen
-// Globale variabele om te weten welke dag we bewerken
-let currentEditingDateKey = null;
+let currentEditingDateKey = null; // dag die open staat in de dag-popup
 
-// 1. DE KALENDER (Met Favorieten Icoontjes)
+/** Maandkalender met shiften per dag, feestdagen, schoolvakanties en favoriete-shift-iconen. */
 function renderCalendarGrid(year, month) {
+  year = Number(year);
+  month = Number(month);
   const grid = document.getElementById('monthlyCalendarGrid');
   if (!grid) return;
   grid.innerHTML = '';
 
-  // 1. SCHOOLVAKANTIE INFO OPHALEN (Bovenin, zodat de hele functie het kent)
+  // Schoolvakantie-label boven de kalender
   const schoolVacation = getSchoolHolidayInfo(year, month);
-
-  // 2. Label vullen
   const holidayLabel = document.getElementById('schoolHolidayLabel');
   if (holidayLabel) {
     if (schoolVacation) {
-      let text = '';
-      if (schoolVacation.fullMonth) {
-        text = schoolVacation.name;
-      } else {
-        const options = { month: 'short', day: 'numeric' };
-        const s = schoolVacation.start.toLocaleDateString('nl-NL', options);
-        const e = schoolVacation.end.toLocaleDateString('nl-NL', options);
-        text = `${schoolVacation.name}: ${s} t/m ${e}`;
-      }
-      holidayLabel.innerHTML = `
-            <div class="school-holiday-tag">
-               <span class="material-icons-outlined" style="font-size:16px">${schoolVacation.icon}</span> ${text}
-            </div>
-          `;
+      const opts = { month: 'short', day: 'numeric' };
+      const text = schoolVacation.fullMonth
+        ? schoolVacation.name
+        : `${schoolVacation.name}: ${schoolVacation.start.toLocaleDateString('nl-NL', opts)} t/m ${schoolVacation.end.toLocaleDateString('nl-NL', opts)}`;
+      holidayLabel.innerHTML = `<div class="school-holiday-tag"><span style="font-size:16px">${schoolVacation.icon}</span> ${text}</div>`;
     } else {
       holidayLabel.innerHTML = '';
     }
@@ -3186,169 +2599,96 @@ function renderCalendarGrid(year, month) {
 
   const ud = getCurrentUserData();
   const md = ud.monthData?.[year]?.[month] || { rows: {} };
-
-  // Shiften & Favorieten ophalen
   const allShifts = ud.shifts || {};
-  const order = ud.shiftOrder || Object.keys(allShifts);
-  const favorites = order
-    .filter(key => allShifts[key] && allShifts[key].isFavorite)
+  const favorites = (ud.shiftOrder || Object.keys(allShifts))
+    .filter(key => allShifts[key]?.isFavorite)
     .map(key => ({ key, ...allShifts[key] }));
 
-  // Headers
   ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'].forEach(d =>
     grid.insertAdjacentHTML('beforeend', `<div class="calendar-header">${d}</div>`)
   );
 
+  // Lege vakjes vóór de 1e (week begint op maandag)
   const firstDay = new Date(year, month, 1).getDay();
   const offset = firstDay === 0 ? 6 : firstDay - 1;
+  for (let i = 0; i < offset; i++) grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
+
+  const today = todayISO();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  // Lege vakjes
-  for (let i = 0; i < offset; i++) {
-    grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
-  }
-
-  const todayDate = new Date();
-  const isCurrentMonth = todayDate.getFullYear() === Number(year) && todayDate.getMonth() === Number(month);
-  const currentDayNum = todayDate.getDate();
-
-  // Dagen genereren
   for (let d = 1; d <= daysInMonth; d++) {
     const baseKey = dateKey(year, month, d);
     const dateObj = new Date(year, month, d);
-    const dayOfWeek = dateObj.getDay(); // 0=zo, 6=za
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-    const isToday = isCurrentMonth && d === currentDayNum;
+    const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+    const isHolidayDay =
+      !!schoolVacation &&
+      !isWeekend &&
+      (schoolVacation.fullMonth || (dateObj >= schoolVacation.start && dateObj <= schoolVacation.end));
 
-    // ✅ FIX: Gebruik 'schoolVacation' variabele van hierboven
-    let isHolidayDay = false;
-    if (schoolVacation && !isWeekend) {
-      if (schoolVacation.fullMonth) {
-        isHolidayDay = true;
-      } else if (schoolVacation.start && schoolVacation.end) {
-        // Check datums (tijd op 0 zetten voor eerlijke vergelijking)
-        const checkDate = new Date(dateObj).setHours(0, 0, 0, 0);
-        const checkStart = new Date(schoolVacation.start).setHours(0, 0, 0, 0);
-        const checkEnd = new Date(schoolVacation.end).setHours(0, 0, 0, 0);
-
-        if (checkDate >= checkStart && checkDate <= checkEnd) {
-          isHolidayDay = true;
-        }
-      }
-    }
-
-    // ✨ FEESTDAG LOGICA (Variabele naam aangepast naar dayHoliday)
     const dayHoliday = getBelgianHoliday(dateObj);
-    let holidayHtml = '';
-    if (dayHoliday) {
-      holidayHtml = `<div class="holiday-badge"><span style="font-size: 1.3em;">${dayHoliday.emoji}</span> ${dayHoliday.name}</div>`;
-    }
+    const holidayHtml = dayHoliday
+      ? `<div class="holiday-badge"><span style="font-size: 1.3em;">${dayHoliday.emoji}</span> ${dayHoliday.name}</div>`
+      : '';
 
-    // Emoji knopjes
+    // Favoriete shiften als klik-icoontjes (alleen als de shift op deze datum geldig is)
     const quickIconsHtml = favorites
-      .map(sh => {
-        if (!isDateWithin(baseKey, sh.startDate, sh.endDate)) return '';
-        const ICON_MAP = {
-          light_mode: '☀️',
-          wb_twilight: '🌅',
-          bedtime: '🌙',
-          schedule: '🕒',
-          star: '⭐',
-          school: '🎓',
-          medical_services: '🏥',
-          flight: '✈️',
-          bench: '🪑',
-          feestdag: '🎉',
-          teammeeting: '👥',
-          niet_ingepland: '❌',
-          vrij_weekend: '😎',
-          stage: '🏫'
-        };
-        const emoji = ICON_MAP[sh.icon] || '⭐';
-        const hoverText = sh.realName || sh.key;
-        return `<span class="quick-icon-btn" data-shift="${sh.key}" title="${hoverText}">${emoji}</span>`;
-      })
+      .filter(sh => isDateWithin(baseKey, sh.startDate, sh.endDate))
+      .map(
+        sh =>
+          `<span class="quick-icon-btn" data-shift="${escapeHtml(sh.key)}" title="${escapeHtml(sh.realName || sh.key)}">${SHIFT_ICONS[sh.icon] || '⭐'}</span>`
+      )
       .join('');
 
-    // Shift balkjes
-    const dayKeys = listDayKeys(md, baseKey);
-    let shiftsHtml = '';
-
-    dayKeys.slice(0, 3).forEach(k => {
-      const r = md.rows[k];
-      if (!r.shift) return;
-      const sh = ud.shifts[r.shift] || { color: '#ccc', realName: r.shift };
-
-      let durationText = '';
-      if (r.minutes && r.minutes > 0) {
-        const h = Math.floor(r.minutes / 60);
-        const m = r.minutes % 60;
-        const mStr = m < 10 ? `0${m}` : m;
-        durationText = `${h}u${mStr}`;
-      }
-
-      // Bepaal de tekst voor het hover-venstertje
-      const hoverTekst = `Van ${r.start || '00:00'} tot ${r.end || '00:00'} (Pauze: ${r.break || 0} min)`;
-
-      shiftsHtml += `
-        <div class="cal-shift-item d-flex justify-content-between align-items-center" 
-             title="${hoverTekst}"
-             style="background:${sh.color || '#eee'}; border-left:3px solid rgba(0,0,0,0.2); padding-right:4px; cursor: help;">
-          <span style="overflow:hidden; text-overflow:ellipsis;">${sh.realName || r.shift}</span>
-          <span style="font-size:1em; font-weight:bold; margin-left:6px; white-space:nowrap; color:#000;">
-            ${durationText}
-          </span>
+    // Ingevulde shiften (max. 3 zichtbaar)
+    const dayKeys = listDayKeys(md, baseKey).filter(k => md.rows[k]?.shift);
+    let shiftsHtml = dayKeys
+      .slice(0, 3)
+      .map(k => {
+        const r = md.rows[k];
+        const sh = allShifts[r.shift] || { color: '#ccc', realName: r.shift };
+        const mins = Number(r.minutes) || 0;
+        const durationText = mins > 0 ? `${Math.floor(mins / 60)}u${String(mins % 60).padStart(2, '0')}` : '';
+        const pending = r.status === 'pending' ? ' ⏳' : '';
+        const hoverText = `Van ${r.start || '00:00'} tot ${r.end || '00:00'} (Pauze: ${r.break || 0} min)`;
+        return `
+        <div class="cal-shift-item d-flex justify-content-between align-items-center"
+             title="${hoverText}"
+             style="background:${escapeHtml(sh.color || '#eee')}; border-left:3px solid rgba(0,0,0,0.2); padding-right:4px; cursor: help;">
+          <span style="overflow:hidden; text-overflow:ellipsis;">${escapeHtml(sh.realName || r.shift)}${pending}</span>
+          <span style="font-size:1em; font-weight:bold; margin-left:6px; white-space:nowrap; color:#000;">${durationText}</span>
         </div>`;
-    });
+      })
+      .join('');
+    if (dayKeys.length > 3) {
+      shiftsHtml += `<div style="font-size:9px; text-align:center; color:#999;">+${dayKeys.length - 3}</div>`;
+    }
 
-    const realCount = dayKeys.filter(k => md.rows[k].shift).length;
-    if (realCount > 3)
-      shiftsHtml += `<div style="font-size:9px; text-align:center; color:#999;">+${realCount - 3}</div>`;
-
-    // --- ELEMENT MAKEN ---
     const dayEl = document.createElement('div');
-
-    // 1. Basis klassen
-    let classes = `calendar-day ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''} d-flex flex-column`;
-
-    // 2. Kleur toevoegen indien vakantie
-    if (isHolidayDay) {
-      classes += ' school-holiday-bg';
-    }
-
-    dayEl.className = classes;
-
-    if (typeof isPaintMode !== 'undefined' && isPaintMode) {
-      dayEl.style.cursor = 'cell';
-    }
+    dayEl.className = [
+      'calendar-day',
+      isWeekend && 'weekend',
+      baseKey === today && 'today',
+      isHolidayDay && 'school-holiday-bg',
+      'd-flex flex-column'
+    ]
+      .filter(Boolean)
+      .join(' ');
+    if (isPaintMode) dayEl.style.cursor = 'cell';
 
     dayEl.innerHTML = `
       <div class="d-flex justify-content-between align-items-start p-1">
         <span class="day-number">${d}</span>
         <div class="quick-icons-wrapper">${quickIconsHtml}</div>
       </div>
-      
-      <div class="d-flex flex-column gap-1 px-1" style="overflow:hidden;">
-        ${shiftsHtml}
-      </div>
-
-      ${holidayHtml} 
+      <div class="d-flex flex-column gap-1 px-1" style="overflow:hidden;">${shiftsHtml}</div>
+      ${holidayHtml}
     `;
 
-    // Events
-    dayEl.onclick = () => {
-      if (typeof isPaintMode !== 'undefined' && isPaintMode) {
-        window.applyPaintShift(baseKey);
-      } else {
-        openDayEditor(baseKey);
-      }
-    };
-
+    dayEl.onclick = () => (isPaintMode ? applyPaintShift(baseKey) : openDayEditor(baseKey));
     dayEl.querySelectorAll('.quick-icon-btn').forEach(btn => {
       btn.onclick = e => {
         e.stopPropagation();
-        const shiftKey = btn.dataset.shift;
-        applyShiftDirectly(baseKey, shiftKey);
+        applyShiftDirectly(baseKey, btn.dataset.shift);
       };
     });
 
@@ -3356,270 +2696,194 @@ function renderCalendarGrid(year, month) {
   }
 }
 
-// 2. HELPER: DIRECT OPSLAAN (Voor icoontjes)
-async function applyShiftDirectly(dateKey, shiftKey) {
-  const [y, mStr] = dateKey.split('-');
-  const m = Number(mStr) - 1;
-  const ud = getCurrentUserData();
-  const sh = ud.shifts[shiftKey];
-
-  if (!sh) return;
-  // Zorg dat de maandstructuur bestaat (voor de zekerheid)
-  ud.monthData = ud.monthData || {};
-  ud.monthData[y] = ud.monthData[y] || {};
-  ud.monthData[y][m] = ud.monthData[y][m] || { targetHours: 0, targetMinutes: 0, rows: {} };
-  const md = ud.monthData[y][m];
-
-  // 1. BEPAAL DE SLEUTEL
-  // Bestaat de basis datum al? Maak dan een unieke extra sleutel aan.
-  let targetKey = dateKey;
-  if (md.rows[dateKey]) {
-    targetKey = `${dateKey}_${Date.now()}`; // Bv: 2024-02-01_1715699...
-  }
-  // We moeten de minuten expliciet uitrekenen, anders snapt de balk het niet
-  const mins = minutesBetween(sh.start, sh.end, sh.break);
-
-  // 2. OPSLAAN
-  md.rows[targetKey] = {
-    project: sh.project || '',
-    shift: shiftKey,
-    start: sh.start,
-    end: sh.end,
-    break: sh.break,
-    description: '',
-    minutes: mins
-  };
-
-  // 3. UPDATEN
-  renderCalendarGrid(y, m);
-  updateInputTotals();
-  await saveUserData();
-  toast(`${sh.realName || shiftKey} toegevoegd`, 'success');
+/** Nieuwe rij-sleutel voor een dag: de datum zelf, of 'datum#2', 'datum#3', … als er al iets staat. */
+function newRowKeyForDay(md, baseKey) {
+  return md.rows[baseKey] ? `${baseKey}#${nextLineIndex(md, baseKey)}` : baseKey;
 }
 
-// 3. POPUP: DAG BEWERKEN (Notities & Extra Lijnen)
-function openDayEditor(dateKey) {
-  currentEditingDateKey = dateKey;
+/** Rij opbouwen vanuit een shift-definitie. */
+function rowFromShift(shiftKey, extra = {}) {
   const ud = getCurrentUserData();
-  const [y, mStr] = dateKey.split('-');
-  const m = Number(mStr) - 1;
+  const sh = ud.shifts?.[shiftKey] || {};
+  const row = {
+    project: '',
+    shift: shiftKey,
+    start: sh.start || '00:00',
+    end: sh.end || '00:00',
+    break: Number(sh.break) || 0,
+    omschrijving: '',
+    minutes: minutesBetween(sh.start || '00:00', sh.end || '00:00', sh.break),
+    ...extra
+  };
+  return applyShiftDefaults(row, shiftKey, ud);
+}
+
+function ensureMonthData(ud, y, m) {
+  ud.monthData ||= {};
+  ud.monthData[y] ||= {};
+  ud.monthData[y][m] ||= { targetHours: 0, targetMinutes: 0, rows: {} };
+  ud.monthData[y][m].rows ||= {};
+  return ud.monthData[y][m];
+}
+
+/** Klik op een favoriet-icoon in de kalender: shift meteen toevoegen aan die dag. */
+async function applyShiftDirectly(baseKey, shiftKey) {
+  const y = Number(baseKey.slice(0, 4));
+  const m = Number(baseKey.slice(5, 7)) - 1;
+  if (warnIfLocked(y, m)) return;
+  const ud = getCurrentUserData();
+  if (!ud.shifts?.[shiftKey]) return;
+
+  const md = ensureMonthData(ud, y, m);
+  md.rows[newRowKeyForDay(md, baseKey)] = rowFromShift(shiftKey);
+
+  renderCalendarGrid(y, m);
+  updateInputTotals();
+  renderHistory();
+  await saveUserData();
+  toast(`${shiftRealName(shiftKey, ud)} toegevoegd`, 'success');
+}
+
+/** Dag-popup: shiften van die dag (uren aanpassen, verwijderen) + notitie. */
+function openDayEditor(baseKey) {
+  currentEditingDateKey = baseKey;
+  const ud = getCurrentUserData();
+  const y = Number(baseKey.slice(0, 4));
+  const m = Number(baseKey.slice(5, 7)) - 1;
   const md = ud.monthData?.[y]?.[m] || { rows: {} };
+  const locked = isMonthLocked(y, m);
+  const dis = locked ? 'disabled' : '';
 
   const titleEl = document.getElementById('dayEditorTitle');
-  if (titleEl) titleEl.textContent = `Bewerken: ${dateKey}`;
+  if (titleEl) titleEl.textContent = `Bewerken: ${toDisplayDate(baseKey)}${locked ? ' (vergrendeld)' : ''}`;
 
   const listContainer = document.getElementById('dayEditorList');
   if (!listContainer) return;
 
-  listContainer.innerHTML = '';
-
-  // Haal shiften op en filter de spook-regels (lege shiften) eruit
-  let dayKeys = listDayKeys(md, dateKey).filter(k => md.rows[k].shift);
-
+  const dayKeys = listDayKeys(md, baseKey).filter(k => md.rows[k]?.shift);
   if (dayKeys.length === 0) {
     listContainer.innerHTML = '<span class="text-muted small fst-italic">Nog geen shiften.</span>';
   } else {
-    dayKeys.forEach(k => {
-      const r = md.rows[k];
-      const sh = ud.shifts[r.shift] || { color: '#ccc', realName: r.shift };
-
-      const rowDiv = document.createElement('div');
-      rowDiv.className = 'p-2 border rounded bg-light mb-2'; // Iets ruimer kader
-
-      // We bouwen een blokje met:
-      // Boven: Naam + Verwijder knop
-      // Onder: Start - Einde - Pauze inputs
-      rowDiv.innerHTML = `
+    listContainer.innerHTML = dayKeys
+      .map(k => {
+        const r = md.rows[k];
+        const sh = ud.shifts?.[r.shift] || { color: '#ccc', realName: r.shift };
+        return `
+      <div class="p-2 border rounded bg-light mb-2">
         <div class="d-flex align-items-center justify-content-between mb-2">
-            <div class="d-flex align-items-center gap-2">
-               <span class="dot" style="background:${sh.color || '#ccc'}; width:10px; height:10px; border-radius:50%;"></span>
-               <strong>${sh.realName || r.shift}</strong>
-            </div>
-            <button class="btn btn-outline-danger btn-sm p-0 px-2" title="Verwijder" onclick="removeShiftFromDay('${k}')">
-              <span class="material-icons-outlined" style="font-size:16px; vertical-align: middle;">delete</span>
-            </button>
+          <div class="d-flex align-items-center gap-2">
+            <span class="dot" style="background:${escapeHtml(sh.color || '#ccc')}; width:10px; height:10px; border-radius:50%;"></span>
+            <strong>${escapeHtml(sh.realName || r.shift)}</strong>
+          </div>
+          <button class="btn btn-outline-danger btn-sm p-0 px-2" title="Verwijder" ${dis} onclick="removeShiftFromDay('${k}')">
+            <span class="material-icons-outlined" style="font-size:16px; vertical-align: middle;">delete</span>
+          </button>
         </div>
-        
         <div class="d-flex gap-2 align-items-end">
-            <div style="flex:1;">
-                <label class="form-label mb-0" style="font-size:0.75rem; color:#666;">Start</label>
-                <input type="time" class="form-control form-control-sm" 
-                       value="${r.start || '00:00'}" 
-                       onchange="updateShiftTime('${k}', 'start', this.value)">
-            </div>
-            <div style="flex:1;">
-                <label class="form-label mb-0" style="font-size:0.75rem; color:#666;">Einde</label>
-                <input type="time" class="form-control form-control-sm" 
-                       value="${r.end || '00:00'}" 
-                       onchange="updateShiftTime('${k}', 'end', this.value)">
-            </div>
-            <div style="width: 60px;">
-                <label class="form-label mb-0" style="font-size:0.75rem; color:#666;">Pauze</label>
-                <input type="number" class="form-control form-control-sm" 
-                       value="${r.break || 0}" 
-                       onchange="updateShiftTime('${k}', 'break', this.value)">
-            </div>
+          <div style="flex:1;">
+            <label class="form-label mb-0" style="font-size:0.75rem; color:#666;">Start</label>
+            <input type="time" class="form-control form-control-sm" ${dis} value="${r.start || '00:00'}" onchange="updateShiftTime('${k}', 'start', this.value)">
+          </div>
+          <div style="flex:1;">
+            <label class="form-label mb-0" style="font-size:0.75rem; color:#666;">Einde</label>
+            <input type="time" class="form-control form-control-sm" ${dis} value="${r.end || '00:00'}" onchange="updateShiftTime('${k}', 'end', this.value)">
+          </div>
+          <div style="width: 60px;">
+            <label class="form-label mb-0" style="font-size:0.75rem; color:#666;">Pauze</label>
+            <input type="number" min="0" class="form-control form-control-sm" ${dis} value="${r.break || 0}" onchange="updateShiftTime('${k}', 'break', this.value)">
+          </div>
         </div>
-      `;
-      listContainer.appendChild(rowDiv);
-    });
+      </div>`;
+      })
+      .join('');
   }
 
-  // Notitie veld
-  const firstKey = dayKeys[0];
+  // Notitie (staat bij elke rij van de dag; we tonen die van de eerste)
+  const first = dayKeys.length ? md.rows[dayKeys[0]] : null;
   const noteField = document.getElementById('dayEditorNote');
-  if (noteField) noteField.value = firstKey ? md.rows[firstKey].description || '' : '';
+  if (noteField) {
+    noteField.value = first ? first.omschrijving || first.description || '' : '';
+    noteField.disabled = locked;
+  }
+  const addBtn = document.getElementById('btnAddExtraShift');
+  if (addBtn) addBtn.disabled = locked;
+  const saveBtn = document.getElementById('btnSaveDayEditor');
+  if (saveBtn) saveBtn.disabled = locked;
 
-  const modalEl = document.getElementById('dayEditorModal');
-  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-  modal.show();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('dayEditorModal')).show();
 }
 
 function bindCalendar() {
-  // Event Listeners voor de Popup
+  const ymOf = key => [Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1];
+
+  // Dag-popup → snelle invoer voor een extra shift op die dag
   document.getElementById('btnAddExtraShift')?.addEventListener('click', () => {
-    bootstrap.Modal.getInstance(document.getElementById('dayEditorModal')).hide();
+    bootstrap.Modal.getInstance(document.getElementById('dayEditorModal'))?.hide();
     quickDate.value = currentEditingDateKey;
     populateQuickShifts();
     new bootstrap.Modal(document.getElementById('quickModal')).show();
   });
 
-  // FIX: VERWIJDEREN (Forceer update in database)
-  window.removeShiftFromDay = async uniqueKey => {
-    if (!uniqueKey) return;
-    const [yStr, mStr] = uniqueKey.split('-');
-    const y = Number(yStr); // 2026 (Als getal!)
-    const m = Number(mStr) - 1;
-    const ud = getCurrentUserData();
+  // Shift uit een dag verwijderen (aangeroepen vanuit de dag-popup)
+  window.removeShiftFromDay = async rowKey => {
+    if (!rowKey) return;
+    const [y, m] = ymOf(rowKey);
+    if (warnIfLocked(y, m)) return;
+    const md = getCurrentUserData().monthData?.[y]?.[m];
+    if (!md?.rows?.[rowKey]) return;
 
-    // Bestaat de shift nog?
-    if (ud.monthData?.[y]?.[m]?.rows?.[uniqueKey]) {
-      // 1. Verwijder hem lokaal uit het geheugen
-      delete ud.monthData[y][m].rows[uniqueKey];
+    delete md.rows[rowKey];
+    await saveMonth(y, m);
 
-      // 2. FORCEER DE DATABASE UPDATE
-      // saveUserData() werkt niet goed voor verwijderen (door merge).
-      // updateDoc vervangt de hele lijst van deze maand en gooit het écht weg.
-      const id = getActiveUserId();
-      if (id) {
-        const ref = doc(db, 'users', id);
-        await updateDoc(ref, {
-          [`monthData.${y}.${m}.rows`]: ud.monthData[y][m].rows
-        });
-      }
-
-      // 3. UI Verversen
-      renderCalendarGrid(y, m);
-      updateInputTotals();
-
-      // Herlaad popup als die open staat
-      const popup = document.getElementById('dayEditorModal');
-      if (popup && popup.classList.contains('show')) {
-        openDayEditor(currentEditingDateKey);
-      }
-
-      toast('Shift verwijderd', 'success');
-    }
+    renderCalendarGrid(y, m);
+    updateInputTotals();
+    renderHistory();
+    if (document.getElementById('dayEditorModal')?.classList.contains('show')) openDayEditor(currentEditingDateKey);
+    toast('Shift verwijderd', 'success');
   };
 
-  // FIX: OPSLAAN KNOP (Met Database Forceer-functie)
-  const saveDayEditorBtn = document.getElementById('btnSaveDayEditor');
-
-  if (saveDayEditorBtn) {
-    // Oude listeners verwijderen
-    const newBtn = saveDayEditorBtn.cloneNode(true);
-    saveDayEditorBtn.parentNode.replaceChild(newBtn, saveDayEditorBtn);
-
-    newBtn.addEventListener('click', async () => {
-      const dateKey = currentEditingDateKey;
-      if (!dateKey) return;
-
-      const [yStr, mStr] = dateKey.split('-');
-      const y = Number(yStr); // Belangrijk voor blauwe licht
-      const m = Number(mStr) - 1;
-
-      const ud = getCurrentUserData();
-      if (!ud.monthData) ud.monthData = {};
-      if (!ud.monthData[y]) ud.monthData[y] = {};
-      if (!ud.monthData[y][m]) ud.monthData[y][m] = { rows: {} };
-
-      const md = ud.monthData[y][m];
-      const note = document.getElementById('dayEditorNote')?.value || '';
-      const dayKeys = listDayKeys(md, dateKey);
-
-      // Schoonmaak: Verwijder lege spoken
-      dayKeys.forEach(k => {
-        const r = md.rows[k];
-        if (!r.shift || r.shift.trim() === '') {
-          delete md.rows[k]; // Lokaal verwijderen
-        } else {
-          r.description = note;
-        }
-      });
-
-      // FORCEER DE UPDATE (zodat verwijderingen ook in Firebase gebeuren)
-      const id = getActiveUserId();
-      if (id) {
-        const ref = doc(db, 'users', id);
-        await updateDoc(ref, {
-          [`monthData.${y}.${m}.rows`]: md.rows
-        });
-      }
-
-      // UI Verversen
-      renderCalendarGrid(y, m);
-      updateInputTotals();
-      renderHistory();
-
-      // Sluit popup
-      const modalEl = document.getElementById('dayEditorModal');
-      const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-      modal.hide();
-
-      toast('Opgeslagen', 'success');
-    });
-  }
-
-  // NIEUW: Uren aanpassen vanuit de popup (FIXED)
+  // Uren aanpassen vanuit de dag-popup
   window.updateShiftTime = async (rowKey, field, value) => {
-    const [yStr, mStr] = currentEditingDateKey.split('-');
-    const y = Number(yStr); // 🔥 FIX: Zorg dat dit een cijfer is!
-    const m = Number(mStr) - 1;
+    const [y, m] = ymOf(rowKey);
+    if (warnIfLocked(y, m)) return;
+    const r = getCurrentUserData().monthData?.[y]?.[m]?.rows?.[rowKey];
+    if (!r) return;
 
-    const ud = getCurrentUserData();
-    const md = ud.monthData?.[y]?.[m];
-
-    if (!md || !md.rows[rowKey]) return;
-
-    const r = md.rows[rowKey];
-
-    // Update de waarde
-    if (field === 'break') {
-      r.break = Number(value) || 0;
-    } else {
-      r[field] = value;
-    }
-
-    // Herbereken minuten (veilig)
-    if (typeof minutesBetween === 'function') {
-      r.minutes = minutesBetween(r.start, r.end, r.break);
-    } else {
-      // Fallback
-      const [sh, sm] = (r.start || '00:00').split(':').map(Number);
-      const [eh, em] = (r.end || '00:00').split(':').map(Number);
-      let mins = eh * 60 + em - (sh * 60 + sm) - (Number(r.break) || 0);
-      if (mins < 0) mins += 1440;
-      r.minutes = mins;
-    }
-
-    // Opslaan
+    r[field] = field === 'break' ? Number(value) || 0 : value;
+    r.minutes = minutesBetween(r.start, r.end, r.break);
     await saveUserData();
 
-    // Verversen (Nu met de juiste y en m types, dus blauw licht blijft!)
     renderCalendarGrid(y, m);
     updateInputTotals();
     renderHistory();
   };
+
+  // Dag-popup opslaan: notitie bij alle shiften van die dag + lege rijen opruimen
+  document.getElementById('btnSaveDayEditor')?.addEventListener('click', async () => {
+    const baseKey = currentEditingDateKey;
+    if (!baseKey) return;
+    const [y, m] = ymOf(baseKey);
+    if (warnIfLocked(y, m)) return;
+
+    const md = ensureMonthData(getCurrentUserData(), y, m);
+    const note = document.getElementById('dayEditorNote')?.value || '';
+    listDayKeys(md, baseKey).forEach(k => {
+      const r = md.rows[k];
+      if (!r?.shift?.trim()) {
+        delete md.rows[k];
+      } else {
+        r.omschrijving = note;
+        delete r.description; // oud veld (vroeger gebruikt door de kalender)
+      }
+    });
+    await saveMonth(y, m);
+
+    renderCalendarGrid(y, m);
+    updateInputTotals();
+    renderHistory();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('dayEditorModal')).hide();
+    toast('Opgeslagen', 'success');
+  });
 }
 
 // ======================================================================
@@ -3627,11 +2891,14 @@ function bindCalendar() {
 // Lijstweergave van de maand (rij per dag).
 // ======================================================================
 
+/**
+ * Tabel van de maand (rij per dag, met dropdowns). Werkt ook de kalender,
+ * tellers en vergrendeling bij. De tabel zelf zit in een (ingeklapte) collapse.
+ */
 async function renderMonth(year, month) {
   const ud = getCurrentUserData();
-  ud.monthData[year] ||= {};
-  ud.monthData[year][month] ||= { targetHours: 0, targetMinutes: 0, rows: {} };
-  const md = ud.monthData[year][month];
+  const md = ensureMonthData(ud, year, month);
+  let changed = false; // alleen opslaan als er automatisch iets aangevuld werd
 
   const selectedProject = projectFilterSelect.value || '';
   tbody.innerHTML = '';
@@ -3639,17 +2906,10 @@ async function renderMonth(year, month) {
   monthTargetHours.value = md.targetHours || 0;
   monthTargetMinutes.value = md.targetMinutes || 0;
 
-  // 1. BEPAAL OF WE DE ACTIE-KNOPPEN (+) TONEN
-  const statusNow = getMonthStatus(year, month);
+  // Op slot = ingediend/goedgekeurd (admins mogen altijd bewerken)
+  const locked = isMonthLocked(year, month);
 
-  // Check of de INGELOGDE gebruiker admin is (niet de gebruiker die we bekijken)
-  const loggedInUser = dataStore.users[currentUserId];
-  const iAmAdmin = loggedInUser && loggedInUser.role === 'admin';
-
-  // Als je Admin bent, is de maand voor jou nooit 'op slot'
-  const locked = !iAmAdmin && (statusNow === 'approved' || statusNow === 'submitted');
-
-  // Toon acties als: (niet op slot) EN (instelling staat aan OF project staat het toe)
+  // +/− kolom tonen als: niet op slot EN (maand-instelling of een project staat extra regels toe)
   const showActions = !locked && (userAllowsMultiMonth(ud, year, month) || (ud.projects || []).some(p => p.allowMulti));
 
   // Zorg dat de kolom-header ook zichtbaar wordt
@@ -3660,18 +2920,11 @@ async function renderMonth(year, month) {
   for (let d = 1; d <= daysInMonth; d++) {
     const baseKey = dateKey(year, month, d);
 
-    // 1. FIX: Geen automatische 00:00 aanmaak meer!
-    if (md.rows[baseKey]) {
-      autoAssignProjectIfNeeded(md.rows[baseKey]);
-    }
+    if (md.rows[baseKey] && autoAssignProjectIfNeeded(md.rows[baseKey])) changed = true;
 
-    // 2. Haal de sleutels op (gebruik 'let' zodat we kunnen aanpassen)
+    // Lege dag → één lege regel tonen zodat je kan typen
     let allKeys = listDayKeys(md, baseKey);
-
-    // 3. Als er GEEN gegevens zijn, doen we alsof er 1 lege regel is (zodat je kan typen)
-    if (allKeys.length === 0) {
-      allKeys = [baseKey];
-    }
+    if (allKeys.length === 0) allKeys = [baseKey];
 
     // Filter per project (zichtbare lijst)
     const visibleKeys = allKeys.filter(k => {
@@ -3685,14 +2938,16 @@ async function renderMonth(year, month) {
     for (let idx = 0; idx < renderKeys.length; idx++) {
       const rowKey = renderKeys[idx];
 
-      // 🔥 FIX: Als de rij niet bestaat, gebruik een LEEG sjabloon.
-      // We gebruiken lege strings '' i.p.v. '00:00' zodat het vakje écht leeg is.
-      let r = md.rows[rowKey];
-      if (!r) {
-        r = { project: '', shift: '', start: '', end: '', break: 0, omschrijving: '', minutes: 0 };
-        // Als we een project moeten voorstellen, doen we dat hier virtueel
-        if (typeof autoAssignProjectIfNeeded === 'function') autoAssignProjectIfNeeded(r);
-      }
+      // Bestaat de rij nog niet: leeg sjabloon (lege tijden i.p.v. 00:00)
+      const r = md.rows[rowKey] || {
+        project: '',
+        shift: '',
+        start: '',
+        end: '',
+        break: 0,
+        omschrijving: '',
+        minutes: 0
+      };
 
       const dayName = daysFull[new Date(year, month, d).getDay()];
 
@@ -3710,7 +2965,7 @@ async function renderMonth(year, month) {
                  <button type="button" class="btn btn-outline-success btn-line addLineBtn" ${allowThisRow ? '' : 'disabled'} title="Extra regel toevoegen">+</button>
                </td>`
           : `<td class="actions-cell">
-                 <button type="button" class="btn btn-outline-danger btn-line delLineBtn" data-key="${rowKey}" title="Deze regel verwijderen">−</button>
+                 <button type="button" class="btn btn-outline-danger btn-line delLineBtn" title="Deze regel verwijderen">−</button>
                </td>`
         : '';
 
@@ -3726,8 +2981,7 @@ async function renderMonth(year, month) {
         statusIconHtml =
           '<span class="material-icons-outlined shift-status-icon status-rejected" title="Afgekeurd">cancel</span>';
       }
-      const isPendingOrRejected = r.status && r.status !== 'approved';
-      const durationText = isPendingOrRejected ? '0u 0min' : `${Math.floor(r.minutes / 60)}u ${r.minutes % 60}min`;
+      const durationText = rowDurationText(r);
 
       tr.innerHTML = `
         ${actionsCell}
@@ -3738,11 +2992,11 @@ async function renderMonth(year, month) {
           <select class="form-select form-select-sm shiftSelect"></select>
           ${statusIconHtml}
         </td>
-        <td><input class="form-control form-control-sm startInput" type="time" value="${r.start}"></td>
-        <td><input class="form-control form-control-sm endInput" type="time" value="${r.end}"></td>
-        <td><input class="form-control form-control-sm breakInput" type="number" min="0" value="${r.break}"></td>
+        <td><input class="form-control form-control-sm startInput" type="time" value="${escapeHtml(r.start)}"></td>
+        <td><input class="form-control form-control-sm endInput" type="time" value="${escapeHtml(r.end)}"></td>
+        <td><input class="form-control form-control-sm breakInput" type="number" min="0" value="${Number(r.break) || 0}"></td>
         <td class="d-flex align-items-center gap-1">
-            <input class="form-control form-control-sm omschrijvingInput" type="text" value="${r.omschrijving}">
+            <input class="form-control form-control-sm omschrijvingInput" type="text" value="${escapeHtml(r.omschrijving || r.description || '')}">
             <span 
                 class="material-icons-outlined attachment-icon ${r.attachmentURL ? 'has-attachment' : ''}" 
                 title="Bijlage beheren" 
@@ -3787,43 +3041,19 @@ async function renderMonth(year, month) {
 
       await populateShiftSelectForRow(tr, rowKey);
 
-      // --- Event Listeners voor inputs ---
-      tr.querySelector('.startInput').addEventListener('change', e => {
-        r.start = e.target.value;
+      // Start / einde / pauze aanpassen
+      const onTimeChange = (field, value) => {
+        r[field] = field === 'break' ? Number(value) || 0 : value;
         recalcRowMinutes(r);
         saveCell(year, month, rowKey, r, tr);
-        const isPendingOrRejected = r.status && r.status !== 'approved';
-        tr.querySelector('.dur').textContent = isPendingOrRejected
-          ? '0u 0min'
-          : `${Math.floor(r.minutes / 60)}u ${r.minutes % 60}min`;
+        tr.querySelector('.dur').textContent = rowDurationText(r);
         updateInputTotals();
         debouncedSave();
         renderHistory();
-      });
-      tr.querySelector('.endInput').addEventListener('change', e => {
-        r.end = e.target.value;
-        recalcRowMinutes(r);
-        saveCell(year, month, rowKey, r, tr);
-        const isPendingOrRejected = r.status && r.status !== 'approved';
-        tr.querySelector('.dur').textContent = isPendingOrRejected
-          ? '0u 0min'
-          : `${Math.floor(r.minutes / 60)}u ${r.minutes % 60}min`;
-        updateInputTotals();
-        debouncedSave();
-        renderHistory();
-      });
-      tr.querySelector('.breakInput').addEventListener('change', e => {
-        r.break = Number(e.target.value) || 0;
-        recalcRowMinutes(r);
-        saveCell(year, month, rowKey, r, tr);
-        const isPendingOrRejected = r.status && r.status !== 'approved';
-        tr.querySelector('.dur').textContent = isPendingOrRejected
-          ? '0u 0min'
-          : `${Math.floor(r.minutes / 60)}u ${r.minutes % 60}min`;
-        updateInputTotals();
-        debouncedSave();
-        renderHistory();
-      });
+      };
+      tr.querySelector('.startInput').addEventListener('change', e => onTimeChange('start', e.target.value));
+      tr.querySelector('.endInput').addEventListener('change', e => onTimeChange('end', e.target.value));
+      tr.querySelector('.breakInput').addEventListener('change', e => onTimeChange('break', e.target.value));
       tr.querySelector('.omschrijvingInput').addEventListener('change', e => {
         r.omschrijving = e.target.value;
         saveCell(year, month, rowKey, r, tr);
@@ -3836,10 +3066,8 @@ async function renderMonth(year, month) {
       if (addBtn) {
         addBtn.addEventListener('click', async e => {
           e.preventDefault();
-          const idxNew = nextLineIndex(md, baseKey);
-          const newKey = `${baseKey}#${idxNew}`;
-          // 🔥 FIX: Maak een nieuwe regel aan, maar laat de tijden LEEG ('')
-          md.rows[newKey] = {
+          // Nieuwe lege regel op dezelfde dag (tijden leeg laten)
+          md.rows[`${baseKey}#${nextLineIndex(md, baseKey)}`] = {
             project: r.project,
             shift: '',
             start: '',
@@ -3859,9 +3087,8 @@ async function renderMonth(year, month) {
       if (delBtn) {
         delBtn.addEventListener('click', async e => {
           e.preventDefault();
-          const k = delBtn.dataset.key;
-          delete md.rows[k];
-          await saveUserData();
+          delete md.rows[rowKey];
+          await saveMonth(year, month);
           renderMonth(year, month);
           updateInputTotals();
           renderHistory();
@@ -3870,55 +3097,47 @@ async function renderMonth(year, month) {
     }
   }
 
-  await saveUserData();
+  if (changed) await saveUserData();
   renderCalendarGrid(year, month);
-  updateRemainingHours();
   updateInputTotals();
-  renderProjectSummary();
-  updateLeaveBadges();
   renderHome();
 
-  // Velden vergrendelen als het geen admin is EN de status is submitted/approved
-  const statusLocked = getMonthStatus(year, month) === 'approved' || getMonthStatus(year, month) === 'submitted';
-  const lockedNow = statusLocked && !iAmAdmin; // 👈 Admin mag altijd bewerken
+  // Vergrendelen voor gewone gebruikers als de maand ingediend/goedgekeurd is
+  tbody.querySelectorAll('select, input').forEach(el => (el.disabled = locked));
+  monthTargetHours.disabled = locked;
+  monthTargetMinutes.disabled = locked;
 
-  tbody.querySelectorAll('select, input').forEach(el => {
-    el.disabled = lockedNow;
-  });
-
-  if (monthTargetHours) monthTargetHours.disabled = lockedNow;
-  if (monthTargetMinutes) monthTargetMinutes.disabled = lockedNow;
-  if (projectFilterSelect) projectFilterSelect.disabled = lockedNow;
-
-  // Update de uitsluiten schakelaar UI
   const excludeToggle = document.getElementById('excludeHistoryToggle');
   if (excludeToggle) {
     excludeToggle.checked = md.excludeFromHistory === true;
-    excludeToggle.disabled = lockedNow; // Blokkeer als de maand is ingediend
+    excludeToggle.disabled = locked;
   }
 
   updateMonthStatusBadge();
 }
 
+/** Duur-tekst voor een rij (verlof in aanvraag/afgekeurd telt als 0). */
+function rowDurationText(r) {
+  if (r.status && r.status !== 'approved') return '0u 0min';
+  const mins = Number(r.minutes) || 0;
+  return `${Math.floor(mins / 60)}u ${mins % 60}min`;
+}
+
+/** Shift-dropdown van één tabelrij vullen en de keuze verwerken (tijden, project, verlofstatus). */
 async function populateShiftSelectForRow(tr, rowKey) {
-  const base = rowKey.split('#')[0]; // DD-MM-YYYY
-  const [yStr, mStr, dStr] = base.split('-');
-  const year = Number(yStr),
-    month = Number(mStr) - 1;
+  const base = rowKey.slice(0, 10); // YYYY-MM-DD (zonder '#2' of '_…')
+  const year = Number(base.slice(0, 4));
+  const month = Number(base.slice(5, 7)) - 1;
 
   const ud = getCurrentUserData();
-  // Veilige check of de maand bestaat
   const md = ud.monthData?.[year]?.[month];
-
-  // 🔥 DE BELANGRIJKE FIX:
-  // Als de rij niet bestaat (omdat hij leeg is), gebruik een dummy object.
-  // Dit voorkomt de "Reading 'shift' of undefined" fout waardoor je vastliep.
+  // Lege dag: tijdelijk object (wordt pas bewaard als er iets gekozen wordt)
   const r = md?.rows?.[rowKey] || { shift: '' };
 
   const projSel = tr.querySelector('.projectSelect');
   const sel = tr.querySelector('.shiftSelect');
 
-  if (!sel) return; // Veiligheid voor als het element niet gevonden wordt
+  if (!sel) return;
 
   sel.innerHTML = '<option value=""></option>';
 
@@ -3940,8 +3159,7 @@ async function populateShiftSelectForRow(tr, rowKey) {
     sel.appendChild(opt);
   }
   sel.addEventListener('change', async () => {
-    const chosen = sel.value; // Dit pakt de unieke ID (bv "Vroege (Google)")
-    const all = ud.shifts || {};
+    const chosen = sel.value; // shift-sleutel, bv. "Vroege (Google)"
 
     if (!chosen) {
       r.shift = '';
@@ -3955,18 +3173,13 @@ async function populateShiftSelectForRow(tr, rowKey) {
       return;
     }
 
-    r.shift = chosen; // Sla de unieke ID op
+    r.shift = chosen;
     debouncedSave();
 
-    // Verlof logica
-    const isLeaveType = ['Verlof', 'Schoolverlof', 'Ziekte', 'Feestdag'].includes(chosen); // Let op: dit checkt nu op ID
-
-    // Checken of de 'realName' misschien een verloftype is (als de ID uniek is gemaakt)
+    // Verlof: admin keurt meteen goed, gewone gebruiker vraagt aan
     const shObj = all[chosen];
-    const realName = shObj ? shObj.realName || chosen : chosen;
-    const isRealLeaveType = ['Verlof', 'Schoolverlof', 'Ziekte', 'Feestdag'].includes(realName);
-
-    if (isRealLeaveType) {
+    const realName = shiftRealName(chosen, ud);
+    if (LEAVE_TYPES.includes(realName)) {
       if (isAdmin()) {
         r.status = 'approved';
       } else {
@@ -3981,7 +3194,7 @@ async function populateShiftSelectForRow(tr, rowKey) {
       delete r.status;
     }
 
-    // Icoon update
+    // Status-icoon bijwerken
     const iconSpan = tr.querySelector('.shift-status-icon');
     if (iconSpan) {
       if (r.status === 'pending') {
@@ -4003,24 +3216,14 @@ async function populateShiftSelectForRow(tr, rowKey) {
       }
     }
 
-    // Auto project logica
-    // We checken zowel de unieke ID als de schone naam voor de zekerheid
-    if (['Bench'].includes(realName)) {
+    // Project: Bench → geen project, vaste koppelingen (Verlof → Eght Care, …), anders project van de shift
+    const special = autoProjectForShift(realName);
+    if (realName === 'Bench') {
       r.project = '';
-      saveCell(year, month, rowKey, r, tr);
-      debouncedSave();
-    } else if (['Schoolverlof', 'School'].includes(realName)) {
-      ensureProjectExists('PXL Verpleegkunde Hasselt');
-      r.project = 'PXL Verpleegkunde Hasselt';
-      saveCell(year, month, rowKey, r, tr);
-      debouncedSave();
-    } else if (['Verlof', 'Teammeeting', 'Ziekte'].includes(realName)) {
-      ensureProjectExists('Eght Care');
-      r.project = 'Eght Care';
-      saveCell(year, month, rowKey, r, tr);
-      debouncedSave();
+    } else if (special) {
+      ensureProjectExists(special);
+      r.project = special;
     } else {
-      // Normale projectkoppeling uit de shift settings
       if (shObj && shObj.project) {
         const p = (ud.projects || []).find(px => px.name === shObj.project);
         if (p && isDateWithin(base, p.start || null, p.end || null)) {
@@ -4055,10 +3258,7 @@ async function populateShiftSelectForRow(tr, rowKey) {
     tr.querySelector('.endInput').value = r.end;
     tr.querySelector('.breakInput').value = r.break;
 
-    const isPendingOrRejected = r.status && r.status !== 'approved';
-    tr.querySelector('.dur').textContent = isPendingOrRejected
-      ? '0u 0min'
-      : `${Math.floor(r.minutes / 60)}u ${r.minutes % 60}min`;
+    tr.querySelector('.dur').textContent = rowDurationText(r);
 
     saveCell(year, month, rowKey, r, tr);
     debouncedSave();
@@ -4079,105 +3279,70 @@ async function populateShiftSelectForRow(tr, rowKey) {
 // Snelle invoer-popup en meerdere dagen tegelijk invullen.
 // ======================================================================
 
-function populateQuickShifts() {
+/** Shiften die op een datum geldig zijn (shiften met een periode eerst). */
+function shiftsValidOn(dates) {
   const ud = getCurrentUserData();
-  quickShift.innerHTML = '<option value="">-- Kies shift --</option>';
   const all = ud.shifts || {};
-  const order = ud.shiftOrder || Object.keys(all);
-  const dateStr = quickDate.value;
-  if (!dateStr) return;
-  const withPeriod = [],
-    without = [];
-  order.forEach(n => {
-    const sh = all[n];
-    if (!sh) return;
-    if (sh.startDate || sh.endDate) withPeriod.push([n, sh]);
-    else without.push([n, sh]);
-  });
-  [...withPeriod, ...without].forEach(([n, sh]) => {
-    if (!isDateWithin(dateStr, sh.startDate || null, sh.endDate || null)) return;
+  const entries = (ud.shiftOrder || Object.keys(all)).filter(k => all[k]).map(k => [k, all[k]]);
+  const hasPeriod = ([, sh]) => !!(sh.startDate || sh.endDate);
+  return [...entries.filter(hasPeriod), ...entries.filter(e => !hasPeriod(e))].filter(
+    ([, sh]) =>
+      (!sh.startDate && !sh.endDate) || dates.some(d => isDateWithin(d, sh.startDate || null, sh.endDate || null))
+  );
+}
+
+function fillShiftSelect(select, entries, placeholder) {
+  select.innerHTML = `<option value="">${placeholder}</option>`;
+  entries.forEach(([key, sh]) => {
     const o = document.createElement('option');
-    o.value = n;
-    o.textContent = n;
-    quickShift.appendChild(o);
+    o.value = key;
+    o.textContent = sh.realName && sh.realName !== key ? `${sh.realName} (${sh.project || 'geen project'})` : key;
+    select.appendChild(o);
   });
 }
 
-// 🟡 Kleurt de dagen die al een shift hebben
-function highlightPlannedDays(inst, plannedDates = []) {
-  if (!inst || !inst.daysContainer) return;
-
-  inst.daysContainer.querySelectorAll('.flatpickr-day').forEach(d => {
-    if (!d.dateObj) return;
-    const yyyy = d.dateObj.getFullYear();
-    const mm = String(d.dateObj.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.dateObj.getDate()).padStart(2, '0');
-    const dateStr = `${yyyy}-${mm}-${dd}`;
-
-    if (plannedDates.includes(dateStr)) {
-      d.classList.add('planned-day');
-    } else {
-      d.classList.remove('planned-day');
-    }
-  });
+/** Snelle invoer: shift-lijst voor de gekozen datum. */
+function populateQuickShifts() {
+  const dateStr = quickDate.value;
+  if (!dateStr) {
+    quickShift.innerHTML = '<option value="">-- Kies shift --</option>';
+    return;
+  }
+  fillShiftSelect(quickShift, shiftsValidOn([dateStr]), '-- Kies shift --');
 }
 
+/** Meerdere dagen: shiften die op minstens één gekozen dag geldig zijn. */
 function populateMultiDayShifts(selectedDates = []) {
-  const ud = getCurrentUserData();
   const sel = document.getElementById('multiShiftName');
-  sel.innerHTML = '<option value="">Kies shift</option>';
-
-  const all = ud.shifts || {};
-  const order = ud.shiftOrder || Object.keys(all);
-
-  order.forEach(name => {
-    const sh = all[name];
-    if (!sh) return;
-
-    // toon shift als er GEEN periode is, of als ten minste één dag binnen de periode valt
-    const match =
-      (!sh.startDate && !sh.endDate) ||
-      selectedDates.some(d => isDateWithin(d, sh.startDate || null, sh.endDate || null));
-
-    if (match) {
-      const o = document.createElement('option');
-      o.value = name;
-      o.textContent = name;
-      sel.appendChild(o);
-    }
-  });
+  if (sel) fillShiftSelect(sel, shiftsValidOn(selectedDates), 'Kies shift');
 }
 
-// --- Geeft alle ingeplande datums terug in ISO-formaat ---
+/** Datums (YYYY-MM-DD) in de gekozen maand waarop al een shift staat. */
 function getPlannedDates() {
-  const ud = getCurrentUserData();
-  const y = Number(yearSelectMain.value);
-  const m = Number(monthSelectMain.value);
-  const md = ud.monthData?.[y]?.[m];
-  if (!md || !md.rows) return [];
+  const md = getCurrentUserData().monthData?.[Number(yearSelectMain.value)]?.[Number(monthSelectMain.value)];
   const set = new Set();
-  for (const [k, r] of Object.entries(md.rows)) {
-    const base = k.split('#')[0]; // strip extra-lijn suffix
+  for (const [k, r] of Object.entries(md?.rows || {})) {
     const shiftName = (r?.shift || '').trim();
-    if (shiftName && shiftName.toLowerCase() !== 'niet ingepland') {
-      set.add(base);
-    }
+    if (shiftName && shiftName.toLowerCase() !== 'niet ingepland') set.add(k.slice(0, 10));
   }
   return [...set];
 }
 
-/* === Kalender voor invoer meerdere dagen === */
-function initMultiDayPicker() {
-  const year = Number(document.getElementById('yearSelectMain').value);
-  const month = Number(document.getElementById('monthSelectMain').value);
-  const start = new Date(year, month, 1);
-  const end = new Date(year, month + 1, 0);
-  if (window.multiDayPicker) window.multiDayPicker.destroy();
-  const ud = getCurrentUserData();
-  const maandData = ud?.monthData?.[year]?.[month]?.rows || {};
-  const plannedDates = Object.keys(maandData).filter(d => !!maandData[d]?.shift);
+/** Kleurt in de datumkiezer de dagen die al een shift hebben. */
+function highlightPlannedDays(inst, plannedDates = []) {
+  if (!inst?.daysContainer) return;
+  inst.daysContainer.querySelectorAll('.flatpickr-day').forEach(d => {
+    if (!d.dateObj) return;
+    const iso = dateKey(d.dateObj.getFullYear(), d.dateObj.getMonth(), d.dateObj.getDate());
+    d.classList.toggle('planned-day', plannedDates.includes(iso));
+  });
+}
 
-  console.log('✅ Planned dates:', plannedDates);
+/** Datumkiezer (meerdere dagen) voor de gekozen maand. */
+function initMultiDayPicker() {
+  const year = Number(yearSelectMain.value);
+  const month = Number(monthSelectMain.value);
+  if (window.multiDayPicker) window.multiDayPicker.destroy();
 
   window.multiDayPicker = flatpickr('#multiShiftDays', {
     static: true,
@@ -4187,12 +3352,10 @@ function initMultiDayPicker() {
     altFormat: 'd F Y',
     locale: flatpickr.l10ns.nl,
     weekNumbers: true,
-    minDate: start,
-    maxDate: end,
+    minDate: new Date(year, month, 1),
+    maxDate: new Date(year, month + 1, 0),
     disableMobile: true,
     defaultDate: [],
-
-    // ✅ Eerste dag correct kleuren bij laden
     onReady(_, __, inst) {
       setTimeout(() => highlightPlannedDays(inst, getPlannedDates()), 50);
     },
@@ -4200,216 +3363,80 @@ function initMultiDayPicker() {
       highlightPlannedDays(inst, getPlannedDates());
     },
     onChange(selectedDates) {
-      const isoDates = selectedDates.map(d => {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${y}-${m}-${day}`; // no toISOString()
-      });
-      populateMultiDayShifts(isoDates);
+      populateMultiDayShifts(selectedDates.map(d => dateKey(d.getFullYear(), d.getMonth(), d.getDate())));
     }
   });
-  setTimeout(markPlannedDays, 100);
-
-  function markPlannedDays() {
-    const ud = getCurrentUserData();
-    const y = Number(yearSelectMain.value);
-    const m = Number(monthSelectMain.value);
-    const md = ud.monthData?.[y]?.[m] || {};
-    const planned = Object.keys(md.rows || {}).filter(k => md.rows[k].shift);
-
-    document.querySelectorAll('.calendar-day').forEach(dayEl => {
-      const date = dayEl.dataset?.date;
-      if (!date) return;
-      if (planned.includes(date)) {
-        dayEl.classList.add('planned-day');
-      } else {
-        dayEl.classList.remove('planned-day');
-      }
-    });
-  }
-  // 🟡 extra aanroep om te garanderen dat dag 1 direct mee kleurt
-  highlightPlannedDays(window.multiDayPicker, plannedDates);
 }
 
 function bindQuickInput() {
-  // ======= Quick input =======
   quickDate.addEventListener('change', populateQuickShifts);
 
-  // 1. FIX VOOR OPSLAAN KNOP (Met 'sh' hersteld)
-  const btnQuick = document.getElementById('saveQuickBtn');
+  // Snelle invoer opslaan (voegt een shift toe; bestaande shiften op die dag blijven staan)
+  document.getElementById('saveQuickBtn')?.addEventListener('click', async () => {
+    const date = quickDate.value;
+    const shift = quickShift.value;
+    const note = document.getElementById('quickNote').value;
+    if (!date || !shift) return toast('Kies minstens een datum en shift', 'warning');
 
-  if (btnQuick) {
-    btnQuick.addEventListener('click', async () => {
-      const date = document.getElementById('quickDate').value;
-      const shift = document.getElementById('quickShift').value;
-      const note = document.getElementById('quickNote').value;
+    const y = Number(date.slice(0, 4));
+    const m = Number(date.slice(5, 7)) - 1;
+    if (warnIfLocked(y, m)) return;
+    const ud = getCurrentUserData();
+    if (!ud.shifts?.[shift]) return toast('Fout: shift niet gevonden', 'danger');
 
-      if (!date || !shift) return toast('Kies minstens een datum en shift', 'warning');
+    const md = ensureMonthData(ud, y, m);
+    md.rows[newRowKeyForDay(md, date)] = rowFromShift(shift, { omschrijving: note });
 
-      const y = Number(date.split('-')[0]);
-      const m = Number(date.split('-')[1]) - 1;
-      const ud = getCurrentUserData();
+    await saveUserData();
+    await renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
+    renderHistory();
 
-      ud.monthData = ud.monthData || {};
-      ud.monthData[y] = ud.monthData[y] || {};
-      ud.monthData[y][m] = ud.monthData[y][m] || { targetHours: 0, targetMinutes: 0, rows: {} };
-
-      // --- DE FIX VOOR OVERSCHRIJVEN ---
-      let key = date;
-      if (ud.monthData[y][m].rows[key]) {
-        key = `${date}_${Date.now()}`;
-      }
-
-      // --- DE FIX VOOR 'sh is not defined' ---
-      const sh = ud.shifts[shift]; // <--- DEZE REGEL WAS WEG!
-
-      if (!sh) {
-        console.error('Shift niet gevonden:', shift);
-        return toast('Fout: Shift data niet gevonden', 'danger');
-      }
-
-      const minutes = minutesBetween(sh.start, sh.end, sh.break);
-
-      let project = sh.project || '';
-      const sp = autoProjectForShift(shift);
-      if (sp) {
-        ensureProjectExists(sp);
-        project = sp;
-      }
-
-      ud.monthData[y][m].rows[key] = {
-        project,
-        shift,
-        start: sh.start,
-        end: sh.end,
-        break: sh.break,
-        omschrijving: note,
-        minutes
-      };
-
-      await saveUserData();
-      renderMonth(y, m);
-      updateInputTotals();
-      renderHistory();
-      updateRemainingHours();
-
-      bootstrap.Modal.getInstance(document.getElementById('quickModal')).hide();
-
-      // Ververs dag-details als die open staat
-      if (typeof openDayEditor === 'function') {
-        const editor = document.getElementById('dayEditorModal');
-        if (editor && editor.classList.contains('show')) openDayEditor(date);
-      }
-
-      toast('Extra shift toegevoegd', 'success');
-    });
-  }
-
-  /* === Eventlisteners === */
-  // 🟢 Open de "Meerdere dagen" modal
-  document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
-    const modalEl = document.getElementById('multiDayModal');
-    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-
-    // 1. Bereid de shift-lijst VOOR
-    populateMultiDayShifts();
-
-    // 2. Toon de modal
-    modal.show();
-
-    // 3. Initialiseer de kalender met een korte vertraging (dit is de fix)
-    setTimeout(initMultiDayPicker, 150);
+    bootstrap.Modal.getInstance(document.getElementById('quickModal'))?.hide();
+    document.getElementById('quickNote').value = '';
+    if (document.getElementById('dayEditorModal')?.classList.contains('show')) openDayEditor(date);
+    toast('Shift toegevoegd', 'success');
   });
 
-  // <-- NU CORRECT GEPLAATST
+  // "Meerdere dagen"-popup openen
+  document.getElementById('multiDayShiftBtn')?.addEventListener('click', () => {
+    populateMultiDayShifts();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('multiDayModal')).show();
+    setTimeout(initMultiDayPicker, 150); // pas na het openen, anders tekent de kiezer verkeerd
+  });
 
-  // 💾 Opslaan van meerdere dagen
-  document.getElementById('saveMultiShift').addEventListener('click', async () => {
+  // Meerdere dagen opslaan (vervangt de hoofdshift van die dagen)
+  document.getElementById('saveMultiShift')?.addEventListener('click', async () => {
     try {
       const ud = getCurrentUserData();
-      const dateInput = document.getElementById('multiShiftDays');
-      const shiftSelect = document.getElementById('multiShiftName');
+      const selectedShift = document.getElementById('multiShiftName').value;
+      if (!selectedShift) return toast('Kies eerst een shift', 'warning');
+      if (!ud.shifts?.[selectedShift]) return toast('Shift niet gevonden', 'danger');
 
-      const selectedShift = shiftSelect.value;
-      if (!selectedShift) {
-        toast('Kies eerst een shift', 'warning');
-        return;
-      }
-
-      // flatpickr geeft comma-separated string terug → splits op ','
-      const selectedDates = (dateInput.value || '')
+      // flatpickr geeft "d-m-Y, d-m-Y, …"
+      const selectedDates = (document.getElementById('multiShiftDays').value || '')
         .split(',')
-        .map(s => s.trim())
+        .map(x => x.trim())
         .filter(Boolean)
-        .map(disp => {
-          // "d-m-Y" -> ISO zonder timezone-trucs
-          const [dd, mm, yyyy] = disp.split('-').map(x => x.trim());
-          return `${yyyy}-${mm}-${dd}`;
-        });
+        .map(fromDisplayDate);
+      if (selectedDates.length === 0) return toast('Kies minstens één dag', 'warning');
 
-      if (selectedDates.length === 0) {
-        toast('Kies minstens één dag', 'warning');
-        return;
-      }
-
-      const sh = ud.shifts[selectedShift];
-      if (!sh) {
-        toast('Shift niet gevonden', 'danger');
-        return;
-      }
-
-      // wegschrijven
+      const touched = new Set();
       for (const iso of selectedDates) {
-        const [yStr, mStr] = iso.split('-');
-        const y = Number(yStr);
-        const m = Number(mStr) - 1;
-
-        ud.monthData ||= {};
-        ud.monthData[y] ||= {};
-        ud.monthData[y][m] ||= { targetHours: 0, targetMinutes: 0, rows: {} };
-
-        // project auto
-        let project = sh.project || '';
-        const sp = autoProjectForShift(selectedShift);
-        if (sp) {
-          ensureProjectExists(sp);
-          project = sp;
-        }
-
-        const minutes = minutesBetween(sh.start, sh.end, sh.break);
-
-        ud.monthData[y][m].rows[iso] = {
-          project,
-          shift: selectedShift,
-          start: sh.start,
-          end: sh.end,
-          break: sh.break,
-          omschrijving: '',
-          minutes
-        };
+        const y = Number(iso.slice(0, 4));
+        const m = Number(iso.slice(5, 7)) - 1;
+        if (isMonthLocked(y, m)) continue;
+        ensureMonthData(ud, y, m).rows[iso] = rowFromShift(selectedShift);
+        touched.add(`${y}-${m}`);
       }
+      if (!touched.size) return warnIfLocked(Number(yearSelectMain.value), Number(monthSelectMain.value));
 
       await saveUserData();
-
-      // UI refresh
-      const curY = Number(yearSelectMain.value);
-      const curM = Number(monthSelectMain.value);
-      await renderMonth(curY, curM);
-      updateInputTotals();
+      await renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
       renderHistory();
+      highlightPlannedDays(window.multiDayPicker, getPlannedDates());
 
-      // kalender-highlights (veilig, zonder await)
-      if (window.multiDayPicker) {
-        highlightPlannedDays(window.multiDayPicker, getPlannedDates());
-      }
-
-      // ✅ eerst toast tonen...
       toast('Shiften toegevoegd', 'success');
-
-      // ...dán modal sluiten (met fallback als getInstance null is)
-      const modalEl = document.getElementById('multiDayModal');
-      (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).hide();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('multiDayModal')).hide();
     } catch (err) {
       console.error(err);
       toast('Er ging iets mis bij opslaan', 'danger');
@@ -4422,163 +3449,77 @@ function bindQuickInput() {
 // Dagen "inkleuren" met favoriete shiften en de kalender als afbeelding bewaren.
 // ======================================================================
 
-// 6. VERF MODUS (PAINT MODE) 🎨
-// 1. Initialiseer de Verf-knop en Balk (wordt autom. aangeroepen)
+/** Verf-knop naast de maandkeuze + het palet onderaan het scherm. */
 function initPaintModeUI() {
-  // Check of de UI al bestaat, zo ja, stop
   if (document.getElementById('paintPalette')) return;
 
-  // A. Styles toevoegen (ongewijzigd)
-  const style = document.createElement('style');
-  style.innerHTML = `
-    #paintPalette {
-      position: fixed;
-      bottom: 20px; left: 50%; transform: translateX(-50%) translateY(150%);
-      background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);
-      padding: 10px 15px; border-radius: 50px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-      display: flex; gap: 12px; z-index: 9999;
-      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      max-width: 95%; overflow-x: auto; border: 1px solid rgba(0,0,0,0.1);
-    }
-    #paintPalette.active { transform: translateX(-50%) translateY(0); }
-    .paint-option {
-      width: 45px; height: 45px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 20px; cursor: pointer; border: 2px solid transparent;
-      transition: all 0.2s; flex-shrink: 0; position: relative;
-    }
-    .paint-option:hover { transform: scale(1.1); }
-    .paint-option.selected {
-      border-color: #000; transform: scale(1.2); box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-    }
-    .paint-option.selected::after {
-      content: '✔'; position: absolute; top: -5px; right: -5px;
-      background: #000; color: #fff; font-size: 10px; width: 16px; height: 16px;
-      border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    }
-    /* Knop styling */
-    #togglePaintBtn { margin-left: 10px; font-weight: 600; white-space: nowrap; }
-    #togglePaintBtn.active { background-color: #0d6efd; color: white; border-color: #0d6efd; }
-  `;
-  document.head.appendChild(style);
-
-  // B. HTML Palet (de balk onderaan)
   const palette = document.createElement('div');
   palette.id = 'paintPalette';
   document.body.appendChild(palette);
 
-  // C. PLAATSING VAN DE KNOP (AANGEPAST)
-  // We zoeken de maand-selectie dropdown
-  const monthSelector = document.getElementById('monthSelectMain');
-
-  if (monthSelector && monthSelector.parentNode) {
+  if (monthSelectMain?.parentNode) {
     const btn = document.createElement('button');
     btn.id = 'togglePaintBtn';
     btn.className = 'btn btn-outline-primary btn-sm d-flex align-items-center gap-2';
-    // Icoon + Tekst
     btn.innerHTML =
       '<span class="material-icons-outlined" style="font-size:18px">brush</span> <span class="d-none d-sm-inline">Verf</span>';
     btn.onclick = togglePaintMode;
-
-    // Plaats de knop DIRECT na de maand-selectie container
-    // Of als de maand-selectie in een div zit, ernaast.
-    monthSelector.parentNode.appendChild(btn);
+    monthSelectMain.parentNode.appendChild(btn);
   }
 }
 
-// 2. Schakel Modus Aan/Uit
+/** Verfmodus aan/uit. Aan = klikken op een dag zet de gekozen favoriete shift (of wist de dag). */
 function togglePaintMode() {
-  // Toggle de status
   isPaintMode = !isPaintMode;
-
   const palette = document.getElementById('paintPalette');
   const btn = document.getElementById('togglePaintBtn');
-  const alertBar = document.getElementById('remainingHoursAlert'); // <--- DE BALK
-  const ud = getCurrentUserData();
+  const alertBar = document.getElementById('remainingHoursAlert');
+  btn?.classList.toggle('active', isPaintMode);
+  palette.classList.toggle('active', isPaintMode);
 
-  if (isPaintMode) {
-    // --- AAN ZETTEN ---
-    palette.classList.add('active');
-    if (btn) btn.classList.add('active');
-
-    // VERBERG de uren-balk zodat hij niet in de weg zit
-    if (alertBar) alertBar.style.display = 'none';
-
-    // Haal de huidige maand van het scherm op voor de filtering
-    const ySel = document.getElementById('yearSelectMain');
-    const mSel = document.getElementById('monthSelectMain');
-    const viewYear = ySel ? Number(ySel.value) : new Date().getFullYear();
-    const viewMonth = mSel ? Number(mSel.value) : new Date().getMonth();
-
-    const monthStart = new Date(viewYear, viewMonth, 1);
-    const monthEnd = new Date(viewYear, viewMonth + 1, 0);
-
-    palette.innerHTML = '';
-    const allShifts = ud.shifts || {};
-    const favs = (ud.shiftOrder || Object.keys(allShifts)).filter(k => allShifts[k].isFavorite);
-
-    const ICON_MAP = {
-      light_mode: '☀️',
-      wb_twilight: '🌅',
-      bedtime: '🌙',
-      schedule: '🕒',
-      star: '⭐',
-      school: '🎓',
-      medical_services: '🏥',
-      flight: '✈️',
-      bench: '🪑',
-      feestdag: '🎉',
-      teammeeting: '👥',
-      niet_ingepland: '❌',
-      vrij_weekend: '😎',
-      stage: '🏫'
-    };
-
-    // 1. Gummetje
-    const eraser = document.createElement('div');
-    eraser.className = 'paint-option';
-    eraser.style.background = '#f8f9fa';
-    eraser.innerHTML = '🗑️';
-    eraser.onclick = () => selectPaintOption('eraser', eraser);
-    palette.appendChild(eraser);
-
-    // 2. Favorieten (Gefilterd op datum)
-    favs.forEach(k => {
-      const sh = allShifts[k];
-      if (!sh) return;
-
-      // Datum Check
-      if (sh.startDate && new Date(sh.startDate) > monthEnd) return;
-      if (sh.endDate && new Date(sh.endDate) < monthStart) return;
-
-      const el = document.createElement('div');
-      el.className = 'paint-option';
-      el.style.backgroundColor = sh.color || '#eee';
-      el.innerHTML = ICON_MAP[sh.icon] || '⭐';
-      el.title = sh.realName;
-      el.onclick = () => selectPaintOption(k, el);
-      palette.appendChild(el);
-    });
-
-    // Selecteer standaard de eerste (of gum)
-    if (palette.children.length > 1) {
-      // Simpele selectie van 2e element (eerste shift)
-      selectPaintOption(favs[0] || 'eraser', palette.children[1]);
-    } else {
-      selectPaintOption('eraser', eraser);
-    }
-
-    toast('Verf-modus AAN', 'info');
-  } else {
-    // --- UIT ZETTEN ---
-    palette.classList.remove('active');
-    if (btn) btn.classList.remove('active');
+  if (!isPaintMode) {
     selectedPaintShiftKey = null;
-
-    // TOON de uren-balk weer
     if (alertBar) alertBar.style.display = '';
+    refreshCalendarIfVisible();
+    return;
   }
+
+  if (alertBar) alertBar.style.display = 'none'; // uren-balk zit anders in de weg
+
+  // Favorieten die (deels) geldig zijn in de getoonde maand
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const monthStart = dateKey(y, m, 1);
+  const monthEnd = dateKey(y, m, new Date(y, m + 1, 0).getDate());
+  const ud = getCurrentUserData();
+  const allShifts = ud.shifts || {};
+  const favs = (ud.shiftOrder || Object.keys(allShifts)).filter(k => {
+    const sh = allShifts[k];
+    return sh?.isFavorite && !(sh.startDate && sh.startDate > monthEnd) && !(sh.endDate && sh.endDate < monthStart);
+  });
+
+  palette.innerHTML = '';
+  const addOption = (key, html, bg, title) => {
+    const el = document.createElement('div');
+    el.className = 'paint-option';
+    el.style.background = bg;
+    el.innerHTML = html;
+    el.title = title;
+    el.onclick = () => selectPaintOption(key, el);
+    palette.appendChild(el);
+    return el;
+  };
+  const eraser = addOption('eraser', '🗑️', '#f8f9fa', 'Dag wissen');
+  const options = favs.map(k =>
+    addOption(k, SHIFT_ICONS[allShifts[k].icon] || '⭐', allShifts[k].color || '#eee', allShifts[k].realName || k)
+  );
+
+  // Standaard de eerste favoriet kiezen (anders de gom)
+  if (options.length) selectPaintOption(favs[0], options[0]);
+  else selectPaintOption('eraser', eraser);
+
+  refreshCalendarIfVisible();
+  toast(favs.length ? 'Verf-modus AAN' : 'Verf-modus AAN — markeer shiften als favoriet om ze hier te zien', 'info');
 }
 
 function selectPaintOption(key, element) {
@@ -4587,91 +3528,90 @@ function selectPaintOption(key, element) {
   element.classList.add('selected');
 }
 
-// 7. SCREENSHOT & DEEL FUNCTIE 📸 (Compleet & Gecorrigeerd)
+/** Verfmodus: klik op een dag → gekozen shift wordt de (eerste) shift van die dag, of de dag wordt gewist. */
+async function applyPaintShift(baseKey) {
+  if (!selectedPaintShiftKey) return;
+  const y = Number(baseKey.slice(0, 4));
+  const m = Number(baseKey.slice(5, 7)) - 1;
+  if (warnIfLocked(y, m)) return;
+  const ud = getCurrentUserData();
+  const md = ensureMonthData(ud, y, m);
+  const keys = listDayKeys(md, baseKey);
 
-// 1. Functie om de knop te MAKEN (Deze ontbrak!)
-function initScreenshotButton() {
-  if (document.getElementById('btnScreenshot')) return;
-
-  // Laad de bibliotheek
-  const script = document.createElement('script');
-  script.src = 'https://html2canvas.hertzen.com/dist/html2canvas.min.js';
-  script.onload = () => {
-    console.log('Screenshot module geladen');
-  };
-  document.head.appendChild(script);
-
-  // Zoek de verfknop
-  const paintBtn = document.getElementById('togglePaintBtn');
-  if (paintBtn && paintBtn.parentNode) {
-    const btn = document.createElement('button');
-    btn.id = 'btnScreenshot';
-    btn.className = 'btn btn-outline-secondary btn-sm d-flex align-items-center gap-2 ms-1';
-    btn.innerHTML = '<span class="material-icons-outlined" style="font-size:18px">photo_camera</span>';
-    btn.title = 'Download als afbeelding';
-    btn.onclick = takeScreenshot;
-
-    // Plaats hem direct na de verfknop
-    paintBtn.parentNode.insertBefore(btn, paintBtn.nextSibling);
+  if (selectedPaintShiftKey === 'eraser') {
+    keys.forEach(k => delete md.rows[k]);
+  } else {
+    if (!ud.shifts?.[selectedPaintShiftKey]) return;
+    const targetKey = keys[0] || baseKey;
+    const note = md.rows[targetKey]?.omschrijving || md.rows[targetKey]?.description || '';
+    md.rows[targetKey] = rowFromShift(selectedPaintShiftKey, { omschrijving: note });
   }
+
+  await saveMonth(y, m);
+  renderCalendarGrid(y, m);
+  updateInputTotals();
+  renderHistory();
 }
 
-// 2. Functie om de FOTO te maken (Met Titel & Zonder 'Vandaag' blauw)
-async function takeScreenshot() {
-  if (typeof html2canvas === 'undefined') {
-    alert('Even geduld, module laadt nog...');
-    return;
-  }
+/** Camera-knop naast de verf-knop. */
+function initScreenshotButton() {
+  if (document.getElementById('btnScreenshot')) return;
+  const paintBtn = document.getElementById('togglePaintBtn');
+  if (!paintBtn?.parentNode) return;
 
+  const btn = document.createElement('button');
+  btn.id = 'btnScreenshot';
+  btn.className = 'btn btn-outline-secondary btn-sm d-flex align-items-center gap-2 ms-1';
+  btn.innerHTML = '<span class="material-icons-outlined" style="font-size:18px">photo_camera</span>';
+  btn.title = 'Download als afbeelding';
+  btn.onclick = takeScreenshot;
+  paintBtn.parentNode.insertBefore(btn, paintBtn.nextSibling);
+}
+
+/** html2canvas pas laden wanneer het nodig is. */
+function loadHtml2Canvas() {
+  if (window.html2canvas) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://html2canvas.hertzen.com/dist/html2canvas.min.js';
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+/** Kalender als PNG downloaden (met titel, zonder iconen en zonder "vandaag"-markering). */
+async function takeScreenshot() {
   const grid = document.getElementById('monthlyCalendarGrid');
   if (!grid) return;
-
-  // Haal maand en jaar op voor de titel
-  const mSel = document.getElementById('monthSelectMain');
-  const ySel = document.getElementById('yearSelectMain');
-  const titleText = mSel && ySel ? `${mSel.options[mSel.selectedIndex].text} ${ySel.value}` : 'Mijn Rooster';
-
+  const titleText = `${monthsFull[Number(monthSelectMain.value)]} ${yearSelectMain.value}`;
   toast('Afbeelding maken...', 'info');
 
   const originalOverflow = grid.style.overflow;
   grid.style.overflow = 'visible';
-
   try {
+    await loadHtml2Canvas();
     const canvas = await window.html2canvas(grid, {
       scale: 2,
       backgroundColor: '#ffffff',
       useCORS: true,
-
-      // 🔥 DE MAGIE: Foto bewerken voor het afdrukken 🔥
       onclone: clonedDoc => {
-        // A. Icoontjes verbergen (Dit hadden we al)
-        const icons = clonedDoc.querySelectorAll('.quick-icons-wrapper');
-        icons.forEach(el => (el.style.display = 'none'));
+        clonedDoc.querySelectorAll('.quick-icons-wrapper').forEach(el => (el.style.display = 'none'));
+        clonedDoc.querySelector('.calendar-day.today')?.classList.remove('today');
 
-        const addButtons = clonedDoc.querySelectorAll('.addLineBtn, .delLineBtn');
-        addButtons.forEach(btn => (btn.style.display = 'none'));
-
-        // ✨ B. NIEUW: "Vandaag" blauwe rand weghalen ✨
-        // We zoeken het vakje dat 'today' is in de kopie en halen die klasse weg.
-        const todayCell = clonedDoc.querySelector('.calendar-day.today');
-        if (todayCell) {
-          todayCell.classList.remove('today');
-        }
-
-        // C. TITEL TOEVOEGEN (Dit hadden we al)
-        const clGrid = clonedDoc.getElementById('monthlyCalendarGrid');
         const titleDiv = clonedDoc.createElement('div');
         titleDiv.innerText = titleText;
-
-        titleDiv.style.gridColumn = '1 / -1';
-        titleDiv.style.textAlign = 'center';
-        titleDiv.style.fontSize = '24px';
-        titleDiv.style.fontWeight = 'bold';
-        titleDiv.style.marginBottom = '15px';
-        titleDiv.style.padding = '10px';
-        titleDiv.style.color = '#333';
-        titleDiv.style.fontFamily = 'sans-serif';
-
+        Object.assign(titleDiv.style, {
+          gridColumn: '1 / -1',
+          textAlign: 'center',
+          fontSize: '24px',
+          fontWeight: 'bold',
+          marginBottom: '15px',
+          padding: '10px',
+          color: '#333',
+          fontFamily: 'sans-serif'
+        });
+        const clGrid = clonedDoc.getElementById('monthlyCalendarGrid');
         clGrid.insertBefore(titleDiv, clGrid.firstChild);
       }
     });
@@ -4680,101 +3620,25 @@ async function takeScreenshot() {
     link.download = `Rooster-${titleText.replace(/ /g, '-')}.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
-
     toast('Afbeelding gedownload!', 'success');
   } catch (err) {
     console.error(err);
-    toast('Mislukt', 'error');
+    toast('Afbeelding maken mislukt', 'danger');
   } finally {
     grid.style.overflow = originalOverflow;
   }
 }
 
 function bindPaint() {
-  // 3. De actie: Kleur een dag in
-  window.applyPaintShift = async dateKey => {
-    if (!selectedPaintShiftKey) return;
+  initPaintModeUI();
+  initScreenshotButton();
 
-    const [yStr, mStr] = dateKey.split('-');
-    const y = Number(yStr);
-    const m = Number(mStr) - 1;
-    const ud = getCurrentUserData();
-
-    // Data structuur check
-    if (!ud.monthData) ud.monthData = {};
-    if (!ud.monthData[y]) ud.monthData[y] = {};
-    if (!ud.monthData[y][m]) ud.monthData[y][m] = { rows: {} };
-    const md = ud.monthData[y][m];
-
-    // --- ACTIE: WISSEN of PLAATSEN ---
-    if (selectedPaintShiftKey === 'eraser') {
-      // Alles wissen op deze dag
-      const keys = listDayKeys(md, dateKey);
-      keys.forEach(k => delete md.rows[k]);
-      toast('Dag gewist', 'success');
-    } else {
-      // Shift ophalen
-      const newShift = ud.shifts[selectedPaintShiftKey];
-      if (!newShift) return;
-
-      // Kijk of er al een regel is voor deze dag
-      let keys = listDayKeys(md, dateKey);
-      let targetKey = keys.length > 0 ? keys[0] : dateKey; // Pak de eerste of maak nieuwe
-
-      // Overschrijf (update) de bestaande regel
-      md.rows[targetKey] = {
-        project: md.rows[targetKey]?.project || '',
-        shift: selectedPaintShiftKey,
-        start: newShift.start || '00:00',
-        end: newShift.end || '00:00',
-        break: newShift.break || 0,
-        minutes: 0, // wordt hieronder berekend
-        description: md.rows[targetKey]?.description || ''
-      };
-
-      // Herbereken minuten
-      const r = md.rows[targetKey];
-      if (typeof minutesBetween === 'function') {
-        r.minutes = minutesBetween(r.start, r.end, r.break);
-      }
-    }
-
-    // --- OPSLAAN (Forceer updateDoc zoals eerder besproken) ---
-    const id = getActiveUserId();
-    if (id) {
-      const ref = doc(db, 'users', id);
-      await updateDoc(ref, {
-        [`monthData.${y}.${m}.rows`]: md.rows
-      });
-    }
-
-    // Update UI (alleen kalender is genoeg en snel)
-    renderCalendarGrid(y, m);
-    updateInputTotals();
-    renderHistory();
+  // Verfmodus uit bij het wisselen van maand of jaar
+  const turnOffPaint = () => {
+    if (isPaintMode) togglePaintMode();
   };
-
-  // Start de UI op zodra het script laadt
-  setTimeout(initPaintModeUI, 1000);
-
-  // 3. Starten maar!
-  setTimeout(initScreenshotButton, 1500);
-
-  // EXTRA: Verf-modus automatisch UIT bij wisselen maand
-  document.addEventListener('DOMContentLoaded', () => {
-    const mSel = document.getElementById('monthSelectMain');
-    const ySel = document.getElementById('yearSelectMain');
-
-    const turnOffPaint = () => {
-      // Alleen uitzetten als hij AAN staat
-      if (typeof isPaintMode !== 'undefined' && isPaintMode) {
-        togglePaintMode();
-      }
-    };
-
-    if (mSel) mSel.addEventListener('change', turnOffPaint);
-    if (ySel) ySel.addEventListener('change', turnOffPaint);
-  });
+  monthSelectMain?.addEventListener('change', turnOffPaint);
+  yearSelectMain?.addEventListener('change', turnOffPaint);
 }
 
 // ======================================================================
@@ -4782,179 +3646,116 @@ function bindPaint() {
 // Bijlage per shift uploaden, downloaden en verwijderen.
 // ======================================================================
 
-// 📎 BIJLAGE LOGICA
-
 const attachmentModal = document.getElementById('attachmentModal');
-
 const currentAttachmentBox = document.getElementById('currentAttachmentBox');
-
 const currentAttachmentName = document.getElementById('currentAttachmentName');
-
 const downloadAttachmentBtn = document.getElementById('downloadAttachmentBtn');
-
 const deleteAttachmentBtn = document.getElementById('deleteAttachmentBtn');
-
 const uploadAttachmentBox = document.getElementById('uploadAttachmentBox');
-
 const uploadBoxLabel = document.getElementById('uploadBoxLabel');
-
 const attachmentUploadInput = document.getElementById('attachmentUploadInput');
-
 const uploadAttachmentBtn = document.getElementById('uploadAttachmentBtn');
-
 const progressContainer = document.getElementById('attachmentUploadProgressContainer');
-
 const progressBar = document.getElementById('attachmentUploadProgress');
 
-let currentRowKey = null;
+let currentRowKey = null; // rij waarvan de bijlage-popup open staat
+
+function attachmentRow() {
+  if (!currentRowKey) return {};
+  const y = Number(currentRowKey.slice(0, 4));
+  const m = Number(currentRowKey.slice(5, 7)) - 1;
+  return { y, m, r: getCurrentUserData().monthData?.[y]?.[m]?.rows?.[currentRowKey] };
+}
 
 function bindAttachments() {
-  // Houdt bij welke rij we bewerken
-
-  // 1. Modal openen: data vullen
+  // Popup openen: tonen wat er al is
   attachmentModal?.addEventListener('show.bs.modal', e => {
-    // Haal de 'rowKey' op van de paperclip-knop die de modal opende
-    const triggerButton = e.relatedTarget;
-    currentRowKey = triggerButton?.dataset?.key;
-    if (!currentRowKey) {
-      console.error('Geen rowKey gevonden voor bijlage modal');
-      return;
-    }
+    currentRowKey = e.relatedTarget?.dataset?.key || null;
+    const { r } = attachmentRow();
 
-    // Haal de data voor deze rij
-    const y = Number(yearSelectMain.value);
-    const m = Number(monthSelectMain.value);
-    const ud = getCurrentUserData();
-    const r = ud.monthData?.[y]?.[m]?.rows?.[currentRowKey];
-
-    if (!r) {
-      console.error('Kon rij-data niet vinden:', currentRowKey);
-      return;
-    }
-
-    // Reset de UI
     attachmentUploadInput.value = null;
     uploadAttachmentBtn.classList.add('d-none');
     progressContainer.classList.add('d-none');
     progressBar.style.width = '0%';
 
-    if (r.attachmentURL) {
-      // We hebben een bijlage: toon 'huidige' box
-      currentAttachmentBox.classList.remove('d-none');
+    const hasAttachment = !!r?.attachmentURL;
+    currentAttachmentBox.classList.toggle('d-none', !hasAttachment);
+    uploadAttachmentBox.classList.toggle('d-none', hasAttachment);
+    if (hasAttachment) {
       currentAttachmentName.textContent = r.attachmentName || 'Bijlage';
       downloadAttachmentBtn.href = r.attachmentURL;
-      uploadAttachmentBox.classList.add('d-none'); // Verberg upload-form
     } else {
-      // Geen bijlage: toon 'upload' box
-      currentAttachmentBox.classList.add('d-none');
-      uploadAttachmentBox.classList.remove('d-none');
-      uploadBoxLabel.textContent = 'Nog geen bijlage. Kies een bestand (max 5MB):';
+      uploadBoxLabel.textContent = r
+        ? 'Nog geen bijlage. Kies een bestand (max 5MB):'
+        : 'Kies eerst een shift voor deze dag; daarna kan je een bijlage toevoegen.';
+      attachmentUploadInput.disabled = !r;
     }
   });
 
-  // 2. Bestand kiezen: toon de upload-knop
   attachmentUploadInput?.addEventListener('change', () => {
-    if (attachmentUploadInput.files.length > 0) {
-      uploadAttachmentBtn.classList.remove('d-none');
-      uploadBoxLabel.textContent = `Geselecteerd: ${attachmentUploadInput.files[0].name}`;
-    } else {
-      uploadAttachmentBtn.classList.add('d-none');
-    }
+    const hasFile = attachmentUploadInput.files.length > 0;
+    uploadAttachmentBtn.classList.toggle('d-none', !hasFile);
+    if (hasFile) uploadBoxLabel.textContent = `Geselecteerd: ${attachmentUploadInput.files[0].name}`;
   });
 
-  // 3. Upload-knop
-  uploadAttachmentBtn?.addEventListener('click', async () => {
-    if (!currentRowKey || !attachmentUploadInput.files.length) return;
-
+  // Uploaden
+  uploadAttachmentBtn?.addEventListener('click', () => {
     const file = attachmentUploadInput.files[0];
-    if (file.size > 5 * 1024 * 1024) {
-      // 5MB limit
-      return toast('Bestand is te groot (max 5MB)', 'danger');
-    }
+    const { y, m, r } = attachmentRow();
+    if (!file || !r) return;
+    if (file.size > 5 * 1024 * 1024) return toast('Bestand is te groot (max 5MB)', 'danger');
 
-    const y = Number(yearSelectMain.value);
-    const m = Number(monthSelectMain.value);
-    const ud = getCurrentUserData();
-    const r = ud.monthData?.[y]?.[m]?.rows?.[currentRowKey];
-    if (!r) return;
-
-    // Maak uniek pad
     const filePath = `attachments/${currentUserId}/${currentRowKey}/${file.name}`;
-    const storageRef = ref(storage, filePath);
-
-    // Toon progress bar
     progressContainer.classList.remove('d-none');
     uploadAttachmentBtn.classList.add('d-none');
 
-    try {
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      // Luister naar progress
-      uploadTask.on(
-        'state_changed',
-        snapshot => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          progressBar.style.width = progress + '%';
-        },
-        error => {
-          console.error('Upload fout:', error);
-          toast('Upload mislukt', 'danger');
-          progressContainer.classList.add('d-none');
-        },
-        async () => {
-          // Upload voltooid
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-
-          // Sla op in Firestore
-          r.attachmentURL = downloadURL;
-          r.attachmentName = file.name;
-          await saveUserData();
-
-          toast('Bijlage opgeslagen!', 'success');
-
-          // Update UI
-          await renderMonth(y, m); // Herteken de maandtabel
-          bootstrap.Modal.getInstance(attachmentModal).hide();
-        }
-      );
-    } catch (err) {
-      console.error(err);
-      toast('Fout bij opslaan bijlage', 'danger');
-    }
+    const uploadTask = uploadBytesResumable(ref(storage, filePath), file);
+    uploadTask.on(
+      'state_changed',
+      snapshot => {
+        progressBar.style.width = (snapshot.bytesTransferred / snapshot.totalBytes) * 100 + '%';
+      },
+      error => {
+        console.error('Upload fout:', error);
+        toast('Upload mislukt', 'danger');
+        progressContainer.classList.add('d-none');
+      },
+      async () => {
+        r.attachmentURL = await getDownloadURL(uploadTask.snapshot.ref);
+        r.attachmentName = file.name;
+        r.attachmentPath = filePath; // nodig om later correct te verwijderen
+        await saveUserData();
+        toast('Bijlage opgeslagen!', 'success');
+        await renderMonth(y, m);
+        bootstrap.Modal.getInstance(attachmentModal)?.hide();
+      }
+    );
   });
 
-  // 4. Verwijder-knop
+  // Verwijderen
   deleteAttachmentBtn?.addEventListener('click', async () => {
-    if (!currentRowKey) return;
+    const { y, m, r } = attachmentRow();
+    if (!r?.attachmentURL) return;
     if (!confirm('Weet je zeker dat je deze bijlage wilt verwijderen?')) return;
 
-    const y = Number(yearSelectMain.value);
-    const m = Number(monthSelectMain.value);
-    const ud = getCurrentUserData();
-    const r = ud.monthData?.[y]?.[m]?.rows?.[currentRowKey];
-    if (!r || !r.attachmentName) return;
-
-    const filePath = `attachments/${currentUserId}/${currentRowKey}/${r.attachmentName}`;
-    const storageRef = ref(storage, filePath);
-
+    const filePath = r.attachmentPath || `attachments/${currentUserId}/${currentRowKey}/${r.attachmentName}`;
     try {
-      // Verwijder uit Storage
-      await deleteObject(storageRef);
-
-      // Verwijder uit Firestore
-      delete r.attachmentURL;
-      delete r.attachmentName;
-      await saveUserData();
-
-      toast('Bijlage verwijderd', 'success');
-
-      // Update UI
-      await renderMonth(y, m); // Herteken de maandtabel
-      bootstrap.Modal.getInstance(attachmentModal).hide();
+      await deleteObject(ref(storage, filePath));
     } catch (err) {
-      console.error('Verwijderfout:', err);
-      toast('Verwijderen mislukt', 'danger');
+      // Bestand al weg? Dan toch de verwijzing opruimen.
+      if (err?.code !== 'storage/object-not-found') {
+        console.error('Verwijderfout:', err);
+        return toast('Verwijderen mislukt', 'danger');
+      }
     }
+    delete r.attachmentURL;
+    delete r.attachmentName;
+    delete r.attachmentPath;
+    await saveMonth(y, m);
+
+    toast('Bijlage verwijderd', 'success');
+    await renderMonth(y, m);
+    bootstrap.Modal.getInstance(attachmentModal)?.hide();
   });
 }
 
@@ -4963,24 +3764,22 @@ function bindAttachments() {
 // Jaaroverzicht per maand.
 // ======================================================================
 
-// ======= Historiek =======
+/** Jaaroverzicht van de actieve gebruiker (jaar = jaar gekozen bij Invoer). */
 function renderHistory() {
-  // Bepaal welke gebruiker we tonen (admin kan een andere user kiezen)
-  const viewUid = dataStore.viewUserId || dataStore.currentUser;
-  if (!viewUid) return;
+  const viewUid = getActiveUserId();
+  const table = document.getElementById('historyTable');
+  if (!viewUid || !table) return;
 
   const ud = dataStore.users[viewUid] || { name: '-', monthData: {} };
   const year = Number(yearSelectMain.value) || new Date().getFullYear();
 
-  // ✅ Titel updaten boven de tabel
   const historiekJaar = document.getElementById('historiekJaar');
   const currentUserHistoriek = document.getElementById('currentUserHistoriek');
   if (historiekJaar) historiekJaar.textContent = year;
   if (currentUserHistoriek) currentUserHistoriek.textContent = ud.name || ud.email || '—';
 
-  // Kies kolomvolgorde
+  const schoolEnabled = ud?.settings?.schoolLeaveEnabled !== false;
   const cols = [
-    { key: 'monthLabel', title: 'Maand' },
     { key: 'target', title: 'Doel uren' },
     { key: 'planned', title: 'Gepland' },
     { key: 'diff', title: 'Verschil' },
@@ -4988,159 +3787,67 @@ function renderHistory() {
     { key: 'sick', title: 'Ziekte' },
     { key: 'bench', title: 'Bench' },
     { key: 'stage', title: 'Stage' },
-    { key: 'school', title: 'Schoolverlof' },
+    ...(schoolEnabled ? [{ key: 'school', title: 'Schoolverlof' }] : []),
     { key: 'holiday', title: 'Feestdag' }
   ];
+  const zero = () => Object.fromEntries(cols.map(c => [c.key, 0]));
+  const totals = zero();
+  const diffClass = v => (v > 0 ? 'text-success' : v < 0 ? 'text-danger' : '');
 
-  // Check of schoolverlof actief is
-  const schoolEnabled = !!(ud?.settings?.schoolLeaveEnabled ?? true);
-  const visibleCols = cols.filter(c => c.key !== 'school' || schoolEnabled);
-
-  const table = document.getElementById('historyTable');
-  if (!table) return;
-
-  // header
-  const theadHtml = `<thead class="table-light"><tr>${visibleCols.map(c => `<th>${c.title}</th>`).join('')}</tr></thead>`;
-
-  // body
-  let bodyHtml = '<tbody>';
-  let totals = { target: 0, planned: 0, diff: 0, leave: 0, sick: 0, school: 0, holiday: 0, bench: 0, stage: 0 };
-
+  let bodyHtml = '';
   for (let m = 0; m < 12; m++) {
     const md = ud.monthData?.[year]?.[m] || { targetHours: 0, targetMinutes: 0, rows: {} };
-    const isExcluded = md.excludeFromHistory === true; // Check de nieuwe instelling!
-
-    const target = (md.targetHours || 0) * 60 + (md.targetMinutes || 0);
     const rows = md.rows || {};
-    const planned = Object.values(rows).reduce((s, r) => {
-      if (r.status && r.status !== 'approved') return s;
-      const shiftDef = ud.shifts?.[r.shift];
-      const realName = shiftDef ? shiftDef.realName || r.shift : r.shift;
-      if (isStageRow(r, ud)) return s; // Stage NIET meetellen!
-      return s + (r.minutes || 0);
-    }, 0);
+    const excluded = md.excludeFromHistory === true;
 
-    let leave = 0,
-      sick = 0,
-      school = 0,
-      holiday = 0,
-      bench = 0,
-      stage = 0;
-
-    Object.values(rows).forEach(r => {
-      if (r.status === 'rejected') return;
-      const sID = (r.shift || '').trim();
-      if (!sID) return;
-
-      const shiftDef = ud.shifts?.[sID];
-      const realName = shiftDef ? shiftDef.realName || sID : sID;
-
-      if (realName === 'Verlof') leave += Number(r.minutes) || 0;
-      if (realName === 'Ziekte') sick += Number(r.minutes) || 0;
-      if (realName === 'Schoolverlof' || realName === 'School') school += Number(r.minutes) || 0;
-      if (realName === 'Feestdag') holiday += Number(r.minutes) || 0;
-      if (realName === 'Bench') bench += Number(r.minutes) || 0;
-      if (isStageRow(r, ud)) stage += Number(r.minutes) || 0;
-    });
-    const diff = planned - target;
-
-    // Alleen optellen bij het Totaal als hij NIET is uitgesloten
-    if (!isExcluded) {
-      totals.target += target;
-      totals.planned += planned;
-      totals.diff += diff;
-      totals.leave += leave;
-      totals.sick += sick;
-      totals.school += school;
-      totals.holiday += holiday;
-      totals.bench += bench;
-      totals.stage += stage;
+    const v = zero();
+    v.target = (Number(md.targetHours) || 0) * 60 + (Number(md.targetMinutes) || 0);
+    v.planned = plannedMinutes(rows, ud);
+    v.diff = v.planned - v.target;
+    for (const r of Object.values(rows)) {
+      if (!r?.shift || r.status === 'rejected') continue;
+      const mins = Number(r.minutes) || 0;
+      const name = shiftRealName(r.shift, ud);
+      if (name === 'Verlof') v.leave += mins;
+      if (name === 'Ziekte') v.sick += mins;
+      if ((name === 'Schoolverlof' || name === 'School') && 'school' in v) v.school += mins;
+      if (name === 'Feestdag') v.holiday += mins;
+      if (name === 'Bench') v.bench += mins;
+      if (isStageRow(r, ud)) v.stage += mins;
     }
 
-    const rowMap = {
-      monthLabel: isExcluded
-        ? `${monthsFull[m]} <span class="badge bg-secondary ms-1" style="font-size:0.65rem;">Uitgesloten</span>`
-        : monthsFull[m],
-      target: isExcluded ? '-' : `${Math.floor(target / 60)}u ${target % 60}min`,
-      planned: isExcluded ? '-' : `${Math.floor(planned / 60)}u ${planned % 60}min`,
-      diff: isExcluded
-        ? '-'
-        : `${diff > 0 ? '+' : diff < 0 ? '-' : ''}${Math.floor(Math.abs(diff) / 60)}u ${Math.abs(diff) % 60}min`,
-      leave: isExcluded ? '-' : `${Math.floor(leave / 60)}u ${leave % 60}min`,
-      sick: isExcluded ? '-' : `${Math.floor(sick / 60)}u ${sick % 60}min`,
-      bench: isExcluded ? '-' : `${Math.floor(bench / 60)}u ${bench % 60}min`,
-      stage: isExcluded ? '-' : `${Math.floor(stage / 60)}u ${stage % 60}min`,
-      school: isExcluded ? '-' : `${Math.floor(school / 60)}u ${school % 60}min`,
-      holiday: isExcluded ? '-' : `${Math.floor(holiday / 60)}u ${holiday % 60}min`
-    };
+    // Uitgesloten maanden tellen niet mee in het totaal
+    if (!excluded) cols.forEach(c => (totals[c.key] += v[c.key]));
 
-    const rowCells = visibleCols
+    const label = excluded
+      ? `${monthsFull[m]} <span class="badge bg-secondary ms-1" style="font-size:0.65rem;">Uitgesloten</span>`
+      : monthsFull[m];
+    const cells = cols
       .map(c => {
-        if (c.key === 'monthLabel') return `<td>${rowMap[c.key]}</td>`;
-        if (c.key === 'diff') {
-          const diffValue = diff;
-          const diffText = rowMap[c.key];
-          let colorClass = '';
-          if (!isExcluded) {
-            if (diffValue > 0) colorClass = 'text-success';
-            else if (diffValue < 0) colorClass = 'text-danger';
-          }
-          return `<td class="fw-medium ${colorClass}">${diffText}</td>`;
-        }
-        return `<td>${rowMap[c.key] || ''}</td>`;
+        if (excluded) return '<td>-</td>';
+        if (c.key === 'diff') return `<td class="fw-medium ${diffClass(v.diff)}">${fmtDiff(v.diff)}</td>`;
+        return `<td>${fmt(v[c.key])}</td>`;
       })
       .join('');
-
-    // Maak de rij deels transparant als hij is uitgesloten
-    bodyHtml += `<tr class="${isExcluded ? 'opacity-50' : ''}">${rowCells}</tr>`;
+    bodyHtml += `<tr class="${excluded ? 'opacity-50' : ''}"><td>${label}</td>${cells}</tr>`;
   }
 
-  bodyHtml += '</tbody>';
-
-  // footer (totaal)
-  const footerMap = {
-    target: `${Math.floor(totals.target / 60)}u ${totals.target % 60}min`,
-    planned: `${Math.floor(totals.planned / 60)}u ${totals.planned % 60}min`,
-    diff: `${totals.diff > 0 ? '+' : totals.diff < 0 ? '-' : ''}${Math.floor(Math.abs(totals.diff) / 60)}u ${Math.abs(totals.diff) % 60}min`,
-    leave: `${Math.floor(totals.leave / 60)}u ${totals.leave % 60}min`,
-    sick: `${Math.floor(totals.sick / 60)}u ${totals.sick % 60}min`,
-    bench: `${Math.floor(totals.bench / 60)}u ${totals.bench % 60}min`,
-    stage: `${Math.floor(totals.stage / 60)}u ${totals.stage % 60}min`,
-    school: `${Math.floor(totals.school / 60)}u ${totals.school % 60}min`,
-    holiday: `${Math.floor(totals.holiday / 60)}u ${totals.holiday % 60}min`
-  };
-
-  const tfootCells = visibleCols
-    .map(c => {
-      if (c.key === 'monthLabel') return `<th>Totaal</th>`;
-
-      if (c.key === 'diff') {
-        const diffValue = totals.diff;
-        const diffText = footerMap[c.key];
-
-        let colorClass = '';
-        if (diffValue > 0) colorClass = 'text-success';
-        else if (diffValue < 0) colorClass = 'text-danger';
-
-        return `<th class="${colorClass}">${diffText}</th>`;
-      }
-
-      return `<th>${footerMap[c.key] || ''}</th>`;
-    })
+  const footCells = cols
+    .map(c =>
+      c.key === 'diff'
+        ? `<th class="${diffClass(totals.diff)}">${fmtDiff(totals.diff)}</th>`
+        : `<th>${fmt(totals[c.key])}</th>`
+    )
     .join('');
 
-  const tfootHtml = `<tfoot class="table-light"><tr>${tfootCells}</tr></tfoot>`;
-
-  table.innerHTML = `${theadHtml}${bodyHtml}${tfootHtml}`;
-
-  const newTbody = table.querySelector('tbody');
-  if (newTbody) newTbody.id = 'historyBody';
+  table.innerHTML = `
+    <thead class="table-light"><tr><th>Maand</th>${cols.map(c => `<th>${c.title}</th>`).join('')}</tr></thead>
+    <tbody id="historyBody">${bodyHtml}</tbody>
+    <tfoot class="table-light"><tr><th>Totaal</th>${footCells}</tr></tfoot>`;
 }
 
 function bindHistory() {
-  document.querySelector('a[href="#tab-historiek"]')?.addEventListener('shown.bs.tab', () => {
-    renderHistory();
-  });
+  document.querySelector('#navTabs a[href="#tab-historiek"]')?.addEventListener('shown.bs.tab', renderHistory);
 }
 
 // ======================================================================
@@ -5148,33 +3855,26 @@ function bindHistory() {
 // Uren/minuten ↔ decimale uren.
 // ======================================================================
 
-// ======= Converter =======
 const convHours = document.getElementById('convHours');
-
 const convMinutes = document.getElementById('convMinutes');
-
 const decimalInput = document.getElementById('decimalInput');
 
 function updateDecimal() {
-  const h = Number(convHours.value) || 0,
-    m = Number(convMinutes.value) || 0;
+  const h = Number(convHours.value) || 0;
+  const m = Number(convMinutes.value) || 0;
   decimalInput.value = (h + m / 60).toFixed(2);
 }
 
 function updateHM() {
-  const dec = Number(decimalInput.value) || 0;
-  const h = Math.floor(dec),
-    m = Math.round((dec - h) * 60);
-  convHours.value = h;
-  convMinutes.value = m;
+  const total = Math.round((Number(decimalInput.value) || 0) * 60);
+  convHours.value = Math.floor(total / 60);
+  convMinutes.value = total % 60;
 }
 
 function bindConverter() {
-  convHours.addEventListener('input', updateDecimal);
-
-  convMinutes.addEventListener('input', updateDecimal);
-
-  decimalInput.addEventListener('input', updateHM);
+  convHours?.addEventListener('input', updateDecimal);
+  convMinutes?.addEventListener('input', updateDecimal);
+  decimalInput?.addEventListener('input', updateHM);
 }
 
 // ======================================================================
@@ -5182,36 +3882,24 @@ function bindConverter() {
 // Niet-factureerbare uren per maand.
 // ======================================================================
 
-// ⏱️ NON-BILLABLE TABBLAD LOGICA
-
 const nbMonthSelect = document.getElementById('nbMonthSelect');
-
 const nbYearSelect = document.getElementById('nbYearSelect');
-
 const nbCategorySelect = document.getElementById('nbCategorySelect');
-
 const nbAddCategoryBtn = document.getElementById('nbAddCategoryBtn');
-
 const nbDateInput = document.getElementById('nbDateInput');
-
 const nbHoursInput = document.getElementById('nbHoursInput');
-
 const nbMinutesInput = document.getElementById('nbMinutesInput');
-
 const nbNoteInput = document.getElementById('nbNoteInput');
-
 const nbAddBtn = document.getElementById('nbAddBtn');
-
 const nbTableBody = document.getElementById('nbTableBody');
-
 const nbTotalDisplay = document.getElementById('nbTotalDisplay');
 
 // Standaard categorieën als er nog niets is opgeslagen
 const DEFAULT_NB_CATS = ['Administratie', 'Reistijd', 'Interne Meeting', 'Opleiding', 'Ziekte (Kort)'];
 
-// 1. Initialiseren
+/** Jaar- en maandkeuze vullen en op vandaag zetten. */
 function initNonBillable() {
-  // Vul de jaartallen
+  if (!nbYearSelect) return;
   const yNow = new Date().getFullYear();
   nbYearSelect.innerHTML = '';
   for (let y = yNow - 2; y <= yNow + 2; y++) {
@@ -5221,36 +3909,14 @@ function initNonBillable() {
     if (y === yNow) opt.selected = true;
     nbYearSelect.appendChild(opt);
   }
-
-  // Zet huidige maand
   nbMonthSelect.value = new Date().getMonth();
-
-  // Datum input default op vandaag
-  nbDateInput.value = new Date().toISOString().slice(0, 10);
-
-  // Categorieën laden
-  renderNbCategories();
-
-  // Listeners voor wisselen maand/jaar
-  nbMonthSelect.addEventListener('change', renderNonBillable);
-  nbYearSelect.addEventListener('change', renderNonBillable);
+  nbDateInput.value = todayISO();
 }
 
-// 2. Categorieën beheren
 function renderNbCategories() {
-  const ud = getCurrentUserData();
-  // Haal op of gebruik default
-  const cats = ud.nonBillableCategories || DEFAULT_NB_CATS;
-
-  // Sla op als ze nog niet bestaan (eerste keer)
-  if (!ud.nonBillableCategories) {
-    ud.nonBillableCategories = cats;
-    // We slaan dit stilzwijgend op bij de volgende save, of nu direct:
-    // saveUserData(); (optioneel, gebeurt wel bij toevoegen item)
-  }
-
+  const cats = getCurrentUserData().nonBillableCategories || DEFAULT_NB_CATS;
   nbCategorySelect.innerHTML = '';
-  cats.sort().forEach(c => {
+  [...cats].sort().forEach(c => {
     const opt = document.createElement('option');
     opt.value = c;
     opt.textContent = c;
@@ -5258,172 +3924,105 @@ function renderNbCategories() {
   });
 }
 
-// 3. Renderen van de lijst en totalen (Maand + Jaar)
+/** Lijst van de gekozen maand + maand- en jaartotaal. */
 function renderNonBillable() {
   const y = Number(nbYearSelect.value);
   const m = Number(nbMonthSelect.value);
-
   const ud = getCurrentUserData();
+  const items = ud.monthData?.[y]?.[m]?.nonBillable || [];
+  items.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
-  // --- A. MAAND DATA ---
-  const md = ud.monthData?.[y]?.[m];
-  const items = md?.nonBillable || [];
+  const monthMins = items.reduce((sum, it) => sum + (Number(it.minutes) || 0), 0);
+  nbTableBody.innerHTML = items.length
+    ? items
+        .map(
+          (item, idx) => `
+        <tr>
+          <td>${toDisplayDate(item.date)}</td>
+          <td><span class="badge bg-light text-dark border">${escapeHtml(item.cat)}</span></td>
+          <td>${escapeHtml(item.note || '')}</td>
+          <td class="text-mono">${Math.floor((Number(item.minutes) || 0) / 60)}u ${(Number(item.minutes) || 0) % 60}m</td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-danger nb-del-btn" data-idx="${idx}">
+              <span class="material-icons-outlined" style="font-size:16px">delete</span>
+            </button>
+          </td>
+        </tr>`
+        )
+        .join('')
+    : '<tr><td colspan="5" class="text-center text-muted">Geen non-billable uren in deze maand.</td></tr>';
+  nbTotalDisplay.textContent = fmt(monthMins);
 
-  nbTableBody.innerHTML = '';
-  let monthMins = 0;
-
-  if (items.length === 0) {
-    nbTableBody.innerHTML =
-      '<tr><td colspan="5" class="text-center text-muted">Geen non-billable uren in deze maand.</td></tr>';
-  } else {
-    // Sorteer op datum
-    items.sort((a, b) => a.date.localeCompare(b.date));
-
-    items.forEach((item, idx) => {
-      monthMins += item.minutes || 0;
-
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${item.date.split('-').reverse().join('-')}</td>
-        <td><span class="badge bg-light text-dark border">${item.cat}</span></td>
-        <td>${item.note || ''}</td>
-        <td class="text-mono">${Math.floor(item.minutes / 60)}u ${item.minutes % 60}m</td>
-        <td class="text-end">
-          <button class="btn btn-sm btn-outline-danger nb-del-btn" data-idx="${idx}">
-            <span class="material-icons-outlined" style="font-size:16px">delete</span>
-          </button>
-        </td>
-      `;
-      nbTableBody.appendChild(tr);
-    });
-  }
-
-  // Update Maand Totaal
-  nbTotalDisplay.textContent = `${Math.floor(monthMins / 60)}u ${monthMins % 60}min`;
-
-  // --- B. JAAR TOTAAL BEREKENEN ---
   let yearMins = 0;
-  // Haal data op van het hele jaar (als het bestaat)
-  const yearData = ud.monthData?.[y] || {};
-
-  // Loop door maand 0 (januari) tot 11 (december)
   for (let i = 0; i < 12; i++) {
-    const mData = yearData[i];
-    if (mData && mData.nonBillable) {
-      // Tel alle items in deze maand op
-      mData.nonBillable.forEach(itm => {
-        yearMins += itm.minutes || 0;
-      });
-    }
+    (ud.monthData?.[y]?.[i]?.nonBillable || []).forEach(it => (yearMins += Number(it.minutes) || 0));
   }
+  const yearLabel = document.getElementById('nbYearTotalLabel');
+  const yearDisplay = document.getElementById('nbYearTotalDisplay');
+  if (yearLabel) yearLabel.textContent = y;
+  if (yearDisplay) yearDisplay.textContent = fmt(yearMins);
 
-  // Update Jaar Totaal UI
-  const nbYearTotalLabel = document.getElementById('nbYearTotalLabel');
-  const nbYearTotalDisplay = document.getElementById('nbYearTotalDisplay');
-  if (nbYearTotalLabel) nbYearTotalLabel.textContent = y;
-  if (nbYearTotalDisplay) {
-    nbYearTotalDisplay.textContent = `${Math.floor(yearMins / 60)}u ${yearMins % 60}min`;
-  }
-
-  // Delete events koppelen
-  document.querySelectorAll('.nb-del-btn').forEach(btn => {
-    btn.addEventListener('click', async e => {
+  nbTableBody.querySelectorAll('.nb-del-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
       if (!confirm('Verwijderen?')) return;
-      const idx = Number(e.currentTarget.dataset.idx);
-      items.splice(idx, 1); // Verwijder uit maandlijst
+      items.splice(Number(btn.dataset.idx), 1);
       await saveUserData();
-      renderNonBillable(); // Herbereken alles (ook jaartotaal)
+      renderNonBillable();
       toast('Item verwijderd', 'success');
     });
   });
 }
 
 function bindNonBillable() {
-  // Knop: Nieuwe categorie toevoegen
+  initNonBillable();
+  nbMonthSelect?.addEventListener('change', renderNonBillable);
+  nbYearSelect?.addEventListener('change', renderNonBillable);
+
+  // Nieuwe categorie
   nbAddCategoryBtn?.addEventListener('click', async () => {
-    const newCat = prompt('Nieuwe categorie naam:');
+    const newCat = prompt('Nieuwe categorie naam:')?.trim();
     if (!newCat) return;
-
     const ud = getCurrentUserData();
-    ud.nonBillableCategories = ud.nonBillableCategories || [...DEFAULT_NB_CATS];
-
-    // Check dubbel
-    if (ud.nonBillableCategories.includes(newCat)) {
-      return toast('Categorie bestaat al', 'warning');
-    }
+    ud.nonBillableCategories ||= [...DEFAULT_NB_CATS];
+    if (ud.nonBillableCategories.includes(newCat)) return toast('Categorie bestaat al', 'warning');
 
     ud.nonBillableCategories.push(newCat);
     await saveUserData();
-
     renderNbCategories();
-    // Selecteer de nieuwe direct
     nbCategorySelect.value = newCat;
     toast(`Categorie '${newCat}' toegevoegd`, 'success');
   });
 
-  // 4. Toevoegen van een item
+  // Item toevoegen (bewaard in de maand van de gekozen datum)
   nbAddBtn?.addEventListener('click', async () => {
     const cat = nbCategorySelect.value;
     const date = nbDateInput.value;
-    const h = Number(nbHoursInput.value) || 0;
-    const min = Number(nbMinutesInput.value) || 0;
-    const note = nbNoteInput.value.trim();
-
+    const h = Math.max(0, Number(nbHoursInput.value) || 0);
+    const min = Math.max(0, Number(nbMinutesInput.value) || 0);
     if (!cat) return toast('Selecteer een categorie', 'warning');
     if (!date) return toast('Kies een datum', 'warning');
     if (h === 0 && min === 0) return toast('Vul een tijd in', 'warning');
 
-    const totalMinutes = h * 60 + min;
-
-    // Bepaal jaar/maand uit de *gekozen datum* (niet de selector per se,
-    // maar we slaan het op in de maand van de datum om logisch te blijven)
-    const dObj = new Date(date);
-    const y = dObj.getFullYear();
-    const m = dObj.getMonth(); // 0-11
-
-    const ud = getCurrentUserData();
-    ud.monthData = ud.monthData || {};
-    ud.monthData[y] = ud.monthData[y] || {};
-    ud.monthData[y][m] = ud.monthData[y][m] || { targetHours: 0, targetMinutes: 0, rows: {} };
-
-    // Maak array aan indien nodig
-    if (!ud.monthData[y][m].nonBillable) {
-      ud.monthData[y][m].nonBillable = [];
-    }
-
-    ud.monthData[y][m].nonBillable.push({
-      id: Date.now(), // simpele ID
-      date: date,
-      cat: cat,
-      minutes: totalMinutes,
-      note: note
-    });
-
+    const y = Number(date.slice(0, 4));
+    const m = Number(date.slice(5, 7)) - 1;
+    const md = ensureMonthData(getCurrentUserData(), y, m);
+    md.nonBillable ||= [];
+    md.nonBillable.push({ id: Date.now(), date, cat, minutes: h * 60 + min, note: nbNoteInput.value.trim() });
     await saveUserData();
 
-    // Reset inputs
     nbNoteInput.value = '';
     nbHoursInput.value = '';
     nbMinutesInput.value = '';
-
-    // Als de gebruiker iets toevoegt in een andere maand dan geselecteerd, switch view
     nbYearSelect.value = y;
     nbMonthSelect.value = m;
-
     renderNonBillable();
     toast('Non-billable uren toegevoegd', 'success');
   });
 
-  // 5. Koppelen aan Tab Switch (zodat data laadt als je de tab opent)
-  document.querySelector('a[href="#tab-nonbillable"]')?.addEventListener('shown.bs.tab', () => {
-    // Zorg dat categorieën geladen zijn
+  document.querySelector('#navTabs a[href="#tab-nonbillable"]')?.addEventListener('shown.bs.tab', () => {
     renderNbCategories();
-    // Render de data
     renderNonBillable();
   });
-
-  // Initialiseer bij laden pagina (voor de selectors)
-  document.addEventListener('DOMContentLoaded', initNonBillable);
 }
 
 // ======================================================================
@@ -5431,35 +4030,28 @@ function bindNonBillable() {
 // Berichten tussen gebruikers en admins.
 // ======================================================================
 
+// Gewone gebruiker: users/{uid}/mailbox. Admin: inbox = gedeelde 'admin_mail', verzonden = eigen mailbox.
 const mailListBody = document.getElementById('mailListBody');
-
 const mailDetail = document.getElementById('mailDetail');
-
 const mailToSelect = document.getElementById('mailToSelect');
-
 const mailSubjectInput = document.getElementById('mailSubjectInput');
-
 const mailBodyInput = document.getElementById('mailBodyInput');
-
 const mailUnreadBadge = document.getElementById('mailUnreadBadge');
-
 const mailSidebarBadge = document.getElementById('mailSidebarBadge');
 
 let mailboxUnsubInbox = null;
-
 let mailboxUnsubSent = null;
-
 let mailboxCacheInbox = [];
-
 let mailboxCacheSent = [];
+let mailboxCache = []; // alle berichten samen
+let mailFolder = 'inbox'; // 'inbox' | 'sent'
+let composeThreadId = null; // bij antwoorden: zelfde gesprek
 
-let mailboxCache = [];
-
-// alle berichten (snapshot)
-let mailFolder = 'inbox';
-
-// 'inbox' | 'sent'
-let composeThreadId = null;
+/** Afzender-uid van een bericht (admin_mail gebruikt 'fromUserId'). */
+const mailSenderUid = m => m.from?.uid || m.fromUserId || '';
+/** Leesbare afzender. */
+const mailSenderName = m =>
+  m.system ? 'Shift Planner (noreply)' : m.fromName || m.from?.name || m.fromEmail || m.from?.email || '—';
 
 function updateUnreadBadges(unread) {
   const n = Math.max(0, Number(unread) || 0);
@@ -5495,7 +4087,6 @@ function listenMailbox(uid) {
     let isFirstLoadAdmin = true; // 🛑 Vlag om meldingen bij opstarten te blokkeren
 
     mailboxUnsubInbox = onSnapshot(qyInbox, snap => {
-
       // A. NOTIFICATIE LOOP (Nieuw)
       if (!isFirstLoadAdmin) {
         snap.docChanges().forEach(change => {
@@ -5606,14 +4197,10 @@ function prepareComposeOptions() {
 
 function prepareComposeToCounterparty(m) {
   prepareComposeOptions();
-  if (isAdmin()) {
-    mailToSelect.value = `user:${m.from?.uid || ''}`;
-  } else {
-    mailToSelect.value = 'admin-group';
-  }
+  mailToSelect.value = isAdmin() ? `user:${mailSenderUid(m)}` : 'admin-group';
   mailSubjectInput.value = m.subject?.startsWith('Re: ') ? m.subject : `Re: ${m.subject || ''}`;
   mailBodyInput.value = '';
-  composeThreadId = m.threadId || `conv:${m.from?.uid || getActiveUserId()}`;
+  composeThreadId = m.threadId || `conv:${mailSenderUid(m) || currentUserId}`;
 }
 
 /* ---------- send helpers ---------- */
@@ -5631,8 +4218,8 @@ async function sendSystemMail(uid, subject, body, kind = 'notification', threadI
   });
 }
 
-async function sendUserMessageToAdmins(subject, body, threadId = `conv:${getActiveUserId()}`) {
-  const meUid = getActiveUserId();
+async function sendUserMessageToAdmins(subject, body, threadId = `conv:${currentUserId}`) {
+  const meUid = currentUserId;
   const me = dataStore.users[meUid];
   const meName = me?.name || me?.email || meUid;
   const meEmail = me?.email || 'onbekend'; // We pakken het e-mailadres mee
@@ -5679,7 +4266,7 @@ async function broadcastToAdmins(subject, body, kind = 'status') {
   // 1. Kopie in eigen 'verzonden' items
   await addDoc(collection(db, 'users', meUid, 'mailbox'), {
     threadId,
-    system: false, // 👈 HIER IS DE FIX: DIT STAAT NU GOED
+    system: false,
     kind: kind,
     from: { uid: meUid, name: meName, role: 'user' },
     to: { type: 'admin-group' }, // We sturen dit naar de 'admin-group'
@@ -5705,7 +4292,6 @@ async function broadcastToAdmins(subject, body, kind = 'status') {
 
 async function sendAdminReplyToUser(adminUid, userUid, subject, body) {
   const admin = dataStore.users[adminUid];
-  const user = dataStore.users[userUid];
   const threadId = `conv:${userUid}`;
 
   // kopie in admin mailbox
@@ -5819,7 +4405,7 @@ async function markMailRead(messageId, val = true) {
 async function deleteMail(messageId) {
   const uid = currentUserId;
 
-  // ⬇️ FIX: Vind het bericht in de cache om de bron te kennen
+  // Bron opzoeken (admin_mail of eigen mailbox)
   const msg = mailboxCache.find(m => m._id === messageId);
   if (!msg) return; // Bericht al weg
 
@@ -5856,7 +4442,7 @@ function mergeAndRenderMail() {
 
 /* ---------- render ---------- */
 function filteredMessages() {
-  const uid = currentUserId; // 👈 FIX: Altijd de ingelogde user gebruiken
+  const uid = currentUserId; // mailbox is altijd van de ingelogde gebruiker
   const items = mailboxCache.slice().sort((a, b) => (b._tsIso || '').localeCompare(a._tsIso || ''));
 
   if (mailFolder === 'sent') {
@@ -5879,7 +4465,6 @@ function renderMailList() {
   updateUnreadBadges(unread);
 
   msgs.forEach(m => {
-    // 👇 HIER IS DE FIX: Kijkt nu naar de 'Verzonden' map
     let displayName = '—';
     if (mailFolder === 'sent') {
       // In Verzonden map, toon de 'To' (Naar)
@@ -5893,17 +4478,14 @@ function renderMailList() {
         displayName = 'Onbekend';
       }
     } else {
-      // In Inbox, toon de 'From' (Van)
-      displayName = m.system
-        ? 'Shift Planner (noreply)'
-        : m.fromName || m.from?.name || m.fromEmail || m.from?.email || '—';
+      displayName = mailSenderName(m);
     }
 
     const tr = document.createElement('tr');
     tr.className = m.read ? '' : 'fw-semibold';
     tr.innerHTML = `
-      <td>${displayName}</td>
-      <td><a href="#" class="js-open" data-id="${m._id}">${m.subject || '(geen onderwerp)'}</a></td>
+      <td>${escapeHtml(displayName)}</td>
+      <td><a href="#" class="js-open" data-id="${m._id}">${escapeHtml(m.subject || '(geen onderwerp)')}</a></td>
       <td class="text-end"><span class="mail-meta">${formatWhen(m._tsIso)}</span></td>
       <td class="text-end">
         <button class="btn btn-sm ${m.read ? 'btn-outline-secondary' : 'btn-outline-primary'} me-1 js-toggle" data-id="${m._id}">
@@ -5925,7 +4507,7 @@ function openMail(m) {
     m.read = true;
   }
 
-  const fromName = m.system ? 'Shift Planner (noreply)' : m.from?.name || m.from?.email || '—';
+  const fromName = escapeHtml(mailSenderName(m));
   const actions = `
     <div class="d-flex gap-2">
       <button class="btn btn-outline-secondary btn-sm js-mark-unread" data-id="${m._id}">Markeer ongelezen</button>
@@ -5938,24 +4520,22 @@ function openMail(m) {
   mailDetail.innerHTML = `
     <div class="d-flex justify-content-between align-items-start">
       <div>
-        <div class="fw-semibold">${m.subject || '(geen onderwerp)'}</div>
+        <div class="fw-semibold">${escapeHtml(m.subject || '(geen onderwerp)')}</div>
         <div class="mail-meta">Van: ${fromName} • ${formatWhen(m._tsIso)}</div>
       </div>
       ${actions}
     </div>
     <hr class="my-2">
-    <div style="white-space:pre-wrap">${m.body || ''}</div>
+    <div style="white-space:pre-wrap">${escapeHtml(m.body || '')}</div>
   `;
   mailDetail.dataset.openId = m._id;
 }
 
 /* ---------- once-only UI binding ---------- */
 function bindMailboxUIOnce() {
-  if (typeof mailUIBound === 'undefined') window.mailUIBound = false;
   if (mailUIBound) return;
   mailUIBound = true;
 
-  // ✅ FIX: Haal elementen hier lokaal op (voorkomt initialization errors)
   const nav = document.getElementById('mailFolderNav');
   const compBtn = document.getElementById('mailComposeBtn');
   const refBtn = document.getElementById('mailRefreshBtn');
@@ -6023,7 +4603,7 @@ function bindMailboxUIOnce() {
 
     if (!toVal || !subject || !body) return toast('Vul aan: geadresseerde, onderwerp en bericht', 'warning');
 
-    const meUid = getActiveUserId();
+    const meUid = currentUserId; // afzender is altijd de ingelogde gebruiker
     try {
       if (isAdmin()) {
         const userUid = toVal.startsWith('user:') ? toVal.split(':')[1] : null;
@@ -6044,8 +4624,7 @@ function bindMailboxUIOnce() {
 
   // Refresh
   refBtn?.addEventListener('click', () => {
-    const uid = getActiveUserId();
-    if (uid) listenMailbox(uid);
+    if (currentUserId) listenMailbox(currentUserId);
   });
 
   // Delete All
@@ -6165,7 +4744,6 @@ function bindMail() {
   // activeer bij login / gebruikerswissel
   document.querySelector('a[href="#tab-mail"]')?.addEventListener('shown.bs.tab', () => {
     bindMailboxUIOnce();
-    // 👈 FIX: Gebruik altijd de ID van de ingelogde user, niet de bekeken user
     if (currentUserId) listenMailbox(currentUserId);
   });
 }
@@ -6175,455 +4753,279 @@ function bindMail() {
 // In-app meldingen, automatische herinneringen en push/browser-meldingen.
 // ======================================================================
 
-// 🔔 In-app notificaties
 const notifBtn = document.getElementById('notifBtn');
-
 const notifDropdown = document.getElementById('notifDropdown');
-
 const notifList = document.getElementById('notifList');
-
 const notifBadge = document.getElementById('notifBadge');
-
 const markAllReadBtn = document.getElementById('markAllReadBtn');
 
-let lastVisible = null;
+let lastVisible = null; // laatste geladen melding (voor "Toon meer")
+let notificationsUnsub = null;
 
-// houdt bij tot waar we geladen hebben
+function notificationItemHtml(n) {
+  const time = n.timestamp ? new Date(n.timestamp).toLocaleString('nl-BE') : '';
+  return `<div>${escapeHtml(n.text)}</div><div class="text-muted small">${time}</div>`;
+}
 
-// 🔁 Laad de eerste reeks meldingen
+/** Live lijst van de laatste 20 meldingen (bel-icoon) + badge. */
 function listenToNotifications(uid) {
-  const colRef = collection(db, 'users', uid, 'notifications');
-  const q = query(colRef, orderBy('timestamp', 'desc'), limit(20));
+  if (notificationsUnsub) notificationsUnsub();
+  const q = query(collection(db, 'users', uid, 'notifications'), orderBy('timestamp', 'desc'), limit(20));
+  let isFirstRun = true; // bij opstarten geen 20 browsermeldingen tonen
 
-  // 1. 🛑 Vlag om te voorkomen dat je bij het opstarten 20 meldingen krijgt
-  let isFirstRun = true;
+  notificationsUnsub = onSnapshot(q, snapshot => {
+    const docs = snapshot.docs;
+    if (docs.length > 0) lastVisible = docs[docs.length - 1];
 
-  onSnapshot(q, snapshot => {
+    dataStore.notifications = docs.map(d => d.data());
     notifList.innerHTML = '';
     let unread = 0;
-
-    dataStore.notifications = [];
-
-    const docs = snapshot.docs;
-    if (docs.length > 0) {
-      lastVisible = docs[docs.length - 1];
-    }
-
-    // --- A. DE BESTAANDE UI-LUS (Lijst opbouwen) ---
-    snapshot.forEach(docSnap => {
-      const n = docSnap.data();
-      dataStore.notifications.push(n);
-
-      const time = n.timestamp ? new Date(n.timestamp).toLocaleString('nl-BE') : '';
+    dataStore.notifications.forEach(n => {
       if (!n.read) unread++;
       const li = document.createElement('li');
       li.className = `mb-1 p-1 rounded ${n.read ? '' : 'bg-light unread'}`;
-      li.innerHTML = `
-        <div>${n.text}</div>
-        <div class="text-muted small">${time}</div>
-      `;
+      li.innerHTML = notificationItemHtml(n);
       notifList.appendChild(li);
     });
 
-    // --- B. NIEUW: DE BROWSER NOTIFICATIE LUS ---
-    // We voeren dit alleen uit als het NIET de eerste keer laden is
     if (!isFirstRun) {
       snapshot.docChanges().forEach(change => {
-        // Als er een nieuw bericht is binnengekomen (added)
-        if (change.type === 'added') {
-          const n = change.doc.data();
-          // Stuur de browser melding (functie die we eerder maakten)
-          sendBrowserNotification('Nieuwe melding', n.text);
-        }
+        if (change.type === 'added') sendBrowserNotification('Nieuwe melding', change.doc.data().text);
       });
     }
+    isFirstRun = false;
 
-    // Update de badges
     notifBadge.textContent = unread;
     notifBadge.classList.toggle('d-none', unread === 0);
-
-    // Toon 'Toon meer' knop logic
-    const loadMoreBtn = document.getElementById('loadMoreNotifBtn');
-    if (loadMoreBtn) {
-      loadMoreBtn.classList.toggle('d-none', docs.length < 20);
-    }
-
+    document.getElementById('loadMoreNotifBtn')?.classList.toggle('d-none', docs.length < 20);
     loadHomeNotifications();
-
-    // 2. 🛑 Zet de vlag op false na de eerste keer laden
-    isFirstRun = false;
   });
 }
 
-// 📥 Extra meldingen ophalen
+/** Volgende 20 (oudere) meldingen ophalen. */
 async function loadMoreNotifications(uid) {
   if (!lastVisible) return;
-  const colRef = collection(db, 'users', uid, 'notifications');
-  const qMore = query(colRef, orderBy('timestamp', 'desc'), startAfter(lastVisible), limit(20));
-
+  const qMore = query(
+    collection(db, 'users', uid, 'notifications'),
+    orderBy('timestamp', 'desc'),
+    startAfter(lastVisible),
+    limit(20)
+  );
   const snap = await getDocs(qMore);
   if (snap.empty) {
-    document.getElementById('loadMoreNotifBtn').classList.add('d-none');
+    document.getElementById('loadMoreNotifBtn')?.classList.add('d-none');
     return;
   }
-
   snap.forEach(docSnap => {
     const n = docSnap.data();
-    const time = n.timestamp ? new Date(n.timestamp).toLocaleString('nl-BE') : '';
     const li = document.createElement('li');
     li.className = `mb-1 p-1 rounded ${n.read ? '' : 'bg-light unread'}`;
-    li.innerHTML = `
-      <div>${n.text}</div>
-      <div class="text-muted small">${time}</div>
-    `;
+    li.innerHTML = notificationItemHtml(n);
     notifList.appendChild(li);
   });
-
-  lastVisible = snap.docs[snap.docs.length - 1]; // update naar nieuw einde
+  lastVisible = snap.docs[snap.docs.length - 1];
 }
 
-// ✅ HIER TOEVOEGEN: Helper om notificatie voorkeur te checken (default = true)
+/** Meldingsvoorkeur van de ingelogde gebruiker (standaard aan). */
 function getNotifPref(key) {
-  const ud = getCurrentUserData();
-  if (!ud.settings || !ud.settings.notificationPrefs) {
-    return true; // Bestaat niet? Standaard aan.
-  }
-  // Als de key is opgeslagen als 'false', geef 'false'.
-  // Als de key 'true' is of nog niet bestaat (undefined), geef 'true'.
-  return ud.settings.notificationPrefs[key] !== false;
+  return dataStore.users[currentUserId]?.settings?.notificationPrefs?.[key] !== false;
 }
 
-// 🔔 Automatisch meldingsysteem — controleert volledige jaar
+/**
+ * Automatische herinneringen voor de ingelogde gebruiker (bij login en daarna elke 24u):
+ * lege week, maanddoel < 80%, aflopende projecten, lege dagen; ruimt meldingen > 30 dagen op.
+ */
 async function autoCheckNotifications() {
-  // 0. 🛑 VERBETERDE CONTROLE
-  // Check niet alleen de variabele, maar ook de ECHTE auth status
-  if (!currentUserId || !auth.currentUser) {
-    console.log('autoCheckNotifications: Gestopt, geen (actief) ingelogde gebruiker.');
-    return; // Stop de functie als het token verlopen is
-  }
+  if (!currentUserId || !auth.currentUser) return;
   const uid = currentUserId;
-  // Zorg dat we een UID hebben VOORDAT we verder gaan
-  if (!uid) {
-    console.warn('autoCheckNotifications: Gestopt, geen UID.');
-    return;
-  }
-
-  const ud = getCurrentUserData();
-  if (!ud || !ud.monthData) return;
+  const ud = dataStore.users[uid];
+  if (!ud?.monthData) return;
 
   const today = new Date();
-  const currentYear = today.getFullYear();
+  const todayKey = todayISO();
+  const allRows = Object.values(ud.monthData).flatMap(months =>
+    Object.values(months || {}).flatMap(md => Object.entries(md?.rows || {}))
+  );
 
-  // 🔹 1. Controleer of gebruiker deze week nog niets heeft ingevoerd
+  // 1. Deze week nog niets ingevuld? ("Vrij weekend" telt niet)
   if (getNotifPref('notifyWeeklyEmpty')) {
-    const thisWeek = isoWeekId(new Date());
-    let hasShiftThisWeek = false;
-    const yearMap = ud.monthData || {};
-
-    // Loop alle jaren/maanden/rijen af
-    for (const yStr of Object.keys(yearMap)) {
-      const months = yearMap[yStr] || {};
-      for (const mStr of Object.keys(months)) {
-        const rowsObj = months[mStr]?.rows || {};
-        for (const key of Object.keys(rowsObj)) {
-          const [Y, M, D] = key.split('-').map(Number);
-          const rowDate = new Date(Y, M - 1, D);
-
-          // ✅ Negeer "Vrij weekend"
-          const shiftName = rowsObj[key]?.shift?.trim() || '';
-          const filled = shiftName && shiftName !== 'Vrij weekend';
-
-          if (isoWeekId(rowDate) === thisWeek && filled) {
-            hasShiftThisWeek = true;
-            break;
-          }
-        }
-        if (hasShiftThisWeek) break;
-      }
-      if (hasShiftThisWeek) break;
-    }
-
-    if (!hasShiftThisWeek) {
-      await createUniqueNotification(uid, 'Je hebt deze week nog geen shifts ingevuld.');
-    }
+    const thisWeek = isoWeekId(today);
+    const hasShiftThisWeek = allRows.some(([key, r]) => {
+      const shiftName = r?.shift?.trim() || '';
+      if (!shiftName || shiftName === 'Vrij weekend') return false;
+      const [Y, M, D] = key.slice(0, 10).split('-').map(Number);
+      return isoWeekId(new Date(Y, M - 1, D)) === thisWeek;
+    });
+    if (!hasShiftThisWeek) await createUniqueNotification(uid, 'Je hebt deze week nog geen shifts ingevuld.');
   }
-  const currentMonthData = ud.monthData?.[currentYear]?.[today.getMonth()] || {
-    rows: {},
-    targetHours: 0,
-    targetMinutes: 0
-  };
-  const md = currentMonthData;
-  // 🔹 2. Controleer maanddoel vs. werkelijk (alleen huidige maand)
+
+  // 2. Maanddoel van deze maand < 80%
   if (getNotifPref('notifyMonthlyGoal')) {
-    const doel = (md.targetHours || 0) * 60 + (md.targetMinutes || 0);
-    const gepland = Object.values(md.rows || {}).reduce((s, r) => {
-      if (r.status && r.status !== 'approved') {
-        return s; // Tel niet mee
-      }
-      if (isStageRow(r, ud)) return s; // Stage NIET meetellen!
-      return s + (r.minutes || 0);
-    }, 0);
-    if (doel > 0 && gepland < doel * 0.8) {
+    const md = ud.monthData?.[today.getFullYear()]?.[today.getMonth()];
+    const doel = (Number(md?.targetHours) || 0) * 60 + (Number(md?.targetMinutes) || 0);
+    if (doel > 0 && plannedMinutes(md?.rows, ud) < doel * 0.8) {
       await createUniqueNotification(uid, 'Je hebt nog minder dan 80% van je maanddoel behaald.');
     }
   }
-  // 🔹 3. Controleer of projecten binnenkort aflopen
+
+  // 3. Projecten die binnen 2 weken aflopen
   if (getNotifPref('notifyProjectEnd')) {
-    const soon = ud.projects?.filter(p => {
-      if (!p.end) return false;
-      const end = new Date(p.end);
-      const diff = (end - today) / (1000 * 60 * 60 * 24);
-      return diff > 0 && diff < 14; // binnen 2 weken
-    });
-    if (soon?.length) {
-      const names = soon.map(p => p.name).join(', ');
-      await createUniqueNotification(uid, `Project(en) bijna afgelopen: ${names}`);
+    const in14 = new Date(today);
+    in14.setDate(in14.getDate() + 14);
+    const limitKey = dateKey(in14.getFullYear(), in14.getMonth(), in14.getDate());
+    const soon = (ud.projects || []).filter(p => p.end && p.end > todayKey && p.end < limitKey);
+    if (soon.length) {
+      await createUniqueNotification(uid, `Project(en) bijna afgelopen: ${soon.map(p => p.name).join(', ')}`);
     }
   }
-  // 🔹 4. Controleer ALLE dagen van het huidige jaar (alleen echte lege dagen)
+
+  // 4. Dagen dit jaar met een lege regel (geen shift gekozen)
   if (getNotifPref('notifyDailyEmpty')) {
-    const startOfYear = new Date(today.getFullYear(), 0, 1);
-    const endOfYear = new Date(today);
-
-    for (let d = new Date(startOfYear); d <= endOfYear; d.setDate(d.getDate() + 1)) {
-      const y = d.getFullYear();
-      const m = d.getMonth();
-      const day = d.getDate();
-      const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-      const rows = ud.monthData?.[y]?.[m]?.rows || {};
-      const r = rows[key];
-
-      // ⛔ Geen maanddata of geen rij → overslaan
-      if (!ud.monthData?.[y]?.[m] || !r) continue;
-
-      // ⛔ Toekomstige dagen overslaan
-      if (d > today) continue;
-
-      // ⛔ Vrije shifts overslaan
-      const skipShifts = ['Vrij weekend', 'Verlof', 'Ziekte', 'Feestdag', 'Schoolverlof', 'School', 'Bench', 'Stage'];
-      const shiftName = (r?.shift || '').trim();
-      const isEmpty = !shiftName;
-      const isSkipped = skipShifts.includes(shiftName);
-
-      if (isEmpty && !isSkipped) {
-        await createUniqueNotification(
-          uid,
-          `Geen shift ingevuld op ${String(day).padStart(2, '0')}-${String(m + 1).padStart(2, '0')}-${y}.`
-        );
-      }
+    const yearPrefix = `${today.getFullYear()}-`;
+    const emptyDays = allRows
+      .filter(([key, r]) => key.startsWith(yearPrefix) && key.length === 10 && key <= todayKey && !r?.shift?.trim())
+      .map(([key]) => key)
+      .sort();
+    for (const key of emptyDays) {
+      await createUniqueNotification(uid, `Geen shift ingevuld op ${toDisplayDate(key)}.`);
     }
   }
-  // 🔹 5. Automatisch opruimen van meldingen ouder dan 30 dagen
+
+  // 5. Meldingen ouder dan 30 dagen opruimen
   try {
-    const notifCol = collection(db, 'users', uid, 'notifications');
-    const nowClean = new Date();
-
-    // Bepaal de datum van 30 dagen geleden
-    const thirtyDaysAgo = new Date(nowClean.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-
-    // 1. Vraag Firestore om ALLEEN de oude documenten te sturen
-    const q = query(notifCol, where('timestamp', '<', thirtyDaysAgo));
-    const oldNotifSnap = await getDocs(q); // 👈 LEEST ALLEEN OUDE MELDINGEN
-
-    // 2. Verwijder de resultaten
-    oldNotifSnap.forEach(async docSnap => {
-      console.log(`🧹 Oude melding verwijderd (${docSnap.data().text})`);
-      await deleteDoc(docSnap.ref);
-    });
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const old = await getDocs(
+      query(collection(db, 'users', uid, 'notifications'), where('timestamp', '<', thirtyDaysAgo))
+    );
+    await Promise.all(old.docs.map(d => deleteDoc(d.ref)));
   } catch (err) {
-    // Vang de permissie-fout op en log deze, maar laat de app niet crashen
-    // ⚠️ DIT BLOK ONTBRAK
-    console.error(`PERMISSION ERROR in autoCheckNotifications (UID: ${uid}):`, err.message);
+    console.error('Oude meldingen opruimen mislukt:', err.message);
   }
 }
 
-// ⚙️ Helper
+/** Melding maken (max. één keer per dag dezelfde tekst) + kopie als systeembericht in de mailbox. */
 async function createUniqueNotification(uid, text) {
   const colRef = collection(db, 'users', uid, 'notifications');
-  const todayKey = new Date().toISOString().slice(0, 10);
-  const q = query(colRef, where('text', '==', text), where('dateKey', '==', todayKey));
-  const snap = await getDocs(q);
+  const dayKey = todayISO();
+  const snap = await getDocs(query(colRef, where('text', '==', text), where('dateKey', '==', dayKey)));
   if (!snap.empty) return;
 
-  await addDoc(colRef, {
-    text,
-    timestamp: new Date().toISOString(),
-    dateKey: todayKey,
-    read: false
-  });
-
-  // ➕ Log ook als "noreply"-mail in de inbox
+  await addDoc(colRef, { text, timestamp: new Date().toISOString(), dateKey: dayKey, read: false });
   await sendSystemMail(uid, 'Notificatie', text, 'notification');
-
-  console.log('🔔 Automatische melding + mail aangemaakt:', text);
 }
 
-// 🔔 Stuur melding naar gebruiker bij projectwijziging (door admin)
+/** Melding + bericht naar een gebruiker bij een projectwijziging door een admin. */
 async function notifyProjectChange(userId, type, projectName, newEndDate = null) {
+  const text =
+    type === 'added'
+      ? `Admin heeft een nieuw project toegevoegd: ${projectName}`
+      : `Admin heeft het project "${projectName}" verlengd tot ${newEndDate}`;
   const colRef = collection(db, 'users', userId, 'notifications');
-  const todayKey = new Date().toISOString().slice(0, 10);
-  let text = '';
-
-  if (type === 'added') {
-    text = `Admin heeft een nieuw project toegevoegd: ${projectName}`;
-  } else if (type === 'extended') {
-    text = `Admin heeft het project "${projectName}" verlengd tot ${newEndDate}`;
-  }
-
-  const q = query(colRef, where('text', '==', text), where('dateKey', '==', todayKey));
-  const snap = await getDocs(q);
-  if (snap.empty) {
-    await addDoc(colRef, { text, timestamp: new Date().toISOString(), dateKey: todayKey, read: false });
-  }
-
-  // ✉️ Mail erbij
+  const dayKey = todayISO();
+  const snap = await getDocs(query(colRef, where('text', '==', text), where('dateKey', '==', dayKey)));
+  if (snap.empty) await addDoc(colRef, { text, timestamp: new Date().toISOString(), dateKey: dayKey, read: false });
   await sendSystemMail(userId, 'Projectupdate', text, 'notification');
-  console.log('🔔 Melding + mail gestuurd naar gebruiker:', text);
 }
 
-// 1. Vraag permissie en haal het token op
+const notificationsSupported = () => 'Notification' in window;
+
+/** Toestemming vragen en het push-token bewaren (voor meldingen als de app dicht is). */
 async function enableNotifications(uid) {
+  if (!notificationsSupported() || !messaging || !('serviceWorker' in navigator)) return;
   try {
     const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
 
-    if (permission === 'granted') {
-      console.log('Notificatie toestemming gegeven.');
-
-      // STAP 1: Handmatig de Service Worker registreren
-      // De punt-slash (./) zorgt dat hij in de huidige map zoekt, in plaats van de root van het domein
-      const swRegistration = await navigator.serviceWorker.register('./firebase-messaging-sw.js', {
-        scope: './'
-      });
-
-      // Haal het unieke token op
-      const token = await getToken(messaging, {
-        vapidKey: 'BAQfmfk_rwoMDHbDeTU6gdRZBjxWmikZWf_prrddhvW8Pf2hOrLc8QmkMbltWCqxbKfRs3S8ZCB3NOjrGgj2h64', // Deze vind je in de Firebase Console
-        serviceWorkerRegistration: swRegistration
-      });
-
-      if (token) {
-        console.log('Mijn Token:', token);
-        // Sla het op in de database bij jouw gebruiker
-        const userRef = doc(db, 'users', uid);
-        await updateDoc(userRef, { fcmToken: token });
-        console.log('Token opgeslagen in database!');
-      } else {
-        console.log('Geen token ontvangen.');
-      }
-    } else {
-      console.log('Notificatie toestemming geweigerd.');
-    }
+    // Service worker in deze map registreren (niet in de root van het domein)
+    const swRegistration = await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: './' });
+    const token = await getToken(messaging, {
+      vapidKey: 'BAQfmfk_rwoMDHbDeTU6gdRZBjxWmikZWf_prrddhvW8Pf2hOrLc8QmkMbltWCqxbKfRs3S8ZCB3NOjrGgj2h64',
+      serviceWorkerRegistration: swRegistration
+    });
+    if (token) await updateDoc(doc(db, 'users', uid), { fcmToken: token });
   } catch (err) {
     console.error('Fout bij notificaties:', err);
   }
 }
 
-// --- ECHTE APP NOTIFICATIES (BROWSER LEVEL) ---
-
-// 1. Vraag toestemming aan de gebruiker
 async function requestNotificationPermission() {
-  if (!('Notification' in window)) {
-    console.log('Deze browser ondersteunt geen desktop notificaties');
-    return false;
-  }
-
-  const permission = await Notification.requestPermission();
-  if (permission === 'granted') {
-    console.log('Notificatie toestemming gekregen!');
-    return true;
-  } else {
-    console.log('Notificatie toestemming geweigerd.');
-    return false;
-  }
+  if (!notificationsSupported()) return false;
+  return (await Notification.requestPermission()) === 'granted';
 }
 
-// 2. Stuur de daadwerkelijke melding
-function sendBrowserNotification(title, body) {
-  // Check of we toestemming hebben
-  if (Notification.permission === 'granted') {
-    // Maak de notificatie
-    const notification = new Notification(title, {
-      body: body,
-      icon: 'favicon-192x192.png', // Zorg dat dit pad klopt met je favicon
-      vibrate: [200, 100, 200] // Trillen op mobiel (indien ondersteund)
-    });
-
-    // Actie bij klikken op de melding (focus de tab)
-    notification.onclick = function (event) {
-      event.preventDefault(); // Voorkom standaard browser gedrag
-      window.focus(); // Breng de app naar de voorgrond
-      notification.close();
+/** Browsermelding tonen (werkt ook op Android, waar 'new Notification' niet mag). */
+async function sendBrowserNotification(title, body) {
+  if (!notificationsSupported() || Notification.permission !== 'granted') return;
+  const options = { body, icon: 'favicon-192x192.png', vibrate: [200, 100, 200] };
+  try {
+    const n = new Notification(title, options);
+    n.onclick = e => {
+      e.preventDefault();
+      window.focus();
+      n.close();
     };
+  } catch {
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration('./');
+      await reg?.showNotification(title, options);
+    } catch (err) {
+      console.warn('Browsermelding niet mogelijk:', err);
+    }
   }
 }
 
 function bindNotifications() {
-  // 2. Luister naar berichten als de app OPEN staat (voorgrond)
-  onMessage(messaging, payload => {
-    console.log('Bericht ontvangen in voorgrond: ', payload);
-    // Je kunt hier een custom alert of UI element tonen
-    alert(`${payload.notification.title}: ${payload.notification.body}`);
-  });
+  // Push-bericht terwijl de app open staat
+  if (messaging) {
+    onMessage(messaging, payload => {
+      const { title = 'Melding', body = '' } = payload.notification || {};
+      toast(`<strong>${escapeHtml(title)}</strong><br>${escapeHtml(body)}`, 'info');
+    });
+  }
 
+  // Bel-icoon: dropdown openen/sluiten
   notifBtn?.addEventListener('click', e => {
-    e.stopPropagation(); // voorkom dat klik buiten dropdown het meteen sluit
-
-    // Sluit andere openstaande dropdowns
+    e.stopPropagation();
     document.querySelectorAll('.dropdown-menu.show').forEach(el => {
       if (el !== notifDropdown) el.classList.remove('show');
     });
-
     notifDropdown.classList.toggle('show');
   });
-
-  // Klik buiten dropdown → sluit hem
   document.addEventListener('click', e => {
-    if (!notifDropdown.contains(e.target) && e.target !== notifBtn) {
+    if (notifDropdown && !notifDropdown.contains(e.target) && e.target !== notifBtn) {
       notifDropdown.classList.remove('show');
     }
   });
 
+  // "Alles gelezen" = alle meldingen verwijderen
   markAllReadBtn?.addEventListener('click', async () => {
     if (!currentUserId) return;
-
-    const colRef = collection(db, 'users', currentUserId, 'notifications');
-    const snap = await getDocs(colRef);
-
-    // 🔥 Verwijder alle meldingen
-    const batchDeletes = snap.docs.map(d => deleteDoc(d.ref));
-    await Promise.all(batchDeletes);
-
-    // UI opschonen
+    const snap = await getDocs(collection(db, 'users', currentUserId, 'notifications'));
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
     notifList.innerHTML = '';
     notifBadge.classList.add('d-none');
-
     toast('Alle meldingen verwijderd', 'success');
   });
 
-  // 🎛️ Koppel knop aan event
-  document.getElementById('loadMoreNotifBtn')?.addEventListener('click', async () => {
-    await loadMoreNotifications(currentUserId);
-  });
+  document.getElementById('loadMoreNotifBtn')?.addEventListener('click', () => loadMoreNotifications(currentUserId));
 
-  // Knop logica voor iOS/Android meldingen
+  // Profiel: knop "Activeer meldingen" (nodig op iPhone/Android)
+  const showNotifActive = () => {
+    document.getElementById('enableNotifBtn')?.classList.add('d-none');
+    const status = document.getElementById('notifStatusText');
+    if (status) status.textContent = '✅ Meldingen zijn actief.';
+  };
   document.getElementById('enableNotifBtn')?.addEventListener('click', async () => {
-    const allowed = await requestNotificationPermission();
-    if (allowed) {
+    if (await requestNotificationPermission()) {
       toast('Meldingen zijn geactiveerd!', 'success');
-      document.getElementById('enableNotifBtn').classList.add('d-none'); // Verberg knop als het gelukt is
-      document.getElementById('notifStatusText').textContent = '✅ Meldingen zijn actief.';
+      showNotifActive();
+      enableNotifications(currentUserId);
     } else {
-      toast('Meldingen geweigerd of niet mogelijk.', 'warning');
+      toast('Meldingen geweigerd of niet mogelijk in deze browser.', 'warning');
     }
   });
-
-  // Check bij het openen van het profiel of we al toestemming hebben
   document.getElementById('profileModal')?.addEventListener('show.bs.modal', () => {
-    if (Notification.permission === 'granted') {
-      document.getElementById('enableNotifBtn').classList.add('d-none');
-      document.getElementById('notifStatusText').textContent = '✅ Meldingen zijn actief.';
-    }
+    if (notificationsSupported() && Notification.permission === 'granted') showNotifActive();
   });
 }
 
@@ -6632,91 +5034,61 @@ function bindNotifications() {
 // Profiel-popup: naam, thema, voorkeuren en export.
 // ======================================================================
 
-// 1. Functie om de velden te vullen
+// Het profiel hoort altijd bij de INGELOGDE gebruiker, ook als een admin iemand anders bekijkt.
+const myData = () => dataStore.users[currentUserId] || {};
+
+/** Eigen instellingen opslaan (los van de gebruiker die bekeken wordt). */
+async function saveMySettings() {
+  if (!currentUserId) return;
+  await updateDoc(doc(db, 'users', currentUserId), { settings: myData().settings || {} });
+}
+
+/** Profiel-popup vullen. */
 function loadProfileTab() {
   const user = auth.currentUser;
   if (!user) return;
+  const ud = myData();
 
-  // Vul naam en e-mail in
-  document.getElementById('profileName').value = user.displayName || '';
+  document.getElementById('profileName').value = user.displayName || ud.name || '';
   document.getElementById('profileEmail').value = user.email || '';
+  document.getElementById('profilePhoto').src = user.photoURL || DEFAULT_AVATAR;
+  document.getElementById('profileDarkModeToggle').checked = document.body.classList.contains('dark-mode');
 
-  // Vul profielfoto in de MODAL in
-  const photoEl = document.getElementById('profilePhoto');
-  if (user.photoURL) {
-    photoEl.src = user.photoURL;
-  } else {
-    // Fallback (standaard anonieme avatar)
-    photoEl.src =
-      'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iY3VycmVudENvbG9yIiBjbGFzcz0iYmkgYmktcGVyc29uLWZpbGwiIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTMgMTQgczEtMiAyLTIgMiAyIDIgMiAyLTItMi0yem01LTAiLz48cGF0aCBkPSJNODguNUM4IDcuNjcgNy4zMyA3IDYuNSA3UzUgNy42NyA1IDguNSA1LjY3IDEwIDYuNSAxMFM4IDkuMzMgOCA4LjV6bS0yIDBjMCAxLjExLS44OSAyLTIgMnMtMi0uODktMi0yIC44OS0yIDItMiAyIC44OSAyIDJ6bS0yLTNjLTMuMTQ2IDAtNS41IDIuNTM2LTUuNSA1LjVWMTloMTJ2LTIuNWMwLTIuOTY0LTIuMzU0LTUuNS01LjUtNS41eiIvPjwvc3ZnPg==';
-  }
-
-  // Zet de Dark Mode schakelaar in de juiste stand
-  const toggle = document.getElementById('profileDarkModeToggle');
-  toggle.checked = document.body.classList.contains('dark-mode');
-  // ✅ HIER TOEVOEGEN: Sidebar-vinkje instellen
-  const ud = getCurrentUserData();
   const sidebarToggle = document.getElementById('profileSidebarToggle');
-  if (sidebarToggle) {
-    sidebarToggle.checked = !!ud?.settings?.sidebarCollapsed;
-  }
+  if (sidebarToggle) sidebarToggle.checked = !!ud.settings?.sidebarCollapsed;
 
-  // ✅ HIER TOEVOEGEN: Standaard tabblad & Notificaties instellen
-
-  // 1. Standaard tabblad
   const defaultTabSelect = document.getElementById('profileDefaultTab');
-  if (defaultTabSelect) {
-    defaultTabSelect.value = ud?.settings?.defaultTab || '#tab-home'; // Fallback naar Home
-  }
-  // ✅ HIER TOEVOEGEN: Markeer het geselecteerde kleurbolletje
+  if (defaultTabSelect) defaultTabSelect.value = ud.settings?.defaultTab || '#tab-home';
+
+  // Gekozen accentkleur aanduiden
   const picker = document.getElementById('profileColorPicker');
   if (picker) {
-    // Haal huidige kleur op (uit localStorage, met fallback naar Firestore)
-    const currentColor = localStorage.getItem('accentColor') || ud?.settings?.accentColor || '#0d6efd';
-
-    // Verwijder 'selected' van alle bolletjes
-    picker.querySelectorAll('.color-dot').forEach(dot => dot.classList.remove('selected'));
-
-    // Voeg 'selected' toe aan de juiste
-    const activeDot = picker.querySelector(`.color-dot[data-color="${currentColor}"]`);
-    if (activeDot) {
-      activeDot.classList.add('selected');
-    }
+    const currentColor = localStorage.getItem('accentColor') || ud.settings?.accentColor || '#0d6efd';
+    picker
+      .querySelectorAll('.color-dot')
+      .forEach(dot => dot.classList.toggle('selected', dot.dataset.color === currentColor));
   }
-  // EINDE TOEVOEGING
-  // 2. Notificatie vinkjes
-  const prefs = ud?.settings?.notificationPrefs || {};
-  document.getElementById('prefNotifyDailyEmpty').checked = prefs.notifyDailyEmpty !== false;
-  document.getElementById('prefNotifyWeeklyEmpty').checked = prefs.notifyWeeklyEmpty !== false;
-  document.getElementById('prefNotifyMonthlyGoal').checked = prefs.notifyMonthlyGoal !== false;
-  document.getElementById('prefNotifyProjectEnd').checked = prefs.notifyProjectEnd !== false;
-  // EINDE TOEVOEGING
+
+  const prefs = ud.settings?.notificationPrefs || {};
+  for (const key of ['notifyDailyEmpty', 'notifyWeeklyEmpty', 'notifyMonthlyGoal', 'notifyProjectEnd']) {
+    const box = document.getElementById(`pref${key[0].toUpperCase()}${key.slice(1)}`);
+    if (box) box.checked = prefs[key] !== false;
+  }
 }
 
 function bindProfile() {
-  // 2. Koppel de laad-functie aan het 'show' event van de modal
-  const profileModalEl = document.getElementById('profileModal');
+  document.getElementById('profileModal')?.addEventListener('show.bs.modal', loadProfileTab);
 
-  profileModalEl?.addEventListener('show.bs.modal', loadProfileTab);
-
-  // 3. Knop: Naam opslaan
+  // Naam opslaan (Firebase-profiel + gebruikersdocument)
   document.getElementById('profileSaveBtn')?.addEventListener('click', async () => {
     const user = auth.currentUser;
     const newName = document.getElementById('profileName').value.trim();
     if (!user || !newName) return toast('Vul een naam in', 'warning');
-
     try {
-      // Stap A: Update Firebase Auth profiel
       await updateProfile(user, { displayName: newName });
-
-      // Stap B: Update naam in Firestore database (voor Admin paneel)
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, { name: newName });
-
-      // Stap C: Update de UI direct
-      document.getElementById('currentUserName').textContent = newName;
-      document.getElementById('homeUserName').textContent = newName;
-
+      await updateDoc(doc(db, 'users', user.uid), { name: newName });
+      myData().name = newName;
+      if (getActiveUserId() === currentUserId) renderHome();
       toast('Naam opgeslagen!', 'success');
     } catch (err) {
       console.error('Fout bij opslaan profiel:', err);
@@ -6724,125 +5096,62 @@ function bindProfile() {
     }
   });
 
-  // Dan de knop in de modal koppelen
+  // Donkere modus (per toestel)
   document.getElementById('profileDarkModeToggle')?.addEventListener('change', e => {
-    const active = e.target.checked;
-    document.body.classList.toggle('dark-mode', active);
-    localStorage.setItem('darkMode', active);
+    document.body.classList.toggle('dark-mode', e.target.checked);
+    localStorage.setItem('darkMode', e.target.checked);
   });
 
-  // ✅ HIER TOEVOEGEN: Schakelaar: Sidebar voorkeur
+  const setMySetting = async (key, value, message) => {
+    const me = myData();
+    me.settings ||= {};
+    me.settings[key] = value;
+    await saveMySettings();
+    toast(message, 'success');
+  };
+
   document.getElementById('profileSidebarToggle')?.addEventListener('change', async e => {
-    const active = e.target.checked;
-    const ud = getCurrentUserData();
-    ud.settings ||= {};
-    ud.settings.sidebarCollapsed = active;
-
-    // Pas UI direct aan
-    sidebar.classList.toggle('collapsed', active);
-    main.classList.toggle('collapsed', active);
-
-    // Sla op in Firestore (niet met 'debouncedSave' want dit is een directe actie)
-    await saveUserData();
-    toast('Sidebar-voorkeur opgeslagen', 'success');
+    sidebar.classList.toggle('collapsed', e.target.checked);
+    main.classList.toggle('collapsed', e.target.checked);
+    await setMySetting('sidebarCollapsed', e.target.checked, 'Sidebar-voorkeur opgeslagen');
   });
 
-  // ✅ HIER TOEVOEGEN: Dropdown: Standaard opstart-tabblad
   document.getElementById('profileDefaultTab')?.addEventListener('change', async e => {
-    const newTab = e.target.value;
-    const ud = getCurrentUserData();
-    ud.settings ||= {};
-    ud.settings.defaultTab = newTab;
-
-    await saveUserData();
-    toast('Standaard opstart-tabblad opgeslagen', 'success');
+    await setMySetting('defaultTab', e.target.value, 'Standaard opstart-tabblad opgeslagen');
   });
 
-  // ✅ HIER TOEVOEGEN: Fieldset: Notificatie voorkeuren (delegated)
   document.getElementById('profileNotifPrefs')?.addEventListener('change', async e => {
-    // Reageer alleen op de vinkjes zelf
     if (e.target.type !== 'checkbox') return;
-
-    const ud = getCurrentUserData();
-    ud.settings ||= {};
-
-    // Lees ALLE vinkjes in de fieldset en sla ze op als een object
     const prefs = {
       notifyDailyEmpty: document.getElementById('prefNotifyDailyEmpty').checked,
       notifyWeeklyEmpty: document.getElementById('prefNotifyWeeklyEmpty').checked,
       notifyMonthlyGoal: document.getElementById('prefNotifyMonthlyGoal').checked,
       notifyProjectEnd: document.getElementById('prefNotifyProjectEnd').checked
     };
-
-    ud.settings.notificationPrefs = prefs;
-
-    await saveUserData();
-    toast(`Notificatie-voorkeuren opgeslagen`, 'success');
+    await setMySetting('notificationPrefs', prefs, 'Notificatie-voorkeuren opgeslagen');
   });
 
-  // ✅ HIER TOEVOEGEN: Klik-listener voor Accentkleur
   document.getElementById('profileColorPicker')?.addEventListener('click', async e => {
     const dot = e.target.closest('.color-dot');
-    if (!dot) return; // Klik was niet op een bolletje
-
-    const newColor = dot.dataset.color;
-
-    // 1. Update de UI direct
-    applyAccentColor(newColor);
-
-    // 2. Update de "selected" class in de modal
-    document.querySelectorAll('#profileColorPicker .color-dot').forEach(d => d.classList.remove('selected'));
-    dot.classList.add('selected');
-
-    // 3. Sla op in Firestore
-    const ud = getCurrentUserData();
-    ud.settings ||= {};
-    ud.settings.accentColor = newColor;
-    await saveUserData();
-
-    toast('Accentkleur opgeslagen!', 'success');
+    if (!dot) return;
+    applyAccentColor(dot.dataset.color);
+    document.querySelectorAll('#profileColorPicker .color-dot').forEach(d => d.classList.toggle('selected', d === dot));
+    await setMySetting('accentColor', dot.dataset.color, 'Accentkleur opgeslagen!');
   });
 
-  // ✅ HIER TOEVOEGEN: Knop: Exporteer Mijn Gegevens
+  // Eigen gegevens downloaden als JSON
   document.getElementById('profileExportBtn')?.addEventListener('click', () => {
-    try {
-      // 1. Haal de data op van de HUIDIGE ingelogde gebruiker
-      // We gebruiken currentUserId, NIET getActiveUserId(), want je exporteert altijd JEZELF.
-      const ud = dataStore.users[currentUserId];
-      if (!ud) {
-        return toast('Kon gebruikersdata niet vinden.', 'danger');
-      }
-
-      // 2. Converteer data naar een JSON-string
-      // null, 2 zorgt voor een "mooie" (leesbare) JSON-opmaak
-      const dataStr = JSON.stringify(ud, null, 2);
-
-      // 3. Maak een Blob (een 'bestand' in het geheugen)
-      const blob = new Blob([dataStr], { type: 'application/json' });
-
-      // 4. Maak een download-link
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-
-      // 5. Stel de bestandsnaam in
-      const ymd = new Date().toISOString().slice(0, 10); // Bv. 2025-11-02
-      a.download = `shift_planner_export_${ud.name || 'user'}_${ymd}.json`;
-
-      // 6. "Klik" op de link om de download te starten
-      document.body.appendChild(a);
-      a.click();
-
-      // 7. Opruimen
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast('Gegevens worden gedownload!', 'success');
-    } catch (err) {
-      console.error('Fout bij exporteren:', err);
-      toast('Export mislukt: ' + err.message, 'danger');
-    }
+    const ud = dataStore.users[currentUserId];
+    if (!ud) return toast('Kon gebruikersdata niet vinden.', 'danger');
+    const url = URL.createObjectURL(new Blob([JSON.stringify(ud, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `shift_planner_export_${ud.name || 'user'}_${todayISO()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    URL.revokeObjectURL(url);
+    a.remove();
+    toast('Gegevens worden gedownload!', 'success');
   });
 }
 
@@ -6851,35 +5160,30 @@ function bindProfile() {
 // Gebruiker wisselen in de topbalk, rechten en team-rooster.
 // ======================================================================
 
-// ✅ 2. De nieuwe functie voor de topbar-wisselaar
+/** Keuzelijst + knoppen (rol, schoolverlof, verwijderen) in de topbalk voor admins. */
 function initTopbarAdminSwitcher() {
   const container = document.getElementById('topbarAdminSwitch');
   if (!container) return;
 
   container.innerHTML = `
-    <div class="d-flex align-items-center gap-2">   
+    <div class="d-flex align-items-center gap-2">
       <select id="topbarUserSelect" class="form-select form-select-sm" style="width: auto; max-width: 180px;"></select>
-      
       <div id="topbarControls" class="d-none d-flex align-items-center gap-2 border-start ps-2 ms-1">
-        
         <select id="topbarRoleSelect" class="form-select form-select-sm" style="width: auto;" title="Rol wijzigen">
           <option value="user">User</option>
           <option value="admin">Admin</option>
         </select>
-
-        <button id="topbarSchoolBtn" class="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center" 
+        <button id="topbarSchoolBtn" class="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center"
                 style="width: 32px; height: 31px;" title="Schoolverlof Aan/Uit">
           <span class="material-icons-outlined" style="font-size:18px">school</span>
         </button>
-
-        <button id="topbarDeleteBtn" class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center" 
+        <button id="topbarDeleteBtn" class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center"
                 style="width: 32px; height: 31px;" title="Gebruiker verwijderen">
           <span class="material-icons-outlined" style="font-size:18px">person_remove</span>
         </button>
       </div>
     </div>
   `;
-
   container.classList.remove('d-none');
 
   const select = document.getElementById('topbarUserSelect');
@@ -6888,84 +5192,69 @@ function initTopbarAdminSwitcher() {
   const schoolBtn = document.getElementById('topbarSchoolBtn');
   const deleteBtn = document.getElementById('topbarDeleteBtn');
 
-  // --- A. Vul de lijst ---
   const refreshUserList = () => {
     select.innerHTML = '<option value="">-- Mijzelf --</option>';
-    const users = Object.entries(dataStore.users).sort((a, b) => (a[1].name || '').localeCompare(b[1].name || ''));
-    users.forEach(([uid, u]) => {
-      if (uid === currentUserId) return;
-      const opt = document.createElement('option');
-      opt.value = uid;
-      opt.textContent = u.name || u.email || uid;
-      if (uid === dataStore.viewUserId) opt.selected = true;
-      select.appendChild(opt);
-    });
+    Object.entries(dataStore.users)
+      .filter(([uid]) => uid !== currentUserId)
+      .sort((a, b) => (a[1].name || '').localeCompare(b[1].name || ''))
+      .forEach(([uid, u]) => {
+        const opt = document.createElement('option');
+        opt.value = uid;
+        opt.textContent = u.name || u.email || uid;
+        if (uid === dataStore.viewUserId) opt.selected = true;
+        select.appendChild(opt);
+      });
   };
-  refreshUserList();
 
-  // --- B. Update UI Helper ---
   const updateControlState = uid => {
-    // Knoppen in de topbalk tonen/verbergen
-    if (!uid) {
-      controls.classList.add('d-none');
-      return;
-    }
-
-    const u = dataStore.users[uid];
+    const u = uid && dataStore.users[uid];
+    controls.classList.toggle('d-none', !u);
     if (!u) return;
-    controls.classList.remove('d-none');
     roleSelect.value = u.role || 'user';
-
     const schoolEnabled = u.settings?.schoolLeaveEnabled !== false;
-    schoolBtn.className = schoolEnabled
-      ? 'btn btn-sm btn-success text-white d-flex align-items-center justify-content-center'
-      : 'btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center';
+    schoolBtn.className = `btn btn-sm ${schoolEnabled ? 'btn-success text-white' : 'btn-outline-secondary'} d-flex align-items-center justify-content-center`;
   };
 
-  // Initialiseren
+  refreshUserList();
   updateControlState(select.value);
 
-  // --- C. Event: Wisselen ---
+  // Andere gebruiker bekijken/bewerken
   select.onchange = async () => {
-    const targetUid = select.value;
-    dataStore.viewUserId = targetUid || null;
-
-    if (!targetUid) {
-      toast('Beheer teruggezet naar jezelf', 'info');
-    } else {
-      toast(`Beheer actief voor ${dataStore.users[targetUid]?.name || 'gebruiker'}`, 'primary');
-    }
-
+    const targetUid = select.value || null;
+    toast(
+      targetUid
+        ? `Beheer actief voor ${dataStore.users[targetUid]?.name || 'gebruiker'}`
+        : 'Beheer teruggezet naar jezelf',
+      targetUid ? 'primary' : 'info'
+    );
     updateControlState(targetUid);
-    await renderUserDataAsAdmin(targetUid || currentUserId);
+    await renderUserDataAsAdmin(targetUid);
   };
 
-  // --- D. Event: Rol ---
   roleSelect.onchange = async () => {
     const uid = select.value;
     if (!uid) return;
     try {
       await updateDoc(doc(db, 'users', uid), { role: roleSelect.value });
       dataStore.users[uid].role = roleSelect.value;
-      toast(`Rol aangepast`, 'success');
+      toast('Rol aangepast', 'success');
     } catch (err) {
       console.error(err);
       toast('Fout bij rol', 'danger');
     }
   };
 
-  // --- E. Event: Schoolverlof ---
   schoolBtn.onclick = async () => {
     const uid = select.value;
     if (!uid) return;
     const u = dataStore.users[uid];
     u.settings ||= {};
-    const newState = !(u.settings.schoolLeaveEnabled !== false);
+    const newState = u.settings.schoolLeaveEnabled === false; // omdraaien (standaard = aan)
     try {
       await updateDoc(doc(db, 'users', uid), { 'settings.schoolLeaveEnabled': newState });
       u.settings.schoolLeaveEnabled = newState;
       updateControlState(uid);
-      if (typeof applySchoolLeaveVisibility === 'function') applySchoolLeaveVisibility();
+      applySchoolLeaveVisibility();
       toast(`Schoolverlof ${newState ? 'AAN' : 'UIT'}`, 'success');
     } catch (err) {
       console.error(err);
@@ -6973,25 +5262,17 @@ function initTopbarAdminSwitcher() {
     }
   };
 
-  // --- F. Event: Verwijderen (NIEUW) ---
   deleteBtn.onclick = async () => {
     const uid = select.value;
     if (!uid) return;
     if (!confirm('Weet je zeker dat je deze gebruiker wilt verwijderen? Dit kan niet ongedaan worden gemaakt.')) return;
-
     try {
       await deleteDoc(doc(db, 'users', uid));
-      delete dataStore.users[uid]; // Verwijder lokaal
-
-      // Reset view naar jezelf
+      delete dataStore.users[uid];
       select.value = '';
-      dataStore.viewUserId = null;
       updateControlState(null);
-      await renderUserDataAsAdmin(currentUserId);
-
-      // Lijst verversen
+      await renderUserDataAsAdmin(null);
       refreshUserList();
-
       toast('Gebruiker verwijderd', 'success');
     } catch (err) {
       console.error(err);
@@ -7000,150 +5281,80 @@ function initTopbarAdminSwitcher() {
   };
 }
 
-// ✅ DEZE FUNCTIE ONTBRAK: Hiermee kan de topbar wisselen van gebruiker
+/** Admin: alle schermen tonen voor een andere gebruiker (null = jezelf). */
 async function renderUserDataAsAdmin(uid) {
-  // 1. Zorg dat we de data hebben
-  if (!dataStore.users[uid]) {
+  if (uid && !dataStore.users[uid]) {
     const snap = await getDoc(doc(db, 'users', uid));
-    if (snap.exists()) {
-      dataStore.users[uid] = snap.data();
-    }
+    if (snap.exists()) dataStore.users[uid] = snap.data();
   }
+  dataStore.viewUserId = uid && uid !== currentUserId ? uid : null;
 
-  // 2. Zet de actieve view user (zodat alle functies weten naar wie we kijken)
-  dataStore.viewUserId = uid;
-
-  // 3. Update alle schermen met data van DEZE user
   renderProjects();
   renderShifts();
   populateFilterShiftYears();
   renderProjectFilterForMonth();
   await generateMonth();
-  renderHistory();
-
 }
 
-async function applySchoolLeaveVisibility() {
-  const ud = getCurrentUserData();
-  const enabled = ud?.settings?.schoolLeaveEnabled ?? true;
-
-  // 🔹 Andere secties met class .school-leave-section
-  document.querySelectorAll('.school-leave-section').forEach(el => {
-    if (enabled) {
-      el.classList.remove('fade-out');
-      el.classList.add('fade-in');
-      el.style.display = '';
-    } else {
-      el.classList.remove('fade-in');
-      el.classList.add('fade-out');
-      setTimeout(() => (el.style.display = 'none'), 300);
-    }
-  });
-
-  // 🔹 Historiektabel Schoolverlof-kolom
-  setTimeout(() => {
-    const table = document.getElementById('historyTable');
-    if (!table) return;
-
-    const headers = Array.from(table.querySelectorAll('th'));
-    const index = headers.findIndex(th => th.textContent.trim().toLowerCase().includes('schoolverlof'));
-
-    if (index >= 0) {
-      table.querySelectorAll('tr').forEach(tr => {
-        const cell = tr.children[index];
-        if (!cell) return;
-        if (enabled) {
-          cell.classList.remove('fade-out', 'hidden-col');
-          cell.classList.add('fade-in');
-        } else {
-          cell.classList.remove('fade-in');
-          cell.classList.add('fade-out');
-          setTimeout(() => cell.classList.add('hidden-col'), 300);
-        }
-      });
-    }
-  }, 200); // wacht even tot renderHistory() klaar is
-
-  // 🔹 Andere UI vernieuwingen
+/** Schoolverlof aan/uit: onderdelen tonen of verbergen en alles herberekenen. */
+function applySchoolLeaveVisibility() {
+  const enabled = getCurrentUserData()?.settings?.schoolLeaveEnabled !== false;
+  document.querySelectorAll('.school-leave-section').forEach(el => (el.style.display = enabled ? '' : 'none'));
   renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-  updateLeaveBadges();
   renderHistory();
 }
 
-// 📅 TEAM ROOSTER (ADMIN) - HYBRIDE LEGENDE
+// --- Team-rooster ---
 
-// 🎨 Helper: Genereer kleur
+/** Vaste pastelkleur op basis van een tekst. */
 function stringToColor(str) {
   let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const h = Math.abs(hash % 360);
-  return `hsl(${h}, 70%, 80%)`;
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  return `hsl(${Math.abs(hash % 360)}, 70%, 80%)`;
 }
 
-// Helper: Bepaal stijl
-function getShiftStyle(shiftName, userShifts = null) {
-  const sLower = shiftName.toLowerCase();
-  const sourceShifts = userShifts || getCurrentUserData().shifts;
-  const shiftDef = sourceShifts ? sourceShifts[shiftName] : null;
+/** Kleur/afkorting van een shift in het team-rooster. */
+function getShiftStyle(shiftKey, userShifts = {}) {
+  const shiftDef = userShifts?.[shiftKey] || null;
+  const name = shiftDef?.realName || shiftKey;
+  const sLower = name.toLowerCase();
+  const letter = shiftDef?.shortName || name.substring(0, 2).toUpperCase();
 
-  // 1. EIGEN AFKORTING?
-  let letter = '';
-  if (shiftDef && shiftDef.shortName) {
-    letter = shiftDef.shortName;
-  } else {
-    letter = shiftName.substring(0, 2).toUpperCase();
-  }
-
-  // 2. EIGEN KLEUR? (Dit is nieuw!)
-  // Als de gebruiker een kleur heeft gekozen, heeft dat voorrang op alles!
-  if (shiftDef && shiftDef.color && shiftDef.color !== '#e9ecef') {
-    // #e9ecef is default grijs
-    // We moeten bepalen of de tekst wit of zwart moet zijn o.b.v. de achtergrond
-    // Simpele check: is het een donkere kleur? (niet perfect, maar werkt vaak)
-    // Voor nu zetten we text op 'auto' (zwart) of wit als je dat wilt.
+  // Eigen kleur gaat voor (#e9ecef = standaard grijs)
+  if (shiftDef?.color && shiftDef.color !== '#e9ecef') {
     return {
       class: '',
       style: `background-color: ${shiftDef.color}; color: #000; font-weight:600; border:1px solid rgba(0,0,0,0.1);`,
-      letter: letter,
-      label: shiftName,
-      isGlobal: false // Custom kleuren zijn meestal specifiek
+      letter,
+      label: name,
+      isGlobal: false
     };
   }
 
-  // 3. Vaste systeem-shiften (Als er geen eigen kleur is gekozen)
-  if (['ziekte', 'ziek'].includes(sLower))
-    return { class: 'bg-shift-sick', letter: letter || 'Z', label: 'Ziekte', isGlobal: true };
+  // Vaste kleuren voor bekende shiften
+  if (['ziekte', 'ziek'].includes(sLower)) return { class: 'bg-shift-sick', letter, label: 'Ziekte', isGlobal: true };
   if (['verlof', 'feestdag'].includes(sLower))
     return { class: 'bg-shift-leave', letter: 'V', label: 'Verlof', isGlobal: true };
   if (['school', 'schoolverlof'].includes(sLower))
     return { class: 'bg-shift-school', letter: 'S', label: 'School', isGlobal: true };
-  if (['stage', 'stage'].includes(sLower))
-    return { class: 'bg-shift-stage', letter: 'St', label: 'Stage', isGlobal: true };
+  if (sLower === 'stage') return { class: 'bg-shift-stage', letter: 'St', label: 'Stage', isGlobal: true };
   if (sLower === 'bench') return { class: '', letter: '-', label: 'Bench', isGlobal: true };
-
-  // 4. Semi-vaste kleuren
-  if (sLower.includes('vroege')) return { class: 'bg-shift-vroege', letter: letter, label: 'Vroege', isGlobal: true };
-  if (sLower.includes('late')) return { class: 'bg-shift-late', letter: letter, label: 'Late', isGlobal: true };
-  if (sLower.includes('nacht')) return { class: 'bg-shift-nacht', letter: letter, label: 'Nacht', isGlobal: true };
-  if (sLower.includes('dag')) return { class: 'bg-shift-dag', letter: letter, label: 'Dagdienst', isGlobal: true };
+  if (sLower.includes('vroege')) return { class: 'bg-shift-vroege', letter, label: 'Vroege', isGlobal: true };
+  if (sLower.includes('late')) return { class: 'bg-shift-late', letter, label: 'Late', isGlobal: true };
+  if (sLower.includes('nacht')) return { class: 'bg-shift-nacht', letter, label: 'Nacht', isGlobal: true };
   if (sLower.includes('vrij weekend'))
     return { class: 'bg-shift-normal', letter: 'Vw', label: 'Vrij weekend', isGlobal: true };
-
-  // 5. DYNAMISCHE FALLBACK
-  const dynamicColor = stringToColor(shiftName);
+  if (sLower.includes('dag')) return { class: 'bg-shift-dag', letter, label: 'Dagdienst', isGlobal: true };
 
   return {
     class: '',
-    style: `background-color: ${dynamicColor}; color: #333; font-weight:600;`,
-    letter: letter,
-    label: shiftName,
+    style: `background-color: ${stringToColor(name)}; color: #333; font-weight:600;`,
+    letter,
+    label: name,
     isGlobal: false
   };
 }
 
-// 1. Init
 function initRoosterSelectors() {
   const rMonth = document.getElementById('roosterMonth');
   const rYear = document.getElementById('roosterYear');
@@ -7155,13 +5366,8 @@ function initRoosterSelectors() {
   }
   if (rYear.options.length === 0) {
     const yNow = new Date().getFullYear();
-    rYear.innerHTML = '';
     for (let y = yNow - 1; y <= yNow + 2; y++) {
-      const opt = document.createElement('option');
-      opt.value = y;
-      opt.textContent = y;
-      if (y === yNow) opt.selected = true;
-      rYear.appendChild(opt);
+      rYear.insertAdjacentHTML('beforeend', `<option value="${y}" ${y === yNow ? 'selected' : ''}>${y}</option>`);
     }
   }
   rMonth.onchange = renderTeamRooster;
@@ -7177,152 +5383,99 @@ function initRoosterSelectors() {
   }
 }
 
-// 2. Render Functie
+/** Team-rooster: per gebruiker een rij, per dag de (eerste) shift + legende. */
 function renderTeamRooster() {
   const rBody = document.getElementById('roosterBody');
   const rHead = document.getElementById('roosterHeaderRow');
   const rLegend = document.getElementById('roosterLegendContainer');
-  const rMonth = document.getElementById('roosterMonth');
-  const rYear = document.getElementById('roosterYear');
-
   if (!rBody || !rHead) return;
 
-  rBody.innerHTML = '';
-  rHead.innerHTML = '';
-  if (rLegend) rLegend.innerHTML = '';
-
-  const year = Number(rYear.value);
-  const month = Number(rMonth.value);
+  const year = Number(document.getElementById('roosterYear').value);
+  const month = Number(document.getElementById('roosterMonth').value);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  // Data containers voor legende
   const globalShifts = new Map();
   const userSpecificShifts = new Map();
 
-  // A. Header bouwen
   let headerHtml = '<th style="min-width:150px; background:#fff; position:sticky; left:0; z-index:30;">Werknemer</th>';
   for (let d = 1; d <= daysInMonth; d++) {
-    const dateObj = new Date(year, month, d);
-    const dayIndex = dateObj.getDay();
-    const dayLetter = daysFull[dayIndex].charAt(0);
+    const dayIndex = new Date(year, month, d).getDay();
     const isWeekend = dayIndex === 0 || dayIndex === 6;
     headerHtml += `
       <th class="${isWeekend ? 'bg-light text-muted' : ''}" style="min-width:35px; font-weight:normal; font-size:0.8rem;">
-        <div>${d}</div>
-        <div>${dayLetter}</div>
+        <div>${d}</div><div>${daysFull[dayIndex].charAt(0)}</div>
       </th>`;
   }
   rHead.innerHTML = headerHtml;
 
-  // B. Data Rows bouwen
-  if (!dataStore.users) return;
-  const users = Object.values(dataStore.users).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  rBody.innerHTML = '';
+  Object.values(dataStore.users)
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    .forEach(u => {
+      const userName = escapeHtml(u.name || (u.email || '').split('@')[0] || '?');
+      const rows = u.monthData?.[year]?.[month]?.rows || {};
+      let rowHtml = `<th style="background:#fff; position:sticky; left:0; z-index:20;">${userName}</th>`;
 
-  users.forEach(u => {
-    const tr = document.createElement('tr');
-    const userName = u.name || u.email.split('@')[0];
-    let rowHtml = `<th style="background:#fff; position:sticky; left:0; z-index:20;">${userName}</th>`;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const key = dateKey(year, month, d);
+        const firstKey = listDayKeys({ rows }, key).find(k => rows[k]?.shift);
+        const rowData = firstKey ? rows[firstKey] : null;
+        let cell = '<td class="rooster-cell"><div class="rooster-content"></div></td>';
 
-    const monthData = u.monthData?.[year]?.[month]?.rows || {};
-
-    for (let d = 1; d <= daysInMonth; d++) {
-      const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const entryKey = Object.keys(monthData).find(k => k === key || k.startsWith(key + '#'));
-      const rowData = entryKey ? monthData[entryKey] : null;
-
-      let cellContent = '';
-      let cellClass = '';
-      let cellStyle = '';
-      let tooltip = '';
-
-      if (rowData && rowData.shift) {
-        const shiftName = rowData.shift;
-        tooltip = `${shiftName} (${rowData.start} - ${rowData.end})`;
-
-        // ✅ HIER IS DE FIX: We geven nu 'u.shifts' mee!
-        // Zo kijkt hij naar de afkortingen van DEZE gebruiker (u), niet van de kijker.
-        const style = getShiftStyle(shiftName, u.shifts);
-
-        cellContent = style.letter;
-        cellClass = style.class;
-        cellStyle = style.style || '';
-
-        if (style.letter !== '-') {
-          if (style.isGlobal) {
-            globalShifts.set(style.label, style);
-          } else {
-            if (!userSpecificShifts.has(userName)) {
-              userSpecificShifts.set(userName, new Map());
+        if (rowData) {
+          const style = getShiftStyle(rowData.shift, u.shifts);
+          const tooltip = escapeHtml(`${style.label} (${rowData.start} - ${rowData.end})`);
+          cell = `<td class="rooster-cell ${style.class}" style="${style.style || ''}" title="${tooltip}"><div class="rooster-content">${escapeHtml(style.letter)}</div></td>`;
+          if (style.letter !== '-') {
+            if (style.isGlobal) globalShifts.set(style.label, style);
+            else {
+              if (!userSpecificShifts.has(userName)) userSpecificShifts.set(userName, new Map());
+              userSpecificShifts.get(userName).set(style.label, style);
             }
-            userSpecificShifts.get(userName).set(style.label, style);
           }
         }
+        rowHtml += cell;
       }
+      const tr = document.createElement('tr');
+      tr.innerHTML = rowHtml;
+      rBody.appendChild(tr);
+    });
 
-      rowHtml += `
-        <td class="rooster-cell ${cellClass}" style="${cellStyle}" title="${tooltip}">
-          <div class="rooster-content">${cellContent}</div>
-        </td>`;
-    }
-    tr.innerHTML = rowHtml;
-    rBody.appendChild(tr);
-  });
-
-  // C. Legende Genereren
-  if (rLegend) {
-    let legendHtml = '';
-
-    // 1. Algemeen
-    if (globalShifts.size > 0) {
-      const sortedGlobal = Array.from(globalShifts.values()).sort((a, b) => a.label.localeCompare(b.label));
-      legendHtml +=
-        '<div class="mb-2"><small class="text-muted fw-bold">Algemeen:</small><div class="d-flex flex-wrap gap-3 small mt-1">';
-      sortedGlobal.forEach(s => {
-        const c = s.class || '';
-        const st = s.style || '';
-        legendHtml += `
-          <div class="d-flex align-items-center gap-1">
-            <span class="badge ${c} border text-dark" style="min-width:25px; font-weight:normal; font-size:0.75rem; ${st}">${s.letter}</span> 
-            <span>${s.label}</span>
-          </div>`;
-      });
-      legendHtml += '</div></div>';
-    }
-
-    // 2. Specifiek per User
-    if (userSpecificShifts.size > 0) {
-      if (globalShifts.size > 0) legendHtml += '<hr class="my-2">';
-      legendHtml +=
-        '<div class="mb-2"><small class="text-muted fw-bold">Specifiek per gebruiker:</small><div class="row g-2 mt-1">';
-      userSpecificShifts.forEach((shiftsMap, userName) => {
-        const sortedUserShifts = Array.from(shiftsMap.values()).sort((a, b) => a.label.localeCompare(b.label));
-        let badgesHtml = sortedUserShifts
-          .map(s => {
-            const st = s.style || '';
-            return `<span class="badge border text-dark" style="font-weight:normal; font-size:0.75rem; ${st}">${s.letter} = ${s.label}</span>`;
-          })
-          .join(' ');
-        legendHtml += `
-          <div class="col-12 col-md-auto">
-            <div class="d-flex align-items-center flex-wrap gap-2 small bg-light p-1 px-2 rounded border">
-              <strong class="text-nowrap me-1">${userName}:</strong>
-              ${badgesHtml}
-            </div>
-          </div>`;
-      });
-      legendHtml += '</div></div>';
-    }
-
-    if (globalShifts.size === 0 && userSpecificShifts.size === 0) {
-      legendHtml = '<small class="text-muted fst-italic">Geen shiften gepland deze maand.</small>';
-    }
-    rLegend.innerHTML = legendHtml;
+  if (!rLegend) return;
+  const badge = (s, extra = '') =>
+    `<span class="badge ${s.class || ''} border text-dark" style="font-weight:normal; font-size:0.75rem; ${s.style || ''}">${escapeHtml(s.letter)}${extra}</span>`;
+  let legendHtml = '';
+  if (globalShifts.size) {
+    legendHtml +=
+      '<div class="mb-2"><small class="text-muted fw-bold">Algemeen:</small><div class="d-flex flex-wrap gap-3 small mt-1">' +
+      [...globalShifts.values()]
+        .sort((a, b) => a.label.localeCompare(b.label))
+        .map(s => `<div class="d-flex align-items-center gap-1">${badge(s)} <span>${escapeHtml(s.label)}</span></div>`)
+        .join('') +
+      '</div></div>';
   }
+  if (userSpecificShifts.size) {
+    if (globalShifts.size) legendHtml += '<hr class="my-2">';
+    legendHtml +=
+      '<div class="mb-2"><small class="text-muted fw-bold">Specifiek per gebruiker:</small><div class="row g-2 mt-1">';
+    userSpecificShifts.forEach((shiftsMap, userName) => {
+      const badges = [...shiftsMap.values()]
+        .sort((a, b) => a.label.localeCompare(b.label))
+        .map(s => badge(s, ` = ${escapeHtml(s.label)}`))
+        .join(' ');
+      legendHtml += `
+        <div class="col-12 col-md-auto">
+          <div class="d-flex align-items-center flex-wrap gap-2 small bg-light p-1 px-2 rounded border">
+            <strong class="text-nowrap me-1">${userName}:</strong> ${badges}
+          </div>
+        </div>`;
+    });
+    legendHtml += '</div></div>';
+  }
+  rLegend.innerHTML = legendHtml || '<small class="text-muted fst-italic">Geen shiften gepland deze maand.</small>';
 }
 
 function bindAdmin() {
-  // 3. Event Listener
-  document.querySelector('a[href="#tab-team-rooster"]')?.addEventListener('shown.bs.tab', () => {
+  document.querySelector('#navTabs a[href="#tab-team-rooster"]')?.addEventListener('shown.bs.tab', () => {
     initRoosterSelectors();
     renderTeamRooster();
   });

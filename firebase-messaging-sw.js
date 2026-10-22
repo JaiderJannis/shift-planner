@@ -13,19 +13,8 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
-// Luister naar berichten wanneer de app op de achtergrond draait
-messaging.onBackgroundMessage((payload) => {
-  console.log('[sw.js] Bericht ontvangen: ', payload);
-  
-  const notificationTitle = payload.notification.title;
-  const notificationOptions = {
-    body: payload.notification.body,
-  };
-
-  self.registration.showNotification(notificationTitle, notificationOptions);
+// Bericht tonen als de app op de achtergrond draait of gesloten is
+messaging.onBackgroundMessage(payload => {
+  const { title = 'Shift Planner', body = '' } = payload.notification || {};
+  self.registration.showNotification(title, { body, icon: 'favicon-192x192.png' });
 });
-
-
-
-
-
