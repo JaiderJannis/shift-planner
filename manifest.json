@@ -1,6 +1,6 @@
 {
   "name": "Shift Planner",
-  "short_name": "ShiftPlanner",
+  "short_name": "Shifts",
   "icons": [
     {
       "src": "favicon-32x32.png",
@@ -23,8 +23,8 @@
       "type": "image/png"
     }
   ],
-  "theme_color": "#0d6efd",
-  "background_color": "#ffffff",
+  "theme_color": "#F4F6F5",
+  "background_color": "#F4F6F5",
   "display": "standalone",
   "start_url": "index.html",
   "orientation": "portrait-primary"

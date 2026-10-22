@@ -50,6 +50,9 @@ import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/fireb
 
 import {
   getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   doc,
   getDoc,
   setDoc,
@@ -86,7 +89,15 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// Lokale cache: de app opent meteen met de laatst bekende gegevens en wijzigingen
+// gemaakt zonder internet worden bewaard zodra je weer online bent.
+let db;
+try {
+  db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+} catch (err) {
+  console.warn('Lokale cache niet beschikbaar, gewone verbinding wordt gebruikt:', err?.message || err);
+  db = getFirestore(app);
+}
 const auth = getAuth(app);
 const storage = getStorage(app);
 
@@ -118,10 +129,15 @@ const dataStore = {
   notifications: []
 };
 
-let saveTimer = null;
+// Meerdere wijzigingen in hetzelfde moment worden samen in één keer weggeschreven
+let saveQueued = false;
 const debouncedSave = () => {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => saveUserData(), 2000);
+  if (saveQueued) return;
+  saveQueued = true;
+  queueMicrotask(() => {
+    saveQueued = false;
+    saveUserData();
+  });
 };
 
 // --- Vaste waarden ---
@@ -144,6 +160,7 @@ const monthsFull = [
 const LEAVE_SHIFT_NAMES = ['Verlof']; // telt mee als "verlof"
 const SCHOOL_LEAVE_SHIFT_NAMES = ['Schoolverlof']; // telt mee als "schoolverlof"
 const LEAVE_TYPES = ['Verlof', 'Schoolverlof', 'Ziekte', 'Feestdag'];
+const STATUS_LABELS = { draft: 'Concept', submitted: 'Ingediend', approved: 'Goedgekeurd', rejected: 'Afgekeurd' };
 
 // Shiften die automatisch aan een vast project gekoppeld worden
 const SPECIAL_PROJECT_MAP = {
@@ -352,10 +369,53 @@ async function loadAllUsers() {
   dataStore.currentUser = currentUserId;
 }
 
+// --- Opslaan met zichtbare status in de topbalk ---
+let pendingSaves = 0;
+let saveStatusTimer = null;
+
+function setSaveStatus(state) {
+  const el = document.getElementById('saveStatus');
+  if (!el) return;
+  clearTimeout(saveStatusTimer);
+  const offline = !navigator.onLine;
+  const text = {
+    saving: offline ? 'Offline, wordt bewaard zodra je online bent' : 'Opslaan…',
+    saved: 'Opgeslagen',
+    error: 'Niet opgeslagen, probeer opnieuw'
+  }[state];
+  el.className = `save-status ${state}`;
+  el.textContent = text || '';
+  if (state === 'saved') {
+    saveStatusTimer = setTimeout(() => {
+      el.className = 'save-status';
+      el.textContent = '';
+    }, 2500);
+  }
+}
+
+/** Volgt een schrijfactie naar Firebase: toont "Opslaan…" → "Opgeslagen" (of een fout). */
+async function trackSave(promise) {
+  pendingSaves++;
+  setSaveStatus('saving');
+  try {
+    await promise;
+    return true;
+  } catch (err) {
+    console.error('Opslaan mislukt:', err);
+    setSaveStatus('error');
+    toast('Opslaan mislukt: ' + (err?.message || 'onbekende fout'), 'danger');
+    return false;
+  } finally {
+    pendingSaves--;
+    if (pendingSaves === 0 && document.getElementById('saveStatus')?.classList.contains('saving'))
+      setSaveStatus('saved');
+  }
+}
+
 async function saveUserData() {
   const id = getActiveUserId();
   if (!id) return;
-  await setDoc(doc(db, 'users', id), dataStore.users[id], { merge: true });
+  return trackSave(setDoc(doc(db, 'users', id), dataStore.users[id], { merge: true }));
 }
 
 /**
@@ -366,7 +426,7 @@ async function saveMonth(y, m) {
   const id = getActiveUserId();
   const md = dataStore.users[id]?.monthData?.[y]?.[m];
   if (!id || !md) return;
-  await updateDoc(doc(db, 'users', id), { [`monthData.${y}.${m}`]: md });
+  return trackSave(updateDoc(doc(db, 'users', id), { [`monthData.${y}.${m}`]: md }));
 }
 
 /** Data van de actieve gebruiker (zie getActiveUserId). */
@@ -814,6 +874,7 @@ function initSelectors() {
 /** Admin-onderdelen tonen voor admins (team-rooster + gebruikerswissel in de topbalk). */
 function revealAdminIfNeeded() {
   if (!isAdmin()) return;
+  document.body.classList.add('is-admin');
   document.getElementById('adminRoosterTabBtn')?.classList.remove('d-none');
   initTopbarAdminSwitcher();
 }
@@ -900,108 +961,31 @@ function bindAuth() {
 // Zijbalk, accentkleur, donkere modus en mobiele weergave.
 // ======================================================================
 
-/** Past de gekozen accentkleur toe op de hele app. */
+/** Past de gekozen accentkleur toe op de hele app (via CSS-variabelen in app.css). */
 function applyAccentColor(hex) {
-  if (!hex) return; // Geen kleur, doe niets
-
-  const rgb = hexToRgb(hex);
-  const lightBg = `rgba(${rgb}, 0.15)`; // Iets lichter voor hovers
-  const darkText = `rgba(${rgb}, 0.7)`; // Voor donkere tekst op lichte hover
-
-  // 1. Schrijf de CSS-regels
-  const cssRules = `
-        :root {
-          --bs-primary: ${hex};
-          --bs-primary-rgb: ${rgb};
-          --bs-primary-text-emphasis: ${hex};
-          --bs-primary-bg-subtle: ${lightBg};
-          --bs-primary-border-subtle: ${hex};
-        }
-        
-        /* === ALGEMENE OVERRIDES === */
-        .sp-sidebar { background: ${hex} !important; }
-        .sp-sidebar .nav-link.active, 
-        .sp-sidebar .nav-link:hover { background: rgba(255,255,255, 0.18) !important; }
-        .chip { color: ${hex}; background-color: ${lightBg}; }
-        .chip .dot { background-color: ${hex}; }
-        .badge-submitted { color: ${hex}; background-color: ${lightBg}; }
-        .form-check-input:checked {
-            background-color: ${hex};
-            border-color: ${hex};
-        }
-        .flatpickr-day.selected, .flatpickr-day.selected:hover {
-            background: ${hex};
-            border-color: ${hex};
-        }
-
-        /* === KNOPPEN OVERRIDES (DEZE WAREN HET PROBLEEM) === */
-        .btn-primary {
-          --bs-btn-bg: ${hex};
-          --bs-btn-border-color: ${hex};
-          --bs-btn-hover-bg: ${darkText};
-          --bs-btn-hover-border-color: ${darkText};
-          --bs-btn-active-bg: ${darkText};
-          --bs-btn-active-border-color: ${darkText};
-          --bs-btn-disabled-bg: ${hex};
-          --bs-btn-disabled-border-color: ${hex};
-        }
-        .btn-outline-primary {
-          --bs-btn-color: ${hex};
-          --bs-btn-border-color: ${hex};
-          --bs-btn-hover-bg: ${hex};
-          --bs-btn-hover-color: #fff;
-          --bs-btn-active-bg: ${hex};
-          --bs-btn-active-color: #fff;
-          --bs-btn-disabled-color: ${hex};
-          --bs-btn-disabled-border-color: ${hex};
-        }
-        .btn-outline-primary.active { /* Voor de Mailbox tabs */
-          background-color: ${hex};
-          color: #fff;
-        }
-
-        /* === SPECIFIEKE KNOPPEN (BEHOUDEN HUN KLEUR) === */
-        /* PDF Knop (blijft rood) */
-        #exportPdfBtn {
-          color: var(--bs-danger);
-          border-color: var(--bs-danger);
-        }
-        #exportPdfBtn:hover {
-          color: #fff;
-          background-color: var(--bs-danger);
-          border-color: var(--bs-danger);
-        }
-
-        /* Indienen Knop (blijft groen) */
-        #submitMonthBtn {
-          color: var(--bs-success);
-          border-color: var(--bs-success);
-        }
-        #submitMonthBtn:hover {
-          color: #fff;
-          background-color: var(--bs-success);
-          border-color: var(--bs-success);
-        }
-        
-        /* Snelle Invoer Knop (blijft oranje) */
-        #quickTopBtn {
-          border-color: #fd7e14 !important;
-          color: #fd7e14 !important;
-        }
-        #quickTopBtn:hover {
-          background-color: #fd7e14 !important;
-          color: #fff !important;
-        }
-
-        /* Donkere modus overrides */
-        body.dark-mode .sp-sidebar { background: #111 !important; }
-      `;
-
-  // 2. Injecteer in de <style> tag die we in de <head> hebben gemaakt
-  document.getElementById('accent-color-overrides').innerHTML = cssRules;
-
-  // 3. Sla op in localStorage voor snelle laadtijd (voorkomt "knipperen")
+  if (!/^#[0-9a-f]{6}$/i.test(hex || '')) return;
+  document.getElementById('accent-color-overrides').textContent =
+    `:root { --accent: ${hex}; --accent-rgb: ${hexToRgb(hex)}; }`;
   localStorage.setItem('accentColor', hex);
+}
+
+/** Donkere modus aan/uit (per toestel bewaard). */
+function setDarkMode(on) {
+  document.documentElement.dataset.bsTheme = on ? 'dark' : 'light';
+  localStorage.setItem('darkMode', on);
+}
+
+/** Paginatitel en actieve knoppen in de onderbalk/het Meer-blad bijwerken. */
+function syncNavState(hash) {
+  const link = document.querySelector(`#navTabs a[href="${hash}"]`);
+  const title = link?.dataset.title || 'Shift Planner';
+  const titleEl = document.getElementById('pageTitle');
+  if (titleEl) titleEl.textContent = title;
+  document.title = `${title} · Shift Planner`;
+  const inMore = !['#tab-home', '#tab-invoer', '#tab-historiek'].includes(hash);
+  document.querySelectorAll('.sp-bottombar .tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === hash || (inMore && btn.id === 'bottomMoreBtn'));
+  });
 }
 
 function bindLayout() {
@@ -1010,42 +994,49 @@ function bindLayout() {
     main.classList.toggle('collapsed');
   });
 
-  document.getElementById('sidebarMobile')?.addEventListener('click', () => {
-    sidebar.classList.toggle('show');
-  });
-
-  // Op mobiel de zijbalk sluiten na het kiezen van een tabblad
-  document.querySelectorAll('#navTabs .nav-link').forEach(a => {
-    a.addEventListener('click', () => sidebar.classList.remove('show'));
-  });
-
-  // Logo "Shift Planner" → Home (via de echte nav-link, anders crasht Bootstrap)
+  // Logo "Shift Planner" → Home
   document.querySelector('#sidebar a.label[href="#tab-home"]')?.addEventListener('click', e => {
     e.preventDefault();
     showTab('#tab-home');
-    sidebar.classList.remove('show');
   });
 
-  // Donkere modus (per toestel bewaard)
-  if (localStorage.getItem('darkMode') === 'true') document.body.classList.add('dark-mode');
-
-  // Tabellen op mobiel horizontaal laten scrollen
-  const wrapTables = () => {
-    document.querySelectorAll('table').forEach(table => {
-      if (table.closest('.calendar-grid')) return;
-      const parent = table.parentElement;
-      if (parent.classList.contains('mobile-scroll-wrapper') || parent.classList.contains('table-responsive')) {
-        parent.classList.add('mobile-scroll-wrapper');
-        return;
-      }
-      const wrapper = document.createElement('div');
-      wrapper.className = 'mobile-scroll-wrapper';
-      table.parentNode.insertBefore(wrapper, table);
-      wrapper.appendChild(table);
+  // Elke tabwissel: titel + onderbalk bijwerken en bovenaan beginnen
+  document.querySelectorAll('#navTabs .nav-link').forEach(a => {
+    a.addEventListener('shown.bs.tab', () => {
+      syncNavState(a.getAttribute('href'));
+      window.scrollTo({ top: 0 });
     });
-  };
-  wrapTables();
-  setTimeout(wrapTables, 1000);
+  });
+
+  // Onderbalk en Meer-blad (iPhone)
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('[data-tab]');
+    if (!btn) return;
+    showTab(btn.dataset.tab);
+    bootstrap.Offcanvas.getInstance(document.getElementById('moreSheet'))?.hide();
+  });
+  document.getElementById('bottomQuickBtn')?.addEventListener('click', () => openQuickInput());
+  document.querySelector('#moreSheet [data-bs-target="#profileModal"]')?.addEventListener('click', () => {
+    bootstrap.Offcanvas.getInstance(document.getElementById('moreSheet'))?.hide();
+  });
+
+  // Acties-menu sluiten na het kiezen van een actie (het menu blijft open bij het kiezen van een versie)
+  document.querySelector('.actions-menu')?.addEventListener('click', e => {
+    if (!e.target.closest('.dropdown-item')) return;
+    const toggle = e.currentTarget.parentElement.querySelector('[data-bs-toggle="dropdown"]');
+    bootstrap.Dropdown.getInstance(toggle)?.hide();
+  });
+
+  // Donkere modus van dit toestel
+  setDarkMode(localStorage.getItem('darkMode') === 'true');
+
+  // Opslaanstatus bij wegvallen/terugkomen van internet
+  window.addEventListener('offline', () =>
+    toast('Je bent offline. Wijzigingen worden bewaard zodra je weer online bent.', 'warning')
+  );
+  window.addEventListener('online', () => {
+    if (pendingSaves) setSaveStatus('saving');
+  });
 }
 
 // ======================================================================
@@ -1071,165 +1062,121 @@ function loadHomeNotifications() {
     .join('');
 }
 
+/**
+ * Urenmeter in prikklok-stijl: groot getal + liniaal met één streepje per 8 uur (één dienst).
+ * opts.title: kop boven de meter; opts.compact: kleinere variant (stage).
+ */
+function renderMeter(el, planned, target, opts = {}) {
+  if (!el) return;
+  const h = Math.floor(planned / 60);
+  const mm = String(planned % 60).padStart(2, '0');
+  const scale = Math.max(target, planned, 1);
+  const pct = Math.min(100, (planned / scale) * 100);
+  const tick = Math.max(1.2, (480 / Math.max(target || 160 * 60, planned, 480)) * 100);
+  const diff = target - planned;
+
+  let delta = '';
+  if (!target) delta = '<span class="meter-delta">Geen doel ingesteld</span>';
+  else if (diff > 0) delta = `<span class="meter-delta short">nog ${fmt(diff)}</span>`;
+  else delta = `<span class="meter-delta done">${diff === 0 ? 'doel bereikt' : `${fmt(-diff)} extra`}</span>`;
+
+  el.classList.toggle('compact', !!opts.compact);
+  el.innerHTML = `
+    ${opts.title ? `<h3>${opts.title}</h3>` : ''}
+    <div class="meter-figures">
+      <span class="meter-big">${h}<small>u</small>${mm}</span>
+      <span class="meter-of">${target ? `van ${fmt(target)}` : 'gepland'}</span>
+      ${delta}
+    </div>
+    <div class="meter-ruler" style="--tick:${tick.toFixed(2)}%" role="progressbar" aria-valuemin="0"
+         aria-valuemax="${target}" aria-valuenow="${planned}" aria-label="${fmt(planned)} van ${fmt(target)}">
+      <div class="fill${target && planned >= target ? ' over' : ''}" style="width:${pct.toFixed(1)}%"></div>
+    </div>
+    ${opts.caption === false ? '' : '<p class="meter-caption">Elk streepje is 8 uur.</p>'}`;
+}
+
+const STAGE = { start: '2026-09-28', end: '2027-01-31', targetMinutes: 450 * 60 }; // werkplekleren PXL
+
 function renderHome() {
   const ud = getCurrentUserData();
-  const name = ud.name || ud.email || '-';
   const y = Number(yearSelectMain.value);
   const m = Number(monthSelectMain.value);
   const md = ud.monthData?.[y]?.[m] || { rows: {}, targetHours: 0, targetMinutes: 0 };
 
-  // header
   const userEl = document.getElementById('homeUserName');
-  if (userEl) userEl.textContent = name;
+  if (userEl) userEl.textContent = (ud.name || ud.email || '').split(' ')[0] || '-';
   const monthNameEl = document.getElementById('homeMonthName');
   if (monthNameEl) monthNameEl.textContent = `${monthsFull[m]} ${y}`;
 
-  // totalen (zelfde regel als Invoer/Historiek: zonder stage en zonder niet-goedgekeurd verlof)
+  // Maand (zelfde regel als Invoer/Historiek: zonder stage en zonder niet-goedgekeurd verlof)
   const planned = plannedMinutes(md.rows, ud);
   const target = (Number(md.targetHours) || 0) * 60 + (Number(md.targetMinutes) || 0);
-  const diff = planned - target;
-  const pct = target > 0 ? Math.min(100, Math.round((planned / target) * 100)) : 0;
+  renderMeter(document.getElementById('homeMeter'), planned, target);
+  const setText = (id, text) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  };
+  setText('homeMonthPlanned', fmt(planned));
+  setText('homeMonthTarget', fmt(target));
+  setText('homeMonthDiff', fmtDiff(planned - target));
 
-  const elP = document.getElementById('homeMonthPlanned');
-  const elT = document.getElementById('homeMonthTarget');
-  const elD = document.getElementById('homeMonthDiff');
-  if (elP) elP.textContent = fmt(planned);
-  if (elT) elT.textContent = fmt(target);
-  if (elD) elD.textContent = fmtDiff(diff);
+  // Stage
+  const stageTaken = sumTakenMinutesForRange(STAGE.start, STAGE.end, ['Stage']);
+  renderMeter(document.getElementById('stageProgressContainer'), stageTaken, STAGE.targetMinutes, {
+    compact: true,
+    caption: false,
+    title: `Stage <span class="text-muted fw-normal">· ${toDisplayDate(STAGE.start)} t/m ${toDisplayDate(STAGE.end)}</span>`
+  });
 
-  const bar = document.getElementById('homeMonthProgress');
-  const barLbl = document.getElementById('homeMonthProgressLabel');
-  if (bar) {
-    bar.style.width = `${pct}%`;
-    bar.setAttribute('aria-valuenow', String(pct));
-    bar.classList.remove('bg-success', 'bg-warning');
-    bar.classList.add(planned >= target && target > 0 ? 'bg-success' : 'bg-warning');
-    if (barLbl) barLbl.textContent = `${pct}%`;
-  }
-
-  // Stage-voortgang (werkplekleren PXL)
-  const stageStartISO = '2026-09-28';
-  const stageEndISO = '2027-01-31';
-  const targetStageMins = 450 * 60;
-  const stageTakenMins = sumTakenMinutesForRange(stageStartISO, stageEndISO, ['Stage']);
-  const stagePct = targetStageMins > 0 ? Math.min(100, Math.round((stageTakenMins / targetStageMins) * 100)) : 0;
-
-  let stageContainer = document.getElementById('stageProgressContainer');
-  if (!stageContainer) {
-    // Zoek de wrapper van de maandelijkse voortgang om de nieuwe balk onder te zetten
-    const monthProgressWrap =
-      document.getElementById('homeMonthProgress')?.closest('.card-body') ||
-      document.getElementById('homeMonthProgress')?.parentElement?.parentElement;
-    if (monthProgressWrap) {
-      stageContainer = document.createElement('div');
-      stageContainer.id = 'stageProgressContainer';
-      stageContainer.className = 'mt-4 pt-3 border-top'; // Zorgt voor een nette visuele scheiding
-      monthProgressWrap.appendChild(stageContainer);
-    }
-  }
-
-  if (stageContainer) {
-    stageContainer.innerHTML = `
-          <div class="d-flex justify-content-between align-items-end mb-1">
-              <div>
-                  <h6 class="mb-0">Voortgang Stage</h6>
-                  <small class="text-muted">28/09/2026 t/m 31/01/2027</small>
-              </div>
-              <div class="text-end line-height-sm">
-                  <div class="fw-bold text-dark"><span>${fmt(stageTakenMins)}</span></div>
-                  <div class="text-muted small">van 450u 0min</div>
-              </div>
-          </div>
-          <div class="progress" style="height: 20px;">
-              <div class="progress-bar ${stageTakenMins >= targetStageMins ? 'bg-success' : 'bg-info'}" role="progressbar" 
-                   style="width: ${stagePct}%;" aria-valuenow="${stagePct}" aria-valuemin="0" aria-valuemax="100">
-                  <span class="px-2">${stagePct}%</span>
-              </div>
-          </div>
-      `;
-  }
-
-  // status badge
+  // Status van de maand
   const st = document.getElementById('homeMonthStatus');
   if (st) {
     const status = getMonthStatus(y, m);
-    st.textContent =
-      status === 'draft'
-        ? 'Concept'
-        : status === 'submitted'
-          ? 'Ingediend'
-          : status === 'approved'
-            ? 'Goedgekeurd'
-            : 'Afgekeurd';
-    st.className = 'badge';
-    st.classList.add(
-      status === 'approved'
-        ? 'bg-success'
-        : status === 'submitted'
-          ? 'bg-primary'
-          : status === 'rejected'
-            ? 'bg-danger'
-            : 'bg-secondary-subtle',
-      'text-dark'
-    );
+    st.textContent = STATUS_LABELS[status] || status;
+    st.className = `badge badge-status badge-${status}`;
   }
 
-  // verlof chips
+  // Verlof en schoolverlof
   const leaveAllow = getLeaveAllowanceMinutes();
-  const leaveTaken = sumTakenMinutesFor(y, LEAVE_SHIFT_NAMES);
-  const leaveRemain = leaveAllow - leaveTaken;
+  const leaveRemain = leaveAllow - sumTakenMinutesFor(y, LEAVE_SHIFT_NAMES);
   const leaveEl = document.getElementById('homeLeave');
   if (leaveEl) {
     leaveEl.textContent = !leaveAllow
       ? 'Verlof: niet ingesteld'
       : leaveRemain >= 0
         ? `Verlof: ${fmt(leaveRemain)} over`
-        : `Verlof: -${fmt(Math.abs(leaveRemain))} overschreden`;
-    leaveEl.className = `badge ${leaveRemain < 0 ? 'bg-danger' : leaveAllow ? 'bg-success' : 'bg-secondary-subtle text-dark'}`;
+        : `Verlof: ${fmt(-leaveRemain)} te veel`;
+    leaveEl.className = `badge ${!leaveAllow ? 'bg-secondary-subtle' : leaveRemain < 0 ? 'bg-danger' : 'bg-success'}`;
   }
 
   const schAllow = getSchoolLeaveAllowanceMinutes(y, m);
   const { startISO, endISO, label } = getAcademicYearBounds(y, m);
-  const schTaken = sumTakenMinutesForRange(startISO, endISO, SCHOOL_LEAVE_SHIFT_NAMES);
-  const schRemain = schAllow - schTaken;
-
+  const schRemain = schAllow - sumTakenMinutesForRange(startISO, endISO, SCHOOL_LEAVE_SHIFT_NAMES);
   const schEl = document.getElementById('homeSchoolLeave');
   if (schEl) {
-    if (!schAllow) {
-      schEl.textContent = 'Schoolverlof: niet ingesteld — ' + label;
-      schEl.className = 'badge bg-secondary-subtle text-dark';
-    } else {
-      schEl.textContent =
-        schRemain >= 0
-          ? `Schoolverlof: ${fmt(schRemain)} over — ${label}`
-          : `Schoolverlof: -${fmt(Math.abs(schRemain))} overschreden — ${label}`;
-      schEl.className = `badge ${schRemain < 0 ? 'bg-danger' : schRemain === 0 ? 'bg-warning text-dark' : 'bg-success'}`;
-    }
+    schEl.textContent = !schAllow
+      ? `Schoolverlof ${label}: niet ingesteld`
+      : schRemain >= 0
+        ? `Schoolverlof ${label}: ${fmt(schRemain)} over`
+        : `Schoolverlof ${label}: ${fmt(-schRemain)} te veel`;
+    schEl.className = `badge ${!schAllow ? 'bg-secondary-subtle' : schRemain < 0 ? 'bg-danger' : schRemain === 0 ? 'bg-warning' : 'bg-success'}`;
   }
 
-  // actieve projecten (vandaag)
+  // Lopende projecten (vandaag)
   const today = todayISO();
   const projWrap = document.getElementById('homeProjects');
   if (projWrap) {
     const list = (ud.projects || []).filter(p => isDateWithin(today, p.start || null, p.end || null));
-    if (!list.length) {
-      projWrap.innerHTML = '<div class="text-muted small">Geen actieve projecten vandaag.</div>';
-    } else {
-      projWrap.innerHTML = list
-        .map(
-          p => `
-        <div class="col-12 col-sm-6 col-md-4">
-          <div class="border rounded p-2 h-100">
-            <div class="fw-semibold">${escapeHtml(p.name)}</div>
-            <div class="text-muted small">${toDisplayDate(p.start)} – ${toDisplayDate(p.end)}</div>
-          </div>
-        </div>`
-        )
-        .join('');
-    }
+    projWrap.innerHTML = list.length
+      ? list
+          .map(p => {
+            const period = p.end && p.end < '2099-01-01' ? `tot ${toDisplayDate(p.end)}` : 'geen einddatum';
+            return `<div class="project-row"><strong>${escapeHtml(p.name)}</strong><span>${period}</span></div>`;
+          })
+          .join('')
+      : '<p class="empty">Geen lopende projecten vandaag.</p>';
   }
 
-  // laatste meldingen + mededelingen
   loadHomeNotifications();
   initAnnouncements();
 }
@@ -1286,9 +1233,7 @@ function loadAnnouncements() {
 
 function bindHome() {
   // Snelkoppelingen op Home
-  document.getElementById('homeBtnQuickInput')?.addEventListener('click', () => {
-    new bootstrap.Modal(document.getElementById('quickModal')).show();
-  });
+  document.getElementById('homeBtnQuickInput')?.addEventListener('click', () => openQuickInput());
 
   document.getElementById('homeBtnNewShift')?.addEventListener('click', () => {
     new bootstrap.Modal(document.getElementById('shiftModal')).show();
@@ -1652,7 +1597,7 @@ function renameShiftKeyEverywhere(ud, oldKey, newKey) {
 
 async function saveShiftsToDb(ud) {
   const id = getActiveUserId();
-  if (id) await updateDoc(doc(db, 'users', id), { shifts: ud.shifts, shiftOrder: ud.shiftOrder });
+  if (id) await trackSave(updateDoc(doc(db, 'users', id), { shifts: ud.shifts, shiftOrder: ud.shiftOrder }));
 }
 
 function refreshCalendarIfVisible() {
@@ -1838,7 +1783,7 @@ function initShiftSortable() {
       // Opslaan
       const id = getActiveUserId();
       if (id) {
-        await updateDoc(doc(db, 'users', id), { shiftOrder: newOrder });
+        await trackSave(updateDoc(doc(db, 'users', id), { shiftOrder: newOrder }));
         toast('Nieuwe volgorde opgeslagen', 'success');
       }
     }
@@ -1968,8 +1913,6 @@ const versionSelect = document.getElementById('versionSelect');
 const addVersionBtn = document.getElementById('addVersionBtn');
 const delVersionBtn = document.getElementById('delVersionBtn');
 
-const STATUS_LABELS = { draft: 'Concept', submitted: 'Ingediend', approved: 'Goedgekeurd', rejected: 'Afgekeurd' };
-
 /** Status-badge van de maand + welke knoppen zichtbaar zijn. */
 function updateMonthStatusBadge() {
   const y = Number(yearSelectMain.value);
@@ -2057,39 +2000,21 @@ function updateInputTotals() {
   renderProjectSummary();
 }
 
-/** Zwevende balk onderaan: doel, gepland en resterend. */
+/** Urenmeter bovenaan Invoer: doel, gepland en wat er nog rest. */
 function updateRemainingHours() {
-  const alertBox = document.getElementById('remainingHoursAlert');
-  if (!alertBox) return;
-
+  const el = document.getElementById('remainingHoursAlert');
+  if (!el) return;
   const y = Number(yearSelectMain.value);
   const m = Number(monthSelectMain.value);
   const ud = getCurrentUserData();
   const md = ud?.monthData?.[y]?.[m];
   if (!md) {
-    alertBox.classList.add('d-none');
+    el.classList.add('d-none');
     return;
   }
-
   const doel = (Number(md.targetHours) || 0) * 60 + (Number(md.targetMinutes) || 0);
-  const gepland = plannedMinutes(md.rows, ud);
-  const verschil = doel - gepland;
-
-  const resterendTekst =
-    verschil > 0
-      ? `🕓 <b>Resterend:</b> ${fmt(verschil)}`
-      : verschil < 0
-        ? `✅ <b>Meer uren:</b> ${fmt(-verschil)}`
-        : `✅ <b>Doel exact behaald!</b>`;
-
-  alertBox.classList.remove('alert-danger', 'alert-success');
-  alertBox.classList.add(gepland >= doel ? 'alert-success' : 'alert-danger');
-  alertBox.innerHTML = `
-    🎯 <b>Doel:</b> ${fmt(doel)}
-    &nbsp;|&nbsp; ⏱ <b>Gepland:</b> ${fmt(gepland)}
-    &nbsp;|&nbsp; ${resterendTekst}
-  `;
-  alertBox.classList.remove('d-none');
+  renderMeter(el, plannedMinutes(md.rows, ud), doel);
+  el.classList.remove('d-none');
 }
 
 /** Kaartjes met het totaal per project voor de gekozen maand. */
@@ -2331,25 +2256,30 @@ function bindMonth() {
     return ud.monthData[y][m];
   };
 
-  // Maanddoel (uren/minuten) live bijwerken
+  // Maanddoel: tellers meteen bijwerken tijdens het typen, opslaan zodra het veld verlaten wordt
   const onTargetInput = () => {
     const [y, m] = currentYM();
     const md = ensureMonth(getCurrentUserData(), y, m);
-    md.targetHours = Number(monthTargetHours.value) || 0;
-    md.targetMinutes = Number(monthTargetMinutes.value) || 0;
-    debouncedSave();
+    md.targetHours = Math.max(0, Number(monthTargetHours.value) || 0);
+    md.targetMinutes = Math.max(0, Number(monthTargetMinutes.value) || 0);
     updateInputTotals();
     renderHistory();
     renderHome();
   };
-  monthTargetHours.addEventListener('input', onTargetInput);
-  monthTargetMinutes.addEventListener('input', onTargetInput);
+  const onTargetChange = () => {
+    onTargetInput();
+    saveMonth(...currentYM());
+  };
+  [monthTargetHours, monthTargetMinutes].forEach(el => {
+    el.addEventListener('input', onTargetInput);
+    el.addEventListener('change', onTargetChange);
+  });
 
   // Maand uitsluiten van historiek
   document.getElementById('excludeHistoryToggle')?.addEventListener('change', e => {
     const [y, m] = currentYM();
     ensureMonth(getCurrentUserData(), y, m).excludeFromHistory = e.target.checked;
-    debouncedSave();
+    saveMonth(y, m);
     renderHistory();
     toast(e.target.checked ? 'Maand telt niet meer mee in historiek' : 'Maand telt weer mee in historiek', 'info');
   });
@@ -2381,13 +2311,9 @@ function bindMonth() {
     const md = ensureMonth(getCurrentUserData(), y, m);
     md.rows = {};
     md.status = 'draft';
-    await saveMonth(y, m);
-
-    await renderMonth(y, m);
-    updateInputTotals();
-    renderHistory();
-    renderHome();
     toast(`Planning voor ${monthsFull[m]} ${y} is leeggemaakt.`, 'success');
+    renderMonth(y, m);
+    await commitMonth(y, m);
   });
 
   // Gebruiker: maand indienen
@@ -2539,13 +2465,9 @@ function bindMonth() {
     const savedVer = md?.versions?.[selectedName];
     if (!savedVer?.rows) return;
     md.rows = structuredClone(savedVer.rows);
-    await saveMonth(y, m);
-
-    await renderMonth(y, m);
-    updateInputTotals();
-    renderHistory();
-    renderHome();
     toast(`Versie '${selectedName}' geladen`, 'info');
+    renderMonth(y, m);
+    await commitMonth(y, m);
   });
 
   // Versies: verwijderen
@@ -2627,7 +2549,7 @@ function renderCalendarGrid(year, month) {
 
     const dayHoliday = getBelgianHoliday(dateObj);
     const holidayHtml = dayHoliday
-      ? `<div class="holiday-badge"><span style="font-size: 1.3em;">${dayHoliday.emoji}</span> ${dayHoliday.name}</div>`
+      ? `<div class="holiday-badge" title="${dayHoliday.name}">${dayHoliday.emoji} <span class="hol-name">${dayHoliday.name}</span></div>`
       : '';
 
     // Favoriete shiften als klik-icoontjes (alleen als de shift op deze datum geldig is)
@@ -2645,42 +2567,40 @@ function renderCalendarGrid(year, month) {
       .slice(0, 3)
       .map(k => {
         const r = md.rows[k];
-        const sh = allShifts[r.shift] || { color: '#ccc', realName: r.shift };
+        const sh = allShifts[r.shift] || { color: '#e9ecef', realName: r.shift };
+        const name = sh.realName || r.shift;
+        const short = sh.shortName || name.slice(0, 2);
         const mins = Number(r.minutes) || 0;
         const durationText = mins > 0 ? `${Math.floor(mins / 60)}u${String(mins % 60).padStart(2, '0')}` : '';
         const pending = r.status === 'pending' ? ' ⏳' : '';
-        const hoverText = `Van ${r.start || '00:00'} tot ${r.end || '00:00'} (Pauze: ${r.break || 0} min)`;
+        const hoverText = `${name}: ${r.start || '00:00'}–${r.end || '00:00'}, pauze ${r.break || 0} min`;
         return `
-        <div class="cal-shift-item d-flex justify-content-between align-items-center"
-             title="${hoverText}"
-             style="background:${escapeHtml(sh.color || '#eee')}; border-left:3px solid rgba(0,0,0,0.2); padding-right:4px; cursor: help;">
-          <span style="overflow:hidden; text-overflow:ellipsis;">${escapeHtml(sh.realName || r.shift)}${pending}</span>
-          <span style="font-size:1em; font-weight:bold; margin-left:6px; white-space:nowrap; color:#000;">${durationText}</span>
+        <div class="cal-shift-item" title="${escapeHtml(hoverText)}" style="background:${escapeHtml(sh.color || '#e9ecef')}">
+          <span class="name-long">${escapeHtml(name)}${pending}</span><span class="name-short">${escapeHtml(short)}</span>
+          <span class="dur">${durationText}</span>
         </div>`;
       })
       .join('');
-    if (dayKeys.length > 3) {
-      shiftsHtml += `<div style="font-size:9px; text-align:center; color:#999;">+${dayKeys.length - 3}</div>`;
-    }
+    if (dayKeys.length > 3) shiftsHtml += `<div class="cal-more">+${dayKeys.length - 3}</div>`;
 
     const dayEl = document.createElement('div');
     dayEl.className = [
       'calendar-day',
       isWeekend && 'weekend',
       baseKey === today && 'today',
-      isHolidayDay && 'school-holiday-bg',
-      'd-flex flex-column'
+      isHolidayDay && 'school-holiday-bg'
     ]
       .filter(Boolean)
       .join(' ');
-    if (isPaintMode) dayEl.style.cursor = 'cell';
+    dayEl.setAttribute('role', 'button');
+    dayEl.setAttribute('aria-label', `${d} ${monthsFull[month]}`);
 
     dayEl.innerHTML = `
-      <div class="d-flex justify-content-between align-items-start p-1">
+      <div class="d-flex justify-content-between align-items-start">
         <span class="day-number">${d}</span>
         <div class="quick-icons-wrapper">${quickIconsHtml}</div>
       </div>
-      <div class="d-flex flex-column gap-1 px-1" style="overflow:hidden;">${shiftsHtml}</div>
+      ${shiftsHtml}
       ${holidayHtml}
     `;
 
@@ -2726,6 +2646,44 @@ function ensureMonthData(ud, y, m) {
   return ud.monthData[y][m];
 }
 
+/** Na een wijziging aan dagen: alles wat ervan afhangt meteen opnieuw tekenen. */
+function refreshAfterRowChange(y, m) {
+  if (Number(yearSelectMain.value) === y && Number(monthSelectMain.value) === m) renderCalendarGrid(y, m);
+  updateInputTotals();
+  renderHistory();
+  renderHome();
+}
+
+/** Wijziging aan een maand: eerst tonen, dan meteen opslaan in Firebase. */
+function commitMonth(y, m) {
+  refreshAfterRowChange(y, m);
+  return saveMonth(y, m);
+}
+
+/** <option>-lijst van shiften die op een datum geldig zijn. */
+function shiftOptionsHtml(dateISO, selectedKey = '', placeholder = '') {
+  const entries = shiftsValidOn([dateISO]);
+  if (selectedKey && !entries.some(([k]) => k === selectedKey)) {
+    entries.unshift([selectedKey, getCurrentUserData().shifts?.[selectedKey] || { realName: selectedKey }]);
+  }
+  return (
+    (placeholder ? `<option value="">${placeholder}</option>` : '') +
+    entries
+      .map(([key, sh]) => {
+        const label = sh.realName && sh.realName !== key ? `${sh.realName} (${sh.project || 'geen project'})` : key;
+        return `<option value="${escapeHtml(key)}" ${key === selectedKey ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+      })
+      .join('')
+  );
+}
+
+/** Duur tonen naast start/einde/pauze-velden. */
+function showDuration(outputEl, start, end, brk) {
+  if (!outputEl) return;
+  const mins = minutesBetween(start, end, brk);
+  outputEl.textContent = start && end ? `= ${Math.floor(mins / 60)}u${String(mins % 60).padStart(2, '0')}` : '';
+}
+
 /** Klik op een favoriet-icoon in de kalender: shift meteen toevoegen aan die dag. */
 async function applyShiftDirectly(baseKey, shiftKey) {
   const y = Number(baseKey.slice(0, 4));
@@ -2736,17 +2694,22 @@ async function applyShiftDirectly(baseKey, shiftKey) {
 
   const md = ensureMonthData(ud, y, m);
   md.rows[newRowKeyForDay(md, baseKey)] = rowFromShift(shiftKey);
-
-  renderCalendarGrid(y, m);
-  updateInputTotals();
-  renderHistory();
-  await saveUserData();
   toast(`${shiftRealName(shiftKey, ud)} toegevoegd`, 'success');
+  await commitMonth(y, m);
 }
 
-/** Dag-popup: shiften van die dag (uren aanpassen, verwijderen) + notitie. */
+/** Dag-popup: shiften van die dag wisselen, uren aanpassen, verwijderen of toevoegen + notitie. */
 function openDayEditor(baseKey) {
   currentEditingDateKey = baseKey;
+  renderDayEditor();
+  document.getElementById('dayAddForm')?.classList.add('d-none');
+  document.getElementById('btnAddExtraShift')?.classList.remove('d-none');
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('dayEditorModal')).show();
+}
+
+function renderDayEditor() {
+  const baseKey = currentEditingDateKey;
+  if (!baseKey) return;
   const ud = getCurrentUserData();
   const y = Number(baseKey.slice(0, 4));
   const m = Number(baseKey.slice(5, 7)) - 1;
@@ -2754,135 +2717,209 @@ function openDayEditor(baseKey) {
   const locked = isMonthLocked(y, m);
   const dis = locked ? 'disabled' : '';
 
+  const weekday = daysFull[new Date(y, m, Number(baseKey.slice(8, 10))).getDay()];
   const titleEl = document.getElementById('dayEditorTitle');
-  if (titleEl) titleEl.textContent = `Bewerken: ${toDisplayDate(baseKey)}${locked ? ' (vergrendeld)' : ''}`;
+  if (titleEl) titleEl.textContent = `${weekday} ${toDisplayDate(baseKey)}${locked ? ' · vergrendeld' : ''}`;
 
   const listContainer = document.getElementById('dayEditorList');
   if (!listContainer) return;
 
   const dayKeys = listDayKeys(md, baseKey).filter(k => md.rows[k]?.shift);
-  if (dayKeys.length === 0) {
-    listContainer.innerHTML = '<span class="text-muted small fst-italic">Nog geen shiften.</span>';
-  } else {
-    listContainer.innerHTML = dayKeys
-      .map(k => {
-        const r = md.rows[k];
-        const sh = ud.shifts?.[r.shift] || { color: '#ccc', realName: r.shift };
-        return `
-      <div class="p-2 border rounded bg-light mb-2">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <div class="d-flex align-items-center gap-2">
-            <span class="dot" style="background:${escapeHtml(sh.color || '#ccc')}; width:10px; height:10px; border-radius:50%;"></span>
-            <strong>${escapeHtml(sh.realName || r.shift)}</strong>
-          </div>
-          <button class="btn btn-outline-danger btn-sm p-0 px-2" title="Verwijder" ${dis} onclick="removeShiftFromDay('${k}')">
-            <span class="material-icons-outlined" style="font-size:16px; vertical-align: middle;">delete</span>
+  listContainer.innerHTML = dayKeys.length
+    ? dayKeys
+        .map(k => {
+          const r = md.rows[k];
+          const sh = ud.shifts?.[r.shift] || {};
+          const mins = Number(r.minutes) || 0;
+          return `
+      <div class="day-item" data-key="${k}">
+        <div class="day-item-top">
+          <span class="swatch" style="background:${escapeHtml(sh.color || '#e9ecef')}"></span>
+          <select class="form-select js-day-shift" aria-label="Shift" ${dis}>${shiftOptionsHtml(baseKey, r.shift)}</select>
+          <button type="button" class="btn-icon js-day-remove" title="Shift verwijderen" aria-label="Shift verwijderen" ${dis}>
+            <span class="material-icons-outlined">delete</span>
           </button>
         </div>
-        <div class="d-flex gap-2 align-items-end">
-          <div style="flex:1;">
-            <label class="form-label mb-0" style="font-size:0.75rem; color:#666;">Start</label>
-            <input type="time" class="form-control form-control-sm" ${dis} value="${r.start || '00:00'}" onchange="updateShiftTime('${k}', 'start', this.value)">
-          </div>
-          <div style="flex:1;">
-            <label class="form-label mb-0" style="font-size:0.75rem; color:#666;">Einde</label>
-            <input type="time" class="form-control form-control-sm" ${dis} value="${r.end || '00:00'}" onchange="updateShiftTime('${k}', 'end', this.value)">
-          </div>
-          <div style="width: 60px;">
-            <label class="form-label mb-0" style="font-size:0.75rem; color:#666;">Pauze</label>
-            <input type="number" min="0" class="form-control form-control-sm" ${dis} value="${r.break || 0}" onchange="updateShiftTime('${k}', 'break', this.value)">
-          </div>
+        <div class="time-row">
+          <label>Start<input type="time" class="form-control js-day-time" data-field="start" value="${escapeHtml(r.start || '')}" ${dis}></label>
+          <label>Einde<input type="time" class="form-control js-day-time" data-field="end" value="${escapeHtml(r.end || '')}" ${dis}></label>
+          <label>Pauze<input type="number" min="0" step="5" inputmode="numeric" class="form-control js-day-time" data-field="break" value="${Number(r.break) || 0}" ${dis}></label>
+          <output class="duration">= ${Math.floor(mins / 60)}u${String(mins % 60).padStart(2, '0')}</output>
         </div>
       </div>`;
-      })
-      .join('');
-  }
+        })
+        .join('')
+    : '<p class="empty">Nog geen shiften op deze dag.</p>';
 
   // Notitie (staat bij elke rij van de dag; we tonen die van de eerste)
   const first = dayKeys.length ? md.rows[dayKeys[0]] : null;
   const noteField = document.getElementById('dayEditorNote');
   if (noteField) {
     noteField.value = first ? first.omschrijving || first.description || '' : '';
-    noteField.disabled = locked;
+    noteField.disabled = locked || !first;
   }
-  const addBtn = document.getElementById('btnAddExtraShift');
-  if (addBtn) addBtn.disabled = locked;
-  const saveBtn = document.getElementById('btnSaveDayEditor');
-  if (saveBtn) saveBtn.disabled = locked;
-
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('dayEditorModal')).show();
+  for (const id of ['btnAddExtraShift', 'btnSaveDayEditor']) {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = locked;
+  }
 }
 
 function bindCalendar() {
   const ymOf = key => [Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1];
 
-  // Dag-popup → snelle invoer voor een extra shift op die dag
-  document.getElementById('btnAddExtraShift')?.addEventListener('click', () => {
-    bootstrap.Modal.getInstance(document.getElementById('dayEditorModal'))?.hide();
-    quickDate.value = currentEditingDateKey;
-    populateQuickShifts();
-    new bootstrap.Modal(document.getElementById('quickModal')).show();
-  });
-
-  // Shift uit een dag verwijderen (aangeroepen vanuit de dag-popup)
-  window.removeShiftFromDay = async rowKey => {
-    if (!rowKey) return;
-    const [y, m] = ymOf(rowKey);
-    if (warnIfLocked(y, m)) return;
-    const md = getCurrentUserData().monthData?.[y]?.[m];
-    if (!md?.rows?.[rowKey]) return;
-
-    delete md.rows[rowKey];
-    await saveMonth(y, m);
-
-    renderCalendarGrid(y, m);
-    updateInputTotals();
-    renderHistory();
-    if (document.getElementById('dayEditorModal')?.classList.contains('show')) openDayEditor(currentEditingDateKey);
-    toast('Shift verwijderd', 'success');
+  // Vorige / volgende maand
+  const stepMonth = delta => {
+    let y = Number(yearSelectMain.value);
+    let m = Number(monthSelectMain.value) + delta;
+    if (m < 0) [m, y] = [11, y - 1];
+    if (m > 11) [m, y] = [0, y + 1];
+    if (![...yearSelectMain.options].some(o => Number(o.value) === y)) {
+      const opt = new Option(y, y);
+      if (delta < 0) yearSelectMain.prepend(opt);
+      else yearSelectMain.append(opt);
+    }
+    yearSelectMain.value = y;
+    monthSelectMain.value = m;
+    monthSelectMain.dispatchEvent(new Event('change'));
   };
+  document.getElementById('prevMonthBtn')?.addEventListener('click', () => stepMonth(-1));
+  document.getElementById('nextMonthBtn')?.addEventListener('click', () => stepMonth(1));
 
-  // Uren aanpassen vanuit de dag-popup
-  window.updateShiftTime = async (rowKey, field, value) => {
-    const [y, m] = ymOf(rowKey);
-    if (warnIfLocked(y, m)) return;
-    const r = getCurrentUserData().monthData?.[y]?.[m]?.rows?.[rowKey];
+  const list = document.getElementById('dayEditorList');
+
+  // Shift wisselen: uren en project van de nieuwe shift overnemen
+  list?.addEventListener('change', e => {
+    const item = e.target.closest('.day-item');
+    if (!item) return;
+    const key = item.dataset.key;
+    const [y, m] = ymOf(key);
+    if (warnIfLocked(y, m)) return renderDayEditor();
+    const md = getCurrentUserData().monthData?.[y]?.[m];
+    const r = md?.rows?.[key];
     if (!r) return;
 
-    r[field] = field === 'break' ? Number(value) || 0 : value;
-    r.minutes = minutesBetween(r.start, r.end, r.break);
-    await saveUserData();
+    if (e.target.classList.contains('js-day-shift')) {
+      md.rows[key] = rowFromShift(e.target.value, { omschrijving: r.omschrijving || r.description || '' });
+      if (r.attachmentURL)
+        Object.assign(md.rows[key], {
+          attachmentURL: r.attachmentURL,
+          attachmentName: r.attachmentName,
+          attachmentPath: r.attachmentPath
+        });
+      toast(`Gewisseld naar ${shiftRealName(e.target.value)}`, 'success');
+    } else if (e.target.classList.contains('js-day-time')) {
+      const field = e.target.dataset.field;
+      r[field] = field === 'break' ? Math.max(0, Number(e.target.value) || 0) : e.target.value;
+      r.minutes = minutesBetween(r.start, r.end, r.break);
+    } else {
+      return;
+    }
+    renderDayEditor();
+    commitMonth(y, m);
+  });
 
-    renderCalendarGrid(y, m);
-    updateInputTotals();
-    renderHistory();
+  // Duur live bijwerken tijdens het typen
+  list?.addEventListener('input', e => {
+    const item = e.target.closest('.day-item');
+    if (!item || !e.target.classList.contains('js-day-time')) return;
+    const val = f => item.querySelector(`[data-field="${f}"]`).value;
+    showDuration(item.querySelector('.duration'), val('start'), val('end'), val('break'));
+  });
+
+  // Shift verwijderen
+  list?.addEventListener('click', e => {
+    const btn = e.target.closest('.js-day-remove');
+    if (!btn) return;
+    const key = btn.closest('.day-item').dataset.key;
+    const [y, m] = ymOf(key);
+    if (warnIfLocked(y, m)) return;
+    const md = getCurrentUserData().monthData?.[y]?.[m];
+    if (!md?.rows?.[key]) return;
+    const name = shiftRealName(md.rows[key].shift);
+    delete md.rows[key];
+    renderDayEditor();
+    commitMonth(y, m);
+    toast(`${name} verwijderd`, 'success');
+  });
+
+  // Shift toevoegen binnen de dag-popup
+  const addForm = document.getElementById('dayAddForm');
+  const addShift = document.getElementById('dayAddShift');
+  const addStart = document.getElementById('dayAddStart');
+  const addEnd = document.getElementById('dayAddEnd');
+  const addBreak = document.getElementById('dayAddBreak');
+  const addDuration = document.getElementById('dayAddDuration');
+  const updateAddDuration = () => showDuration(addDuration, addStart.value, addEnd.value, addBreak.value);
+  const fillAddTimes = () => {
+    const sh = getCurrentUserData().shifts?.[addShift.value];
+    addStart.value = sh?.start || '';
+    addEnd.value = sh?.end || '';
+    addBreak.value = sh ? Number(sh.break) || 0 : '';
+    updateAddDuration();
   };
 
-  // Dag-popup opslaan: notitie bij alle shiften van die dag + lege rijen opruimen
-  document.getElementById('btnSaveDayEditor')?.addEventListener('click', async () => {
+  document.getElementById('btnAddExtraShift')?.addEventListener('click', () => {
+    addShift.innerHTML = shiftOptionsHtml(currentEditingDateKey, '', 'Kies een shift');
+    fillAddTimes();
+    addForm.classList.remove('d-none');
+    document.getElementById('btnAddExtraShift').classList.add('d-none');
+    addShift.focus();
+  });
+  addShift?.addEventListener('change', fillAddTimes);
+  [addStart, addEnd, addBreak].forEach(el => el?.addEventListener('input', updateAddDuration));
+  const closeAddForm = () => {
+    addForm?.classList.add('d-none');
+    document.getElementById('btnAddExtraShift')?.classList.remove('d-none');
+  };
+  document.getElementById('dayAddCancel')?.addEventListener('click', closeAddForm);
+  document.getElementById('dayAddConfirm')?.addEventListener('click', () => {
+    const baseKey = currentEditingDateKey;
+    if (!addShift.value) return toast('Kies eerst een shift', 'warning');
+    const [y, m] = ymOf(baseKey);
+    if (warnIfLocked(y, m)) return;
+    const md = ensureMonthData(getCurrentUserData(), y, m);
+    const note = document.getElementById('dayEditorNote')?.value || '';
+    md.rows[newRowKeyForDay(md, baseKey)] = rowFromShift(addShift.value, {
+      start: addStart.value,
+      end: addEnd.value,
+      break: Math.max(0, Number(addBreak.value) || 0),
+      minutes: minutesBetween(addStart.value, addEnd.value, addBreak.value),
+      omschrijving: note
+    });
+    closeAddForm();
+    renderDayEditor();
+    commitMonth(y, m);
+    toast(`${shiftRealName(addShift.value)} toegevoegd`, 'success');
+  });
+  document.getElementById('dayEditorModal')?.addEventListener('hidden.bs.modal', closeAddForm);
+
+  // Notitie bewaren bij alle shiften van die dag (meteen bij verlaten van het veld en via de knop)
+  const saveNote = () => {
     const baseKey = currentEditingDateKey;
     if (!baseKey) return;
     const [y, m] = ymOf(baseKey);
-    if (warnIfLocked(y, m)) return;
-
-    const md = ensureMonthData(getCurrentUserData(), y, m);
+    if (isMonthLocked(y, m)) return;
+    const md = getCurrentUserData().monthData?.[y]?.[m];
+    if (!md) return;
     const note = document.getElementById('dayEditorNote')?.value || '';
+    let changed = false;
     listDayKeys(md, baseKey).forEach(k => {
       const r = md.rows[k];
       if (!r?.shift?.trim()) {
-        delete md.rows[k];
-      } else {
+        delete md.rows[k]; // lege regel opruimen
+        changed = true;
+      } else if ((r.omschrijving || r.description || '') !== note || 'description' in r) {
         r.omschrijving = note;
         delete r.description; // oud veld (vroeger gebruikt door de kalender)
+        changed = true;
       }
     });
-    await saveMonth(y, m);
-
-    renderCalendarGrid(y, m);
-    updateInputTotals();
-    renderHistory();
+    if (changed) commitMonth(y, m);
+  };
+  document.getElementById('dayEditorNote')?.addEventListener('change', saveNote);
+  document.getElementById('btnSaveDayEditor')?.addEventListener('click', () => {
+    saveNote();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('dayEditorModal')).hide();
-    toast('Opgeslagen', 'success');
   });
 }
 
@@ -2916,11 +2953,15 @@ async function renderMonth(year, month) {
   const th = document.getElementById('thActions');
   if (th) th.classList.toggle('d-none', !showActions);
 
+  // De tabel (lijstweergave) is ingeklapt: alleen opbouwen als ze open staat (veel sneller)
+  const tableVisible = document.getElementById('collapseTable')?.classList.contains('show');
+
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   for (let d = 1; d <= daysInMonth; d++) {
     const baseKey = dateKey(year, month, d);
 
     if (md.rows[baseKey] && autoAssignProjectIfNeeded(md.rows[baseKey])) changed = true;
+    if (!tableVisible) continue;
 
     // Lege dag → één lege regel tonen zodat je kan typen
     let allKeys = listDayKeys(md, baseKey);
@@ -3097,7 +3138,7 @@ async function renderMonth(year, month) {
     }
   }
 
-  if (changed) await saveUserData();
+  if (changed) saveMonth(year, month);
   renderCalendarGrid(year, month);
   updateInputTotals();
   renderHome();
@@ -3368,33 +3409,80 @@ function initMultiDayPicker() {
   });
 }
 
+/** Snelle invoer openen (standaard voor vandaag, of de getoonde maand als je elders kijkt). */
+function openQuickInput(dateISO) {
+  if (!dateISO) {
+    const today = todayISO();
+    const shown = dateKey(Number(yearSelectMain.value), Number(monthSelectMain.value), 1);
+    dateISO = today.slice(0, 7) === shown.slice(0, 7) || !yearSelectMain.value ? today : shown;
+  }
+  quickDate.value = dateISO;
+  document.getElementById('quickNote').value = '';
+  populateQuickShifts();
+  fillQuickTimes();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('quickModal')).show();
+}
+
+/** Uren van de gekozen shift invullen in de snelle invoer (aanpasbaar). */
+function fillQuickTimes() {
+  const sh = getCurrentUserData().shifts?.[quickShift.value];
+  document.getElementById('quickStart').value = sh?.start || '';
+  document.getElementById('quickEnd').value = sh?.end || '';
+  document.getElementById('quickBreak').value = sh ? Number(sh.break) || 0 : '';
+  updateQuickDuration();
+}
+
+function updateQuickDuration() {
+  showDuration(
+    document.getElementById('quickDuration'),
+    document.getElementById('quickStart').value,
+    document.getElementById('quickEnd').value,
+    document.getElementById('quickBreak').value
+  );
+}
+
 function bindQuickInput() {
-  quickDate.addEventListener('change', populateQuickShifts);
+  quickDate.addEventListener('change', () => {
+    const previous = quickShift.value;
+    populateQuickShifts();
+    if ([...quickShift.options].some(o => o.value === previous)) quickShift.value = previous;
+    fillQuickTimes();
+  });
+  quickShift.addEventListener('change', fillQuickTimes);
+  ['quickStart', 'quickEnd', 'quickBreak'].forEach(id =>
+    document.getElementById(id)?.addEventListener('input', updateQuickDuration)
+  );
 
   // Snelle invoer opslaan (voegt een shift toe; bestaande shiften op die dag blijven staan)
-  document.getElementById('saveQuickBtn')?.addEventListener('click', async () => {
+  document.getElementById('saveQuickBtn')?.addEventListener('click', () => {
     const date = quickDate.value;
     const shift = quickShift.value;
     const note = document.getElementById('quickNote').value;
-    if (!date || !shift) return toast('Kies minstens een datum en shift', 'warning');
+    if (!date || !shift) return toast('Kies een datum en een shift', 'warning');
 
     const y = Number(date.slice(0, 4));
     const m = Number(date.slice(5, 7)) - 1;
     if (warnIfLocked(y, m)) return;
     const ud = getCurrentUserData();
-    if (!ud.shifts?.[shift]) return toast('Fout: shift niet gevonden', 'danger');
+    if (!ud.shifts?.[shift]) return toast('Deze shift bestaat niet meer', 'danger');
+
+    const start = document.getElementById('quickStart').value;
+    const end = document.getElementById('quickEnd').value;
+    const brk = Math.max(0, Number(document.getElementById('quickBreak').value) || 0);
+    if (!start || !end) return toast('Vul een start- en einduur in', 'warning');
 
     const md = ensureMonthData(ud, y, m);
-    md.rows[newRowKeyForDay(md, date)] = rowFromShift(shift, { omschrijving: note });
-
-    await saveUserData();
-    await renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-    renderHistory();
+    md.rows[newRowKeyForDay(md, date)] = rowFromShift(shift, {
+      start,
+      end,
+      break: brk,
+      minutes: minutesBetween(start, end, brk),
+      omschrijving: note
+    });
 
     bootstrap.Modal.getInstance(document.getElementById('quickModal'))?.hide();
-    document.getElementById('quickNote').value = '';
-    if (document.getElementById('dayEditorModal')?.classList.contains('show')) openDayEditor(date);
-    toast('Shift toegevoegd', 'success');
+    toast(`${shiftRealName(shift, ud)} toegevoegd op ${toDisplayDate(date)}`, 'success');
+    commitMonth(y, m);
   });
 
   // "Meerdere dagen"-popup openen
@@ -3430,13 +3518,12 @@ function bindQuickInput() {
       }
       if (!touched.size) return warnIfLocked(Number(yearSelectMain.value), Number(monthSelectMain.value));
 
-      await saveUserData();
-      await renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
-      renderHistory();
-      highlightPlannedDays(window.multiDayPicker, getPlannedDates());
-
-      toast('Shiften toegevoegd', 'success');
+      toast(`${shiftRealName(selectedShift, ud)} ingevuld op ${selectedDates.length} dag(en)`, 'success');
       bootstrap.Modal.getOrCreateInstance(document.getElementById('multiDayModal')).hide();
+      for (const ym of touched) {
+        const [y, m] = ym.split('-').map(Number);
+        commitMonth(y, m);
+      }
     } catch (err) {
       console.error(err);
       toast('Er ging iets mis bij opslaan', 'danger');
@@ -3449,23 +3536,13 @@ function bindQuickInput() {
 // Dagen "inkleuren" met favoriete shiften en de kalender als afbeelding bewaren.
 // ======================================================================
 
-/** Verf-knop naast de maandkeuze + het palet onderaan het scherm. */
+/** Palet onderaan het scherm voor de verfmodus. */
 function initPaintModeUI() {
   if (document.getElementById('paintPalette')) return;
-
   const palette = document.createElement('div');
   palette.id = 'paintPalette';
+  palette.setAttribute('aria-label', 'Verfmodus');
   document.body.appendChild(palette);
-
-  if (monthSelectMain?.parentNode) {
-    const btn = document.createElement('button');
-    btn.id = 'togglePaintBtn';
-    btn.className = 'btn btn-outline-primary btn-sm d-flex align-items-center gap-2';
-    btn.innerHTML =
-      '<span class="material-icons-outlined" style="font-size:18px">brush</span> <span class="d-none d-sm-inline">Verf</span>';
-    btn.onclick = togglePaintMode;
-    monthSelectMain.parentNode.appendChild(btn);
-  }
 }
 
 /** Verfmodus aan/uit. Aan = klikken op een dag zet de gekozen favoriete shift (of wist de dag). */
@@ -3473,18 +3550,15 @@ function togglePaintMode() {
   isPaintMode = !isPaintMode;
   const palette = document.getElementById('paintPalette');
   const btn = document.getElementById('togglePaintBtn');
-  const alertBar = document.getElementById('remainingHoursAlert');
   btn?.classList.toggle('active', isPaintMode);
   palette.classList.toggle('active', isPaintMode);
+  document.body.classList.toggle('paint-mode', isPaintMode);
 
   if (!isPaintMode) {
     selectedPaintShiftKey = null;
-    if (alertBar) alertBar.style.display = '';
     refreshCalendarIfVisible();
     return;
   }
-
-  if (alertBar) alertBar.style.display = 'none'; // uren-balk zit anders in de weg
 
   // Favorieten die (deels) geldig zijn in de getoonde maand
   const y = Number(yearSelectMain.value);
@@ -3509,17 +3583,30 @@ function togglePaintMode() {
     palette.appendChild(el);
     return el;
   };
-  const eraser = addOption('eraser', '🗑️', '#f8f9fa', 'Dag wissen');
+  const eraser = addOption('eraser', '🗑️', 'var(--surface-2)', 'Dag wissen');
   const options = favs.map(k =>
     addOption(k, SHIFT_ICONS[allShifts[k].icon] || '⭐', allShifts[k].color || '#eee', allShifts[k].realName || k)
   );
+
+  const done = document.createElement('button');
+  done.type = 'button';
+  done.className = 'btn btn-primary btn-sm paint-done';
+  done.textContent = 'Klaar';
+  done.onclick = togglePaintMode;
+  palette.appendChild(done);
 
   // Standaard de eerste favoriet kiezen (anders de gom)
   if (options.length) selectPaintOption(favs[0], options[0]);
   else selectPaintOption('eraser', eraser);
 
+  showTab('#tab-invoer');
   refreshCalendarIfVisible();
-  toast(favs.length ? 'Verf-modus AAN' : 'Verf-modus AAN — markeer shiften als favoriet om ze hier te zien', 'info');
+  toast(
+    favs.length
+      ? 'Verfmodus: kies een shift onderaan en tik op dagen.'
+      : 'Verfmodus: markeer eerst shiften als favoriet (bij Shiften) om ze hier te zien.',
+    'info'
+  );
 }
 
 function selectPaintOption(key, element) {
@@ -3547,25 +3634,7 @@ async function applyPaintShift(baseKey) {
     md.rows[targetKey] = rowFromShift(selectedPaintShiftKey, { omschrijving: note });
   }
 
-  await saveMonth(y, m);
-  renderCalendarGrid(y, m);
-  updateInputTotals();
-  renderHistory();
-}
-
-/** Camera-knop naast de verf-knop. */
-function initScreenshotButton() {
-  if (document.getElementById('btnScreenshot')) return;
-  const paintBtn = document.getElementById('togglePaintBtn');
-  if (!paintBtn?.parentNode) return;
-
-  const btn = document.createElement('button');
-  btn.id = 'btnScreenshot';
-  btn.className = 'btn btn-outline-secondary btn-sm d-flex align-items-center gap-2 ms-1';
-  btn.innerHTML = '<span class="material-icons-outlined" style="font-size:18px">photo_camera</span>';
-  btn.title = 'Download als afbeelding';
-  btn.onclick = takeScreenshot;
-  paintBtn.parentNode.insertBefore(btn, paintBtn.nextSibling);
+  await commitMonth(y, m);
 }
 
 /** html2canvas pas laden wanneer het nodig is. */
@@ -3631,7 +3700,8 @@ async function takeScreenshot() {
 
 function bindPaint() {
   initPaintModeUI();
-  initScreenshotButton();
+  document.getElementById('togglePaintBtn')?.addEventListener('click', togglePaintMode);
+  document.getElementById('btnScreenshot')?.addEventListener('click', takeScreenshot);
 
   // Verfmodus uit bij het wisselen van maand of jaar
   const turnOffPaint = () => {
@@ -4036,8 +4106,6 @@ const mailDetail = document.getElementById('mailDetail');
 const mailToSelect = document.getElementById('mailToSelect');
 const mailSubjectInput = document.getElementById('mailSubjectInput');
 const mailBodyInput = document.getElementById('mailBodyInput');
-const mailUnreadBadge = document.getElementById('mailUnreadBadge');
-const mailSidebarBadge = document.getElementById('mailSidebarBadge');
 
 let mailboxUnsubInbox = null;
 let mailboxUnsubSent = null;
@@ -4055,15 +4123,14 @@ const mailSenderName = m =>
 
 function updateUnreadBadges(unread) {
   const n = Math.max(0, Number(unread) || 0);
-  [mailUnreadBadge, mailSidebarBadge].forEach(badge => {
+  ['mailUnreadBadge', 'mailSidebarBadge', 'mailMoreBadge'].forEach(id => {
+    const badge = document.getElementById(id);
     if (!badge) return;
-    if (n > 0) {
-      badge.textContent = n;
-      badge.classList.remove('d-none');
-    } else {
-      badge.classList.add('d-none');
-    }
+    badge.textContent = n;
+    badge.classList.toggle('d-none', n === 0);
   });
+  // Op de iPhone: bolletje op "Meer"
+  document.getElementById('mailBottomBadge')?.classList.toggle('d-none', n === 0);
 }
 
 /* ---------- mailbox listen ---------- */
@@ -5040,7 +5107,7 @@ const myData = () => dataStore.users[currentUserId] || {};
 /** Eigen instellingen opslaan (los van de gebruiker die bekeken wordt). */
 async function saveMySettings() {
   if (!currentUserId) return;
-  await updateDoc(doc(db, 'users', currentUserId), { settings: myData().settings || {} });
+  await trackSave(updateDoc(doc(db, 'users', currentUserId), { settings: myData().settings || {} }));
 }
 
 /** Profiel-popup vullen. */
@@ -5052,7 +5119,7 @@ function loadProfileTab() {
   document.getElementById('profileName').value = user.displayName || ud.name || '';
   document.getElementById('profileEmail').value = user.email || '';
   document.getElementById('profilePhoto').src = user.photoURL || DEFAULT_AVATAR;
-  document.getElementById('profileDarkModeToggle').checked = document.body.classList.contains('dark-mode');
+  document.getElementById('profileDarkModeToggle').checked = document.documentElement.dataset.bsTheme === 'dark';
 
   const sidebarToggle = document.getElementById('profileSidebarToggle');
   if (sidebarToggle) sidebarToggle.checked = !!ud.settings?.sidebarCollapsed;
@@ -5098,8 +5165,7 @@ function bindProfile() {
 
   // Donkere modus (per toestel)
   document.getElementById('profileDarkModeToggle')?.addEventListener('change', e => {
-    document.body.classList.toggle('dark-mode', e.target.checked);
-    localStorage.setItem('darkMode', e.target.checked);
+    setDarkMode(e.target.checked);
   });
 
   const setMySetting = async (key, value, message) => {
@@ -5167,7 +5233,7 @@ function initTopbarAdminSwitcher() {
 
   container.innerHTML = `
     <div class="d-flex align-items-center gap-2">
-      <select id="topbarUserSelect" class="form-select form-select-sm" style="width: auto; max-width: 180px;"></select>
+      <select id="topbarUserSelect" class="form-select form-select-sm" aria-label="Gebruiker bekijken"></select>
       <div id="topbarControls" class="d-none d-flex align-items-center gap-2 border-start ps-2 ms-1">
         <select id="topbarRoleSelect" class="form-select form-select-sm" style="width: auto;" title="Rol wijzigen">
           <option value="user">User</option>
