@@ -418,7 +418,8 @@ body.modal-open .floating-meter, body.paint-mode .floating-meter, body.menu-open
 .week-date { display: flex; flex-direction: column; align-items: center; line-height: 1.1; padding: 3px 0; border-radius: 10px; }
 .week-date .wd { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; font-weight: 700; }
 .week-date .dn { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; }
-.week-cell.today .week-day-btn { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.week-cell.today .week-day-btn { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 16px 2px rgba(var(--accent-rgb), 0.4); animation: today-glow-soft 2.4s ease-in-out infinite alternate; }
+@keyframes today-glow-soft { from { box-shadow: 0 0 0 1px var(--accent), 0 0 8px 0 rgba(var(--accent-rgb), 0.25); } to { box-shadow: 0 0 0 1px var(--accent), 0 0 18px 3px rgba(var(--accent-rgb), 0.5); } }
 .week-cell.today .week-date { background: var(--accent); color: #fff; }
 .week-cell.today .week-date .wd { color: rgba(255, 255, 255, 0.85); }
 .week-cell.past:not(.today) .week-day-btn { opacity: 0.6; }
@@ -488,7 +489,7 @@ body.modal-open .floating-meter, body.paint-mode .floating-meter, body.menu-open
   display: flex; flex-direction: column; gap: 3px; min-width: 0;
 }
 .calendar-day:hover { background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
-.calendar-day.disabled { background: var(--paper); cursor: default; }
+.calendar-day.disabled, .calendar-day.disabled:hover { background: var(--paper); cursor: default; }
 .calendar-day.weekend { background: color-mix(in srgb, var(--paper) 70%, var(--surface)); }
 .calendar-day.school-holiday-bg { background-color: color-mix(in srgb, #3884c4 8%, var(--surface)); }
 .day-number {
@@ -496,6 +497,17 @@ body.modal-open .floating-meter, body.paint-mode .floating-meter, body.menu-open
   width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%;
 }
 .calendar-day.today .day-number { background: var(--accent); color: #fff; }
+/* Vandaag: zachte gloed in de accentkleur rond het vak */
+.calendar-day.today {
+  z-index: 2;
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  box-shadow: inset 0 0 0 2px var(--accent), 0 0 18px 2px rgba(var(--accent-rgb), 0.45);
+  animation: today-glow 2.4s ease-in-out infinite alternate;
+}
+@keyframes today-glow {
+  from { box-shadow: inset 0 0 0 2px var(--accent), 0 0 10px 0 rgba(var(--accent-rgb), 0.3); }
+  to { box-shadow: inset 0 0 0 2px var(--accent), 0 0 22px 4px rgba(var(--accent-rgb), 0.55); }
+}
 .quick-icons-wrapper { display: flex; flex-wrap: nowrap; justify-content: flex-end; gap: 2px; min-width: 0; opacity: 0.35; transition: opacity 0.15s; }
 .calendar-day:hover .quick-icons-wrapper { opacity: 1; }
 .quick-icon-btn {

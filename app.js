@@ -2737,6 +2737,10 @@ function renderCalendarGrid(year, month) {
 
     grid.appendChild(dayEl);
   }
+
+  // Laatste week aanvullen met lege grijze vakjes (tot en met zondag)
+  const trailing = (7 - ((offset + daysInMonth) % 7)) % 7;
+  for (let i = 0; i < trailing; i++) grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
 }
 
 /** Zwevend menuutje met de overige favoriete shiften van een dag ("⋯"-knop). */
