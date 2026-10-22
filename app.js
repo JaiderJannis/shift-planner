@@ -176,6 +176,23 @@ function isValidProject(name) {
 function autoProjectForShift(shiftName){
   return SPECIAL_PROJECT_MAP[shiftName] || null;
 }
+// ✅ Is deze rij een stage-shift? (telt NIET mee in de gewone uren)
+// Stage = shift met naam "Stage", shift met stage-icoon, of shift/rij gekoppeld aan een project met "stage" in de naam.
+function isStageProjectName(name) {
+  return /stage/i.test(String(name || ''));
+}
+function isStageRow(r, ud) {
+  if (!r) return false;
+  ud = ud || getCurrentUserData();
+  const sID = String(r.shift || '').trim();
+  const shiftDef = ud?.shifts?.[sID];
+  const realName = String(shiftDef ? (shiftDef.realName || sID) : sID).trim();
+  if (realName.toLowerCase() === 'stage' || sID.toLowerCase() === 'stage') return true;
+  if (shiftDef?.icon === 'stage') return true;
+  if (isStageProjectName(shiftDef?.project)) return true;
+  if (isStageProjectName(r.project)) return true;
+  return false;
+}
     // ======= UI helpers =======
     const daysFull = ["Zondag","Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag"];
     const monthsFull = ["Januari","Februari","Maart","April","Mei","Juni","Juli","Augustus","September","Oktober","November","December"];
@@ -305,7 +322,7 @@ const planned = Object.values(md.rows || {}).reduce((s, r) => {
   // Check of het stage is
   const shiftDef = ud.shifts?.[r.shift];
   const realName = shiftDef ? (shiftDef.realName || r.shift) : r.shift;
-  if (realName === 'Stage') return s; // Stage NIET meetellen!
+  if (isStageRow(r, ud)) return s; // Stage NIET meetellen!
 
   return s + (Number(r.minutes) || 0);
 }, 0);
@@ -2492,7 +2509,7 @@ const total = Object.values(md.rows || {}).reduce((s, r) => {
     if (r.status === 'rejected') return s; 
     const shiftDef = ud.shifts?.[r.shift];
     const realName = shiftDef ? (shiftDef.realName || r.shift) : r.shift;
-    if (realName === 'Stage') return s; // Stage NIET meetellen!
+    if (isStageRow(r, ud)) return s; // Stage NIET meetellen!
     return s + (Number(r.minutes) || 0);
   }, 0);
 
@@ -2693,7 +2710,7 @@ const planned = Object.values(rows).reduce((s, r) => {
       if (r.status && r.status !== 'approved') return s; 
       const shiftDef = ud.shifts?.[r.shift];
       const realName = shiftDef ? (shiftDef.realName || r.shift) : r.shift;
-      if (realName === 'Stage') return s; // Stage NIET meetellen!
+      if (isStageRow(r, ud)) return s; // Stage NIET meetellen!
       return s + (r.minutes || 0);
     }, 0);
 
@@ -2712,7 +2729,7 @@ const planned = Object.values(rows).reduce((s, r) => {
       if (realName === 'Schoolverlof' || realName === 'School') school += Number(r.minutes)||0;
       if (realName === 'Feestdag') holiday += Number(r.minutes)||0;
       if (realName === 'Bench') bench += Number(r.minutes)||0;
-      if (realName === 'Stage') stage += Number(r.minutes)||0;
+      if (isStageRow(r, ud)) stage += Number(r.minutes)||0;
     });
     const diff = planned - target;
 
@@ -2861,8 +2878,9 @@ function sumTakenMinutesForRange(startISO, endISO, shiftNames) {
         const shiftDef = ud.shifts?.[sID];
         const realName = shiftDef ? (shiftDef.realName || sID) : sID;
 
-        // 2. Check naam
-        if (shiftNames.includes(realName) || shiftNames.includes(sID)) {
+        // 2. Check naam (stage ook herkennen via project/icoon)
+        const stageMatch = shiftNames.includes('Stage') && isStageRow(r, ud);
+        if (shiftNames.includes(realName) || shiftNames.includes(sID) || stageMatch) {
           // 3. Check datum en status
           if (isDateWithin(key, startISO, endISO)) {
             if (!r.status || r.status !== 'rejected') {
@@ -3559,7 +3577,7 @@ document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
   const total = Object.values(md.rows).reduce((s, r) => {
     const shiftDef = ud.shifts?.[r.shift];
     const realName = shiftDef ? (shiftDef.realName || r.shift) : r.shift;
-    if (realName === 'Stage') return s; // Stage NIET meetellen!
+    if (isStageRow(r, ud)) return s; // Stage NIET meetellen!
     return s + (r.minutes || 0);
   }, 0);
   const doel = ((md.targetHours || 0) * 60) + (md.targetMinutes || 0);
@@ -3936,6 +3954,7 @@ const md = currentMonthData;
   if (r.status && r.status !== 'approved') {
     return s; // Tel niet mee
   }
+  if (isStageRow(r, ud)) return s; // Stage NIET meetellen!
   return s + (r.minutes || 0);
 }, 0);
   if (doel > 0 && gepland < doel * 0.8) {
@@ -4087,7 +4106,7 @@ const gepland = Object.values(monthData.rows || {}).reduce((s, r) => {
   }
   const shiftDef = ud.shifts?.[r.shift];
   const realName = shiftDef ? (shiftDef.realName || r.shift) : r.shift;
-  if (realName === 'Stage') return s; // Stage NIET meetellen!
+  if (isStageRow(r, ud)) return s; // Stage NIET meetellen!
   return s + (r.minutes || 0);
 }, 0);
   const verschil = doel - gepland;
