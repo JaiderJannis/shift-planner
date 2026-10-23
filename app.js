@@ -3709,7 +3709,24 @@ function bindCalendar() {
   const list = document.getElementById('dayEditorList');
 
   // Shift wisselen: uren en project van de nieuwe shift overnemen
-  list?.addEventListener('change', e => {
+  // Tijdvelden pas verwerken als je het veld verlaat: zo blijft de tijdkiezer open
+  // terwijl je eerst het uur en daarna de minuten kiest (anders sluit hij na het uur).
+  let pendingDayRender = false;
+  const onDayEditorChange = e => {
+    if (e.type === 'change' && e.target.type === 'time') return;
+    if (e.type === 'focusout') {
+      if (e.target.type !== 'time') return;
+      const row = e.target.closest('.day-item');
+      const [yy, mm] = row ? ymOf(row.dataset.key) : [];
+      const r0 = row && getCurrentUserData().monthData?.[yy]?.[mm]?.rows?.[row.dataset.key];
+      if (!r0) return;
+      const current = e.target.classList.contains('js-day-extra')
+        ? Number(r0.extraMinutes)
+          ? rowActualEnd(r0)
+          : ''
+        : r0[e.target.dataset.field] || '';
+      if (e.target.value === current) return; // niets veranderd
+    }
     const item = e.target.closest('.day-item');
     if (!item) return;
     const key = item.dataset.key;
@@ -3754,8 +3771,19 @@ function bindCalendar() {
       return;
     }
     if (!e.target.classList.contains('js-day-shift')) syncLinkedRows(md, key);
-    renderDayEditor();
+    // Spring je meteen naar een ander veld in de popup? Dan pas hertekenen als je de lijst verlaat,
+    // anders sluit de tijdkiezer van dat volgende veld.
+    if (e.type === 'focusout' && e.relatedTarget && list.contains(e.relatedTarget)) pendingDayRender = true;
+    else renderDayEditor();
     commitMonth(y, m);
+  };
+  list?.addEventListener('change', onDayEditorChange);
+  list?.addEventListener('focusout', e => {
+    onDayEditorChange(e);
+    if (pendingDayRender && !(e.relatedTarget && list.contains(e.relatedTarget))) {
+      pendingDayRender = false;
+      renderDayEditor();
+    }
   });
 
   // Duur live bijwerken tijdens het typen
