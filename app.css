@@ -661,7 +661,10 @@ td.actions-cell, #thActions { width: 1%; white-space: nowrap; }
 .extra-toggle:disabled { opacity: 0.45; }
 .extra-min { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 0.85rem; font-weight: 700; color: var(--muted); }
 .extra-min .material-icons-outlined { font-size: 18px; }
-.extra-min .form-control { width: 72px; padding: 5px 8px; }
+.extra-min .form-control { width: 132px; padding: 5px 8px; }
+.extra-min .btn-icon { width: 32px; height: 32px; }
+.extra-hint { width: 100%; color: var(--muted); font-size: 0.8rem; }
+.extra-summary small { font-size: 0.8em; font-weight: 600; opacity: 0.8; }
 .day-item.has-extra { border-color: var(--extra); box-shadow: inset 4px 0 0 var(--extra); }
 .day-item.has-extra .js-day-extra:not(:placeholder-shown) { border-color: var(--extra); color: var(--extra); font-weight: 700; }
 .extra-summary { width: 100%; color: var(--extra); font-weight: 700; font-size: 0.85rem; }

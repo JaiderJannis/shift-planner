@@ -3108,6 +3108,34 @@ function syncLinkedRows(md, key, ud = getCurrentUserData()) {
   return synced;
 }
 
+/** Rij verwijderen, samen met de gekoppelde shift(en) op dezelfde dag. Geeft de verwijderde namen terug. */
+function removeRowWithLinked(md, key, ud = getCurrentUserData()) {
+  const src = md?.rows?.[key];
+  if (!src) return [];
+  const names = [shiftRealName(src.shift, ud)];
+  listDayKeys(md, key.slice(0, 10)).forEach(k => {
+    if (k !== key && areLinked(src.shift, md.rows[k]?.shift, ud)) {
+      names.push(shiftRealName(md.rows[k].shift, ud));
+      delete md.rows[k];
+    }
+  });
+  delete md.rows[key];
+  return names;
+}
+
+/** Minuten tussen gepland einde en werkelijk einde (0 als het werkelijke einde niet later is). */
+function extraFromActualEnd(plannedEnd, actualEnd) {
+  if (!plannedEnd || !actualEnd) return 0;
+  const toMin = t => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+  let diff = toMin(actualEnd) - toMin(plannedEnd);
+  if (diff < 0 && diff > -12 * 60) return 0; // vroeger gestopt: geen extra
+  if (diff < 0) diff += 1440; // over middernacht
+  return diff;
+}
+
 /** Rij opbouwen vanuit een shift-definitie. */
 function rowFromShift(shiftKey, extra = {}) {
   const ud = getCurrentUserData();
@@ -3253,11 +3281,19 @@ function renderDayEditor() {
             <span class="material-icons-outlined" aria-hidden="true">coffee</span>Pauze doorgewerkt
           </button>
           <label class="extra-min">
-            <span class="material-icons-outlined" aria-hidden="true">more_time</span>Extra
-            <input type="number" min="0" step="5" inputmode="numeric" class="form-control js-day-extra" value="${Number(r.extraMinutes) || ''}" placeholder="0" aria-label="Extra minuten na het einduur" ${dis}>
-            min
+            <span class="material-icons-outlined" aria-hidden="true">more_time</span>Werkelijk einde
+            <input type="time" class="form-control js-day-extra" value="${Number(r.extraMinutes) ? escapeHtml(rowActualEnd(r)) : ''}" aria-label="Werkelijk einduur (als je langer bleef)" ${dis}>
+            ${Number(r.extraMinutes) ? `<button type="button" class="btn-icon js-extra-clear" title="Geen extra tijd" aria-label="Werkelijk einde wissen" ${dis}><span class="material-icons-outlined">close</span></button>` : ''}
           </label>
-          ${extra ? `<span class="extra-summary">+${fmtExtra(extra)} extra${Number(r.extraMinutes) ? ` · tot ${escapeHtml(rowActualEnd(r))}` : ''}</span>` : ''}
+          ${
+            extra
+              ? `<span class="extra-summary">+${fmtExtra(extra)} extra${
+                  Number(r.extraMinutes)
+                    ? ` · gepland tot <small>${escapeHtml(r.end || '')}</small>, gebleven tot ${escapeHtml(rowActualEnd(r))}`
+                    : ''
+                }</span>`
+              : `<span class="extra-hint">Langer gebleven? Vul je echte einduur in (gepland tot ${escapeHtml(r.end || '—')}).</span>`
+          }
         </div>
       </div>`;
         })
@@ -3326,14 +3362,22 @@ function bindCalendar() {
       toast(`Gewisseld naar ${shiftRealName(e.target.value)}`, 'success');
     } else if (e.target.classList.contains('js-day-time')) {
       const field = e.target.dataset.field;
+      const actualBefore = Number(r.extraMinutes) ? rowActualEnd(r) : '';
       r[field] = field === 'break' ? Math.max(0, Number(e.target.value) || 0) : e.target.value;
+      // Gepland einde gewijzigd: het werkelijke einde blijft hetzelfde
+      if (field === 'end' && actualBefore) {
+        const extra = extraFromActualEnd(r.end, actualBefore);
+        if (extra) r.extraMinutes = extra;
+        else delete r.extraMinutes;
+      }
       recalcRowMinutes(r);
     } else if (e.target.classList.contains('js-day-extra')) {
-      const extra = Math.max(0, Math.round(Number(e.target.value) || 0));
+      const extra = extraFromActualEnd(r.end, e.target.value);
       if (extra) r.extraMinutes = extra;
       else delete r.extraMinutes;
       recalcRowMinutes(r);
-      if (extra) toast(`+${fmtExtra(extra)} extra genoteerd`, 'success');
+      if (extra) toast(`Tot ${e.target.value} gebleven: +${fmtExtra(extra)} extra`, 'success');
+      else if (e.target.value) toast(`Niet later dan het geplande einde (${r.end}): geen extra tijd`, 'info');
     } else {
       return;
     }
@@ -3348,10 +3392,28 @@ function bindCalendar() {
     if (!item || !e.target.matches('.js-day-time, .js-day-extra')) return;
     const val = f => item.querySelector(`[data-field="${f}"]`).value;
     const worked = item.querySelector('.js-break-worked')?.classList.contains('on');
-    const extra = Math.max(0, Number(item.querySelector('.js-day-extra')?.value) || 0);
+    const extra = extraFromActualEnd(val('end'), item.querySelector('.js-day-extra')?.value || '');
     const out = item.querySelector('.duration');
     const mins = minutesBetween(val('start'), val('end'), worked ? 0 : val('break')) + extra;
     if (out) out.textContent = `= ${Math.floor(mins / 60)}u${String(mins % 60).padStart(2, '0')}`;
+  });
+
+  // Werkelijk einde wissen
+  list?.addEventListener('click', e => {
+    const btn = e.target.closest('.js-extra-clear');
+    if (!btn) return;
+    e.preventDefault();
+    const key = btn.closest('.day-item').dataset.key;
+    const [y, m] = ymOf(key);
+    if (warnIfLocked(y, m)) return;
+    const md = getCurrentUserData().monthData?.[y]?.[m];
+    const r = md?.rows?.[key];
+    if (!r) return;
+    delete r.extraMinutes;
+    recalcRowMinutes(r);
+    syncLinkedRows(md, key);
+    renderDayEditor();
+    commitMonth(y, m);
   });
 
   // Pauze doorgewerkt aan/uit
@@ -3384,11 +3446,10 @@ function bindCalendar() {
     if (warnIfLocked(y, m)) return;
     const md = getCurrentUserData().monthData?.[y]?.[m];
     if (!md?.rows?.[key]) return;
-    const name = shiftRealName(md.rows[key].shift);
-    delete md.rows[key];
+    const names = removeRowWithLinked(md, key);
     renderDayEditor();
     commitMonth(y, m);
-    toast(`${name} verwijderd`, 'success');
+    toast(`${names.join(' + ')} verwijderd`, 'success');
   });
 
   // Shift toevoegen binnen de dag-popup
@@ -3681,7 +3742,7 @@ async function renderMonth(year, month) {
       if (delBtn) {
         delBtn.addEventListener('click', async e => {
           e.preventDefault();
-          delete md.rows[rowKey];
+          removeRowWithLinked(md, rowKey);
           await saveMonth(year, month);
           renderMonth(year, month);
           updateInputTotals();
