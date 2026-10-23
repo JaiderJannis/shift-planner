@@ -4930,9 +4930,15 @@ const markAllReadBtn = document.getElementById('markAllReadBtn');
 let lastVisible = null; // laatste geladen melding (voor "Toon meer")
 let notificationsUnsub = null;
 
+const NOTIF_EMPTY_HTML =
+  '<li class="notif-empty"><span class="material-icons-outlined" aria-hidden="true">notifications_none</span>Geen meldingen. Alles in orde!</li>';
+
 function notificationItemHtml(n) {
-  const time = n.timestamp ? new Date(n.timestamp).toLocaleString('nl-BE') : '';
-  return `<div>${escapeHtml(n.text)}</div><div class="text-muted small">${time}</div>`;
+  const d = n.timestamp ? new Date(n.timestamp) : null;
+  const time = d
+    ? `${chatDayLabel(d.toISOString())} · ${d.toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' })}`
+    : '';
+  return `<span class="notif-dot" aria-hidden="true"></span><div class="notif-body"><div class="notif-text">${escapeHtml(n.text)}</div><div class="notif-time">${time}</div></div>`;
 }
 
 /** Live lijst van de laatste 20 meldingen (bel-icoon) + badge. */
@@ -4951,7 +4957,7 @@ function listenToNotifications(uid) {
     dataStore.notifications.forEach(n => {
       if (!n.read) unread++;
       const li = document.createElement('li');
-      li.className = `mb-1 p-1 rounded ${n.read ? '' : 'bg-light unread'}`;
+      li.className = `notif-item${n.read ? '' : ' unread'}`;
       li.innerHTML = notificationItemHtml(n);
       notifList.appendChild(li);
     });
@@ -4963,6 +4969,8 @@ function listenToNotifications(uid) {
     }
     isFirstRun = false;
 
+    if (!dataStore.notifications.length) notifList.innerHTML = NOTIF_EMPTY_HTML;
+    document.getElementById('markAllReadBtn')?.classList.toggle('d-none', !dataStore.notifications.length);
     notifBadge.textContent = unread;
     notifBadge.classList.toggle('d-none', unread === 0);
     document.getElementById('loadMoreNotifBtn')?.classList.toggle('d-none', docs.length < 20);
@@ -4987,7 +4995,7 @@ async function loadMoreNotifications(uid) {
   snap.forEach(docSnap => {
     const n = docSnap.data();
     const li = document.createElement('li');
-    li.className = `mb-1 p-1 rounded ${n.read ? '' : 'bg-light unread'}`;
+    li.className = `notif-item${n.read ? '' : ' unread'}`;
     li.innerHTML = notificationItemHtml(n);
     notifList.appendChild(li);
   });
@@ -5168,7 +5176,8 @@ function bindNotifications() {
     if (!currentUserId) return;
     const snap = await getDocs(collection(db, 'users', currentUserId, 'notifications'));
     await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
-    notifList.innerHTML = '';
+    notifList.innerHTML = NOTIF_EMPTY_HTML;
+    markAllReadBtn.classList.add('d-none');
     notifBadge.classList.add('d-none');
     toast('Alle meldingen verwijderd', 'success');
   });
