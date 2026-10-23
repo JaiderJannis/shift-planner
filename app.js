@@ -293,6 +293,9 @@ const isDateWithin = (iso, start, end) => {
   return true;
 };
 
+/** Compacte duur: 7u36. */
+const fmtShort = mins => `${Math.floor(mins / 60)}u${String(mins % 60).padStart(2, '0')}`;
+
 /** Korte notatie voor extra tijd: 45 min, 1u15. */
 function fmtExtra(mins) {
   const n = Math.max(0, Number(mins) || 0);
@@ -573,10 +576,15 @@ function listDayKeys(monthData, dateKey) {
     k => k === dateKey || k.startsWith(dateKey + '_') || k.startsWith(dateKey + '#')
   );
 
-  // Sorteer chronologisch op het STARTUUR van de shift
+  // Vaste volgorde: eerst werk, dan stage; binnen elke groep op startuur
+  const ud = getCurrentUserData();
   return keys.sort((a, b) => {
     const rowA = monthData.rows[a];
     const rowB = monthData.rows[b];
+
+    const stageA = isStageRow(rowA, ud) ? 1 : 0;
+    const stageB = isStageRow(rowB, ud) ? 1 : 0;
+    if (stageA !== stageB) return stageA - stageB;
 
     // Als er nog geen tijd is ingevuld (lege regel), zet deze dan onderaan
     const startA = rowA && rowA.start && rowA.start !== '' ? rowA.start : '24:00';
@@ -1172,7 +1180,50 @@ function renderMeter(el, planned, target, opts = {}) {
     ${opts.caption === false ? '' : '<p class="meter-caption">Elk streepje is 8 uur.</p>'}`;
 }
 
-const STAGE = { start: '2026-09-28', end: '2027-01-31', targetMinutes: 450 * 60 }; // werkplekleren PXL
+const STAGE = { start: '2026-09-28', end: '2027-01-31', targetMinutes: 450 * 60, dayMinutes: 7 * 60 + 36 }; // werkplekleren PXL
+
+/** Stage-afteller: wat al gedaan is, wat ingepland staat en hoeveel stagedagen (à 7u36) er nog bij moeten. */
+function stageCountdownHtml(plannedTotal) {
+  const ud = getCurrentUserData();
+  const today = todayISO();
+  const done = sumTakenMinutesForRange(STAGE.start, today < STAGE.end ? today : STAGE.end, ['Stage']);
+  const toPlan = Math.max(0, STAGE.targetMinutes - plannedTotal);
+  const daysToPlan = Math.ceil(toPlan / STAGE.dayMinutes);
+
+  // Ingeplande stagedagen vanaf vandaag (unieke datums)
+  const futureDays = new Set();
+  Object.values(ud.monthData || {}).forEach(months =>
+    Object.values(months || {}).forEach(md =>
+      Object.entries(md?.rows || {}).forEach(([key, r]) => {
+        const iso = key.slice(0, 10);
+        if (
+          iso >= today &&
+          isDateWithin(iso, STAGE.start, STAGE.end) &&
+          r?.shift &&
+          r.status !== 'rejected' &&
+          isStageRow(r, ud)
+        )
+          futureDays.add(iso);
+      })
+    )
+  );
+
+  const msDay = 86400000;
+  const daysLeft = Math.max(0, Math.round((new Date(`${STAGE.end}T12:00`) - new Date(`${today}T12:00`)) / msDay));
+  const weeksLeft = Math.floor(daysLeft / 7);
+  const ended = today > STAGE.end;
+
+  return `<div class="stage-countdown">
+    <div class="sc-item"><span class="sc-num">${fmtShort(done)}</span><span class="sc-lbl">al gedaan</span></div>
+    <div class="sc-item"><span class="sc-num">${futureDays.size}</span><span class="sc-lbl">${futureDays.size === 1 ? 'dag' : 'dagen'} nog ingepland</span></div>
+    <div class="sc-item ${toPlan ? 'todo' : 'ok'}"><span class="sc-num">${toPlan ? `±${daysToPlan}` : '✓'}</span><span class="sc-lbl">${
+      toPlan ? `stagedagen van 7u36 nog in te plannen` : 'alle uren ingepland'
+    }</span></div>
+    <div class="sc-item"><span class="sc-num">${ended ? '—' : weeksLeft ? `${weeksLeft} wk` : `${daysLeft} d`}</span><span class="sc-lbl">${
+      ended ? 'stage afgelopen' : `tot ${toDisplayDate(STAGE.end)}${weeksLeft ? ` (${daysLeft} dagen)` : ''}`
+    }</span></div>
+  </div>`;
+}
 
 function renderHome() {
   const ud = getCurrentUserData();
@@ -1204,6 +1255,7 @@ function renderHome() {
     caption: false,
     title: `Stage <span class="text-muted fw-normal">· ${toDisplayDate(STAGE.start)} t/m ${toDisplayDate(STAGE.end)}</span>`
   });
+  document.getElementById('stageProgressContainer')?.insertAdjacentHTML('beforeend', stageCountdownHtml(stageTaken));
 
   // Status van de maand
   const st = document.getElementById('homeMonthStatus');
@@ -1262,7 +1314,6 @@ function renderHome() {
 // --- Mijn week ---
 
 let homeWeekOffset = 0; // 0 = deze week, 1 = volgende week
-const fmtShort = mins => `${Math.floor(mins / 60)}u${String(mins % 60).padStart(2, '0')}`;
 
 /** Lokale datum als YYYY-MM-DD. */
 const isoOf = d =>
@@ -1747,7 +1798,10 @@ function renameShiftKeyEverywhere(ud, oldKey, newKey) {
         if (r?.shift === oldKey) r.shift = newKey;
       })
     )
-  );
+  ); // Koppelingen naar de oude naam meeverhuizen
+  Object.values(ud.shifts || {}).forEach(sh => {
+    if (sh?.linkedShift === oldKey) sh.linkedShift = newKey;
+  });
 }
 
 async function saveShiftsToDb(ud) {
@@ -1822,6 +1876,7 @@ function renderShifts() {
             <div>
                 <strong class="text-dark">${escapeHtml(sh.realName || name)}</strong>
                 ${sh.shortName ? `<div class="small text-muted">${escapeHtml(sh.shortName)}</div>` : ''}
+                ${sh.linkedShift && ud.shifts?.[sh.linkedShift] ? `<div class="link-note"><span class="material-icons-outlined" aria-hidden="true">link</span>samen met ${escapeHtml(shiftRealName(sh.linkedShift, ud))}</div>` : ''}
             </div>
         </div>
       </td>
@@ -1988,6 +2043,7 @@ function bindShifts() {
       const newShiftName = document.getElementById('newShiftName');
       const visibleName = newShiftName.value.trim();
       const projectVal = document.getElementById('newShiftProjectSelect').value || '';
+      const linkVal = document.getElementById('newShiftLinked')?.value || '';
 
       if (!visibleName) return toast('Naam verplicht', 'warning');
 
@@ -2028,7 +2084,8 @@ function bindShifts() {
         break: Number(document.getElementById('newShiftBreak').value) || 0,
         project: projectVal,
         startDate: document.getElementById('newShiftStartDate').value || null,
-        endDate: document.getElementById('newShiftEndDate').value || null
+        endDate: document.getElementById('newShiftEndDate').value || null,
+        ...(linkVal && linkVal !== uniqueKey ? { linkedShift: linkVal } : {})
       };
 
       if (!ud.shiftOrder.includes(uniqueKey)) ud.shiftOrder.push(uniqueKey);
@@ -2050,6 +2107,26 @@ function bindShifts() {
       toast('Shift opgeslagen', 'success');
     });
   }
+
+  // Keuzelijst "Samen invullen met" vullen bij het openen
+  document.getElementById('shiftModal')?.addEventListener('show.bs.modal', e => {
+    const sel = document.getElementById('newShiftLinked');
+    if (!sel) return;
+    const ud = getCurrentUserData();
+    const editing = e.target.dataset.editingKey || '';
+    const keys = (ud.shiftOrder || []).filter(k => ud.shifts?.[k]);
+    Object.keys(ud.shifts || {}).forEach(k => !keys.includes(k) && keys.push(k));
+    sel.innerHTML =
+      '<option value="">Niet gekoppeld</option>' +
+      keys
+        .filter(k => k !== editing)
+        .map(
+          k =>
+            `<option value="${escapeHtml(k)}">${escapeHtml(shiftRealName(k, ud))}${ud.shifts[k].project ? ` (${escapeHtml(ud.shifts[k].project)})` : ''}</option>`
+        )
+        .join('');
+    sel.value = (editing && ud.shifts?.[editing]?.linkedShift) || '';
+  });
 
   // Nieuwe shift: popup leeg openen (niet met de gegevens van de vorige bewerking)
   document.getElementById('shiftModal')?.addEventListener('hidden.bs.modal', e => {
@@ -2849,6 +2926,27 @@ function newRowKeyForDay(md, baseKey) {
   return md.rows[baseKey] ? `${baseKey}#${nextLineIndex(md, baseKey)}` : baseKey;
 }
 
+/**
+ * Gekoppelde shift (bv. "MKA 392" → "Stage 392"): voegt de gekoppelde shift toe aan dezelfde dag,
+ * met dezelfde uren als de hoofdshift. Niets als die al op die dag staat of op die datum niet geldig is.
+ * Geeft de naam van de toegevoegde shift terug (of '').
+ */
+function addLinkedShift(md, baseKey, mainRow, ud = getCurrentUserData()) {
+  const link = ud.shifts?.[mainRow?.shift]?.linkedShift;
+  const def = link && ud.shifts?.[link];
+  if (!def || link === mainRow.shift) return '';
+  if (!isDateWithin(baseKey, def.startDate, def.endDate)) return '';
+  if (listDayKeys(md, baseKey).some(k => md.rows[k]?.shift === link)) return '';
+  md.rows[newRowKeyForDay(md, baseKey)] = rowFromShift(link, {
+    start: mainRow.start,
+    end: mainRow.end,
+    break: Number(mainRow.break) || 0,
+    minutes: minutesBetween(mainRow.start, mainRow.end, mainRow.break),
+    omschrijving: mainRow.omschrijving || ''
+  });
+  return shiftRealName(link, ud);
+}
+
 /** Rij opbouwen vanuit een shift-definitie. */
 function rowFromShift(shiftKey, extra = {}) {
   const ud = getCurrentUserData();
@@ -2921,8 +3019,10 @@ async function applyShiftDirectly(baseKey, shiftKey) {
   if (!ud.shifts?.[shiftKey]) return;
 
   const md = ensureMonthData(ud, y, m);
-  md.rows[newRowKeyForDay(md, baseKey)] = rowFromShift(shiftKey);
-  toast(`${shiftRealName(shiftKey, ud)} toegevoegd`, 'success');
+  const row = rowFromShift(shiftKey);
+  md.rows[newRowKeyForDay(md, baseKey)] = row;
+  const linked = addLinkedShift(md, baseKey, row, ud);
+  toast(`${shiftRealName(shiftKey, ud)}${linked ? ` + ${linked}` : ''} toegevoegd`, 'success');
   await commitMonth(y, m);
 }
 
@@ -3153,17 +3253,19 @@ function bindCalendar() {
     if (warnIfLocked(y, m)) return;
     const md = ensureMonthData(getCurrentUserData(), y, m);
     const note = document.getElementById('dayEditorNote')?.value || '';
-    md.rows[newRowKeyForDay(md, baseKey)] = rowFromShift(addShift.value, {
+    const row = rowFromShift(addShift.value, {
       start: addStart.value,
       end: addEnd.value,
       break: Math.max(0, Number(addBreak.value) || 0),
       minutes: minutesBetween(addStart.value, addEnd.value, addBreak.value),
       omschrijving: note
     });
+    md.rows[newRowKeyForDay(md, baseKey)] = row;
+    const linked = addLinkedShift(md, baseKey, row);
     closeAddForm();
     renderDayEditor();
     commitMonth(y, m);
-    toast(`${shiftRealName(addShift.value)} toegevoegd`, 'success');
+    toast(`${shiftRealName(addShift.value)}${linked ? ` + ${linked}` : ''} toegevoegd`, 'success');
   });
   document.getElementById('dayEditorModal')?.addEventListener('hidden.bs.modal', closeAddForm);
 
@@ -3747,16 +3849,18 @@ function bindQuickInput() {
     if (!start || !end) return toast('Vul een start- en einduur in', 'warning');
 
     const md = ensureMonthData(ud, y, m);
-    md.rows[newRowKeyForDay(md, date)] = rowFromShift(shift, {
+    const row = rowFromShift(shift, {
       start,
       end,
       break: brk,
       minutes: minutesBetween(start, end, brk),
       omschrijving: note
     });
+    md.rows[newRowKeyForDay(md, date)] = row;
+    const linked = addLinkedShift(md, date, row, ud);
 
     bootstrap.Modal.getInstance(document.getElementById('quickModal'))?.hide();
-    toast(`${shiftRealName(shift, ud)} toegevoegd op ${toDisplayDate(date)}`, 'success');
+    toast(`${shiftRealName(shift, ud)}${linked ? ` + ${linked}` : ''} toegevoegd op ${toDisplayDate(date)}`, 'success');
     commitMonth(y, m);
   });
 
@@ -3788,7 +3892,9 @@ function bindQuickInput() {
         const y = Number(iso.slice(0, 4));
         const m = Number(iso.slice(5, 7)) - 1;
         if (isMonthLocked(y, m)) continue;
-        ensureMonthData(ud, y, m).rows[iso] = rowFromShift(selectedShift);
+        const md = ensureMonthData(ud, y, m);
+        md.rows[iso] = rowFromShift(selectedShift);
+        addLinkedShift(md, iso, md.rows[iso], ud);
         touched.add(`${y}-${m}`);
       }
       if (!touched.size) return warnIfLocked(Number(yearSelectMain.value), Number(monthSelectMain.value));
@@ -3906,7 +4012,13 @@ async function applyPaintShift(baseKey) {
     if (!ud.shifts?.[selectedPaintShiftKey]) return;
     const targetKey = keys[0] || baseKey;
     const note = md.rows[targetKey]?.omschrijving || md.rows[targetKey]?.description || '';
-    md.rows[targetKey] = rowFromShift(selectedPaintShiftKey, { omschrijving: note });
+    const link = ud.shifts[selectedPaintShiftKey].linkedShift;
+    // Gekoppelde shift: de dag wordt precies "hoofdshift + gekoppelde shift"
+    if (link && ud.shifts[link]) keys.forEach(k => delete md.rows[k]);
+    md.rows[link && ud.shifts[link] ? baseKey : targetKey] = rowFromShift(selectedPaintShiftKey, {
+      omschrijving: note
+    });
+    addLinkedShift(md, baseKey, md.rows[link && ud.shifts[link] ? baseKey : targetKey], ud);
   }
 
   await commitMonth(y, m);
