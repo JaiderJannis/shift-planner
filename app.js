@@ -3078,6 +3078,36 @@ function addLinkedShift(md, baseKey, mainRow, ud = getCurrentUserData()) {
   return shiftRealName(link, ud);
 }
 
+/** Zijn deze twee shiften aan elkaar gekoppeld (in één of beide richtingen)? */
+function areLinked(a, b, ud = getCurrentUserData()) {
+  return !!a && !!b && a !== b && (ud.shifts?.[a]?.linkedShift === b || ud.shifts?.[b]?.linkedShift === a);
+}
+
+/**
+ * Uren van een rij doorgeven aan de gekoppelde shift(en) op dezelfde dag:
+ * start, einde, pauze, "pauze doorgewerkt" en extra minuten blijven gelijk.
+ * Geeft de namen van de bijgewerkte shiften terug.
+ */
+function syncLinkedRows(md, key, ud = getCurrentUserData()) {
+  const src = md?.rows?.[key];
+  if (!src?.shift) return [];
+  const synced = [];
+  listDayKeys(md, key.slice(0, 10)).forEach(k => {
+    const r = md.rows[k];
+    if (k === key || !areLinked(src.shift, r?.shift, ud)) return;
+    r.start = src.start;
+    r.end = src.end;
+    r.break = Number(src.break) || 0;
+    if (src.breakWorked) r.breakWorked = true;
+    else delete r.breakWorked;
+    if (Number(src.extraMinutes)) r.extraMinutes = Number(src.extraMinutes);
+    else delete r.extraMinutes;
+    recalcRowMinutes(r);
+    synced.push(shiftRealName(r.shift, ud));
+  });
+  return synced;
+}
+
 /** Rij opbouwen vanuit een shift-definitie. */
 function rowFromShift(shiftKey, extra = {}) {
   const ud = getCurrentUserData();
@@ -3307,6 +3337,7 @@ function bindCalendar() {
     } else {
       return;
     }
+    if (!e.target.classList.contains('js-day-shift')) syncLinkedRows(md, key);
     renderDayEditor();
     commitMonth(y, m);
   });
@@ -3335,6 +3366,7 @@ function bindCalendar() {
     if (r.breakWorked) delete r.breakWorked;
     else r.breakWorked = true;
     recalcRowMinutes(r);
+    syncLinkedRows(getCurrentUserData().monthData[y][m], key);
     toast(
       r.breakWorked ? `Pauze doorgewerkt: +${fmtExtra(Number(r.break) || 0)}` : 'Pauze weer als pauze geteld',
       'success'
@@ -3606,6 +3638,8 @@ async function renderMonth(year, month) {
         r[field] = field === 'break' ? Number(value) || 0 : value;
         recalcRowMinutes(r);
         saveCell(year, month, rowKey, r, tr);
+        const mdSync = getCurrentUserData().monthData?.[year]?.[month];
+        if (syncLinkedRows(mdSync, rowKey).length) renderMonth(year, month);
         tr.querySelector('.dur').textContent = rowDurationText(r);
         updateInputTotals();
         debouncedSave();
