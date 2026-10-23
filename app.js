@@ -2559,8 +2559,8 @@ function exportMonthPdf() {
   const ORANGE = [194, 92, 0];
   const BLUE = [43, 123, 185];
 
-  const W = pdf.internal.pageSize.getWidth();
-  const H = pdf.internal.pageSize.getHeight();
+  const W = pdf.internal.pageSize.getWidth?.() ?? pdf.internal.pageSize.width;
+  const H = pdf.internal.pageSize.getHeight?.() ?? pdf.internal.pageSize.height;
   const M = 14; // marge
   const fmtH = mins => `${Math.floor(mins / 60)}u${String(Math.abs(mins) % 60).padStart(2, '0')}`;
   const setFill = c => pdf.setFillColor(c[0], c[1], c[2]);
