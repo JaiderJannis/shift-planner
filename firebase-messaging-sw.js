@@ -14,9 +14,22 @@ firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
 // Bericht tonen als de app op de achtergrond draait of gesloten is
+// (berichten mét "notification" toont Firebase zelf; anders zou je ze dubbel krijgen)
 messaging.onBackgroundMessage(payload => {
-  const { title = 'Shift Planner', body = '' } = payload.notification || {};
+  if (payload.notification) return;
+  const { title = 'Shift Planner', body = '' } = payload.data || {};
   self.registration.showNotification(title, { body, icon: 'favicon-192x192.png' });
+});
+
+// Tik op een melding: app openen
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      const open = list.find(c => c.url.includes('app.html'));
+      return open ? open.focus() : self.clients.openWindow('app.html');
+    })
+  );
 });
 
 // ---------------------------------------------------------------------
@@ -25,7 +38,7 @@ messaging.onBackgroundMessage(payload => {
 // - bibliotheken en lettertypes (CDN): uit de cache, op de achtergrond bijwerken
 // Firestore-data gaat hier niet door; die heeft een eigen offline-cache.
 // ---------------------------------------------------------------------
-const CACHE = 'shift-planner-v2';
+const CACHE = 'shift-planner-v3';
 const APP_SHELL = ['./', 'index.html', 'index.css', 'index.js', 'app.html', 'app.css', 'app.js', 'manifest.json', 'favicon-192x192.png', 'apple-touch-icon-180x180.png', 'favicon.svg'];
 const CDN_HOSTS = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com', 'www.gstatic.com', 'cdnjs.cloudflare.com', 'unpkg.com'];
 

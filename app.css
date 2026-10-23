@@ -617,6 +617,21 @@ td.actions-cell, #thActions { width: 1%; white-space: nowrap; }
 .flatpickr-day.selected.planned-day, .flatpickr-day.selected { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; }
 .flatpickr-calendar { z-index: 2051 !important; font-family: var(--font-body); }
 
+/* Waarschuwingen: te weinig rust / te veel dagen op rij */
+.day-head { display: inline-flex; align-items: center; gap: 2px; }
+.warn-badge { font-size: 13px; line-height: 1; cursor: help; }
+.calendar-day.has-warning { box-shadow: inset 0 -3px 0 #e8a100; }
+.calendar-day.today.has-warning { box-shadow: inset 0 0 0 2px var(--accent), inset 0 -5px 0 #e8a100, 0 0 18px 2px rgba(var(--accent-rgb), 0.45); }
+.day-warnings:empty { display: none; }
+.day-warnings { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.day-warning {
+  display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 12px;
+  background: #fff4d6; color: #7a4f00; border: 1px solid #f1d38a; font-weight: 700; font-size: 0.9rem;
+}
+.day-warning .material-icons-outlined { font-size: 20px; }
+[data-bs-theme='dark'] .day-warning { background: rgba(232, 161, 0, 0.15); color: #ffd27a; border-color: rgba(232, 161, 0, 0.4); }
+.week-warn { display: block; text-align: center; font-size: 0.68rem; font-weight: 800; color: #9a6a00; background: #fff4d6; border-radius: 6px; padding: 1px 2px; }
+
 /* Gekoppelde shift in de shiftlijst */
 .link-note { display: inline-flex; align-items: center; gap: 3px; font-size: 0.78rem; color: var(--accent-strong); font-weight: 700; }
 .link-note .material-icons-outlined { font-size: 15px; }

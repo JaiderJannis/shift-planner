@@ -524,6 +524,116 @@ function plannedMinutes(rows, ud = getCurrentUserData()) {
   }, 0);
 }
 
+// --- Rusttijd en werkdagen op rij ---
+
+const MIN_REST_MINUTES = 10 * 60; // minder dan 10 uur rust tussen twee diensten = waarschuwing
+const MAX_DAYS_IN_A_ROW = 7; // vanaf de 8e werkdag op rij = waarschuwing
+const NON_WORK_ICONS = [
+  'flight',
+  'vakantie',
+  'vrij_weekend',
+  'niet_ingepland',
+  'medical_services',
+  'ziek',
+  'feestdag',
+  'school',
+  'verjaardag'
+];
+
+/** Is dit echt werk (incl. stage)? Verlof, ziekte, vrij, school en lege rijen tellen niet. */
+function isWorkRow(r, ud = getCurrentUserData()) {
+  if (!r?.shift || (r.status && r.status !== 'approved')) return false;
+  if (!(Number(r.minutes) > 0) || !r.start || !r.end || (r.start === '00:00' && r.end === '00:00')) return false;
+  const def = ud?.shifts?.[r.shift] || {};
+  const name = shiftRealName(r.shift, ud);
+  if (LEAVE_TYPES.includes(name) || NON_WORK_ICONS.includes(def.icon)) return false;
+  return !/verlof|ziek|vrij|niet ingepland|feestdag|^school$/i.test(name);
+}
+
+/**
+ * Waarschuwingen per datum: te korte rust (< 10u) en te veel werkdagen op rij (> 7).
+ * Geeft een Map ISO-datum → [{ type, text }].
+ */
+function computeWorkWarnings(ud = getCurrentUserData()) {
+  const toMs = (iso, hhmm) => {
+    const [h, m] = (hhmm || '00:00').split(':').map(Number);
+    return new Date(`${iso}T00:00:00`).getTime() + (h * 60 + m) * 60000;
+  };
+  const intervals = [];
+  Object.values(ud?.monthData || {}).forEach(months =>
+    Object.values(months || {}).forEach(md =>
+      Object.entries(md?.rows || {}).forEach(([key, r]) => {
+        if (!isWorkRow(r, ud)) return;
+        const iso = key.slice(0, 10);
+        const start = toMs(iso, r.start);
+        let end = toMs(iso, rowActualEnd(r));
+        if (end <= start) end += 86400000; // nachtdienst over middernacht
+        intervals.push({ iso, start, end, name: shiftRealName(r.shift, ud), endTxt: rowActualEnd(r) });
+      })
+    )
+  );
+  intervals.sort((a, b) => a.start - b.start);
+
+  // Overlappende diensten (bv. MKA + Stage met dezelfde uren) samenvoegen
+  const merged = [];
+  for (const it of intervals) {
+    const last = merged[merged.length - 1];
+    if (last && it.start <= last.end) {
+      if (it.end > last.end) Object.assign(last, { end: it.end, endTxt: it.endTxt, name: it.name });
+    } else merged.push({ ...it });
+  }
+
+  const warnings = new Map();
+  const add = (iso, w) => {
+    if (!warnings.has(iso)) warnings.set(iso, []);
+    warnings.get(iso).push(w);
+  };
+
+  // 1. Rust tussen twee werkdagen (een gesplitste dienst op dezelfde dag telt niet)
+  for (let i = 1; i < merged.length; i++) {
+    const prev = merged[i - 1];
+    const cur = merged[i];
+    if (prev.iso === cur.iso) continue;
+    const rest = Math.round((cur.start - prev.end) / 60000);
+    if (rest < MIN_REST_MINUTES) {
+      add(cur.iso, {
+        type: 'rest',
+        text: `Maar ${fmtShort(Math.max(0, rest))} rust na ${prev.name} (tot ${prev.endTxt})`
+      });
+    }
+  }
+
+  // 2. Werkdagen op rij
+  const days = [...new Set(intervals.map(it => it.iso))].sort();
+  let streak = 0;
+  let prevDay = null;
+  for (const iso of days) {
+    const d = new Date(`${iso}T12:00:00`);
+    streak = prevDay && Math.round((d - prevDay) / 86400000) === 1 ? streak + 1 : 1;
+    prevDay = d;
+    if (streak > MAX_DAYS_IN_A_ROW) add(iso, { type: 'streak', text: `${streak}e werkdag op rij` });
+  }
+  return warnings;
+}
+
+let lastWorkWarnings = null;
+
+/** Na een wijziging: nieuwe waarschuwingen meteen melden. */
+function announceNewWarnings() {
+  const now = computeWorkWarnings();
+  if (lastWorkWarnings) {
+    const fresh = [];
+    now.forEach((list, iso) => {
+      const before = (lastWorkWarnings.get(iso) || []).map(w => w.text);
+      list.filter(w => !before.includes(w.text)).forEach(w => fresh.push(`${toDisplayDate(iso)}: ${w.text}`));
+    });
+    if (fresh.length)
+      toast(`⚠️ ${escapeHtml(fresh[0])}${fresh.length > 1 ? ` (+${fresh.length - 1})` : ''}`, 'warning');
+  }
+  lastWorkWarnings = now;
+  return now;
+}
+
 /** Zit de maand op slot? (ingediend/goedgekeurd). Admins mogen altijd bewerken. */
 function isMonthLocked(y, m) {
   if (isAdmin()) return false;
@@ -999,6 +1109,7 @@ function bindAuth() {
     listenToNotifications(user.uid);
     await autoCheckNotifications();
     notificationInterval = setInterval(autoCheckNotifications, 24 * 60 * 60 * 1000);
+    startEveningReminder();
 
     // Mailbox
     bindMailboxUIOnce();
@@ -1326,6 +1437,7 @@ function renderHomeWeek() {
   const ud = getCurrentUserData();
   const shifts = ud.shifts || {};
   const today = todayISO();
+  const workWarnings = computeWorkWarnings(ud);
   const monday = new Date();
   monday.setHours(12, 0, 0, 0);
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7) + homeWeekOffset * 7);
@@ -1367,6 +1479,16 @@ function renderHomeWeek() {
       <li class="week-cell${iso === today ? ' today' : ''}${iso < today ? ' past' : ''}${d.getDay() % 6 === 0 ? ' weekend' : ''}">
         <button type="button" class="week-day-btn" data-date="${iso}" aria-label="${dayName} ${toDisplayDate(iso)} bekijken">
           <span class="week-date"><span class="wd">${dayName.slice(0, 2)}</span><span class="dn">${d.getDate()}</span></span>
+          ${
+            workWarnings.has(iso)
+              ? `<span class="week-warn" title="${escapeHtml(
+                  workWarnings
+                    .get(iso)
+                    .map(w => w.text)
+                    .join('\n')
+                )}">⚠️ ${escapeHtml(workWarnings.get(iso)[0].type === 'rest' ? 'rust' : 'op rij')}</span>`
+              : ''
+          }
           <span class="week-shifts">${chips || (holiday ? `<span class="week-free" title="${escapeHtml(holiday.name)}">${holiday.emoji}</span>` : '')}</span>
         </button>
       </li>`);
@@ -2727,6 +2849,7 @@ function bindMonth() {
   });
 
   document.getElementById('exportPdfBtn')?.addEventListener('click', exportMonthPdf);
+  document.getElementById('exportIcsBtn')?.addEventListener('click', exportMonthIcs);
 }
 
 // ======================================================================
@@ -2776,6 +2899,8 @@ function renderCalendarGrid(year, month) {
   for (let i = 0; i < offset; i++) grid.insertAdjacentHTML('beforeend', '<div class="calendar-day disabled"></div>');
 
   const today = todayISO();
+  const workWarnings = computeWorkWarnings(ud);
+  if (!lastWorkWarnings) lastWorkWarnings = workWarnings;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   for (let d = 1; d <= daysInMonth; d++) {
@@ -2837,12 +2962,14 @@ function renderCalendarGrid(year, month) {
       .join('');
     if (dayKeys.length > 3) shiftsHtml += `<div class="cal-more">+${dayKeys.length - 3}</div>`;
 
+    const dayWarnings = workWarnings.get(baseKey) || [];
     const dayEl = document.createElement('div');
     dayEl.className = [
       'calendar-day',
       isWeekend && 'weekend',
       baseKey === today && 'today',
-      isHolidayDay && 'school-holiday-bg'
+      isHolidayDay && 'school-holiday-bg',
+      dayWarnings.length && 'has-warning'
     ]
       .filter(Boolean)
       .join(' ');
@@ -2851,7 +2978,11 @@ function renderCalendarGrid(year, month) {
 
     dayEl.innerHTML = `
       <div class="d-flex justify-content-between align-items-start">
-        <span class="day-number">${d}</span>
+        <span class="day-head"><span class="day-number">${d}</span>${
+          dayWarnings.length
+            ? `<span class="warn-badge" title="${escapeHtml(dayWarnings.map(w => w.text).join('\n'))}" aria-label="Waarschuwing: ${escapeHtml(dayWarnings.map(w => w.text).join(', '))}">⚠️</span>`
+            : ''
+        }</span>
         <div class="quick-icons-wrapper">${quickIconsHtml}</div>
       </div>
       ${shiftsHtml}
@@ -2974,6 +3105,7 @@ function ensureMonthData(ud, y, m) {
 
 /** Na een wijziging aan dagen: alles wat ervan afhangt meteen opnieuw tekenen. */
 function refreshAfterRowChange(y, m) {
+  announceNewWarnings();
   if (Number(yearSelectMain.value) === y && Number(monthSelectMain.value) === m) renderCalendarGrid(y, m);
   updateInputTotals();
   renderHistory();
@@ -3051,6 +3183,17 @@ function renderDayEditor() {
 
   const listContainer = document.getElementById('dayEditorList');
   if (!listContainer) return;
+
+  const warnBox = document.getElementById('dayEditorWarnings');
+  if (warnBox) {
+    const list = computeWorkWarnings(ud).get(baseKey) || [];
+    warnBox.innerHTML = list
+      .map(
+        w =>
+          `<div class="day-warning"><span class="material-icons-outlined" aria-hidden="true">${w.type === 'rest' ? 'bedtime' : 'event_repeat'}</span>${escapeHtml(w.text)}</div>`
+      )
+      .join('');
+  }
 
   const dayKeys = listDayKeys(md, baseKey).filter(k => md.rows[k]?.shift);
   listContainer.innerHTML = dayKeys.length
@@ -5191,6 +5334,157 @@ async function autoCheckNotifications() {
   }
 }
 
+// --- Melding de avond vóór je dienst ---
+
+const EVENING_REMINDER_HOUR = 20; // vanaf 20:00 de avond ervoor
+let eveningTimer = null;
+
+/** Werk-shiften van een dag (eigen account), gesorteerd. */
+function shiftsOnDay(ud, iso) {
+  const [y, m] = [Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1];
+  const md = ud?.monthData?.[y]?.[m];
+  return listDayKeys(md, iso)
+    .map(k => md.rows[k])
+    .filter(
+      r =>
+        r?.shift && (!r.status || r.status === 'approved') && !/vrij|niet ingepland/i.test(shiftRealName(r.shift, ud))
+    );
+}
+
+/** Tekst zoals "Morgen: MKA 392 08:00–18:00 + Stage 392". */
+function tomorrowReminderText(ud) {
+  const t = new Date();
+  t.setDate(t.getDate() + 1);
+  const rows = shiftsOnDay(ud, isoOf(t));
+  if (!rows.length) return '';
+  const parts = rows.map(r => {
+    const name = shiftRealName(r.shift, ud);
+    const hasTime = r.start && r.end && !(r.start === '00:00' && r.end === '00:00');
+    return hasTime ? `${name} ${r.start}–${r.end}` : name;
+  });
+  // Gekoppelde shiften met dezelfde uren één keer tonen
+  const uniq = parts.filter((p, i) => parts.indexOf(p) === i);
+  return `Morgen (${daysFull[t.getDay()].toLowerCase()}): ${uniq.join(' + ')}`;
+}
+
+/** Herinnering maken als het avond is en je morgen ingepland staat (één keer per dag). */
+async function checkEveningReminder() {
+  if (!currentUserId || !getNotifPref('notifyEveningBefore')) return;
+  if (new Date().getHours() < EVENING_REMINDER_HOUR) return;
+  const text = tomorrowReminderText(dataStore.users[currentUserId]);
+  if (text) await createUniqueNotification(currentUserId, text);
+}
+
+/** Bij het openen meteen controleren en, als de app open blijft, om 20:00 nog eens. */
+function startEveningReminder() {
+  clearTimeout(eveningTimer);
+  checkEveningReminder().catch(err => console.warn('Avondherinnering mislukt', err));
+  const at = new Date();
+  at.setHours(EVENING_REMINDER_HOUR, 0, 5, 0);
+  if (at <= new Date()) at.setDate(at.getDate() + 1);
+  eveningTimer = setTimeout(startEveningReminder, at - new Date());
+}
+
+/** Agenda-bestand (.ics) van de gekozen maand, met een herinnering om 20:00 de avond ervoor. */
+function exportMonthIcs() {
+  const ud = getCurrentUserData();
+  const y = Number(yearSelectMain.value);
+  const m = Number(monthSelectMain.value);
+  const md = ud.monthData?.[y]?.[m];
+  const pad = n => String(n).padStart(2, '0');
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  const esc = t =>
+    String(t || '')
+      .replace(/[\\;,]/g, c => `\\${c}`)
+      .replace(/\n/g, '\\n');
+  const events = [];
+  Object.keys(md?.rows || {})
+    .sort()
+    .forEach(key => {
+      const r = md.rows[key];
+      if (!r?.shift || r.status === 'rejected') return;
+      const iso = key.slice(0, 10);
+      const ymd = iso.replace(/-/g, '');
+      const name = shiftRealName(r.shift, ud);
+      const hasTime = r.start && r.end && !(r.start === '00:00' && r.end === '00:00');
+      const lines = [
+        'BEGIN:VEVENT',
+        `UID:${ymd}-${esc(key)}-${esc(r.shift).replace(/\s+/g, '_')}@shift-planner`,
+        `DTSTAMP:${stamp}`,
+        `SUMMARY:${esc(name)}${r.project ? ` (${esc(r.project)})` : ''}`
+      ];
+      if (hasTime) {
+        const end = rowActualEnd(r);
+        const endDate = new Date(`${iso}T12:00:00`);
+        if (end <= r.start) endDate.setDate(endDate.getDate() + 1);
+        const endYmd = `${endDate.getFullYear()}${pad(endDate.getMonth() + 1)}${pad(endDate.getDate())}`;
+        lines.push(
+          `DTSTART;TZID=Europe/Brussels:${ymd}T${r.start.replace(':', '')}00`,
+          `DTEND;TZID=Europe/Brussels:${endYmd}T${end.replace(':', '')}00`
+        );
+        // Herinnering om 20:00 de avond ervoor
+        const [h, mi] = r.start.split(':').map(Number);
+        const before = h * 60 + mi + (24 - EVENING_REMINDER_HOUR) * 60;
+        lines.push(
+          'BEGIN:VALARM',
+          'ACTION:DISPLAY',
+          `DESCRIPTION:Morgen ${esc(name)} om ${r.start}`,
+          `TRIGGER:-PT${before}M`,
+          'END:VALARM'
+        );
+      } else {
+        const next = new Date(`${iso}T12:00:00`);
+        next.setDate(next.getDate() + 1);
+        lines.push(
+          `DTSTART;VALUE=DATE:${ymd}`,
+          `DTEND;VALUE=DATE:${next.getFullYear()}${pad(next.getMonth() + 1)}${pad(next.getDate())}`
+        );
+      }
+      if (r.omschrijving) lines.push(`DESCRIPTION:${esc(r.omschrijving)}`);
+      lines.push('END:VEVENT');
+      events.push(lines.join('\r\n'));
+    });
+  if (!events.length) return toast('Geen shiften in deze maand', 'warning');
+
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Shift Planner//NL',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    `X-WR-CALNAME:Shift Planner ${monthsFull[m]} ${y}`,
+    'BEGIN:VTIMEZONE',
+    'TZID:Europe/Brussels',
+    'BEGIN:DAYLIGHT',
+    'TZOFFSETFROM:+0100',
+    'TZOFFSETTO:+0200',
+    'TZNAME:CEST',
+    'DTSTART:19700329T020000',
+    'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU',
+    'END:DAYLIGHT',
+    'BEGIN:STANDARD',
+    'TZOFFSETFROM:+0200',
+    'TZOFFSETTO:+0100',
+    'TZNAME:CET',
+    'DTSTART:19701025T030000',
+    'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU',
+    'END:STANDARD',
+    'END:VTIMEZONE',
+    ...events,
+    'END:VCALENDAR'
+  ].join('\r\n');
+
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `Shifts-${monthsFull[m]}-${y}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast(`${events.length} shiften klaar voor je agenda (met herinnering de avond ervoor)`, 'success');
+}
+
 /** Melding maken (max. één keer per dag dezelfde tekst); die verschijnt bij het belletje, niet in de chat. */
 async function createUniqueNotification(uid, text) {
   const colRef = collection(db, 'users', uid, 'notifications');
@@ -5354,7 +5648,13 @@ function loadProfileTab() {
   }
 
   const prefs = ud.settings?.notificationPrefs || {};
-  for (const key of ['notifyDailyEmpty', 'notifyWeeklyEmpty', 'notifyMonthlyGoal', 'notifyProjectEnd']) {
+  for (const key of [
+    'notifyEveningBefore',
+    'notifyDailyEmpty',
+    'notifyWeeklyEmpty',
+    'notifyMonthlyGoal',
+    'notifyProjectEnd'
+  ]) {
     const box = document.getElementById(`pref${key[0].toUpperCase()}${key.slice(1)}`);
     if (box) box.checked = prefs[key] !== false;
   }
@@ -5400,12 +5700,14 @@ function bindProfile() {
   document.getElementById('profileNotifPrefs')?.addEventListener('change', async e => {
     if (e.target.type !== 'checkbox') return;
     const prefs = {
+      notifyEveningBefore: document.getElementById('prefNotifyEveningBefore').checked,
       notifyDailyEmpty: document.getElementById('prefNotifyDailyEmpty').checked,
       notifyWeeklyEmpty: document.getElementById('prefNotifyWeeklyEmpty').checked,
       notifyMonthlyGoal: document.getElementById('prefNotifyMonthlyGoal').checked,
       notifyProjectEnd: document.getElementById('prefNotifyProjectEnd').checked
     };
     await setMySetting('notificationPrefs', prefs, 'Notificatie-voorkeuren opgeslagen');
+    if (prefs.notifyEveningBefore) checkEveningReminder();
   });
 
   document.getElementById('profileColorPicker')?.addEventListener('click', async e => {
