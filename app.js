@@ -293,6 +293,12 @@ const isDateWithin = (iso, start, end) => {
   return true;
 };
 
+/** Korte notatie voor extra tijd: 45 min, 1u15. */
+function fmtExtra(mins) {
+  const n = Math.max(0, Number(mins) || 0);
+  return n < 60 ? `${n} min` : `${Math.floor(n / 60)}u${String(n % 60).padStart(2, '0')}`;
+}
+
 function fmt(mins) {
   return `${Math.floor(mins / 60)}u ${mins % 60}min`;
 }
@@ -621,8 +627,39 @@ async function ensureProjectExists(name) {
   }
 }
 
+/**
+ * Extra gewerkte minuten van een rij: "pauze doorgewerkt" (de pauze telt dan als werktijd)
+ * plus de minuten die je na het geplande einduur bleef.
+ */
+function rowExtraMinutes(r) {
+  if (!r) return 0;
+  return (r.breakWorked ? Number(r.break) || 0 : 0) + Math.max(0, Number(r.extraMinutes) || 0);
+}
+
+/** Gewerkte minuten van een rij, inclusief doorgewerkte pauze en extra minuten. */
+function rowWorkedMinutes(r) {
+  return minutesBetween(r.start, r.end, r.breakWorked ? 0 : r.break) + Math.max(0, Number(r.extraMinutes) || 0);
+}
+
+/** Werkelijk einduur (gepland einde + extra minuten), als HH:MM. */
+function rowActualEnd(r) {
+  const extra = Math.max(0, Number(r.extraMinutes) || 0);
+  if (!r.end || !extra) return r.end || '';
+  const [h, m] = r.end.split(':').map(Number);
+  const t = (h * 60 + m + extra) % 1440;
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+}
+
+/** Extra minuten in een maand (alleen rijen die meetellen). */
+function monthExtraMinutes(rows, ud = getCurrentUserData()) {
+  return Object.values(rows || {}).reduce((sum, r) => {
+    if (!r || (r.status && r.status !== 'approved') || isStageRow(r, ud)) return sum;
+    return sum + rowExtraMinutes(r);
+  }, 0);
+}
+
 function recalcRowMinutes(r) {
-  r.minutes = minutesBetween(r.start, r.end, r.break);
+  r.minutes = rowWorkedMinutes(r);
 }
 
 function saveCell(year, month, key, r, tr) {
@@ -630,7 +667,7 @@ function saveCell(year, month, key, r, tr) {
   ud.monthData = ud.monthData || {};
   ud.monthData[year] = ud.monthData[year] || {};
   ud.monthData[year][month] = ud.monthData[year][month] || { targetHours: 0, targetMinutes: 0, rows: {} };
-  ud.monthData[year][month].rows[key] = { ...r, minutes: r.minutes || minutesBetween(r.start, r.end, r.break) };
+  ud.monthData[year][month].rows[key] = { ...r, minutes: r.minutes || rowWorkedMinutes(r) };
 }
 
 // --- Verlof & schoolverlof ---
@@ -1127,6 +1164,7 @@ function renderMeter(el, planned, target, opts = {}) {
       <span class="meter-of">${target ? `van ${fmt(target)}` : 'gepland'}</span>
       ${delta}
     </div>
+    ${opts.extra ? `<p class="meter-extra"><span class="material-icons-outlined" aria-hidden="true">more_time</span>Waarvan <strong>${fmtExtra(opts.extra)}</strong> extra gewerkt</p>` : ''}
     <div class="meter-ruler" style="--tick:${tick.toFixed(2)}%" role="progressbar" aria-valuemin="0"
          aria-valuemax="${target}" aria-valuenow="${planned}" aria-label="${fmt(planned)} van ${fmt(target)}">
       <div class="fill${state ? ` ${state}` : ''}" style="width:${pct.toFixed(1)}%"></div>
@@ -1150,7 +1188,7 @@ function renderHome() {
   // Maand (zelfde regel als Invoer/Historiek: zonder stage en zonder niet-goedgekeurd verlof)
   const planned = plannedMinutes(md.rows, ud);
   const target = (Number(md.targetHours) || 0) * 60 + (Number(md.targetMinutes) || 0);
-  renderMeter(document.getElementById('homeMeter'), planned, target);
+  renderMeter(document.getElementById('homeMeter'), planned, target, { extra: monthExtraMinutes(md.rows, ud) });
   const setText = (id, text) => {
     const el = document.getElementById(id);
     if (el) el.textContent = text;
@@ -1264,10 +1302,12 @@ function renderHomeWeek() {
         const name = sh.realName || r.shift;
         const short = sh.shortName || name.slice(0, 2);
         const hasTime = r.start && r.end && !(r.start === '00:00' && r.end === '00:00');
-        const title = `${name}${hasTime ? ` ${r.start}–${r.end}` : ''} (${fmtShort(mins)})`;
-        return `<span class="week-shift" style="--shift-color:${escapeHtml(sh.color || '#e9ecef')}" title="${escapeHtml(title)}">
+        const extra = rowExtraMinutes(r);
+        const title = `${name}${hasTime ? ` ${r.start}–${rowActualEnd(r)}` : ''} (${fmtShort(mins)})${extra ? ` · +${fmtExtra(extra)} extra` : ''}`;
+        return `<span class="week-shift${extra ? ' has-extra' : ''}" style="--shift-color:${escapeHtml(sh.color || '#e9ecef')}" title="${escapeHtml(title)}">
           <strong><span class="name-long">${escapeHtml(name)}</span><span class="name-short">${escapeHtml(short)}</span>${r.status === 'pending' ? ' ⏳' : ''}</strong>
-          ${hasTime ? `<span class="t">${escapeHtml(r.start)}</span><span class="t">${escapeHtml(r.end)}</span>` : `<span class="t">${fmtShort(mins)}</span>`}
+          ${hasTime ? `<span class="t">${escapeHtml(r.start)}</span><span class="t">${escapeHtml(rowActualEnd(r))}</span>` : `<span class="t">${fmtShort(mins)}</span>`}
+          ${extra ? `<span class="extra-badge">+${extra < 60 ? `${extra}m` : fmtExtra(extra)}</span>` : ''}
         </span>`;
       })
       .join('');
@@ -2128,7 +2168,7 @@ function updateRemainingHours() {
     return;
   }
   const doel = (Number(md.targetHours) || 0) * 60 + (Number(md.targetMinutes) || 0);
-  renderMeter(el, plannedMinutes(md.rows, ud), doel);
+  renderMeter(el, plannedMinutes(md.rows, ud), doel, { extra: monthExtraMinutes(md.rows, ud) });
   el.classList.remove('d-none');
 }
 
@@ -2310,15 +2350,16 @@ function exportMonthPdf() {
         r.project || '-',
         shiftRealName(r.shift, ud) + status,
         r.start || '',
-        r.end || '',
-        r.break || 0,
+        rowActualEnd(r),
+        r.breakWorked ? `${r.break || 0} (doorgewerkt)` : r.break || 0,
         `${Math.floor(mins / 60)}u ${mins % 60}m`,
+        rowExtraMinutes(r) ? `+${fmtExtra(rowExtraMinutes(r))}` : '',
         r.omschrijving || r.description || ''
       ];
     });
 
   pdf.autoTable({
-    head: [['Datum', 'Project', 'Shift', 'Start', 'Einde', 'Pauze', 'Duur', 'Omschrijving']],
+    head: [['Datum', 'Project', 'Shift', 'Start', 'Einde', 'Pauze', 'Duur', 'Extra', 'Omschrijving']],
     body,
     startY: 43,
     theme: 'grid',
@@ -2335,7 +2376,8 @@ function exportMonthPdf() {
       4: { cellWidth: 15 },
       5: { cellWidth: 12 },
       6: { cellWidth: 18 },
-      7: { cellWidth: 'auto' }
+      7: { cellWidth: 14, textColor: [194, 92, 0], fontStyle: 'bold' },
+      8: { cellWidth: 'auto' }
     },
     didDrawPage: () => {
       pdf.setFontSize(8);
@@ -2357,6 +2399,12 @@ function exportMonthPdf() {
   pdf.text(`Doel: ${short(doel)}`, 20, endY + 5);
   pdf.text(`Gepland: ${short(total)}`, 20, endY + 10);
   pdf.text(`Verschil: ${(total - doel >= 0 ? '+' : '-') + short(Math.abs(total - doel))}`, 20, endY + 15);
+  const extraTotal = monthExtraMinutes(md.rows, ud);
+  if (extraTotal) {
+    pdf.setTextColor(194, 92, 0);
+    pdf.text(`Waarvan extra gewerkt (doorgewerkte pauzes en langer gebleven): ${short(extraTotal)}`, 20, endY + 20);
+    pdf.setTextColor(0, 0, 0);
+  }
 
   pdf.save(`Shiftplanning_${ud.name || 'gebruiker'}_${monthName}_${y}.pdf`);
   toast('PDF geëxporteerd', 'success');
@@ -2694,10 +2742,18 @@ function renderCalendarGrid(year, month) {
         const mins = Number(r.minutes) || 0;
         const durationText = mins > 0 ? `${Math.floor(mins / 60)}u${String(mins % 60).padStart(2, '0')}` : '';
         const pending = r.status === 'pending' ? ' ⏳' : '';
-        const hoverText = `${name}: ${r.start || '00:00'}–${r.end || '00:00'}, pauze ${r.break || 0} min`;
+        const extra = rowExtraMinutes(r);
+        const extraText = [
+          r.breakWorked ? 'pauze doorgewerkt' : '',
+          Number(r.extraMinutes) ? `${r.extraMinutes} min langer (tot ${rowActualEnd(r)})` : ''
+        ]
+          .filter(Boolean)
+          .join(', ');
+        const hoverText = `${name}: ${r.start || '00:00'}–${r.end || '00:00'}, pauze ${r.break || 0} min${extraText ? ` · extra: ${extraText}` : ''}`;
         return `
-        <div class="cal-shift-item" title="${escapeHtml(hoverText)}" style="background:${escapeHtml(sh.color || '#e9ecef')}">
+        <div class="cal-shift-item${extra ? ' has-extra' : ''}" title="${escapeHtml(hoverText)}" style="background:${escapeHtml(sh.color || '#e9ecef')}">
           <span class="name-long">${escapeHtml(name)}${pending}</span><span class="name-short">${escapeHtml(short)}</span>
+          ${extra ? `<span class="extra-badge" aria-label="${fmtExtra(extra)} extra">+${extra < 60 ? `${extra}m` : fmtExtra(extra)}</span>` : ''}
           <span class="dur">${durationText}</span>
         </div>`;
       })
@@ -2903,8 +2959,9 @@ function renderDayEditor() {
           const r = md.rows[k];
           const sh = ud.shifts?.[r.shift] || {};
           const mins = Number(r.minutes) || 0;
+          const extra = rowExtraMinutes(r);
           return `
-      <div class="day-item" data-key="${k}">
+      <div class="day-item${extra ? ' has-extra' : ''}" data-key="${k}">
         <div class="day-item-top">
           <span class="swatch" style="background:${escapeHtml(sh.color || '#e9ecef')}"></span>
           <select class="form-select js-day-shift" aria-label="Shift" ${dis}>${shiftOptionsHtml(baseKey, r.shift)}</select>
@@ -2917,6 +2974,17 @@ function renderDayEditor() {
           <label>Einde<input type="time" class="form-control js-day-time" data-field="end" value="${escapeHtml(r.end || '')}" ${dis}></label>
           <label>Pauze<input type="number" min="0" step="5" inputmode="numeric" class="form-control js-day-time" data-field="break" value="${Number(r.break) || 0}" ${dis}></label>
           <output class="duration">= ${Math.floor(mins / 60)}u${String(mins % 60).padStart(2, '0')}</output>
+        </div>
+        <div class="extra-row">
+          <button type="button" class="extra-toggle js-break-worked${r.breakWorked ? ' on' : ''}" aria-pressed="${!!r.breakWorked}" ${dis} ${Number(r.break) ? '' : 'disabled title="Deze shift heeft geen pauze"'}>
+            <span class="material-icons-outlined" aria-hidden="true">coffee</span>Pauze doorgewerkt
+          </button>
+          <label class="extra-min">
+            <span class="material-icons-outlined" aria-hidden="true">more_time</span>Extra
+            <input type="number" min="0" step="5" inputmode="numeric" class="form-control js-day-extra" value="${Number(r.extraMinutes) || ''}" placeholder="0" aria-label="Extra minuten na het einduur" ${dis}>
+            min
+          </label>
+          ${extra ? `<span class="extra-summary">+${fmtExtra(extra)} extra${Number(r.extraMinutes) ? ` · tot ${escapeHtml(rowActualEnd(r))}` : ''}</span>` : ''}
         </div>
       </div>`;
         })
@@ -2972,6 +3040,10 @@ function bindCalendar() {
 
     if (e.target.classList.contains('js-day-shift')) {
       md.rows[key] = rowFromShift(e.target.value, { omschrijving: r.omschrijving || r.description || '' });
+      // Extra gewerkte tijd blijft behouden bij het wisselen van shift
+      if (r.breakWorked) md.rows[key].breakWorked = true;
+      if (Number(r.extraMinutes)) md.rows[key].extraMinutes = Number(r.extraMinutes);
+      recalcRowMinutes(md.rows[key]);
       if (r.attachmentURL)
         Object.assign(md.rows[key], {
           attachmentURL: r.attachmentURL,
@@ -2982,7 +3054,13 @@ function bindCalendar() {
     } else if (e.target.classList.contains('js-day-time')) {
       const field = e.target.dataset.field;
       r[field] = field === 'break' ? Math.max(0, Number(e.target.value) || 0) : e.target.value;
-      r.minutes = minutesBetween(r.start, r.end, r.break);
+      recalcRowMinutes(r);
+    } else if (e.target.classList.contains('js-day-extra')) {
+      const extra = Math.max(0, Math.round(Number(e.target.value) || 0));
+      if (extra) r.extraMinutes = extra;
+      else delete r.extraMinutes;
+      recalcRowMinutes(r);
+      if (extra) toast(`+${fmtExtra(extra)} extra genoteerd`, 'success');
     } else {
       return;
     }
@@ -2993,9 +3071,33 @@ function bindCalendar() {
   // Duur live bijwerken tijdens het typen
   list?.addEventListener('input', e => {
     const item = e.target.closest('.day-item');
-    if (!item || !e.target.classList.contains('js-day-time')) return;
+    if (!item || !e.target.matches('.js-day-time, .js-day-extra')) return;
     const val = f => item.querySelector(`[data-field="${f}"]`).value;
-    showDuration(item.querySelector('.duration'), val('start'), val('end'), val('break'));
+    const worked = item.querySelector('.js-break-worked')?.classList.contains('on');
+    const extra = Math.max(0, Number(item.querySelector('.js-day-extra')?.value) || 0);
+    const out = item.querySelector('.duration');
+    const mins = minutesBetween(val('start'), val('end'), worked ? 0 : val('break')) + extra;
+    if (out) out.textContent = `= ${Math.floor(mins / 60)}u${String(mins % 60).padStart(2, '0')}`;
+  });
+
+  // Pauze doorgewerkt aan/uit
+  list?.addEventListener('click', e => {
+    const btn = e.target.closest('.js-break-worked');
+    if (!btn) return;
+    const key = btn.closest('.day-item').dataset.key;
+    const [y, m] = ymOf(key);
+    if (warnIfLocked(y, m)) return;
+    const r = getCurrentUserData().monthData?.[y]?.[m]?.rows?.[key];
+    if (!r) return;
+    if (r.breakWorked) delete r.breakWorked;
+    else r.breakWorked = true;
+    recalcRowMinutes(r);
+    toast(
+      r.breakWorked ? `Pauze doorgewerkt: +${fmtExtra(Number(r.break) || 0)}` : 'Pauze weer als pauze geteld',
+      'success'
+    );
+    renderDayEditor();
+    commitMonth(y, m);
   });
 
   // Shift verwijderen
@@ -3333,7 +3435,8 @@ async function renderMonth(year, month) {
 function rowDurationText(r) {
   if (r.status && r.status !== 'approved') return '0u 0min';
   const mins = Number(r.minutes) || 0;
-  return `${Math.floor(mins / 60)}u ${mins % 60}min`;
+  const extra = rowExtraMinutes(r);
+  return `${Math.floor(mins / 60)}u ${mins % 60}min${extra ? ` (+${fmtExtra(extra)} extra)` : ''}`;
 }
 
 /** Shift-dropdown van één tabelrij vullen en de keuze verwerken (tijden, project, verlofstatus). */

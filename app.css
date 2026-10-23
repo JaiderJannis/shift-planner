@@ -591,6 +591,36 @@ td.actions-cell, #thActions { width: 1%; white-space: nowrap; }
 .flatpickr-day.selected.planned-day, .flatpickr-day.selected { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; }
 .flatpickr-calendar { z-index: 2051 !important; font-family: var(--font-body); }
 
+/* Extra gewerkt (pauze doorgewerkt / langer gebleven) — altijd oranje */
+:root { --extra: #c25c00; --extra-soft: #fff1e0; }
+[data-bs-theme='dark'] { --extra: #ffa94d; --extra-soft: rgba(255, 169, 77, 0.16); }
+.extra-badge {
+  flex: none; display: inline-flex; align-items: center; padding: 0 5px; border-radius: 999px;
+  background: var(--extra); color: #fff; font-size: 0.68rem; font-weight: 800; line-height: 16px; font-variant-numeric: tabular-nums;
+}
+.cal-shift-item.has-extra { box-shadow: inset 0 0 0 2px var(--extra); }
+.cal-shift-item .extra-badge { margin-left: auto; margin-right: 4px; }
+.week-shift.has-extra { box-shadow: inset 0 0 0 2px var(--extra); }
+.week-shift .extra-badge { margin-top: 2px; }
+.meter-extra { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--extra); font-size: 0.9rem; }
+.meter-extra .material-icons-outlined { font-size: 18px; }
+.floating-meter .meter-extra { font-size: 0.8rem; }
+.extra-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.extra-toggle {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 0.85rem; font-weight: 700;
+}
+.extra-toggle .material-icons-outlined { font-size: 18px; color: var(--muted); }
+.extra-toggle.on { background: var(--extra); border-color: var(--extra); color: #fff; }
+.extra-toggle.on .material-icons-outlined { color: #fff; }
+.extra-toggle:disabled { opacity: 0.45; }
+.extra-min { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 0.85rem; font-weight: 700; color: var(--muted); }
+.extra-min .material-icons-outlined { font-size: 18px; }
+.extra-min .form-control { width: 72px; padding: 5px 8px; }
+.day-item.has-extra { border-color: var(--extra); box-shadow: inset 4px 0 0 var(--extra); }
+.day-item.has-extra .js-day-extra:not(:placeholder-shown) { border-color: var(--extra); color: var(--extra); font-weight: 700; }
+.extra-summary { width: 100%; color: var(--extra); font-weight: 700; font-size: 0.85rem; }
+
 /* ---------- 8. Popups ---------- */
 .modal { --bs-modal-border-radius: 20px; --bs-modal-bg: var(--surface); --bs-modal-border-color: transparent; --bs-modal-header-border-color: transparent; --bs-modal-footer-border-color: transparent; }
 .modal-header { padding-bottom: 4px; }
@@ -758,6 +788,7 @@ body.is-admin .chat-shell { grid-template-columns: 300px minmax(0, 1fr); }
   .cal-panel { padding: 8px; margin-inline: -8px; border-radius: 12px; }
   .calendar-header { font-size: 0.72rem; padding: 6px 0; }
   .calendar-day { min-height: 66px; padding: 3px 2px; gap: 2px; }
+  .cal-shift-item .extra-badge { display: none; } /* op smal scherm volstaat de oranje rand */
   .day-number { width: 22px; height: 22px; font-size: 0.78rem; }
   .quick-icons-wrapper { display: none; }
   .cal-shift-item { font-size: 0.66rem; padding: 1px 3px; border-left-width: 2px; justify-content: center; }
