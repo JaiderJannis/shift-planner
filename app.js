@@ -2512,7 +2512,27 @@ function loadQuickSchoolValue() {
 }
 
 /** PDF-export van de gekozen maand. */
+/** Hex (#rrggbb of #rgb) → [r, g, b]. */
+function hexToRgbArray(hex, fallback = [233, 236, 239]) {
+  let h = String(hex || '').trim();
+  if (/^#[0-9a-f]{3}$/i.test(h)) h = `#${h[1]}${h[1]}${h[2]}${h[2]}${h[3]}${h[3]}`;
+  if (!/^#[0-9a-f]{6}$/i.test(h)) return fallback;
+  return [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+}
+/** Kleur mengen met wit (t = 0 → kleur, 1 → wit). */
+const tint = (rgb, t) => rgb.map(c => Math.round(c + (255 - c) * t));
+/** Kleur donkerder maken (t = 0 → kleur, 1 → zwart). */
+const shade = (rgb, t) => rgb.map(c => Math.round(c * (1 - t)));
+/** Donkere of lichte tekst op een achtergrond. */
+const textOn = rgb => (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2] > 150 ? [21, 48, 45] : [255, 255, 255]);
+
+/**
+ * Maandrapport als PDF in de stijl van de app:
+ * kop in je accentkleur, overzichtskaarten, maandkalender met de shiftkleuren,
+ * detailtabel per dag en totalen per project.
+ */
 function exportMonthPdf() {
+  if (!window.jspdf?.jsPDF) return toast('PDF-module nog niet geladen, probeer zo meteen opnieuw', 'warning');
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
 
@@ -2521,92 +2541,444 @@ function exportMonthPdf() {
   const monthName = monthsFull[m];
   const ud = getCurrentUserData();
   const md = ud.monthData?.[y]?.[m];
+  if (!md?.rows || !Object.values(md.rows).some(r => r?.shift)) return toast('Geen data voor deze maand', 'warning');
 
-  if (!md?.rows || Object.keys(md.rows).length === 0) return toast('Geen data voor deze maand', 'warning');
+  // --- Kleuren uit het profiel ---
+  const accent = hexToRgbArray(
+    dataStore.users[currentUserId]?.settings?.accentColor || localStorage.getItem('accentColor') || '#0e7c6b',
+    [14, 124, 107]
+  );
+  const accentDark = shade(accent, 0.35);
+  const accentSoft = tint(accent, 0.88);
+  const INK = [21, 48, 45];
+  const MUTED = [94, 113, 110];
+  const LINE = [217, 225, 223];
+  const PAPER = [244, 246, 245];
+  const RED = [180, 35, 24];
+  const GREEN = [31, 122, 77];
+  const ORANGE = [194, 92, 0];
+  const BLUE = [43, 123, 185];
 
+  const W = pdf.internal.pageSize.getWidth();
+  const H = pdf.internal.pageSize.getHeight();
+  const M = 14; // marge
+  const fmtH = mins => `${Math.floor(mins / 60)}u${String(Math.abs(mins) % 60).padStart(2, '0')}`;
+  const setFill = c => pdf.setFillColor(c[0], c[1], c[2]);
+  const setDraw = c => pdf.setDrawColor(c[0], c[1], c[2]);
+  const setText = c => pdf.setTextColor(c[0], c[1], c[2]);
+  const font = (style = 'normal', size = 10, color = INK) => {
+    pdf.setFont('helvetica', style);
+    pdf.setFontSize(size);
+    setText(color);
+  };
+  const shiftColor = key => hexToRgbArray(ud.shifts?.[key]?.color, [233, 236, 239]);
+  const shiftShort = (key, max = 12) => {
+    const name = shiftRealName(key, ud);
+    return name.length > max ? `${name.slice(0, max - 1)}…` : name;
+  };
+
+  // --- Cijfers ---
+  const planned = plannedMinutes(md.rows, ud);
+  const target = (Number(md.targetHours) || 0) * 60 + (Number(md.targetMinutes) || 0);
+  const diff = planned - target;
+  const extraTotal = monthExtraMinutes(md.rows, ud);
+  const counted = r => r?.shift && (!r.status || r.status === 'approved');
+  const stageMonth = Object.values(md.rows).reduce(
+    (s, r) => s + (counted(r) && isStageRow(r, ud) ? Number(r.minutes) || 0 : 0),
+    0
+  );
+  const leaveMonth = Object.values(md.rows).reduce(
+    (s, r) => s + (counted(r) && LEAVE_TYPES.includes(shiftRealName(r.shift, ud)) ? Number(r.minutes) || 0 : 0),
+    0
+  );
+  const status = getMonthStatus(y, m);
+  const statusLabel = STATUS_LABELS[status] || status;
+  const userName = ud.name || ud.email || '-';
+
+  // ================= Pagina 1 =================
   // Kop
-  const pageWidth = pdf.internal.pageSize.width;
-  pdf.setFillColor(13, 110, 253);
-  pdf.rect(0, 0, pageWidth, 25, 'F');
-  pdf.setFontSize(16);
-  pdf.setTextColor(255, 255, 255);
-  pdf.text('Shift Planner', 14, 15);
-  pdf.setFontSize(11);
-  pdf.text(`${monthName} ${y}`, pageWidth - 50, 15);
-  pdf.setTextColor(0, 0, 0);
-  pdf.setFontSize(9);
-  pdf.text(`Gebruiker: ${ud.name || ud.email || '-'}`, 14, 32);
+  setFill(accent);
+  pdf.rect(0, 0, W, 38, 'F');
+  setFill(accentDark);
+  pdf.rect(0, 38, W, 1.2, 'F');
+  // Merkteken (prikkaart)
+  setFill([255, 255, 255]);
+  pdf.roundedRect(M, 9, 11, 13, 1.6, 1.6, 'F');
+  setFill(accent);
+  pdf.triangle(M + 7.7, 9, M + 11.2, 9, M + 11.2, 11.9, 'F');
+  pdf.rect(M + 2.5, 15, 6, 1, 'F');
+  pdf.rect(M + 2.5, 18.5, 6, 1, 'F');
+  font('bold', 10, tint(accent, 0.75));
+  pdf.text('SHIFT PLANNER', M + 15, 13.5);
+  font('bold', 22, [255, 255, 255]);
+  pdf.text(`${monthName} ${y}`, M + 15, 23);
+  font('normal', 10, tint(accent, 0.8));
+  pdf.text(userName, M + 15, 30);
+  // Statuslabel rechts
+  const stColors = {
+    draft: [233, 238, 237],
+    submitted: [255, 236, 200],
+    approved: [214, 239, 226],
+    rejected: [253, 220, 216]
+  };
+  const stText = { draft: MUTED, submitted: [154, 106, 0], approved: GREEN, rejected: RED };
+  font('bold', 9);
+  const stW = pdf.getTextWidth(statusLabel) + 10;
+  setFill(stColors[status] || stColors.draft);
+  pdf.roundedRect(W - M - stW, 11, stW, 8, 4, 4, 'F');
+  setText(stText[status] || MUTED);
+  pdf.text(statusLabel, W - M - stW / 2, 16.4, { align: 'center' });
+  font('normal', 8, tint(accent, 0.8));
+  pdf.text(`Gemaakt op ${toDisplayDate(todayISO())}`, W - M, 30, { align: 'right' });
 
-  // Tabel (lege rijen overslaan)
-  const body = Object.entries(md.rows)
-    .filter(([, r]) => r?.shift)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, r]) => {
+  // Overzichtskaarten
+  let yPos = 47;
+  const cards = [
+    {
+      label: 'Gepland',
+      value: fmtH(planned),
+      sub: target ? `van ${fmtH(target)} doel` : 'geen doel ingesteld',
+      color: INK
+    },
+    {
+      label: diff >= 0 ? 'Boven doel' : 'Nog te kort',
+      value: target ? `${diff >= 0 ? '+' : '-'}${fmtH(Math.abs(diff))}` : '—',
+      sub: target ? (diff >= 0 ? 'doel gehaald' : 'om het doel te halen') : '',
+      color: !target ? MUTED : diff >= 0 ? GREEN : RED
+    },
+    {
+      label: 'Extra gewerkt',
+      value: extraTotal ? `+${fmtH(extraTotal)}` : '0u00',
+      sub: 'pauzes en langer gebleven',
+      color: extraTotal ? ORANGE : MUTED
+    },
+    { label: 'Stage', value: fmtH(stageMonth), sub: 'telt niet mee in gepland', color: BLUE },
+    { label: 'Verlof / afwezig', value: fmtH(leaveMonth), sub: 'goedgekeurd', color: MUTED }
+  ];
+  const gap = 3;
+  const cw = (W - 2 * M - gap * (cards.length - 1)) / cards.length;
+  cards.forEach((c, i) => {
+    const x = M + i * (cw + gap);
+    setFill(PAPER);
+    setDraw(LINE);
+    pdf.setLineWidth(0.2);
+    pdf.roundedRect(x, yPos, cw, 22, 2.5, 2.5, 'FD');
+    font('normal', 7.5, MUTED);
+    pdf.text(c.label.toUpperCase(), x + 3.5, yPos + 5.5);
+    font('bold', 15, c.color);
+    pdf.text(c.value, x + 3.5, yPos + 13.5);
+    font('normal', 6.8, MUTED);
+    pdf.text(pdf.splitTextToSize(c.sub, cw - 7)[0] || '', x + 3.5, yPos + 18.5);
+  });
+  yPos += 27;
+
+  // Voortgangsbalk (rood = te kort, groen = gehaald)
+  if (target) {
+    const barW = W - 2 * M;
+    const pct = Math.min(1, planned / Math.max(target, planned, 1));
+    setFill(LINE);
+    pdf.roundedRect(M, yPos, barW, 3.2, 1.6, 1.6, 'F');
+    setFill(diff >= 0 ? GREEN : RED);
+    if (pct > 0) pdf.roundedRect(M, yPos, Math.max(3.2, barW * pct), 3.2, 1.6, 1.6, 'F');
+    // streepjes per 8 uur
+    setDraw([255, 255, 255]);
+    pdf.setLineWidth(0.5);
+    const scale = Math.max(target, planned);
+    for (let t = 480; t < scale; t += 480) {
+      const x = M + (barW * t) / scale;
+      pdf.line(x, yPos, x, yPos + 3.2);
+    }
+    yPos += 9;
+  }
+
+  // Maandkalender
+  font('bold', 11, INK);
+  pdf.text('Kalender', M, yPos + 2);
+  yPos += 5;
+  const days = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'];
+  const colW = (W - 2 * M) / 7;
+  setFill(accentSoft);
+  pdf.rect(M, yPos, W - 2 * M, 6, 'F');
+  days.forEach((d, i) => {
+    font('bold', 8, accentDark);
+    pdf.text(d, M + i * colW + colW / 2, yPos + 4.1, { align: 'center' });
+  });
+  yPos += 6;
+  const first = new Date(y, m, 1);
+  const offset = (first.getDay() + 6) % 7;
+  const dim = new Date(y, m + 1, 0).getDate();
+  const weeks = Math.ceil((offset + dim) / 7);
+  const footerSpace = 26;
+  const cellH = Math.min(30, (H - yPos - footerSpace) / weeks);
+  const todayIso = todayISO();
+  for (let i = 0; i < weeks * 7; i++) {
+    const col = i % 7;
+    const row = Math.floor(i / 7);
+    const x = M + col * colW;
+    const yy = yPos + row * cellH;
+    const d = i - offset + 1;
+    const inMonth = d >= 1 && d <= dim;
+    setFill(!inMonth ? PAPER : col >= 5 ? [248, 250, 249] : [255, 255, 255]);
+    setDraw(LINE);
+    pdf.setLineWidth(0.2);
+    pdf.rect(x, yy, colW, cellH, 'FD');
+    if (!inMonth) continue;
+    const iso = dateKey(y, m, d);
+    const holiday = getBelgianHoliday(new Date(y, m, d));
+    if (iso === todayIso) {
+      setDraw(accent);
+      pdf.setLineWidth(0.6);
+      pdf.rect(x + 0.3, yy + 0.3, colW - 0.6, cellH - 0.6, 'S');
+    }
+    font('bold', 8, holiday ? [196, 30, 110] : MUTED);
+    pdf.text(String(d), x + 1.8, yy + 3.8);
+    if (holiday) {
+      font('normal', 5.5, [196, 30, 110]);
+      pdf.text(pdf.splitTextToSize(holiday.name, colW - 9)[0], x + colW - 1.5, yy + 3.6, { align: 'right' });
+    }
+    const keys = listDayKeys(md, iso).filter(k => md.rows[k]?.shift);
+    const chipH = 4.3;
+    const maxChips = Math.max(1, Math.floor((cellH - 6) / (chipH + 0.8)));
+    keys.slice(0, maxChips).forEach((k, n) => {
+      const r = md.rows[k];
+      const c = shiftColor(r.shift);
+      const cy = yy + 5.3 + n * (chipH + 0.8);
+      setFill(c);
+      pdf.roundedRect(x + 1.2, cy, colW - 2.4, chipH, 0.9, 0.9, 'F');
+      setFill(shade(c, 0.3));
+      pdf.rect(x + 1.2, cy, 0.7, chipH, 'F');
+      if (rowExtraMinutes(r)) {
+        setDraw(ORANGE);
+        pdf.setLineWidth(0.4);
+        pdf.roundedRect(x + 1.2, cy, colW - 2.4, chipH, 0.9, 0.9, 'S');
+      }
+      const tc = textOn(c);
+      font('bold', 5.8, tc);
+      pdf.text(shiftShort(r.shift, 11), x + 2.6, cy + 2.95);
       const mins = Number(r.minutes) || 0;
-      const status = r.status === 'pending' ? ' (aanvraag)' : r.status === 'rejected' ? ' (afgekeurd)' : '';
-      return [
-        toDisplayDate(key.slice(0, 10)),
-        r.project || '-',
-        shiftRealName(r.shift, ud) + status,
-        r.start || '',
-        rowActualEnd(r),
-        r.breakWorked ? `${r.break || 0} (doorgewerkt)` : r.break || 0,
-        `${Math.floor(mins / 60)}u ${mins % 60}m`,
-        rowExtraMinutes(r) ? `+${fmtExtra(rowExtraMinutes(r))}` : '',
-        r.omschrijving || r.description || ''
-      ];
+      if (mins) {
+        font('normal', 5.6, tc);
+        pdf.text(fmtH(mins), x + colW - 2, cy + 2.95, { align: 'right' });
+      }
     });
+    if (keys.length > maxChips) {
+      font('normal', 5.5, MUTED);
+      pdf.text(`+${keys.length - maxChips} meer`, x + 1.8, yy + cellH - 1.2);
+    }
+  }
+  yPos += weeks * cellH + 6;
+
+  // Legende van de gebruikte shiften
+  const used = [
+    ...new Set(
+      Object.values(md.rows)
+        .filter(r => r?.shift)
+        .map(r => r.shift)
+    )
+  ];
+  let lx = M;
+  font('normal', 7, MUTED);
+  used.forEach(key => {
+    const name = shiftRealName(key, ud);
+    const w = pdf.getTextWidth(name) + 8;
+    if (lx + w > W - M) {
+      lx = M;
+      yPos += 5;
+    }
+    setFill(shiftColor(key));
+    pdf.roundedRect(lx, yPos - 2.6, 3.2, 3.2, 0.8, 0.8, 'F');
+    setText(MUTED);
+    pdf.text(name, lx + 4.4, yPos);
+    lx += w;
+  });
+
+  // ================= Pagina 2+: detail =================
+  pdf.addPage();
+  const pageHeader = () => {
+    setFill(accent);
+    pdf.rect(0, 0, W, 16, 'F');
+    font('bold', 12, [255, 255, 255]);
+    pdf.text(`${monthName} ${y} · details`, M, 10.5);
+    font('normal', 9, tint(accent, 0.8));
+    pdf.text(userName, W - M, 10.5, { align: 'right' });
+  };
+  pageHeader();
+
+  const keys = Object.keys(md.rows)
+    .filter(k => md.rows[k]?.shift)
+    .sort((a, b) => a.slice(0, 10).localeCompare(b.slice(0, 10)));
+  const dates = [...new Set(keys.map(k => k.slice(0, 10)))].sort();
+  const body = [];
+  const meta = [];
+  dates.forEach((iso, di) => {
+    listDayKeys(md, iso)
+      .filter(k => md.rows[k]?.shift)
+      .forEach((k, idx) => {
+        const r = md.rows[k];
+        const d = new Date(`${iso}T12:00:00`);
+        const stage = isStageRow(r, ud);
+        const st = r.status === 'pending' ? ' (aanvraag)' : r.status === 'rejected' ? ' (afgekeurd)' : '';
+        const hasTime = r.start && r.end && !(r.start === '00:00' && r.end === '00:00');
+        const extra = rowExtraMinutes(r);
+        body.push([
+          idx === 0 ? `${daysFull[d.getDay()].slice(0, 2).toLowerCase()} ${String(d.getDate()).padStart(2, '0')}` : '',
+          shiftRealName(r.shift, ud) + st,
+          r.project || '',
+          hasTime ? `${r.start} – ${rowActualEnd(r)}` : '',
+          r.break ? `${r.break}'${r.breakWorked ? ' gewerkt' : ''}` : '',
+          (Number(r.minutes) ? fmtH(Number(r.minutes)) : '–') + (stage ? ' *' : ''),
+          extra ? `+${fmtH(extra)}` : '',
+          r.omschrijving || r.description || ''
+        ]);
+        meta.push({ shift: r.shift, band: di % 2, stage, pending: !!st, weekend: d.getDay() % 6 === 0, extra });
+      });
+  });
 
   pdf.autoTable({
-    head: [['Datum', 'Project', 'Shift', 'Start', 'Einde', 'Pauze', 'Duur', 'Extra', 'Omschrijving']],
+    head: [['Dag', 'Shift', 'Project', 'Uren', 'Pauze', 'Duur', 'Extra', 'Notitie']],
     body,
-    startY: 43,
-    theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 1.5, lineWidth: 0.1 },
-    headStyles: { fillColor: [13, 110, 253], textColor: 255 },
-    alternateRowStyles: { fillColor: [248, 249, 252] },
-    margin: { left: 8, right: 8 },
-    tableWidth: 'auto',
+    startY: 22,
+    margin: { left: M, right: M, top: 22, bottom: 16 },
+    theme: 'plain',
+    styles: {
+      font: 'helvetica',
+      fontSize: 8,
+      cellPadding: { top: 1.8, bottom: 1.8, left: 2, right: 2 },
+      textColor: INK,
+      lineColor: LINE,
+      lineWidth: 0
+    },
+    headStyles: { fillColor: accentSoft, textColor: accentDark, fontStyle: 'bold', fontSize: 7.5 },
     columnStyles: {
-      0: { cellWidth: 20 },
-      1: { cellWidth: 30 },
-      2: { cellWidth: 25 },
-      3: { cellWidth: 15 },
-      4: { cellWidth: 15 },
-      5: { cellWidth: 12 },
-      6: { cellWidth: 18 },
-      7: { cellWidth: 14, textColor: [194, 92, 0], fontStyle: 'bold' },
-      8: { cellWidth: 'auto' }
+      0: { cellWidth: 13, fontStyle: 'bold', textColor: MUTED },
+      1: { cellWidth: 38, fontStyle: 'bold' },
+      2: { cellWidth: 28, textColor: MUTED },
+      3: { cellWidth: 24 },
+      4: { cellWidth: 17, textColor: MUTED },
+      5: { cellWidth: 14, halign: 'right', fontStyle: 'bold' },
+      6: { cellWidth: 14, halign: 'right', textColor: ORANGE, fontStyle: 'bold' },
+      7: { cellWidth: 'auto', textColor: MUTED, fontSize: 7.5 }
+    },
+    didParseCell: data => {
+      if (data.section !== 'body') return;
+      const info = meta[data.row.index];
+      if (!info) return;
+      data.cell.styles.fillColor = info.band ? [248, 250, 249] : [255, 255, 255];
+      if (data.column.index === 1) data.cell.styles.cellPadding = { top: 1.8, bottom: 1.8, left: 6, right: 2 };
+      if (info.stage && [1, 5].includes(data.column.index)) data.cell.styles.textColor = BLUE;
+      if (info.pending) data.cell.styles.textColor = MUTED;
+    },
+    didDrawCell: data => {
+      if (data.section === 'body' && data.column.index === 1) {
+        const info = meta[data.row.index];
+        const c = shiftColor(info.shift);
+        setFill(c);
+        pdf.roundedRect(data.cell.x + 1.6, data.cell.y + data.cell.height / 2 - 1.6, 3.2, 3.2, 0.8, 0.8, 'F');
+      }
+      if (data.section === 'body' && data.column.index === 0 && data.row.raw[0]) {
+        setDraw(LINE);
+        pdf.setLineWidth(0.2);
+        pdf.line(M, data.cell.y, W - M, data.cell.y);
+      }
     },
     didDrawPage: () => {
-      pdf.setFontSize(8);
-      pdf.setTextColor(120);
-      pdf.text(`Pagina ${pdf.internal.getNumberOfPages()}`, pageWidth - 30, pdf.internal.pageSize.height - 8);
+      if (pdf.internal.getCurrentPageInfo().pageNumber > 2) pageHeader();
     }
   });
 
-  // Samenvatting (zelfde berekening als in de app)
-  const total = plannedMinutes(md.rows, ud);
-  const doel = (Number(md.targetHours) || 0) * 60 + (Number(md.targetMinutes) || 0);
-  const short = v => `${Math.floor(v / 60)}u ${v % 60}m`;
-  const endY = pdf.lastAutoTable.finalY + 6;
-  pdf.setFontSize(11);
-  pdf.setTextColor(13, 110, 253);
-  pdf.text('Maandoverzicht', 14, endY);
-  pdf.setTextColor(0, 0, 0);
-  pdf.setFontSize(9);
-  pdf.text(`Doel: ${short(doel)}`, 20, endY + 5);
-  pdf.text(`Gepland: ${short(total)}`, 20, endY + 10);
-  pdf.text(`Verschil: ${(total - doel >= 0 ? '+' : '-') + short(Math.abs(total - doel))}`, 20, endY + 15);
-  const extraTotal = monthExtraMinutes(md.rows, ud);
-  if (extraTotal) {
-    pdf.setTextColor(194, 92, 0);
-    pdf.text(`Waarvan extra gewerkt (doorgewerkte pauzes en langer gebleven): ${short(extraTotal)}`, 20, endY + 20);
-    pdf.setTextColor(0, 0, 0);
+  // Totalen per project + uitleg
+  let ty = pdf.lastAutoTable.finalY + 8;
+  const perProject = {};
+  Object.values(md.rows).forEach(r => {
+    if (!counted(r)) return;
+    const p = r.project || 'Zonder project';
+    perProject[p] ||= { mins: 0, extra: 0, stage: 0 };
+    if (isStageRow(r, ud)) perProject[p].stage += Number(r.minutes) || 0;
+    else perProject[p].mins += Number(r.minutes) || 0;
+    perProject[p].extra += isStageRow(r, ud) ? 0 : rowExtraMinutes(r);
+  });
+  const projRows = Object.entries(perProject)
+    .sort((a, b) => b[1].mins + b[1].stage - (a[1].mins + a[1].stage))
+    .map(([p, v]) => [p, v.mins ? fmtH(v.mins) : '', v.extra ? `+${fmtH(v.extra)}` : '', v.stage ? fmtH(v.stage) : '']);
+  if (ty > H - 60) {
+    pdf.addPage();
+    pageHeader();
+    ty = 24;
+  }
+  font('bold', 11, INK);
+  pdf.text('Totaal per project', M, ty);
+  pdf.autoTable({
+    head: [['Project', 'Uren', 'Waarvan extra', 'Stage']],
+    body: projRows,
+    foot: [
+      ['Totaal (telt mee)', fmtH(planned), extraTotal ? `+${fmtH(extraTotal)}` : '', stageMonth ? fmtH(stageMonth) : '']
+    ],
+    startY: ty + 3,
+    margin: { left: M, right: M, bottom: 16 },
+    theme: 'plain',
+    tableWidth: 120,
+    styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2, textColor: INK },
+    headStyles: { fillColor: accentSoft, textColor: accentDark, fontStyle: 'bold', fontSize: 7.5 },
+    footStyles: { fillColor: PAPER, fontStyle: 'bold', textColor: INK },
+    columnStyles: {
+      1: { halign: 'right', fontStyle: 'bold' },
+      2: { halign: 'right', textColor: ORANGE },
+      3: { halign: 'right', textColor: BLUE }
+    },
+    alternateRowStyles: { fillColor: [250, 251, 251] },
+    didParseCell: data => {
+      if (data.column.index > 0) data.cell.styles.halign = 'right';
+    }
+  });
+  ty = pdf.lastAutoTable.finalY + 6;
+  font('normal', 7, MUTED);
+  pdf.text(
+    pdf.splitTextToSize(
+      '* Stage-uren staan in het blauw en tellen niet mee in "gepland". Oranje = extra gewerkt (doorgewerkte pauze of langer gebleven). ' +
+        'Verlof in aanvraag of afgekeurd telt niet mee.',
+      W - 2 * M
+    ),
+    M,
+    ty
+  );
+
+  // Handtekeningen
+  ty += 16;
+  if (ty > H - 40) {
+    pdf.addPage();
+    pageHeader();
+    ty = 34;
+  }
+  const sigW = (W - 2 * M - 10) / 2;
+  ['Handtekening medewerker', 'Handtekening verantwoordelijke'].forEach((label, i) => {
+    const x = M + i * (sigW + 10);
+    setDraw(LINE);
+    pdf.setLineWidth(0.3);
+    pdf.roundedRect(x, ty, sigW, 22, 2, 2, 'S');
+    font('normal', 7.5, MUTED);
+    pdf.text(label, x + 3, ty + 5);
+    pdf.text('Datum:', x + 3, ty + 19);
+  });
+
+  // Voettekst op elke pagina
+  const pages = pdf.internal.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    pdf.setPage(p);
+    setDraw(LINE);
+    pdf.setLineWidth(0.2);
+    pdf.line(M, H - 11, W - M, H - 11);
+    font('normal', 7, MUTED);
+    pdf.text(`Shift Planner · ${userName} · ${monthName} ${y}`, M, H - 6.5);
+    pdf.text(`Pagina ${p} van ${pages}`, W - M, H - 6.5, { align: 'right' });
   }
 
-  pdf.save(`Shiftplanning_${ud.name || 'gebruiker'}_${monthName}_${y}.pdf`);
-  toast('PDF geëxporteerd', 'success');
+  const safe = s =>
+    String(s)
+      .replace(/[^\w\- ]+/g, '')
+      .trim()
+      .replace(/\s+/g, '_');
+  pdf.save(`Shiftplanning_${safe(userName) || 'gebruiker'}_${monthName}_${y}.pdf`);
+  toast('PDF gedownload', 'success');
 }
 
 function bindMonth() {
