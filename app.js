@@ -1351,47 +1351,58 @@ function renderMeter(el, planned, target, opts = {}) {
 
 const STAGE = { start: '2026-09-28', end: '2027-01-31', targetMinutes: 450 * 60, dayMinutes: 7 * 60 + 36 }; // werkplekleren PXL
 
-/** Stage-afteller: wat al gedaan is, wat ingepland staat en hoeveel stagedagen (à 7u36) er nog bij moeten. */
-function stageCountdownHtml(plannedTotal) {
+/**
+ * Stageblok op Home: één balk in drie delen (gedaan · ingepland · nog in te plannen)
+ * met een duidelijke legende en hoeveel tijd er nog rest tot het einde van de stage.
+ */
+function renderStageBlock(el) {
+  if (!el) return;
   const ud = getCurrentUserData();
   const today = todayISO();
+  const target = STAGE.targetMinutes;
+  const total = sumTakenMinutesForRange(STAGE.start, STAGE.end, ['Stage']);
   const done = sumTakenMinutesForRange(STAGE.start, today < STAGE.end ? today : STAGE.end, ['Stage']);
-  const toPlan = Math.max(0, STAGE.targetMinutes - plannedTotal);
+  const plannedAhead = Math.max(0, total - done);
+  const toPlan = Math.max(0, target - total);
   const daysToPlan = Math.ceil(toPlan / STAGE.dayMinutes);
 
-  // Ingeplande stagedagen vanaf vandaag (unieke datums)
+  // Ingeplande stagedagen na vandaag (unieke datums)
   const futureDays = new Set();
   Object.values(ud.monthData || {}).forEach(months =>
     Object.values(months || {}).forEach(md =>
       Object.entries(md?.rows || {}).forEach(([key, r]) => {
         const iso = key.slice(0, 10);
-        if (
-          iso >= today &&
-          isDateWithin(iso, STAGE.start, STAGE.end) &&
-          r?.shift &&
-          r.status !== 'rejected' &&
-          isStageRow(r, ud)
-        )
+        if (iso > today && iso <= STAGE.end && r?.shift && r.status !== 'rejected' && isStageRow(r, ud))
           futureDays.add(iso);
       })
     )
   );
-
-  const msDay = 86400000;
-  const daysLeft = Math.max(0, Math.round((new Date(`${STAGE.end}T12:00`) - new Date(`${today}T12:00`)) / msDay));
-  const weeksLeft = Math.floor(daysLeft / 7);
+  const daysLeft = Math.max(0, Math.round((new Date(`${STAGE.end}T12:00`) - new Date(`${today}T12:00`)) / 86400000));
   const ended = today > STAGE.end;
+  const scale = Math.max(target, total, 1);
+  const pct = v => `${((v / scale) * 100).toFixed(2)}%`;
+  const over = total - target;
 
-  return `<div class="stage-countdown">
-    <div class="sc-item"><span class="sc-num">${fmtShort(done)}</span><span class="sc-lbl">al gedaan</span></div>
-    <div class="sc-item"><span class="sc-num">${futureDays.size}</span><span class="sc-lbl">${futureDays.size === 1 ? 'dag' : 'dagen'} nog ingepland</span></div>
-    <div class="sc-item ${toPlan ? 'todo' : 'ok'}"><span class="sc-num">${toPlan ? `±${daysToPlan}` : '✓'}</span><span class="sc-lbl">${
-      toPlan ? `stagedagen van 7u36 nog in te plannen` : 'alle uren ingepland'
-    }</span></div>
-    <div class="sc-item"><span class="sc-num">${ended ? '—' : weeksLeft ? `${weeksLeft} wk` : `${daysLeft} d`}</span><span class="sc-lbl">${
-      ended ? 'stage afgelopen' : `tot ${toDisplayDate(STAGE.end)}${weeksLeft ? ` (${daysLeft} dagen)` : ''}`
-    }</span></div>
-  </div>`;
+  el.innerHTML = `
+    <div class="stage-head">
+      <h3>Stage <span class="text-muted fw-normal">· ${toDisplayDate(STAGE.start)} t/m ${toDisplayDate(STAGE.end)}</span></h3>
+      <span class="stage-end">${ended ? 'Stage afgelopen' : `Nog ${daysLeft} dagen (${Math.floor(daysLeft / 7)} weken)`}</span>
+    </div>
+    <div class="meter-figures">
+      <span class="meter-big">${Math.floor(total / 60)}<small>u</small>${String(total % 60).padStart(2, '0')}</span>
+      <span class="meter-of">van ${fmtShort(target)} ingevuld</span>
+      <span class="meter-delta ${toPlan ? 'stage-todo' : 'done'}">${toPlan ? `nog ${fmtShort(toPlan)} te plannen` : over > 0 ? `${fmtShort(over)} extra` : 'alles ingepland'}</span>
+    </div>
+    <div class="stage-bar" role="img" aria-label="Gedaan ${fmtShort(done)}, ingepland ${fmtShort(plannedAhead)}, nog te plannen ${fmtShort(toPlan)}">
+      <span class="sb-done" style="width:${pct(done)}"></span><span class="sb-planned" style="width:${pct(plannedAhead)}"></span>
+    </div>
+    <ul class="stage-legend">
+      <li><span class="dot sb-done"></span><span><strong>${fmtShort(done)}</strong> gedaan</span><small>t/m vandaag</small></li>
+      <li><span class="dot sb-planned"></span><span><strong>${fmtShort(plannedAhead)}</strong> ingepland</span><small>${futureDays.size} ${futureDays.size === 1 ? 'dag' : 'dagen'} vanaf morgen</small></li>
+      <li><span class="dot sb-todo"></span><span><strong>${fmtShort(toPlan)}</strong> nog te plannen</span><small>${
+        toPlan ? `± ${daysToPlan} ${daysToPlan === 1 ? 'dag' : 'dagen'} van 7u36` : 'niets meer'
+      }</small></li>
+    </ul>`;
 }
 
 function renderHome() {
@@ -1418,13 +1429,7 @@ function renderHome() {
   setText('homeMonthDiff', fmtDiff(planned - target));
 
   // Stage
-  const stageTaken = sumTakenMinutesForRange(STAGE.start, STAGE.end, ['Stage']);
-  renderMeter(document.getElementById('stageProgressContainer'), stageTaken, STAGE.targetMinutes, {
-    compact: true,
-    caption: false,
-    title: `Stage <span class="text-muted fw-normal">· ${toDisplayDate(STAGE.start)} t/m ${toDisplayDate(STAGE.end)}</span>`
-  });
-  document.getElementById('stageProgressContainer')?.insertAdjacentHTML('beforeend', stageCountdownHtml(stageTaken));
+  renderStageBlock(document.getElementById('stageProgressContainer'));
 
   // Status van de maand
   const st = document.getElementById('homeMonthStatus');
