@@ -399,7 +399,6 @@ body.modal-open .floating-meter, body.paint-mode .floating-meter, body.menu-open
 .stage-meter { display: grid; gap: 10px; }
 .stage-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .stage-end { font-size: 0.85rem; color: var(--muted); font-weight: 700; }
-.stage-meter .meter-big { font-size: 2.2rem; }
 .meter-delta.stage-todo { background: color-mix(in srgb, #2b7bb9 13%, transparent); color: #2b7bb9; }
 .stage-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: repeating-linear-gradient(135deg, var(--surface-2) 0 6px, color-mix(in srgb, var(--line) 70%, var(--surface-2)) 6px 12px); }
 .stage-bar span { height: 100%; transition: width 0.35s ease; }
@@ -649,6 +648,16 @@ td.actions-cell, #thActions { width: 1%; white-space: nowrap; }
 .day-warning .material-icons-outlined { font-size: 20px; }
 [data-bs-theme='dark'] .day-warning { background: rgba(232, 161, 0, 0.15); color: #ffd27a; border-color: rgba(232, 161, 0, 0.4); }
 .week-warn { display: block; text-align: center; font-size: 0.68rem; font-weight: 800; color: #9a6a00; background: #fff4d6; border-radius: 6px; padding: 1px 2px; }
+
+/* Historiek: totalenrij groter en duidelijker */
+#historyTable tfoot th {
+  font-family: var(--font-display); font-size: 1.15rem; font-weight: 800; letter-spacing: -0.01em;
+  padding-top: 14px; padding-bottom: 14px; background: var(--accent-soft) !important; color: var(--ink);
+  border-top: 2px solid var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+#historyTable tfoot th.text-success, #historyTable tfoot th.text-danger { font-size: 1.3rem; }
+#historyTable tfoot th.text-success { color: var(--ok) !important; }
+#historyTable tfoot th.text-danger { color: var(--danger) !important; }
 
 /* Gekoppelde shift in de shiftlijst */
 .link-note { display: inline-flex; align-items: center; gap: 3px; font-size: 0.78rem; color: var(--accent-strong); font-weight: 700; }
