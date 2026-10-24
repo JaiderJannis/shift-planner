@@ -3358,8 +3358,9 @@ function renderCalendarGrid(year, month) {
             `<span class="quick-icon-btn" data-shift="${escapeHtml(sh.key)}" title="${escapeHtml(sh.realName || sh.key)}">${SHIFT_ICONS[sh.icon] || '⭐'}</span>`
         )
         .join('') +
-      (dayFavs.length > visibleFavs.length
-        ? `<button type="button" class="quick-icon-btn quick-more-btn" title="Meer shiften" aria-label="Meer shiften" aria-haspopup="menu">⋯</button>`
+      // "⋯" is nodig bij meer dan 5 favorieten; bij 4–5 alleen als het vakje smal is (dan max. 3 icoontjes, via CSS)
+      (dayFavs.length > 3
+        ? `<button type="button" class="quick-icon-btn quick-more-btn${dayFavs.length > visibleFavs.length ? '' : ' only-narrow'}" title="Meer shiften" aria-label="Meer shiften" aria-haspopup="menu">⋯</button>`
         : '');
 
     // Ingevulde shiften (max. 3 zichtbaar)
@@ -3423,9 +3424,19 @@ function renderCalendarGrid(year, month) {
     dayEl.querySelectorAll('.quick-icon-btn').forEach(btn => {
       btn.onclick = e => {
         e.stopPropagation();
-        if (btn.classList.contains('quick-more-btn'))
-          openQuickMoreMenu(btn, baseKey, dayFavs.slice(QUICK_ICONS_VISIBLE));
-        else applyShiftDirectly(baseKey, btn.dataset.shift);
+        if (btn.classList.contains('quick-more-btn')) {
+          // Alles wat niet zichtbaar is in het vakje (verborgen door smalle weergave of meer dan 5)
+          const shown = new Set(
+            [...btn.parentElement.querySelectorAll('.quick-icon-btn[data-shift]')]
+              .filter(b => b.offsetParent !== null)
+              .map(b => b.dataset.shift)
+          );
+          openQuickMoreMenu(
+            btn,
+            baseKey,
+            dayFavs.filter(sh => !shown.has(sh.key))
+          );
+        } else applyShiftDirectly(baseKey, btn.dataset.shift);
       };
     });
 
@@ -3469,9 +3480,18 @@ function openQuickMoreMenu(anchor, baseKey, shifts) {
     applyShiftDirectly(baseKey, btn.dataset.shift);
   });
   menu.querySelector('button')?.focus({ preventScroll: true });
+  // Sluiten bij klik ernaast of echt scrollen (niet bij een kleine schok van de pagina)
+  const startY = window.scrollY;
+  const onScroll = () => {
+    if (!document.getElementById('quickMoreMenu')) return window.removeEventListener('scroll', onScroll);
+    if (Math.abs(window.scrollY - startY) > 40) {
+      window.removeEventListener('scroll', onScroll);
+      closeQuickMoreMenu();
+    }
+  };
   setTimeout(() => {
     document.addEventListener('click', closeQuickMoreMenu, { once: true });
-    window.addEventListener('scroll', closeQuickMoreMenu, { once: true, passive: true });
+    window.addEventListener('scroll', onScroll, { passive: true });
   });
 }
 

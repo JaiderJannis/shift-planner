@@ -542,6 +542,16 @@ body.modal-open .floating-meter, body.paint-mode .floating-meter, body.menu-open
   font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
 }
 .quick-icon-btn:hover { background: var(--accent-soft); }
+/* Smal kalendervakje (klein venster): max. 3 icoontjes, de rest via "⋯" */
+.calendar-day { container-type: inline-size; }
+.quick-more-btn.only-narrow { display: none; }
+@container (max-width: 190px) {
+  .quick-icons-wrapper .quick-icon-btn[data-shift]:nth-child(n + 4) { display: none; }
+  .quick-more-btn.only-narrow { display: inline-flex; }
+}
+@container (max-width: 135px) {
+  .quick-icons-wrapper .quick-icon-btn[data-shift]:nth-child(n + 3) { display: none; }
+}
 .quick-more-btn { border: 0; padding: 0; color: var(--ink); font-weight: 800; font-size: 14px; line-height: 1; font-family: var(--font-body); }
 .quick-more-menu {
   position: fixed; z-index: 1060; min-width: 200px; max-width: calc(100vw - 16px); max-height: 60vh; overflow-y: auto;
