@@ -396,6 +396,60 @@ async function loadAllUsers() {
   dataStore.currentUser = currentUserId;
 }
 
+// --- Live bijwerken: wijzigingen van een ander toestel of een andere gebruiker meteen tonen ---
+let activeDocUnsub = null;
+let activeDocUid = null;
+let liveRefreshTimer = null;
+
+/** Luistert naar het document van de gebruiker die je nu bekijkt (jezelf, of als admin iemand anders). */
+function listenActiveUserDoc() {
+  const uid = getActiveUserId();
+  if (!uid || uid === activeDocUid) return;
+  if (activeDocUnsub) activeDocUnsub();
+  activeDocUid = uid;
+  activeDocUnsub = onSnapshot(
+    doc(db, 'users', uid),
+    snap => {
+      // Eigen, nog niet bevestigde wijzigingen: die staan al op het scherm
+      if (!snap.exists() || snap.metadata?.hasPendingWrites) return;
+      const fresh = snap.data();
+      const cur = dataStore.users[uid] || {};
+      const same = ['monthData', 'shifts', 'shiftOrder', 'projects', 'settings', 'role', 'name'].every(
+        k => JSON.stringify(cur[k] ?? null) === JSON.stringify(fresh[k] ?? null)
+      );
+      if (same) return;
+      dataStore.users[uid] = { ...cur, ...fresh };
+      scheduleLiveRefresh(uid);
+    },
+    err => console.warn('Live bijwerken gestopt:', err.message)
+  );
+}
+
+/** Scherm opnieuw tekenen na een wijziging van elders (niet terwijl je zelf iets aan het typen bent). */
+function scheduleLiveRefresh(uid) {
+  clearTimeout(liveRefreshTimer);
+  liveRefreshTimer = setTimeout(() => {
+    if (uid !== getActiveUserId()) return;
+    const el = document.activeElement;
+    const typing =
+      el &&
+      el.matches?.('input, textarea, select') &&
+      el.closest('#dayEditorModal, #tbody, #quickModal, #shiftModal, #projectModal');
+    if (typing) return scheduleLiveRefresh(uid); // even wachten tot je klaar bent
+    renderProjects();
+    renderShifts();
+    renderProjectFilterForMonth();
+    generateMonth();
+    updateLeaveBadges();
+    if (document.getElementById('dayEditorModal')?.classList.contains('show')) renderDayEditor();
+    resetWorkWarnings();
+    if (dataStore.viewUserId) {
+      const u = dataStore.users[uid];
+      toast(`Live bijgewerkt: ${escapeHtml(u?.name || u?.email || 'gebruiker')} heeft iets aangepast`, 'info');
+    }
+  }, 400);
+}
+
 // --- Opslaan met zichtbare status in de topbalk ---
 let pendingSaves = 0;
 let saveStatusTimer = null;
@@ -617,6 +671,9 @@ function computeWorkWarnings(ud = getCurrentUserData()) {
 }
 
 let lastWorkWarnings = null;
+function resetWorkWarnings() {
+  lastWorkWarnings = null;
+}
 
 /** Na een wijziging: nieuwe waarschuwingen meteen melden. */
 function announceNewWarnings() {
@@ -1102,6 +1159,7 @@ function bindAuth() {
     initSelectors();
     renderAll();
     revealAdminIfNeeded();
+    listenActiveUserDoc();
     updateMonthStatusBadge();
     enableNotifications(user.uid);
 
@@ -6384,6 +6442,7 @@ async function renderUserDataAsAdmin(uid) {
     if (snap.exists()) dataStore.users[uid] = snap.data();
   }
   dataStore.viewUserId = uid && uid !== currentUserId ? uid : null;
+  listenActiveUserDoc();
 
   renderProjects();
   renderShifts();
