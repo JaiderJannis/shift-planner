@@ -18,7 +18,7 @@ initializeApp();
 
 const TZ = 'Europe/Brussels';
 const DAYS = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
-const APP_URL = 'https://jaiderjannis.github.io/shift-planner/app.html';
+const APP_URL = 'https://jaiderjannis.github.io/shift-planner/';
 
 /** Datum in Brussel als { iso, y, m (0-11), weekday }. */
 function brusselsDate(offsetDays = 0) {

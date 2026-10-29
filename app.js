@@ -1139,7 +1139,13 @@ function bindAuth() {
 
     // Niet ingelogd → naar de loginpagina
     if (!user) {
-      window.location.replace('index.html');
+      // Snelkoppeling (#snel/#invoer) onthouden voor na het inloggen
+      try {
+        sessionStorage.setItem('afterLogin', location.hash || '');
+      } catch {
+        /* geen opslag */
+      }
+      window.location.replace('login/');
       return;
     }
 
@@ -1180,7 +1186,7 @@ function bindAuth() {
 
   logoutBtn?.addEventListener('click', async () => {
     await signOut(auth);
-    window.location.href = 'index.html';
+    window.location.href = 'login/';
   });
 }
 

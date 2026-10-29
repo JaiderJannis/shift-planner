@@ -1,7 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js';
 
-// 🔥 Jouw Firebase-config (zelfde als app.html)
+// 🔥 Jouw Firebase-config (zelfde als de app)
 const firebaseConfig = {
   apiKey: "AIzaSyB8uHwRXCe1iV7z6T80YPxEbeB64qdMpNY",
   authDomain: "shift-planner-dc7ad.firebaseapp.com",
@@ -12,7 +12,7 @@ const firebaseConfig = {
 };
 
 // App op het beginscherm: offline-ondersteuning
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: './' }).catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('../firebase-messaging-sw.js', { scope: '../' }).catch(() => {});
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -20,13 +20,13 @@ const provider = new GoogleAuthProvider();
 
 // check if already logged in
 onAuthStateChanged(auth, user => {
-  if (user) window.location.href = "app.html";
+  if (user) window.location.replace("../" + (sessionStorage.getItem("afterLogin") || ""));
 });
 
 document.getElementById("googleLoginBtn").addEventListener("click", async () => {
   try {
     await signInWithPopup(auth, provider);
-    window.location.href = "app.html";
+    window.location.replace("../" + (sessionStorage.getItem("afterLogin") || ""));
   } catch (err) {
     alert("Inloggen mislukt: " + err.message);
   }

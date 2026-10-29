@@ -1,42 +1,977 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Shift Planner</title>
+  <meta name="theme-color" content="#F4F6F5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#101816" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Shift Planner">
-  <title>Shift Planner — Login</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
+
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="192x192" href="favicon-192x192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="favicon-512x512.png">
-<link rel="shortcut icon" href="favicon.ico">
+  <link rel="icon" type="image/png" sizes="192x192" href="favicon-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="favicon-512x512.png">
+  <link rel="shortcut icon" href="favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png?v=2">
+  <link rel="manifest" href="manifest.json">
 
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png?v=2">
-<link rel="apple-touch-icon-precomposed" href="apple-touch-icon-180x180.png?v=2">
-
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#F4F6F5">
-
-<meta name="msapplication-TileImage" content="favicon-192x192.png">
-<meta name="msapplication-TileColor" content="#0e7c6b">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700..800&display=swap" rel="stylesheet">
-
-  <link rel="stylesheet" href="index.css">
-
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+  <link rel="stylesheet" href="app.css?v=20261024d">
+  <!-- Accentkleur (gevuld door app.js); na Bootstrap zodat de gekozen kleur voorrang krijgt -->
+  <style id="accent-color-overrides"></style>
+  <script>
+    // Donkere modus meteen toepassen (geen witte flits bij het openen)
+    try { if (localStorage.getItem('darkMode') === 'true') document.documentElement.dataset.bsTheme = 'dark'; } catch (e) {}
+  </script>
 </head>
 <body>
-  <main class="login">
-    <span class="brand-mark" aria-hidden="true"></span>
-    <h1>Shift Planner</h1>
-    <p class="lead-text">Je diensten, uren en stage op één plek.</p>
-    <button id="googleLoginBtn" class="btn-google" type="button">
-      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="">
-      Inloggen met Google
-    </button>
-  </main>
 
-  <script type="module" src="index.js"></script>
+  <!-- Zwevend menu (opent via de hamburgerknop linksboven) -->
+  <div id="menuBackdrop" class="menu-backdrop" hidden></div>
+  <aside id="sidebar" class="sp-menu" aria-label="Hoofdmenu" aria-hidden="true" tabindex="-1">
+    <div class="brand">
+      <a class="label brand-name" href="#tab-home"><span class="brand-mark" aria-hidden="true"></span>Shift Planner</a>
+      <button id="menuClose" class="btn-icon" type="button" aria-label="Menu sluiten">
+        <span class="material-icons-outlined">close</span>
+      </button>
+    </div>
+    <nav class="nav flex-column" id="navTabs">
+    <div class="nav-group"><span class="nav-group-title">Planning</span>
+      <a class="nav-link active" data-bs-toggle="tab" href="#tab-home" data-title="Home">
+        <span class="material-icons-outlined" aria-hidden="true">home</span><span class="label">Home</span>
+      </a>
+      <a class="nav-link" data-bs-toggle="tab" href="#tab-invoer" data-title="Invoer">
+        <span class="material-icons-outlined" aria-hidden="true">calendar_month</span><span class="label">Invoer</span>
+      </a>
+      <a class="nav-link" data-bs-toggle="tab" href="#tab-historiek" data-title="Historiek">
+        <span class="material-icons-outlined" aria-hidden="true">insights</span><span class="label">Historiek</span>
+      </a>
+    </div>
+    <div class="nav-group"><span class="nav-group-title">Beheer</span>
+      <a class="nav-link" data-bs-toggle="tab" href="#tab-shifts" data-title="Shiften">
+        <span class="material-icons-outlined" aria-hidden="true">schedule</span><span class="label">Shiften</span>
+      </a>
+      <a class="nav-link" data-bs-toggle="tab" href="#tab-projects" data-title="Projecten">
+        <span class="material-icons-outlined" aria-hidden="true">work_outline</span><span class="label">Projecten</span>
+      </a>
+    </div>
+    <div class="nav-group"><span class="nav-group-title">Hulpmiddelen</span>
+      <a class="nav-link" data-bs-toggle="tab" href="#tab-nonbillable" data-title="Non-billable">
+        <span class="material-icons-outlined" aria-hidden="true">timer_off</span><span class="label">Non-billable</span>
+      </a>
+      <a class="nav-link" data-bs-toggle="tab" href="#tab-converter" data-title="Converter">
+        <span class="material-icons-outlined" aria-hidden="true">calculate</span><span class="label">Converter</span>
+      </a>
+    </div>
+    <div class="nav-group"><span class="nav-group-title">Team</span>
+      <a class="nav-link" data-bs-toggle="tab" href="#tab-mail" data-title="Chat">
+        <span class="material-icons-outlined" aria-hidden="true">chat</span><span class="label">Chat</span><span id="mailSidebarBadge" class="nav-badge d-none">0</span>
+      </a>
+    </div>
+    </nav>
+    <div class="menu-footer">
+      <button type="button" class="nav-link w-100" data-bs-toggle="modal" data-bs-target="#profileModal">
+        <span class="material-icons-outlined" aria-hidden="true">person</span><span class="label">Profiel en instellingen</span>
+      </button>
+    </div>
+  </aside>
+
+  <div id="main" class="sp-shell">
+    <!-- Topbalk -->
+    <header class="sp-topbar">
+      <button id="menuToggle" class="menu-fab" type="button" aria-label="Menu openen" aria-expanded="false" aria-controls="sidebar">
+        <span class="material-icons-outlined">menu</span>
+        <span id="mailBottomBadge" class="dot-badge d-none"></span>
+      </button>
+      <h1 id="pageTitle" class="page-title">Home</h1>
+      <span id="saveStatus" class="save-status" role="status" aria-live="polite"></span>
+      <div class="topbar-tools">
+        <div id="topbarAdminSwitch" class="admin-switch d-none"></div>
+        <button id="topQuickBtn" class="btn btn-primary quick-btn d-none" type="button" aria-label="Shift invullen">
+          <svg class="plus-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="hide-xs">Shift</span>
+        </button>
+        <div class="position-relative">
+          <button id="notifBtn" class="btn-icon" type="button" aria-label="Meldingen">
+            <span class="material-icons-outlined">notifications</span>
+            <span id="notifBadge" class="dot-badge d-none">0</span>
+          </button>
+          <div id="notifDropdown" class="dropdown-menu dropdown-menu-end notif-panel">
+            <div class="notif-head">
+              <strong>Meldingen</strong>
+              <button id="markAllReadBtn" class="notif-clear" type="button">Alles wissen</button>
+            </div>
+            <ul id="notifList" class="notif-list"><li class="notif-empty"><span class="material-icons-outlined" aria-hidden="true">notifications_none</span>Geen meldingen. Alles in orde!</li></ul>
+            <div class="text-center"><button id="loadMoreNotifBtn" class="btn btn-outline-secondary btn-sm d-none">Toon meer</button></div>
+          </div>
+        </div>
+        <a id="topbarProfileBtn" class="avatar-btn" data-bs-toggle="modal" data-bs-target="#profileModal" href="#" title="Mijn profiel" aria-label="Mijn profiel">
+          <img id="topbarProfilePhoto" src="" alt="">
+        </a>
+      </div>
+    </header>
+
+    <main class="sp-main">
+      <div class="tab-content">
+
+<!-- HOME -->
+<section id="tab-home" class="tab-pane fade show active">
+  <div class="home-hello">
+    <p class="greeting">Dag <span id="homeUserName">-</span></p>
+    <div class="home-actions">
+      <button id="homeBtnQuickInput" class="btn btn-primary"><span class="material-icons-outlined">add</span> Shift invullen</button>
+      <button id="homeBtnGoInvoer" class="btn btn-outline-secondary"><span class="material-icons-outlined">calendar_month</span> Naar kalender</button>
+      <button id="homeBtnNewShift" class="btn btn-outline-secondary"><span class="material-icons-outlined">schedule</span> Nieuwe shift</button>
+    </div>
+  </div>
+
+  <div class="panel hero-panel">
+    <div class="hero-head">
+      <h2 class="panel-title"><span id="homeMonthName">-</span></h2>
+      <span class="badge badge-status badge-draft" id="homeMonthStatus">Concept</span>
+    </div>
+    <div id="homeMeter" class="meter"></div>
+    <!-- voor oudere code: tekstversies van de cijfers -->
+    <div class="visually-hidden">
+      <span id="homeMonthPlanned"></span><span id="homeMonthTarget"></span><span id="homeMonthDiff"></span>
+      <div id="homeMonthProgress"><span id="homeMonthProgressLabel"></span></div>
+    </div>
+    <div id="stageProgressContainer" class="stage-meter"></div>
+    <div class="chip-row">
+      <span class="badge" id="homeLeave">Verlof: —</span>
+      <span class="badge" id="homeSchoolLeave">Schoolverlof: —</span>
+    </div>
+  </div>
+
+  <div id="installHint" class="install-hint d-none" role="note">
+    <img src="apple-touch-icon-180x180.png" alt="" width="44" height="44">
+    <div class="install-text">
+      <strong>Zet Shift Planner op je beginscherm</strong>
+      <span id="installHowTo">Tik onderaan op <span class="material-icons-outlined" aria-label="Deel">ios_share</span> en kies <b>Zet op beginscherm</b>.</span>
+    </div>
+    <button id="installBtn" class="btn btn-primary btn-sm d-none" type="button">Installeren</button>
+    <button id="installClose" class="btn-icon" type="button" aria-label="Niet meer tonen"><span class="material-icons-outlined">close</span></button>
+  </div>
+
+  <div class="panel week-panel">
+    <div class="panel-head">
+      <h2 class="panel-title">Mijn week</h2>
+      <div class="week-switch" role="tablist" aria-label="Week kiezen">
+        <button type="button" class="week-tab active" data-week="0" role="tab" aria-selected="true">Deze week</button>
+        <button type="button" class="week-tab" data-week="1" role="tab" aria-selected="false">Volgende week</button>
+      </div>
+    </div>
+    <p id="homeWeekSummary" class="week-summary"></p>
+    <ol id="homeWeek" class="week-grid"></ol>
+  </div>
+
+  <div class="home-grid">
+    <div class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Mededelingen</h2>
+        <button id="addAnnouncementBtn" class="btn-icon d-none" title="Mededeling plaatsen" aria-label="Mededeling plaatsen">
+          <span class="material-icons-outlined">add</span>
+        </button>
+      </div>
+      <div id="announcementList"><p class="empty">Geen mededelingen.</p></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2 class="panel-title">Laatste meldingen</h2></div>
+      <ul class="notif-mini" id="homeNotifList"></ul>
+    </div>
+
+    <div class="panel home-projects-panel">
+      <div class="panel-head"><h2 class="panel-title">Lopende projecten</h2></div>
+      <div class="project-list" id="homeProjects"></div>
+    </div>
+  </div>
+</section>
+<section id="tab-projects" class="tab-pane fade">
+  <div class="page-head">
+    <p class="page-lead">Projecten bepalen bij welke opdracht je uren horen. Alleen beheerders kunnen ze wijzigen.</p>
+    <div class="page-actions">
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#projectModal">
+        <span class="material-icons-outlined">add</span> Nieuw project
+      </button>
+    </div>
+  </div>
+  <div class="panel">
+
+    <div class="table-responsive mt-3">
+      <table class="table table-striped align-middle table-nowrap">
+        <thead class="table-light">
+          <tr>
+            <th>Project</th>
+            <th>Start</th>
+            <th>Eind</th>
+            <th class="text-end">Acties</th>
+          </tr>
+        </thead>
+        <tbody id="projectTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+<section id="tab-shifts" class="tab-pane fade">
+        <div class="page-head">
+          <p class="page-lead">Je vaste diensten met uren, pauze en project. Zet er een paar als favoriet om ze met één tik in de kalender te zetten.</p>
+          <div class="page-actions">
+            <select id="filterShiftYear" class="form-select" aria-label="Jaar"></select>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#shiftModal">
+              <span class="material-icons-outlined">add</span> Nieuwe shift
+            </button>
+          </div>
+        </div>
+
+        <div class="panel p-0"><div class="table-responsive">
+          <table class="table table-striped table-hover align-middle table-nowrap">
+  <thead class="table-light">
+    <tr>
+      <th>Naam</th>
+      <th>Start</th>
+      <th>Einde</th>
+      <th>Pauze (min)</th>
+      <th>Project</th>
+
+      <th class="text-center" style="width: 80px;">Icoon</th>
+      <th class="text-center" style="width: 50px;">Favoriet</th>
+
+      <th>Periode</th>
+      <th class="text-end">Acties</th>
+    </tr>
+  </thead>
+  <tbody id="shiftTableBody"></tbody>
+</table>
+        </div>
+
+        </div>
+        <p class="hint">
+          Tip: sleep een shift aan het <span class="material-icons-outlined align-middle" style="font-size:16px">drag_indicator</span>-handvat om de volgorde te wijzigen; die wordt meteen bewaard.
+        </p>
+      </section>
+
+<!-- INVOER -->
+<section id="tab-invoer" class="tab-pane fade">
+  <div class="invoer-head">
+    <div class="month-switch">
+      <button id="prevMonthBtn" class="btn-icon" type="button" aria-label="Vorige maand"><span class="material-icons-outlined">chevron_left</span></button>
+      <select id="monthSelectMain" class="form-select month-select" aria-label="Maand"><option value="0">Januari</option><option value="1">Februari</option><option value="2">Maart</option><option value="3">April</option><option value="4">Mei</option><option value="5">Juni</option><option value="6">Juli</option><option value="7">Augustus</option><option value="8">September</option><option value="9">Oktober</option><option value="10">November</option><option value="11">December</option></select>
+      <select id="yearSelectMain" class="form-select year-select" aria-label="Jaar"></select>
+      <button id="nextMonthBtn" class="btn-icon" type="button" aria-label="Volgende maand"><span class="material-icons-outlined">chevron_right</span></button>
+    </div>
+
+    <div class="invoer-actions">
+      <div class="dropdown">
+        <span id="monthStatusBadge" class="badge badge-status badge-draft" data-bs-toggle="dropdown" aria-expanded="false">Concept</span>
+        <ul id="adminStatusMenu" class="dropdown-menu">
+          <li><h6 class="dropdown-header">Status wijzigen</h6></li>
+          <li><a class="dropdown-item" href="#" data-status="draft"><span class="status-dot draft"></span> Concept</a></li>
+          <li><a class="dropdown-item" href="#" data-status="approved"><span class="status-dot approved"></span> Goedkeuren</a></li>
+          <li><a class="dropdown-item" href="#" data-status="rejected"><span class="status-dot rejected"></span> Afkeuren</a></li>
+        </ul>
+      </div>
+      <button class="btn btn-outline-secondary btn-history" type="button" data-tab="#tab-historiek" aria-label="Naar historiek"><span class="material-icons-outlined">insights</span><span class="hide-xs"> Historiek</span></button>
+      <button id="submitMonthBtn" class="btn btn-primary" type="button"><span class="material-icons-outlined">send</span><span class="hide-xs"> Indienen</span></button>
+      <div class="dropdown">
+        <button class="btn-icon btn-icon-outline" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Meer acties">
+          <span class="material-icons-outlined">more_horiz</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end actions-menu">
+          <li><button class="dropdown-item" id="multiDayShiftBtn" type="button"><span class="material-icons-outlined">date_range</span> Meerdere dagen invullen</button></li>
+          <li><button class="dropdown-item" id="togglePaintBtn" type="button"><span class="material-icons-outlined">brush</span> Verfmodus</button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><button class="dropdown-item" id="exportPdfBtn" type="button"><span class="material-icons-outlined">picture_as_pdf</span> PDF downloaden</button></li>
+          <li><button class="dropdown-item" id="exportIcsBtn" type="button"><span class="material-icons-outlined">event_available</span> In mijn agenda zetten</button></li>
+          <li><button class="dropdown-item" id="btnScreenshot" type="button"><span class="material-icons-outlined">image</span> Kalender als afbeelding</button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li class="px-3 py-1">
+            <label class="form-label small mb-1" for="versionSelect">Versies van deze maand</label>
+            <div class="d-flex gap-1">
+              <select id="versionSelect" class="form-select form-select-sm"><option value="">-- Huidig --</option></select>
+              <button id="addVersionBtn" class="btn-icon btn-icon-outline" type="button" title="Huidige maand als versie bewaren" aria-label="Versie bewaren"><span class="material-icons-outlined">bookmark_add</span></button>
+              <button id="delVersionBtn" class="btn-icon btn-icon-outline" type="button" title="Gekozen versie verwijderen" aria-label="Versie verwijderen"><span class="material-icons-outlined">delete</span></button>
+            </div>
+          </li>
+          <li><hr class="dropdown-divider"></li>
+          <li><button class="dropdown-item text-danger" id="clearMonthBtn" type="button"><span class="material-icons-outlined">delete_sweep</span> Maand leegmaken</button></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div id="remainingHoursAlert" class="meter floating-meter d-none" role="status"></div>
+
+  <div class="month-settings">
+    <label class="target-field">
+      <span>Doel</span>
+      <input id="monthTargetHours" type="number" min="0" class="form-control" inputmode="numeric" aria-label="Doel uren"><span class="unit">u</span>
+      <input id="monthTargetMinutes" type="number" min="0" max="59" class="form-control" inputmode="numeric" aria-label="Doel minuten"><span class="unit">min</span>
+    </label>
+    <select id="projectFilterSelect" class="form-select project-filter" aria-label="Project"><option value="">Alle projecten</option></select>
+
+    <div class="dropdown">
+      <span id="leaveBalanceBadge" class="badge" data-bs-toggle="dropdown">Verlof: —</span>
+      <div id="adminLeaveMenu" class="dropdown-menu p-3">
+        <h6 class="dropdown-header px-0">Verlof per kalenderjaar</h6>
+        <select id="quickLeaveYearSelect" class="form-select form-select-sm mb-2" aria-label="Jaar"></select>
+        <div class="input-group input-group-sm mb-2">
+          <input type="number" id="quickAdminLeaveHours" class="form-control" placeholder="Uren" inputmode="numeric">
+          <span class="input-group-text">u</span>
+        </div>
+        <button id="btnSaveQuickLeave" class="btn btn-primary btn-sm w-100">Saldo bewaren</button>
+      </div>
+    </div>
+    <div class="dropdown school-leave-section">
+      <span id="schoolLeaveBalanceBadge" class="badge" data-bs-toggle="dropdown">Schoolverlof: —</span>
+      <div id="adminSchoolMenu" class="dropdown-menu p-3">
+        <h6 class="dropdown-header px-0">Schoolverlof per schooljaar</h6>
+        <select id="quickSchoolYearSelect" class="form-select form-select-sm mb-2" aria-label="Schooljaar"></select>
+        <div class="input-group input-group-sm mb-2">
+          <input type="number" id="quickAdminSchoolHours" class="form-control" placeholder="Uren" inputmode="numeric">
+          <span class="input-group-text">u</span>
+        </div>
+        <button id="btnSaveQuickSchoolLeave" class="btn btn-primary btn-sm w-100">Saldo bewaren</button>
+      </div>
+    </div>
+
+    <div class="form-check form-switch exclude-toggle">
+      <input class="form-check-input" type="checkbox" id="excludeHistoryToggle">
+      <label class="form-check-label" for="excludeHistoryToggle">Niet meetellen in historiek</label>
+    </div>
+  </div>
+
+  <div class="panel cal-panel">
+    <div class="cal-head">
+      <h2 class="panel-title" id="currentMonthLabel">Kalender</h2>
+      <span id="schoolHolidayLabel"></span>
+    </div>
+    <div id="monthlyCalendarGrid" class="calendar-grid"></div>
+    <p class="hint cal-hint">Tik op een dag om shiften te wisselen, uren aan te passen of een notitie te zetten.</p>
+  </div>
+
+  <div class="collapse" id="collapseTable">
+    <div class="panel p-0">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th id="thActions" style="width:40px">Actie</th><th>Dag</th><th>Datum</th><th>Project</th><th>Shift</th>
+              <th>Start</th><th>Einde</th><th>Pauze</th><th>Omschrijving</th><th>Duur</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="section-title">Per project</h2>
+  <div id="projectSummary"></div>
+</section>
+
+<section id="tab-historiek" class="tab-pane fade">
+  <div class="page-head">
+    <p class="page-lead"><span id="currentUserHistoriek">-</span> · <span id="historiekJaar"></span>. Het jaar volgt de keuze bij Invoer.</p>
+    <button class="btn btn-outline-secondary btn-history" type="button" data-tab="#tab-invoer" aria-label="Naar invoer"><span class="material-icons-outlined">calendar_month</span><span class="hide-xs"> Invoer</span></button>
+  </div>
+  <div class="panel p-0">
+    <div class="table-responsive">
+      <table id="historyTable" class="table table-hover align-middle table-nowrap mb-0"></table>
+    </div>
+  </div>
+</section>
+<section id="tab-converter" class="tab-pane fade">
+        <div class="panel"><p class="page-lead mb-3">Reken uren en minuten om naar decimale uren (bv. voor facturen) en omgekeerd.</p>
+        <div class="row g-3">
+          <div class="col-6 col-md-2">
+            <label class="form-label">Uren</label>
+            <input id="convHours" type="number" min="0" value="0" class="form-control" />
+          </div>
+          <div class="col-6 col-md-2">
+            <label class="form-label">Minuten</label>
+            <input id="convMinutes" type="number" min="0" value="0" class="form-control" />
+          </div>
+          <div class="col-12 col-md-3">
+            <label class="form-label">Decimale uren</label>
+            <input id="decimalInput" type="number" step="0.01" min="0" value="0" class="form-control" />
+          </div>
+        </div>
+      </div>
+</section>
+<section id="tab-mail" class="tab-pane fade">
+  <div id="chatShell" class="chat-shell">
+    <aside class="chat-list admin-only" aria-label="Gesprekken">
+      <div class="chat-list-head">Gesprekken</div>
+      <div id="chatConvList" class="chat-conv-list"></div>
+    </aside>
+    <div class="chat-thread panel p-0">
+      <div class="chat-head">
+        <button id="chatBackBtn" class="btn-icon chat-back" type="button" aria-label="Terug naar gesprekken"><span class="material-icons-outlined">arrow_back</span></button>
+        <span id="chatAvatar" class="chat-avatar" aria-hidden="true">A</span>
+        <div class="chat-head-text"><strong id="chatTitle">Admins</strong><small id="chatSub">Stel hier je vragen over je uren of verlof.</small></div>
+      </div>
+      <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
+      <form id="chatForm" class="chat-composer" autocomplete="off">
+        <textarea id="chatInput" rows="1" class="form-control" placeholder="Typ een bericht…" aria-label="Bericht"></textarea>
+        <button id="chatSendBtn" class="chat-send" type="submit" aria-label="Versturen" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-2.5-6.5L4 12z"/></svg>
+        </button>
+      </form>
+    </div>
+  </div>
+</section>
+<section id="tab-nonbillable" class="tab-pane fade">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <p class="page-lead mb-0">Uren die je niet aan een klant aanrekent, zoals administratie of opleiding.</p>
+    <div class="d-flex gap-2">
+      <select id="nbMonthSelect" class="form-select form-select-sm" style="width:120px;">
+        <option value="0">Januari</option><option value="1">Februari</option><option value="2">Maart</option>
+        <option value="3">April</option><option value="4">Mei</option><option value="5">Juni</option>
+        <option value="6">Juli</option><option value="7">Augustus</option><option value="8">September</option>
+        <option value="9">Oktober</option><option value="10">November</option><option value="11">December</option>
+      </select>
+      <select id="nbYearSelect" class="form-select form-select-sm" style="width:100px;"></select>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-6">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="mb-0 text-secondary">Totaal deze maand</h6>
+            <span class="fs-4 fw-bold" id="nbTotalDisplay">0u 0min</span>
+          </div>
+          <div class="text-end text-muted small">
+            <span class="material-icons-outlined" style="font-size: 28px; opacity: 0.3;">calendar_view_month</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <h6 class="mb-0 text-secondary">Totaal in <span id="nbYearTotalLabel">-</span></h6>
+            <span class="fs-4 fw-bold text-primary" id="nbYearTotalDisplay">0u 0min</span>
+          </div>
+          <div class="text-end text-muted small">
+            <span class="material-icons-outlined" style="font-size: 28px; opacity: 0.3;">calendar_today</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card p-3 mb-3 border-0 shadow-sm">
+    <h6 class="mb-3">Nieuwe invoer</h6>
+    <div class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label small">Categorie</label>
+        <div class="input-group input-group-sm">
+          <select id="nbCategorySelect" class="form-select"></select>
+          <button class="btn btn-outline-secondary" type="button" id="nbAddCategoryBtn" title="Nieuwe categorie toevoegen">+</button>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Datum</label>
+        <input type="date" id="nbDateInput" class="form-control form-control-sm">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Duur (u : min)</label>
+        <div class="input-group input-group-sm">
+          <input type="number" id="nbHoursInput" class="form-control" placeholder="U" min="0">
+          <span class="input-group-text">:</span>
+          <input type="number" id="nbMinutesInput" class="form-control" placeholder="M" min="0" max="59">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Omschrijving</label>
+        <input type="text" id="nbNoteInput" class="form-control form-control-sm" placeholder="Optioneel">
+      </div>
+      <div class="col-md-2">
+        <button id="nbAddBtn" class="btn btn-primary btn-sm w-100">Toevoegen</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-striped table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Datum</th>
+          <th>Categorie</th>
+          <th>Omschrijving</th>
+          <th>Duur</th>
+          <th class="text-end">Actie</th>
+        </tr>
+      </thead>
+      <tbody id="nbTableBody">
+        <tr><td colspan="5" class="text-center text-muted">Geen items gevonden.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- MODALS -->
+  <div class="modal fade" id="projectModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Nieuw Project</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+
+        <div class="mb-3">
+          <label class="form-label">Projectnaam</label>
+          <input type="text" id="modalProjectName" class="form-control" placeholder="Bijv. Klant A">
+        </div>
+
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label">Startdatum</label>
+            <input type="date" id="modalProjectStart" class="form-control">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Einddatum</label>
+            <input type="date" id="modalProjectEnd" class="form-control">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+        <button type="button" class="btn btn-primary" id="saveProjectBtn">Opslaan</button>
+      </div>
+    </div>
+  </div>
+</div>
+  <div class="modal fade" id="dayEditorModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h5 class="modal-title" id="dayEditorTitle">Dag bewerken</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Sluiten"></button>
+      </div>
+
+      <div class="modal-body">
+        <div id="dayEditorWarnings" class="day-warnings" role="status"></div>
+        <div id="dayEditorList" class="day-list"></div>
+
+        <div id="dayAddForm" class="day-add d-none">
+          <label class="form-label" for="dayAddShift">Shift toevoegen</label>
+          <select id="dayAddShift" class="form-select mb-2"></select>
+          <div class="time-row">
+            <label>Start<input type="time" id="dayAddStart" class="form-control"></label>
+            <label>Einde<input type="time" id="dayAddEnd" class="form-control"></label>
+            <label>Pauze<input type="number" min="0" step="5" id="dayAddBreak" class="form-control" inputmode="numeric"></label>
+            <output id="dayAddDuration" class="duration"></output>
+          </div>
+          <div class="d-flex gap-2 mt-2">
+            <button type="button" class="btn btn-primary flex-grow-1" id="dayAddConfirm">Toevoegen</button>
+            <button type="button" class="btn btn-outline-secondary" id="dayAddCancel">Annuleren</button>
+          </div>
+        </div>
+
+        <button id="btnAddExtraShift" type="button" class="btn btn-add-line w-100">
+          <span class="material-icons-outlined">add</span> Shift toevoegen
+        </button>
+
+        <label class="form-label mt-3" for="dayEditorNote">Notitie</label>
+        <textarea id="dayEditorNote" class="form-control" rows="2" placeholder="Bijvoorbeeld: overgenomen van een collega"></textarea>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary w-100" id="btnSaveDayEditor">Notitie bewaren en sluiten</button>
+      </div>
+    </div>
+  </div>
+</div>
+  <!-- Shift modal -->
+  <div class="modal fade" id="shiftModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Shift</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="row g-2">
+            <div class="col-md-6"><label class="form-label">Naam</label><input id="newShiftName" class="form-control" /></div>
+            <div class="col-md-2" id="divShiftShort"><label class="form-label">Afk.</label><input id="newShiftShort" class="form-control" maxlength="4" placeholder="Vr" title="Korte code voor in het rooster (max 4 letters)" /> </div>
+            <div class="col-6 col-md-2" id="divShiftColor"><label class="form-label">Kleur</label><input type="color" id="newShiftColor" class="form-control form-control-color w-100" value="#e9ecef" title="Kies een kleur voor het rooster"></div>
+            <div class="col-6 col-md-3"><label class="form-label">Start</label><input id="newShiftStart" type="time" value="08:00" class="form-control" /></div>
+            <div class="col-6 col-md-3"><label class="form-label">Einde</label><input id="newShiftEnd" type="time" value="16:00" class="form-control" /></div>
+            <div class="col-6 col-md-3"><label class="form-label">Pauze (min)</label><input id="newShiftBreak" type="number" min="0" value="0" class="form-control" /></div>
+            <div class="col-6 col-md-5"><label class="form-label">Project</label><select id="newShiftProjectSelect" class="form-select"><option value="">Geen project</option></select></div>
+            <div class="col-6 col-md-4"><label class="form-label">Vanaf</label><input id="newShiftStartDate" type="date" class="form-control" /></div>
+            <div class="col-6 col-md-4"><label class="form-label">Tot</label><input id="newShiftEndDate" type="date" class="form-control" /></div>
+            <div class="col-12">
+              <label class="form-label" for="newShiftLinked">Samen invullen met</label>
+              <select id="newShiftLinked" class="form-select"><option value="">Niet gekoppeld</option></select>
+              <div class="form-text">Bv. "MKA 392" koppelen aan "Stage 392": vul je de ene in, dan komt de andere er met dezelfde uren automatisch bij.</div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="addShiftBtn" class="btn btn-primary">Opslaan</button>
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuleren</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick input modal -->
+  <div class="modal fade" id="quickModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Snelle invoer</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Datum</label>
+              <input type="date" id="quickDate" class="form-control" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Shift</label>
+              <select id="quickShift" class="form-select"></select>
+            </div>
+            <div class="col-12">
+              <div class="time-row">
+                <label>Start<input type="time" id="quickStart" class="form-control"></label>
+                <label>Einde<input type="time" id="quickEnd" class="form-control"></label>
+                <label>Pauze<input type="number" min="0" step="5" id="quickBreak" class="form-control" inputmode="numeric"></label>
+                <output id="quickDuration" class="duration"></output>
+              </div>
+              <p class="hint mb-0">De uren van de shift worden ingevuld; pas ze aan als je die dag anders werkte.</p>
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="quickNote">Notitie (optioneel)</label>
+              <input type="text" id="quickNote" class="form-control" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuleren</button>
+          <button id="saveQuickBtn" class="btn btn-primary">Shift toevoegen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+<!-- Meerdere dagen invoeren Modal -->
+<div class="modal fade" id="multiDayModal" tabindex="-1"
+     aria-labelledby="multiDayModalLabel" aria-hidden="true"
+     data-bs-scroll="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="multiDayModalLabel">Meerdere dagen invoeren</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Sluiten"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="multiShiftDays" class="form-label">Selecteer dagen</label>
+          <input id="multiShiftDays" type="text" class="form-control" placeholder="Klik om dagen te kiezen">
+        </div>
+
+        <div class="mb-3">
+          <label for="multiShiftName" class="form-label">Shift</label>
+          <select id="multiShiftName" class="form-select">
+            <option value="">Kies shift</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+        <button type="button" id="saveMultiShift" class="btn btn-primary">Opslaan</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Ziekte modal -->
+<div class="modal fade" id="attachmentModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Shift Bijlage</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+
+        <div id="currentAttachmentBox" class="d-none">
+          <p>Huidige bijlage:</p>
+          <div class="alert alert-info d-flex justify-content-between align-items-center">
+            <span id="currentAttachmentName">-</span>
+            <div>
+              <a id="downloadAttachmentBtn" href="#" target="_blank" class="btn btn-sm btn-success">Download</a>
+              <button id="deleteAttachmentBtn" class="btn btn-sm btn-danger">Verwijder</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="uploadAttachmentBox">
+          <p id="uploadBoxLabel">Nog geen bijlage. Kies een bestand (max 5MB):</p>
+          <input type="file" id="attachmentUploadInput" class="form-control" accept=".pdf,.png,.jpg,.jpeg,.heic">
+          <div class="progress mt-2 d-none" id="attachmentUploadProgressContainer">
+             <div id="attachmentUploadProgress" class="progress-bar" role="progressbar" style="width: 0%"></div>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Sluiten</button>
+        <button id="uploadAttachmentBtn" class="btn btn-primary d-none">Upload en Opslaan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Announcement modal -->
+<div class="modal fade" id="announcementModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Nieuwe Mededeling</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+  <div class="mb-3">
+    <label class="form-label">Bericht</label>
+    <textarea id="announcementInputText" class="form-control" rows="3" placeholder="Typ je bericht..."></textarea>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Kleur kaart</label>
+    <div class="d-flex flex-wrap gap-2">
+
+      <input type="radio" class="btn-check" name="annColor" id="colorLight" value="light" checked>
+      <label class="btn btn-outline-secondary btn-sm" for="colorLight" title="Standaard">⚪ Wit</label>
+
+      <input type="radio" class="btn-check" name="annColor" id="colorInfo" value="info">
+      <label class="btn btn-outline-info btn-sm" for="colorInfo" title="Info">🔵 Blauw</label>
+
+      <input type="radio" class="btn-check" name="annColor" id="colorSuccess" value="success">
+      <label class="btn btn-outline-success btn-sm" for="colorSuccess" title="Positief">🟢 Groen</label>
+
+      <input type="radio" class="btn-check" name="annColor" id="colorWarning" value="warning">
+      <label class="btn btn-outline-warning btn-sm" for="colorWarning" title="Opvallend">🟠 Oranje</label>
+
+      <input type="radio" class="btn-check" name="annColor" id="colorDanger" value="danger">
+      <label class="btn btn-outline-danger btn-sm" for="colorDanger" title="Belangrijk">🔴 Rood</label>
+
+    </div>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Afzender</label>
+    <select id="announcementAuthorSelect" class="form-select">
+      <option value="me">Mijn naam (wordt ingevuld)</option>
+      <option value="Shift Planner">Shift Planner</option>
+      <option value="Admin Team">Admin Team</option>
+      <option value="custom">-- Anders, namelijk: --</option>
+    </select>
+  </div>
+
+  <div class="mb-3 d-none" id="announcementCustomAuthorDiv">
+    <input type="text" id="announcementCustomAuthor" class="form-control" placeholder="Typ naam afzender...">
+  </div>
+</div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+        <button type="button" id="saveAnnouncementBtn" class="btn btn-primary">Plaatsen</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Profile modal -->
+<div class="modal fade" id="profileModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Mijn Profiel</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+
+          <div class="col-12 col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-body">
+
+                <div class="d-flex align-items-center mb-3">
+                  <img id="profilePhoto" src="" alt="Profiel" class="rounded-circle me-3" style="width: 64px; height: 64px; object-fit: cover; background-color: #eee;">
+                  <div>
+                    <h6 class="card-title mb-0">Gegevens</h6>
+                    <p class="small text-muted mb-0">Pas je weergavenaam aan.</p>
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <label for="profileName" class="form-label">Jouw naam</label>
+                  <input type="text" class="form-control" id="profileName" placeholder="Je volledige naam">
+                </div>
+                <div class="mb-3">
+                  <label for="profileEmail" class="form-label">E-mailadres</label>
+                  <input type="email" class="form-control" id="profileEmail" readonly disabled>
+                </div>
+                <button id="profileSaveBtn" class="btn btn-primary w-100">Naam opslaan</button>
+
+                <hr class="my-4">
+
+                <h6 class="card-title">Thema</h6>
+                <div class="form-check form-switch fs-5">
+                  <input class="form-check-input" type="checkbox" role="switch" id="profileDarkModeToggle">
+                  <label class="form-check-label" for="profileDarkModeToggle">Donkere modus</label>
+                </div>
+
+
+                <hr class="my-4">
+
+                <h6 class="card-title">Voorkeuren</h6>
+
+                <div class="mb-3">
+                  <label for="profileDefaultTab" class="form-label small">Opstart-tabblad</label>
+                  <select id="profileDefaultTab" class="form-select form-select-sm">
+                    <option value="#tab-home">Home</option>
+                    <option value="#tab-shifts">Shifts</option>
+                    <option value="#tab-invoer">Invoer</option>
+                    <option value="#tab-historiek">Historiek</option>
+                    <option value="#tab-converter">Converter</option>
+                    <option value="#tab-nonbillable">Non-billable</option>
+                    <option value="#tab-mail">Chat</option>
+                  </select>
+                </div>
+
+                <div class="mb-3 p-2 border rounded bg-light-subtle">
+                  <label class="form-label small fw-bold mb-2">App Meldingen</label>
+                  <button id="enableNotifBtn" class="btn btn-outline-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-2">
+                    <span class="material-icons-outlined" style="font-size:18px">notifications_active</span>
+                    Activeer Meldingen
+                  </button>
+                  <div id="notifStatusText" class="text-muted fst-italic" style="font-size: 0.75rem; margin-top: 4px;">
+                    Op iPhone: Voeg eerst toe aan beginscherm.
+                  </div>
+                </div>
+                <fieldset id="profileNotifPrefs">
+                  <label class="form-label small fw-bold">Automatische herinneringen:</label>
+
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyEveningBefore" data-key="notifyEveningBefore">
+                    <label class="form-check-label small" for="prefNotifyEveningBefore">De avond vóór je dienst (20:00)</label>
+                  </div>
+
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyDailyEmpty" data-key="notifyDailyEmpty">
+                    <label class="form-check-label small" for="prefNotifyDailyEmpty">Bij lege dagen (vergeten shift)</label>
+                  </div>
+
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyWeeklyEmpty" data-key="notifyWeeklyEmpty">
+                    <label class="form-check-label small" for="prefNotifyWeeklyEmpty">Bij een lege week</label>
+                  </div>
+
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyMonthlyGoal" data-key="notifyMonthlyGoal">
+                    <label class="form-check-label small" for="prefNotifyMonthlyGoal">Bij maanddoel niet behaald (&lt;80%)</label>
+                  </div>
+
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="prefNotifyProjectEnd" data-key="notifyProjectEnd">
+                    <label class="form-check-label small" for="prefNotifyProjectEnd">Bij aflopende projecten</label>
+                  </div>
+                </fieldset>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6">
+
+            <div class="card shadow-sm border-0 mb-3">
+              <div class="card-body">
+                <h6 class="card-title">Accentkleur</h6>
+                <p class="small text-muted mb-2">Kies de hoofdkleur van de applicatie.</p>
+
+                <div id="profileColorPicker" class="color-picker-wrap justify-content-center justify-content-md-start">
+                  <span class="color-dot" data-color="#0E7C6B" style="background-color: #0E7C6B;" title="Scrubs-teal (standaard)"></span>
+                  <span class="color-dot" data-color="#0d6efd" style="background-color: #0d6efd;" title="Standaard Blauw"></span>
+                  <span class="color-dot" data-color="#198754" style="background-color: #198754;" title="Groen"></span>
+                  <span class="color-dot" data-color="#fd7e14" style="background-color: #fd7e14;" title="Oranje"></span>
+                  <span class="color-dot" data-color="#6f42c1" style="background-color: #6f42c1;" title="Paars"></span>
+                  <span class="color-dot" data-color="#dc3545" style="background-color: #dc3545;" title="Rood"></span>
+                  <span class="color-dot" data-color="#d63384" style="background-color: #d63384;" title="Roze (Pink)"></span>
+
+                  <span class="color-dot" data-color="#20c997" style="background-color: #20c997;" title="Turquoise (Teal)"></span>
+                  <span class="color-dot" data-color="#0dcaf0" style="background-color: #0dcaf0;" title="Cyaan (Cyan)"></span>
+                  <span class="color-dot" data-color="#6610f2" style="background-color: #6610f2;" title="Indigo"></span>
+                  <span class="color-dot" data-color="#ffc107" style="background-color: #ffc107;" title="Geel (Warning)"></span>
+                  <span class="color-dot" data-color="#0B5345" style="background-color: #0B5345;" title="Donkergroen"></span>
+                  <span class="color-dot" data-color="#495057" style="background-color: #495057;" title="Donkergrijs"></span>
+
+                  <span class="color-dot" data-color="#A93226" style="background-color: #A93226;" title="Kastanjebruin"></span>
+                  <span class="color-dot" data-color="#17202A" style="background-color: #17202A;" title="Zwartblauw"></span>
+                  <span class="color-dot" data-color="#5D6D7E" style="background-color: #5D6D7E;" title="Staalblauw"></span>
+                  <span class="color-dot" data-color="#7D3C98" style="background-color: #7D3C98;" title="Donkerpaars"></span>
+                  <span class="color-dot" data-color="#F39C12" style="background-color: #F39C12;" title="Goud"></span>
+                  <span class="color-dot" data-color="#0048BA" style="background-color: #0048BA;" title="Kobaltblauw"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mb-3">
+              <div class="card-body">
+                <h6 class="card-title">Exporteer Mijn Gegevens</h6>
+                <p class="small text-muted mb-2">
+                  Download een .json-bestand met al je persoonlijke app-gegevens.
+                </p>
+                <button id="profileExportBtn" class="btn btn-outline-info w-100">
+                  <span class="material-icons-outlined" style="vertical-align: middle;">download</span>
+                  Download mijn data
+                </button>
+              </div>
+            </div>
+
+            <div class="card shadow-sm border-0">
+              <div class="card-body">
+                <h6 class="card-title">Sessie</h6>
+                <p class="small text-muted">Sluit de applicatie af en keer terug naar login.</p>
+                <hr>
+                <button id="logoutBtn" class="btn btn-outline-danger w-100">
+                  <span class="material-icons-outlined" style="vertical-align: middle;">logout</span> Uitloggen
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/nl.js"></script>
+  <script type="module" src="app.js?v=20261024d"></script>
+
+  <div id="loadingOverlay" class="loading-overlay d-none">
+    <span class="brand-mark big" aria-hidden="true"></span>
+    <span class="visually-hidden">Laden...</span>
+  </div>
 </body>
 </html>

@@ -27,7 +27,7 @@
   "theme_color": "#F4F6F5",
   "background_color": "#F4F6F5",
   "display": "standalone",
-  "start_url": "index.html?bron=beginscherm",
+  "start_url": "./?bron=beginscherm",
   "orientation": "portrait-primary",
   "id": "./",
   "scope": "./",
@@ -36,7 +36,7 @@
   "shortcuts": [
     {
       "name": "Shift invullen",
-      "url": "app.html#snel",
+      "url": "./#snel",
       "icons": [
         {
           "src": "favicon-192x192.png",
@@ -46,7 +46,7 @@
     },
     {
       "name": "Invoer",
-      "url": "app.html#invoer",
+      "url": "./#invoer",
       "icons": [
         {
           "src": "favicon-192x192.png",

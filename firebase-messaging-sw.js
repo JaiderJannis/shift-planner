@@ -26,8 +26,8 @@ self.addEventListener('notificationclick', event => {
   event.notification.close();
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-      const open = list.find(c => c.url.includes('app.html'));
-      return open ? open.focus() : self.clients.openWindow('app.html');
+      const open = list.find(c => new URL(c.url).pathname === new URL(self.registration.scope).pathname);
+      return open ? open.focus() : self.clients.openWindow('./');
     })
   );
 });
@@ -38,8 +38,8 @@ self.addEventListener('notificationclick', event => {
 // - bibliotheken en lettertypes (CDN): uit de cache, op de achtergrond bijwerken
 // Firestore-data gaat hier niet door; die heeft een eigen offline-cache.
 // ---------------------------------------------------------------------
-const CACHE = 'shift-planner-v3';
-const APP_SHELL = ['./', 'index.html', 'index.css', 'index.js', 'app.html', 'app.css', 'app.js', 'manifest.json', 'favicon-192x192.png', 'apple-touch-icon-180x180.png', 'favicon.svg'];
+const CACHE = 'shift-planner-v4';
+const APP_SHELL = ['./', 'index.html', 'app.css', 'app.js', 'login/', 'login/login.css', 'login/login.js', 'manifest.json', 'favicon-192x192.png', 'apple-touch-icon-180x180.png', 'favicon.svg'];
 const CDN_HOSTS = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com', 'www.gstatic.com', 'cdnjs.cloudflare.com', 'unpkg.com'];
 
 self.addEventListener('install', event => {
