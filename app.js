@@ -572,7 +572,7 @@ function isStageRow(r, ud) {
 function plannedMinutes(rows, ud = getCurrentUserData()) {
   return Object.values(rows || {}).reduce((sum, r) => {
     if (!r) return sum;
-    if (r.status && r.status !== 'approved') return sum;
+    if (r.status === 'rejected') return sum; // verlof in aanvraag telt voorlopig mee
     if (isStageRow(r, ud)) return sum;
     return sum + (Number(r.minutes) || 0);
   }, 0);
@@ -596,7 +596,7 @@ const NON_WORK_ICONS = [
 
 /** Is dit echt werk (incl. stage)? Verlof, ziekte, vrij, school en lege rijen tellen niet. */
 function isWorkRow(r, ud = getCurrentUserData()) {
-  if (!r?.shift || (r.status && r.status !== 'approved')) return false;
+  if (!r?.shift || r.status === 'rejected') return false;
   if (!(Number(r.minutes) > 0) || !r.start || !r.end || (r.start === '00:00' && r.end === '00:00')) return false;
   const def = ud?.shifts?.[r.shift] || {};
   const name = shiftRealName(r.shift, ud);
@@ -828,7 +828,7 @@ function rowActualEnd(r) {
 /** Extra minuten in een maand (alleen rijen die meetellen). */
 function monthExtraMinutes(rows, ud = getCurrentUserData()) {
   return Object.values(rows || {}).reduce((sum, r) => {
-    if (!r || (r.status && r.status !== 'approved') || isStageRow(r, ud)) return sum;
+    if (!r || r.status === 'rejected' || isStageRow(r, ud)) return sum;
     return sum + rowExtraMinutes(r);
   }, 0);
 }
@@ -1347,6 +1347,7 @@ function renderMeter(el, planned, target, opts = {}) {
       <span class="meter-of">${target ? `van ${fmt(target)}` : 'gepland'}</span>
       ${delta}
     </div>
+    ${opts.pending ? `<p class="meter-pending">⏳ Waarvan <strong>${fmtExtra(opts.pending)}</strong> voorlopig verlof (nog goed te keuren)</p>` : ''}
     ${opts.extra ? `<p class="meter-extra"><span class="material-icons-outlined" aria-hidden="true">more_time</span>Waarvan <strong>${fmtExtra(opts.extra)}</strong> extra gewerkt</p>` : ''}
     <div class="meter-ruler" style="--tick:${tick.toFixed(2)}%" role="progressbar" aria-valuemin="0"
          aria-valuemax="${target}" aria-valuenow="${planned}" aria-label="${fmt(planned)} van ${fmt(target)}">
@@ -1425,7 +1426,10 @@ function renderHome() {
   // Maand (zelfde regel als Invoer/Historiek: zonder stage en zonder niet-goedgekeurd verlof)
   const planned = plannedMinutes(md.rows, ud);
   const target = (Number(md.targetHours) || 0) * 60 + (Number(md.targetMinutes) || 0);
-  renderMeter(document.getElementById('homeMeter'), planned, target, { extra: monthExtraMinutes(md.rows, ud) });
+  renderMeter(document.getElementById('homeMeter'), planned, target, {
+    extra: monthExtraMinutes(md.rows, ud),
+    pending: pendingMinutes(md.rows)
+  });
   const setText = (id, text) => {
     const el = document.getElementById(id);
     if (el) el.textContent = text;
@@ -1487,6 +1491,7 @@ function renderHome() {
   }
 
   renderHomeWeek();
+  renderPendingLeave();
   loadHomeNotifications();
   initAnnouncements();
 }
@@ -1528,16 +1533,17 @@ function renderHomeWeek() {
         const r = md.rows[k];
         const sh = shifts[r.shift] || {};
         const mins = Number(r.minutes) || 0;
-        const counts = !r.status || r.status === 'approved';
+        const counts = r.status !== 'rejected';
         if (counts && isStageRow(r, ud)) stageMinutes += mins;
         else if (counts) workMinutes += mins;
         const name = sh.realName || r.shift;
         const short = sh.shortName || name.slice(0, 2);
         const hasTime = r.start && r.end && !(r.start === '00:00' && r.end === '00:00');
         const extra = rowExtraMinutes(r);
-        const title = `${name}${hasTime ? ` ${r.start}–${rowActualEnd(r)}` : ''} (${fmtShort(mins)})${extra ? ` · +${fmtExtra(extra)} extra` : ''}`;
-        return `<span class="week-shift${extra ? ' has-extra' : ''}" style="--shift-color:${escapeHtml(sh.color || '#e9ecef')}" title="${escapeHtml(title)}">
-          <strong><span class="name-long">${escapeHtml(name)}</span><span class="name-short">${escapeHtml(short)}</span>${r.status === 'pending' ? ' ⏳' : ''}</strong>
+        const title = `${name}${hasTime ? ` ${r.start}–${rowActualEnd(r)}` : ''} (${fmtShort(mins)})${extra ? ` · +${fmtExtra(extra)} extra` : ''}${r.status === 'pending' ? ' · voorlopig' : ''}${(r.omschrijving || '').trim() ? ` · 📝 ${r.omschrijving.trim()}` : ''}`;
+        const note = (r.omschrijving || r.description || '').trim();
+        return `<span class="week-shift${extra ? ' has-extra' : ''}${r.status === 'pending' ? ' is-pending' : ''}${r.status === 'rejected' ? ' is-rejected' : ''}" style="--shift-color:${escapeHtml(sh.color || '#e9ecef')}" title="${escapeHtml(title)}">
+          <strong><span class="name-long">${escapeHtml(name)}</span><span class="name-short">${escapeHtml(short)}</span>${r.status === 'pending' ? ' ⏳' : ''}${note ? ' 📝' : ''}</strong>
           ${hasTime ? `<span class="t">${escapeHtml(r.start)}</span><span class="t">${escapeHtml(rowActualEnd(r))}</span>` : `<span class="t">${fmtShort(mins)}</span>`}
           ${extra ? `<span class="extra-badge">+${extra < 60 ? `${extra}m` : fmtExtra(extra)}</span>` : ''}
         </span>`;
@@ -1575,7 +1581,24 @@ function renderHomeWeek() {
   }
 }
 
+function bindPendingLeave() {
+  document.getElementById('pendingLeavePanel')?.addEventListener('click', e => {
+    const btn = e.target.closest('.js-leave-ok, .js-leave-no');
+    if (!btn || !isAdmin()) return;
+    const li = btn.closest('li');
+    btn.disabled = true;
+    setLeaveStatus(
+      li.dataset.uid,
+      Number(li.dataset.y),
+      Number(li.dataset.m),
+      li.dataset.key,
+      btn.classList.contains('js-leave-ok') ? 'approved' : 'rejected'
+    );
+  });
+}
+
 function bindHomeWeek() {
+  bindPendingLeave();
   document.querySelector('.week-switch')?.addEventListener('click', e => {
     const btn = e.target.closest('.week-tab');
     if (!btn) return;
@@ -2436,7 +2459,10 @@ function updateRemainingHours() {
     return;
   }
   const doel = (Number(md.targetHours) || 0) * 60 + (Number(md.targetMinutes) || 0);
-  renderMeter(el, plannedMinutes(md.rows, ud), doel, { extra: monthExtraMinutes(md.rows, ud) });
+  renderMeter(el, plannedMinutes(md.rows, ud), doel, {
+    extra: monthExtraMinutes(md.rows, ud),
+    pending: pendingMinutes(md.rows)
+  });
   el.classList.remove('d-none');
 }
 
@@ -2456,7 +2482,7 @@ function renderProjectSummary() {
   const filterProject = projectFilterSelect.value || '';
   const perProject = {};
   for (const r of Object.values(md.rows)) {
-    if (!r || (r.status && r.status !== 'approved')) continue;
+    if (!r || r.status === 'rejected') continue;
     const p = r.project || '—';
     if (filterProject && p !== filterProject) continue;
     perProject[p] = (perProject[p] || 0) + (Number(r.minutes) || 0);
@@ -2651,7 +2677,7 @@ function exportMonthPdf() {
   const target = (Number(md.targetHours) || 0) * 60 + (Number(md.targetMinutes) || 0);
   const diff = planned - target;
   const extraTotal = monthExtraMinutes(md.rows, ud);
-  const counted = r => r?.shift && (!r.status || r.status === 'approved');
+  const counted = r => r?.shift && r.status !== 'rejected';
   const stageMonth = Object.values(md.rows).reduce(
     (s, r) => s + (counted(r) && isStageRow(r, ud) ? Number(r.minutes) || 0 : 0),
     0
@@ -2886,7 +2912,7 @@ function exportMonthPdf() {
         const r = md.rows[k];
         const d = new Date(`${iso}T12:00:00`);
         const stage = isStageRow(r, ud);
-        const st = r.status === 'pending' ? ' (aanvraag)' : r.status === 'rejected' ? ' (afgekeurd)' : '';
+        const st = r.status === 'pending' ? ' (voorlopig)' : r.status === 'rejected' ? ' (afgekeurd)' : '';
         const hasTime = r.start && r.end && !(r.start === '00:00' && r.end === '00:00');
         const extra = rowExtraMinutes(r);
         body.push([
@@ -3376,6 +3402,7 @@ function renderCalendarGrid(year, month) {
 
     // Ingevulde shiften (max. 3 zichtbaar)
     const dayKeys = listDayKeys(md, baseKey).filter(k => md.rows[k]?.shift);
+    let noteShown = false; // notitie-icoon maar één keer per dag
     let shiftsHtml = dayKeys
       .slice(0, 3)
       .map(k => {
@@ -3386,6 +3413,9 @@ function renderCalendarGrid(year, month) {
         const mins = Number(r.minutes) || 0;
         const durationText = mins > 0 ? `${Math.floor(mins / 60)}u${String(mins % 60).padStart(2, '0')}` : '';
         const pending = r.status === 'pending' ? ' ⏳' : '';
+        const note = (r.omschrijving || r.description || '').trim();
+        const showNote = note && !noteShown;
+        if (showNote) noteShown = true;
         const extra = rowExtraMinutes(r);
         const extraText = [
           r.breakWorked ? 'pauze doorgewerkt' : '',
@@ -3393,10 +3423,13 @@ function renderCalendarGrid(year, month) {
         ]
           .filter(Boolean)
           .join(', ');
-        const hoverText = `${name}: ${r.start || '00:00'}–${r.end || '00:00'}, pauze ${r.break || 0} min${extraText ? ` · extra: ${extraText}` : ''}`;
+        const statusText =
+          r.status === 'pending' ? ' · voorlopig, wacht op goedkeuring' : r.status === 'rejected' ? ' · afgekeurd' : '';
+        const hoverText = `${name}: ${r.start || '00:00'}–${r.end || '00:00'}, pauze ${r.break || 0} min${extraText ? ` · extra: ${extraText}` : ''}${statusText}${note ? `\n📝 ${note}` : ''}`;
         return `
-        <div class="cal-shift-item${extra ? ' has-extra' : ''}" title="${escapeHtml(hoverText)}" style="background:${escapeHtml(sh.color || '#e9ecef')}">
+        <div class="cal-shift-item${extra ? ' has-extra' : ''}${r.status === 'pending' ? ' is-pending' : ''}${r.status === 'rejected' ? ' is-rejected' : ''}" title="${escapeHtml(hoverText)}" style="background:${escapeHtml(sh.color || '#e9ecef')}">
           <span class="name-long">${escapeHtml(name)}${pending}</span><span class="name-short">${escapeHtml(short)}</span>
+          ${showNote ? '<span class="note-badge" aria-label="Notitie">📝</span>' : ''}
           ${extra ? `<span class="extra-badge" aria-label="${fmtExtra(extra)} extra">+${extra < 60 ? `${extra}m` : fmtExtra(extra)}</span>` : ''}
           <span class="dur">${durationText}</span>
         </div>`;
@@ -3597,6 +3630,136 @@ function extraFromActualEnd(plannedEnd, actualEnd) {
   return diff;
 }
 
+// --- Verlof en schoolverlof: eerst voorlopig, daarna goedkeuren ---
+
+/** Moet deze shift achteraf goedgekeurd worden? (Verlof en Schoolverlof) */
+function needsApproval(shiftKey, ud = getCurrentUserData()) {
+  return !!shiftKey && /verlof/i.test(shiftRealName(shiftKey, ud));
+}
+
+/** Minuten die nog voorlopig zijn (verlof in aanvraag) in een lijst rijen. */
+function pendingMinutes(rows) {
+  return Object.values(rows || {}).reduce((s, r) => s + (r?.status === 'pending' ? Number(r.minutes) || 0 : 0), 0);
+}
+
+let pendingLeaveQueue = [];
+let pendingLeaveTimer = null;
+/** Nieuwe verlofaanvragen verzamelen en in één bericht naar de admins sturen. */
+function queueLeaveRequest(uid, key, row) {
+  if (isAdmin()) return; // een admin keurt zelf goed
+  pendingLeaveQueue.push({ uid, key, row });
+  clearTimeout(pendingLeaveTimer);
+  pendingLeaveTimer = setTimeout(async () => {
+    const items = pendingLeaveQueue;
+    pendingLeaveQueue = [];
+    try {
+      const first = items[items.length - 1];
+      const [y, m] = [Number(first.key.slice(0, 4)), Number(first.key.slice(5, 7)) - 1];
+      await notifyAdminOfPendingLeave(first.uid, y, m, first.key, {
+        ...first.row,
+        omschrijving:
+          items.length > 1
+            ? `${items.length} dagen: ${items.map(i => toDisplayDate(i.key.slice(0, 10))).join(', ')}`
+            : first.row.omschrijving
+      });
+    } catch (e) {
+      console.warn('Kon admin niet verwittigen over verlof', e);
+    }
+  }, 1500);
+}
+
+/** Verlofrij goed- of afkeuren (ook voor een andere gebruiker als admin). */
+async function setLeaveStatus(uid, y, m, key, status) {
+  const u = dataStore.users[uid];
+  const md = u?.monthData?.[y]?.[m];
+  const r = md?.rows?.[key];
+  if (!r) return;
+  r.status = status;
+  await trackSave(updateDoc(doc(db, 'users', uid), { [`monthData.${y}.${m}`]: md }));
+  const name = shiftRealName(r.shift, u);
+  if (uid !== currentUserId) {
+    const text = `${name} op ${toDisplayDate(key.slice(0, 10))} is ${status === 'approved' ? 'goedgekeurd ✅' : 'afgekeurd ❌'}.`;
+    try {
+      await addDoc(collection(db, 'users', uid, 'notifications'), {
+        text,
+        timestamp: new Date().toISOString(),
+        dateKey: todayISO(),
+        read: false
+      });
+    } catch (e) {
+      console.warn('Melding naar gebruiker mislukt', e);
+    }
+  }
+  toast(`${name} ${toDisplayDate(key.slice(0, 10))} ${status === 'approved' ? 'goedgekeurd' : 'afgekeurd'}`, 'success');
+  if (uid === getActiveUserId()) refreshAfterRowChange(y, m);
+  else renderPendingLeave();
+  if (document.getElementById('dayEditorModal')?.classList.contains('show')) renderDayEditor();
+}
+
+/** Lijst met alle verlof dat nog goedgekeurd moet worden (Home). */
+let pendingLeaveFetchedAt = 0;
+function renderPendingLeave() {
+  const box = document.getElementById('pendingLeavePanel');
+  if (!box) return;
+  const admin = isAdmin();
+  // Admin: af en toe verse gegevens van alle gebruikers ophalen
+  if (admin && Date.now() - pendingLeaveFetchedAt > 30000) {
+    pendingLeaveFetchedAt = Date.now();
+    getDocs(collection(db, 'users'))
+      .then(qs => {
+        qs.forEach(d => {
+          if (d.id !== getActiveUserId()) dataStore.users[d.id] = { ...dataStore.users[d.id], ...d.data() };
+        });
+        renderPendingLeave();
+      })
+      .catch(() => {});
+  }
+  const uids = admin ? Object.keys(dataStore.users) : [currentUserId];
+  const items = [];
+  uids.forEach(uid => {
+    const u = dataStore.users[uid];
+    Object.entries(u?.monthData || {}).forEach(([y, months]) =>
+      Object.entries(months || {}).forEach(([m, md]) =>
+        Object.entries(md?.rows || {}).forEach(([key, r]) => {
+          if (r?.status === 'pending' && r.shift) items.push({ uid, y: Number(y), m: Number(m), key, r, u });
+        })
+      )
+    );
+  });
+  items.sort((a, b) => a.key.localeCompare(b.key));
+  box.classList.toggle('d-none', !items.length);
+  if (!items.length) return;
+  const total = items.reduce((s, i) => s + (Number(i.r.minutes) || 0), 0);
+  box.innerHTML = `
+    <div class="panel-head">
+      <h2 class="panel-title">⏳ Verlof ${admin ? 'te accepteren' : 'wacht op goedkeuring'}</h2>
+      <span class="pending-total">${items.length} ${items.length === 1 ? 'dag' : 'dagen'} · ${fmtShort(total)} voorlopig</span>
+    </div>
+    <p class="pending-help">${
+      admin
+        ? 'Deze uren tellen al voorlopig mee. Keur goed om ze vast te zetten, of keur af om ze niet meer te laten meetellen.'
+        : 'Deze uren tellen al voorlopig mee tot een admin ze goed- of afkeurt.'
+    }</p>
+    <ul class="pending-list">${items
+      .map(i => {
+        const d = new Date(`${i.key.slice(0, 10)}T12:00:00`);
+        const who =
+          admin && uids.length > 1
+            ? `<span class="pending-who">${escapeHtml(i.u?.name || i.u?.email || '')}</span>`
+            : '';
+        return `<li data-uid="${escapeHtml(i.uid)}" data-y="${i.y}" data-m="${i.m}" data-key="${escapeHtml(i.key)}">
+          <span class="pending-date"><strong>${daysFull[d.getDay()].slice(0, 2)} ${d.getDate()}</strong> ${monthsFull[d.getMonth()].slice(0, 3).toLowerCase()}</span>
+          <span class="pending-what"><span class="swatch" style="background:${escapeHtml(i.u?.shifts?.[i.r.shift]?.color || '#e9ecef')}"></span>${escapeHtml(shiftRealName(i.r.shift, i.u))} · ${fmtShort(Number(i.r.minutes) || 0)}${who}</span>
+          ${
+            admin
+              ? `<span class="pending-actions"><button type="button" class="btn btn-sm btn-success js-leave-ok">Goedkeuren</button><button type="button" class="btn btn-sm btn-outline-danger js-leave-no">Afkeuren</button></span>`
+              : '<span class="pending-badge">voorlopig</span>'
+          }
+        </li>`;
+      })
+      .join('')}</ul>`;
+}
+
 /** Rij opbouwen vanuit een shift-definitie. */
 function rowFromShift(shiftKey, extra = {}) {
   const ud = getCurrentUserData();
@@ -3611,6 +3774,14 @@ function rowFromShift(shiftKey, extra = {}) {
     minutes: minutesBetween(sh.start || '00:00', sh.end || '00:00', sh.break),
     ...extra
   };
+  // Verlof/schoolverlof: eerst voorlopig (telt mee), achteraf goedkeuren
+  if (needsApproval(shiftKey, ud)) {
+    row.status = 'pending';
+    row.requested = false; // nog te melden aan de admins
+  } else {
+    delete row.status;
+    delete row.requested;
+  }
   return applyShiftDefaults(row, shiftKey, ud);
 }
 
@@ -3633,6 +3804,14 @@ function refreshAfterRowChange(y, m) {
 
 /** Wijziging aan een maand: eerst tonen, dan meteen opslaan in Firebase. */
 function commitMonth(y, m) {
+  // Nieuwe verlofaanvragen melden aan de admins (één keer per rij)
+  const uid = getActiveUserId();
+  Object.entries(dataStore.users[uid]?.monthData?.[y]?.[m]?.rows || {}).forEach(([key, r]) => {
+    if (r?.status === 'pending' && r.requested === false) {
+      r.requested = true;
+      queueLeaveRequest(uid, key, r);
+    }
+  });
   refreshAfterRowChange(y, m);
   return saveMonth(y, m);
 }
@@ -3722,8 +3901,20 @@ function renderDayEditor() {
           const sh = ud.shifts?.[r.shift] || {};
           const mins = Number(r.minutes) || 0;
           const extra = rowExtraMinutes(r);
+          const approveBtns = isAdmin()
+            ? `<span class="leave-actions">${r.status !== 'approved' ? '<button type="button" class="btn btn-sm btn-success js-leave-ok">Goedkeuren</button>' : ''}${r.status !== 'rejected' ? '<button type="button" class="btn btn-sm btn-outline-danger js-leave-no">Afkeuren</button>' : ''}</span>`
+            : '';
+          const statusStrip =
+            r.status === 'pending'
+              ? `<div class="leave-status pending"><span>⏳ <strong>Voorlopig</strong> · telt al mee, wacht op goedkeuring</span>${approveBtns}</div>`
+              : r.status === 'rejected'
+                ? `<div class="leave-status rejected"><span>❌ <strong>Afgekeurd</strong> · telt niet mee</span>${approveBtns}</div>`
+                : r.status === 'approved' && needsApproval(r.shift, ud)
+                  ? `<div class="leave-status approved"><span>✅ <strong>Goedgekeurd</strong></span>${isAdmin() ? approveBtns : ''}</div>`
+                  : '';
           return `
       <div class="day-item${extra ? ' has-extra' : ''}" data-key="${k}">
+        ${statusStrip}
         <div class="day-item-top">
           <span class="swatch" style="background:${escapeHtml(sh.color || '#e9ecef')}"></span>
           <select class="form-select js-day-shift" aria-label="Shift" ${dis}>${shiftOptionsHtml(baseKey, r.shift)}</select>
@@ -3885,6 +4076,15 @@ function bindCalendar() {
     const out = item.querySelector('.duration');
     const mins = minutesBetween(val('start'), val('end'), worked ? 0 : val('break')) + extra;
     if (out) out.textContent = `= ${Math.floor(mins / 60)}u${String(mins % 60).padStart(2, '0')}`;
+  });
+
+  // Verlof goed- of afkeuren (admin)
+  list?.addEventListener('click', e => {
+    const btn = e.target.closest('.js-leave-ok, .js-leave-no');
+    if (!btn || !isAdmin()) return;
+    const key = btn.closest('.day-item').dataset.key;
+    const [y, m] = ymOf(key);
+    setLeaveStatus(getActiveUserId(), y, m, key, btn.classList.contains('js-leave-ok') ? 'approved' : 'rejected');
   });
 
   // Werkelijk einde wissen
@@ -4262,7 +4462,7 @@ async function renderMonth(year, month) {
 
 /** Duur-tekst voor een rij (verlof in aanvraag/afgekeurd telt als 0). */
 function rowDurationText(r) {
-  if (r.status && r.status !== 'approved') return '0u 0min';
+  if (r.status === 'rejected') return '0u 0min';
   const mins = Number(r.minutes) || 0;
   const extra = rowExtraMinutes(r);
   return `${Math.floor(mins / 60)}u ${mins % 60}min${extra ? ` (+${fmtExtra(extra)} extra)` : ''}`;
@@ -4324,17 +4524,14 @@ async function populateShiftSelectForRow(tr, rowKey) {
     // Verlof: admin keurt meteen goed, gewone gebruiker vraagt aan
     const shObj = all[chosen];
     const realName = shiftRealName(chosen, ud);
-    if (LEAVE_TYPES.includes(realName)) {
-      if (isAdmin()) {
-        r.status = 'approved';
-      } else {
-        r.status = 'pending';
-        try {
-          await notifyAdminOfPendingLeave(getActiveUserId(), year, month, rowKey, r);
-        } catch (e) {
-          console.warn('Kon admin niet live notificeren over verlof', e);
-        }
+    if (needsApproval(chosen, ud)) {
+      r.status = 'pending';
+      if (!r.requested) {
+        r.requested = true;
+        queueLeaveRequest(getActiveUserId(), rowKey, r);
       }
+    } else if (LEAVE_TYPES.includes(realName)) {
+      delete r.status;
     } else {
       delete r.status;
     }
@@ -5929,10 +6126,7 @@ function shiftsOnDay(ud, iso) {
   const md = ud?.monthData?.[y]?.[m];
   return listDayKeys(md, iso)
     .map(k => md.rows[k])
-    .filter(
-      r =>
-        r?.shift && (!r.status || r.status === 'approved') && !/vrij|niet ingepland/i.test(shiftRealName(r.shift, ud))
-    );
+    .filter(r => r?.shift && r.status !== 'rejected' && !/vrij|niet ingepland/i.test(shiftRealName(r.shift, ud)));
 }
 
 /** Tekst zoals "Morgen: MKA 392 08:00–18:00 + Stage 392". */
