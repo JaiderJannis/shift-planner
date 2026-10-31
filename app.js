@@ -1582,19 +1582,33 @@ function renderHomeWeek() {
 }
 
 function bindPendingLeave() {
-  document.getElementById('pendingLeavePanel')?.addEventListener('click', e => {
+  const panel = document.getElementById('pendingLeavePanel');
+  panel?.addEventListener('click', e => {
     const btn = e.target.closest('.js-leave-ok, .js-leave-no');
     if (!btn || !isAdmin()) return;
-    const li = btn.closest('li');
+    e.preventDefault(); // knop in <summary>: niet open/dicht klappen
+    const uid = btn.closest('[data-uid]').dataset.uid;
+    const list = btn.dataset.ref.split(';').map(x => {
+      const [y, m, key] = x.split('|');
+      return { y: Number(y), m: Number(m), key };
+    });
+    const ok = btn.classList.contains('js-leave-ok');
+    if (list.length > 3 && !confirm(`${list.length} dagen ${ok ? 'goedkeuren' : 'afkeuren'}?`)) return;
     btn.disabled = true;
-    setLeaveStatus(
-      li.dataset.uid,
-      Number(li.dataset.y),
-      Number(li.dataset.m),
-      li.dataset.key,
-      btn.classList.contains('js-leave-ok') ? 'approved' : 'rejected'
-    );
+    setLeaveStatusMany(uid, list, ok ? 'approved' : 'rejected');
   });
+  // Onthouden welke personen opengeklapt zijn
+  panel?.addEventListener(
+    'toggle',
+    e => {
+      const d = e.target;
+      if (!d.matches?.('details.pending-user')) return;
+      const set = renderPendingLeave.open || (renderPendingLeave.open = new Set());
+      if (d.open) set.add(d.dataset.uid);
+      else set.delete(d.dataset.uid);
+    },
+    true
+  );
 }
 
 function bindHomeWeek() {
@@ -3668,20 +3682,44 @@ function queueLeaveRequest(uid, key, row) {
   }, 1500);
 }
 
-/** Verlofrij goed- of afkeuren (ook voor een andere gebruiker als admin). */
-async function setLeaveStatus(uid, y, m, key, status) {
+const LEAVE_STATUS_WORD = { approved: 'goedgekeurd', rejected: 'afgekeurd', pending: 'terug op voorlopig gezet' };
+
+/** Eén verlofrij goed- of afkeuren, of terug op voorlopig zetten. */
+function setLeaveStatus(uid, y, m, key, status) {
+  return setLeaveStatusMany(uid, [{ y, m, key }], status);
+}
+
+/** Meerdere verlofrijen van één gebruiker tegelijk een status geven (één keer opslaan per maand). */
+async function setLeaveStatusMany(uid, list, status) {
   const u = dataStore.users[uid];
-  const md = u?.monthData?.[y]?.[m];
-  const r = md?.rows?.[key];
-  if (!r) return;
-  r.status = status;
-  await trackSave(updateDoc(doc(db, 'users', uid), { [`monthData.${y}.${m}`]: md }));
-  const name = shiftRealName(r.shift, u);
+  if (!u) return;
+  const months = new Map();
+  const dates = [];
+  let name = '';
+  list.forEach(({ y, m, key }) => {
+    const r = u.monthData?.[y]?.[m]?.rows?.[key];
+    if (!r) return;
+    r.status = status;
+    name ||= shiftRealName(r.shift, u);
+    dates.push(key.slice(0, 10));
+    months.set(`${y}-${m}`, [y, m]);
+  });
+  if (!dates.length) return;
+  await Promise.all(
+    [...months.values()].map(([y, m]) =>
+      trackSave(updateDoc(doc(db, 'users', uid), { [`monthData.${y}.${m}`]: u.monthData[y][m] }))
+    )
+  );
+  dates.sort();
+  const when =
+    dates.length === 1
+      ? `op ${toDisplayDate(dates[0])}`
+      : `${dates.length} dagen (${toDisplayDate(dates[0])} t/m ${toDisplayDate(dates[dates.length - 1])})`;
   if (uid !== currentUserId) {
-    const text = `${name} op ${toDisplayDate(key.slice(0, 10))} is ${status === 'approved' ? 'goedgekeurd ✅' : 'afgekeurd ❌'}.`;
+    const icon = status === 'approved' ? ' ✅' : status === 'rejected' ? ' ❌' : ' ⏳';
     try {
       await addDoc(collection(db, 'users', uid, 'notifications'), {
-        text,
+        text: `${name} ${when} is ${LEAVE_STATUS_WORD[status]}.${icon}`,
         timestamp: new Date().toISOString(),
         dateKey: todayISO(),
         read: false
@@ -3690,8 +3728,8 @@ async function setLeaveStatus(uid, y, m, key, status) {
       console.warn('Melding naar gebruiker mislukt', e);
     }
   }
-  toast(`${name} ${toDisplayDate(key.slice(0, 10))} ${status === 'approved' ? 'goedgekeurd' : 'afgekeurd'}`, 'success');
-  if (uid === getActiveUserId()) refreshAfterRowChange(y, m);
+  toast(`${name} ${when} ${LEAVE_STATUS_WORD[status]}`, 'success');
+  if (uid === getActiveUserId()) [...months.values()].forEach(([y, m]) => refreshAfterRowChange(y, m));
   else renderPendingLeave();
   if (document.getElementById('dayEditorModal')?.classList.contains('show')) renderDayEditor();
 }
@@ -3729,35 +3767,88 @@ function renderPendingLeave() {
   items.sort((a, b) => a.key.localeCompare(b.key));
   box.classList.toggle('d-none', !items.length);
   if (!items.length) return;
-  const total = items.reduce((s, i) => s + (Number(i.r.minutes) || 0), 0);
+
+  // Per gebruiker; opeenvolgende (werk)dagen met hetzelfde soort verlof samen als één periode
+  const isNextWorkday = (prevIso, iso) => {
+    const a = new Date(`${prevIso}T12:00:00`);
+    const b = new Date(`${iso}T12:00:00`);
+    const diff = Math.round((b - a) / 86400000);
+    return diff === 1 || (diff <= 3 && a.getDay() === 5 && b.getDay() === 1);
+  };
+  const groups = new Map();
+  items.forEach(i => {
+    if (!groups.has(i.uid)) groups.set(i.uid, { u: i.u, periods: [], minutes: 0, days: 0 });
+    const g = groups.get(i.uid);
+    const iso = i.key.slice(0, 10);
+    const name = shiftRealName(i.r.shift, i.u);
+    const last = g.periods[g.periods.length - 1];
+    if (last && last.name === name && (last.to === iso || isNextWorkday(last.to, iso))) {
+      if (last.to !== iso) last.days += 1;
+      last.to = iso;
+      last.rows.push(i);
+    } else {
+      g.periods.push({ name, from: iso, to: iso, days: 1, rows: [i], color: i.u?.shifts?.[i.r.shift]?.color });
+    }
+    g.minutes += Number(i.r.minutes) || 0;
+  });
+  groups.forEach(g => (g.days = g.periods.reduce((s, p) => s + p.days, 0)));
+
+  const shortDate = iso => {
+    const d = new Date(`${iso}T12:00:00`);
+    return `${daysFull[d.getDay()].slice(0, 2).toLowerCase()} ${d.getDate()} ${monthsFull[d.getMonth()].slice(0, 3).toLowerCase()}`;
+  };
+  const ref = rows => escapeHtml(rows.map(i => `${i.y}|${i.m}|${i.key}`).join(';'));
+  const actions = rows =>
+    admin
+      ? `<span class="pending-actions"><button type="button" class="btn btn-sm btn-success js-leave-ok" data-ref="${ref(rows)}" title="Goedkeuren"><span class="material-icons-outlined">check</span><span class="hide-xs">Goedkeuren</span></button><button type="button" class="btn btn-sm btn-outline-danger js-leave-no" data-ref="${ref(rows)}" title="Afkeuren"><span class="material-icons-outlined">close</span><span class="hide-xs">Afkeuren</span></button></span>`
+      : '<span class="pending-badge">voorlopig</span>';
+
+  const totalMin = items.reduce((s, i) => s + (Number(i.r.minutes) || 0), 0);
+  const totalDays = [...groups.values()].reduce((s, g) => s + g.days, 0);
+  const openSet = renderPendingLeave.open || (renderPendingLeave.open = new Set());
+  const multi = groups.size > 1;
   box.innerHTML = `
     <div class="panel-head">
       <h2 class="panel-title">⏳ Verlof ${admin ? 'te accepteren' : 'wacht op goedkeuring'}</h2>
-      <span class="pending-total">${items.length} ${items.length === 1 ? 'dag' : 'dagen'} · ${fmtShort(total)} voorlopig</span>
+      <span class="pending-total">${multi ? `${groups.size} personen · ` : ''}${totalDays} ${totalDays === 1 ? 'dag' : 'dagen'} · ${fmtShort(totalMin)}</span>
     </div>
     <p class="pending-help">${
       admin
-        ? 'Deze uren tellen al voorlopig mee. Keur goed om ze vast te zetten, of keur af om ze niet meer te laten meetellen.'
+        ? 'Telt al voorlopig mee. Keur een hele periode of alles van iemand in één keer goed.'
         : 'Deze uren tellen al voorlopig mee tot een admin ze goed- of afkeurt.'
     }</p>
-    <ul class="pending-list">${items
-      .map(i => {
-        const d = new Date(`${i.key.slice(0, 10)}T12:00:00`);
-        const who =
-          admin && uids.length > 1
-            ? `<span class="pending-who">${escapeHtml(i.u?.name || i.u?.email || '')}</span>`
-            : '';
-        return `<li data-uid="${escapeHtml(i.uid)}" data-y="${i.y}" data-m="${i.m}" data-key="${escapeHtml(i.key)}">
-          <span class="pending-date"><strong>${daysFull[d.getDay()].slice(0, 2)} ${d.getDate()}</strong> ${monthsFull[d.getMonth()].slice(0, 3).toLowerCase()}</span>
-          <span class="pending-what"><span class="swatch" style="background:${escapeHtml(i.u?.shifts?.[i.r.shift]?.color || '#e9ecef')}"></span>${escapeHtml(shiftRealName(i.r.shift, i.u))} · ${fmtShort(Number(i.r.minutes) || 0)}${who}</span>
-          ${
-            admin
-              ? `<span class="pending-actions"><button type="button" class="btn btn-sm btn-success js-leave-ok">Goedkeuren</button><button type="button" class="btn btn-sm btn-outline-danger js-leave-no">Afkeuren</button></span>`
-              : '<span class="pending-badge">voorlopig</span>'
-          }
-        </li>`;
+    ${[...groups.entries()]
+      .map(([uid, g]) => {
+        const open = !multi || openSet.has(uid);
+        const name = g.u?.name || g.u?.email || 'Gebruiker';
+        const allRows = g.periods.flatMap(p => p.rows);
+        return `<details class="pending-user" data-uid="${escapeHtml(uid)}" ${open ? 'open' : ''}>
+          <summary>
+            <span class="chat-avatar">${escapeHtml(
+              name
+                .split(/\s+/)
+                .map(w => w[0])
+                .join('')
+                .slice(0, 2)
+                .toUpperCase()
+            )}</span>
+            <span class="pu-name"><strong>${escapeHtml(name)}</strong><small>${g.periods.length} ${g.periods.length === 1 ? 'aanvraag' : 'aanvragen'} · ${g.days} ${g.days === 1 ? 'dag' : 'dagen'} · ${fmtShort(g.minutes)}</small></span>
+            ${admin && g.periods.length > 1 ? `<button type="button" class="btn btn-sm btn-outline-success js-leave-ok pu-all" data-ref="${ref(allRows)}">Alles goedkeuren</button>` : ''}
+            <span class="material-icons-outlined pu-chev" aria-hidden="true">expand_more</span>
+          </summary>
+          <ul class="pending-list">${g.periods
+            .map(p => {
+              const mins = p.rows.reduce((s, i) => s + (Number(i.r.minutes) || 0), 0);
+              return `<li>
+                <span class="pending-date"><strong>${p.from === p.to ? shortDate(p.from) : `${shortDate(p.from)} – ${shortDate(p.to)}`}</strong></span>
+                <span class="pending-what"><span class="swatch" style="background:${escapeHtml(p.color || '#e9ecef')}"></span>${escapeHtml(p.name)} · ${p.days > 1 ? `${p.days} dagen · ` : ''}${fmtShort(mins)}</span>
+                ${actions(p.rows)}
+              </li>`;
+            })
+            .join('')}</ul>
+        </details>`;
       })
-      .join('')}</ul>`;
+      .join('')}`;
 }
 
 /** Rij opbouwen vanuit een shift-definitie. */
@@ -3902,7 +3993,7 @@ function renderDayEditor() {
           const mins = Number(r.minutes) || 0;
           const extra = rowExtraMinutes(r);
           const approveBtns = isAdmin()
-            ? `<span class="leave-actions">${r.status !== 'approved' ? '<button type="button" class="btn btn-sm btn-success js-leave-ok">Goedkeuren</button>' : ''}${r.status !== 'rejected' ? '<button type="button" class="btn btn-sm btn-outline-danger js-leave-no">Afkeuren</button>' : ''}</span>`
+            ? `<span class="leave-actions">${r.status !== 'approved' ? '<button type="button" class="btn btn-sm btn-success js-leave-ok">Goedkeuren</button>' : ''}${r.status !== 'rejected' ? '<button type="button" class="btn btn-sm btn-outline-danger js-leave-no">Afkeuren</button>' : ''}${r.status !== 'pending' ? '<button type="button" class="btn btn-sm btn-outline-secondary js-leave-back">Terug naar voorlopig</button>' : ''}</span>`
             : '';
           const statusStrip =
             r.status === 'pending'
@@ -4080,11 +4171,16 @@ function bindCalendar() {
 
   // Verlof goed- of afkeuren (admin)
   list?.addEventListener('click', e => {
-    const btn = e.target.closest('.js-leave-ok, .js-leave-no');
+    const btn = e.target.closest('.js-leave-ok, .js-leave-no, .js-leave-back');
     if (!btn || !isAdmin()) return;
     const key = btn.closest('.day-item').dataset.key;
     const [y, m] = ymOf(key);
-    setLeaveStatus(getActiveUserId(), y, m, key, btn.classList.contains('js-leave-ok') ? 'approved' : 'rejected');
+    const status = btn.classList.contains('js-leave-ok')
+      ? 'approved'
+      : btn.classList.contains('js-leave-no')
+        ? 'rejected'
+        : 'pending';
+    setLeaveStatus(getActiveUserId(), y, m, key, status);
   });
 
   // Werkelijk einde wissen
