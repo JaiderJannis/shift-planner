@@ -38,7 +38,7 @@ self.addEventListener('notificationclick', event => {
 // - bibliotheken en lettertypes (CDN): uit de cache, op de achtergrond bijwerken
 // Firestore-data gaat hier niet door; die heeft een eigen offline-cache.
 // ---------------------------------------------------------------------
-const CACHE = 'shift-planner-v4';
+const CACHE = 'shift-planner-v5';
 const APP_SHELL = ['./', 'index.html', 'app.css', 'app.js', 'login/', 'login/login.css', 'login/login.js', 'manifest.json', 'favicon-192x192.png', 'apple-touch-icon-180x180.png', 'favicon.svg'];
 const CDN_HOSTS = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com', 'www.gstatic.com', 'cdnjs.cloudflare.com', 'unpkg.com'];
 
