@@ -737,7 +737,11 @@ td.actions-cell, #thActions { width: 1%; white-space: nowrap; }
 .cal-shift-item .extra-badge { margin-left: auto; margin-right: 4px; }
 .week-shift.has-extra { box-shadow: inset 0 0 0 2px var(--extra); }
 .week-shift .extra-badge { margin-top: 2px; }
-.meter-extra { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--extra); font-size: 0.9rem; }
+.meter-extra-line { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; }
+.meter-extra { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--extra); font-size: 0.9rem; }
+.meter-early { display: inline-flex; align-items: center; gap: 6px; color: var(--early); font-size: 0.9rem; }
+.meter-early .material-icons-outlined { font-size: 18px; }
+.floating-meter .meter-early { font-size: 0.8rem; }
 .meter-extra .material-icons-outlined { font-size: 18px; }
 .floating-meter .meter-extra { font-size: 0.8rem; }
 .extra-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

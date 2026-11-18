@@ -838,6 +838,14 @@ function monthExtraMinutes(rows, ud = getCurrentUserData()) {
   }, 0);
 }
 
+/** Minuten die je in een maand vroeger stopte dan gepland (alleen rijen die meetellen). */
+function monthEarlyMinutes(rows, ud = getCurrentUserData()) {
+  return Object.values(rows || {}).reduce((sum, r) => {
+    if (!r || r.status === 'rejected' || isStageRow(r, ud)) return sum;
+    return sum + rowEarlyMinutes(r);
+  }, 0);
+}
+
 function recalcRowMinutes(r) {
   r.minutes = rowWorkedMinutes(r);
 }
@@ -1353,7 +1361,19 @@ function renderMeter(el, planned, target, opts = {}) {
       ${delta}
     </div>
     ${opts.pending ? `<p class="meter-pending">⏳ Waarvan <strong>${fmtExtra(opts.pending)}</strong> voorlopig verlof (nog goed te keuren)</p>` : ''}
-    ${opts.extra ? `<p class="meter-extra"><span class="material-icons-outlined" aria-hidden="true">more_time</span>Waarvan <strong>${fmtExtra(opts.extra)}</strong> extra gewerkt</p>` : ''}
+    ${
+      opts.extra || opts.early
+        ? `<p class="meter-extra-line">${
+            opts.extra
+              ? `<span class="meter-extra"><span class="material-icons-outlined" aria-hidden="true">more_time</span>Waarvan <strong>${fmtExtra(opts.extra)}</strong> extra gewerkt</span>`
+              : ''
+          }${
+            opts.early
+              ? `<span class="meter-early"><span class="material-icons-outlined" aria-hidden="true">schedule</span><strong>${fmtExtra(opts.early)}</strong> vroeger gestopt</span>`
+              : ''
+          }</p>`
+        : ''
+    }
     <div class="meter-ruler" style="--tick:${tick.toFixed(2)}%" role="progressbar" aria-valuemin="0"
          aria-valuemax="${target}" aria-valuenow="${planned}" aria-label="${fmt(planned)} van ${fmt(target)}">
       <div class="fill${state ? ` ${state}` : ''}" style="width:${pct.toFixed(1)}%"></div>
@@ -1433,6 +1453,7 @@ function renderHome() {
   const target = (Number(md.targetHours) || 0) * 60 + (Number(md.targetMinutes) || 0);
   renderMeter(document.getElementById('homeMeter'), planned, target, {
     extra: monthExtraMinutes(md.rows, ud),
+    early: monthEarlyMinutes(md.rows, ud),
     pending: pendingMinutes(md.rows)
   });
   const setText = (id, text) => {
@@ -2480,6 +2501,7 @@ function updateRemainingHours() {
   const doel = (Number(md.targetHours) || 0) * 60 + (Number(md.targetMinutes) || 0);
   renderMeter(el, plannedMinutes(md.rows, ud), doel, {
     extra: monthExtraMinutes(md.rows, ud),
+    early: monthEarlyMinutes(md.rows, ud),
     pending: pendingMinutes(md.rows)
   });
   el.classList.remove('d-none');
@@ -2763,7 +2785,9 @@ function exportMonthPdf() {
     {
       label: 'Extra gewerkt',
       value: extraTotal ? `+${fmtH(extraTotal)}` : '0u00',
-      sub: 'pauzes en langer gebleven',
+      sub: monthEarlyMinutes(md.rows, ud)
+        ? `${fmtH(monthEarlyMinutes(md.rows, ud))} vroeger gestopt`
+        : 'pauzes en langer gebleven',
       color: extraTotal ? ORANGE : MUTED
     },
     { label: 'Stage', value: fmtH(stageMonth), sub: 'telt niet mee in gepland', color: BLUE },
