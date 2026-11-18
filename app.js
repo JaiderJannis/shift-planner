@@ -811,17 +811,22 @@ function rowExtraMinutes(r) {
   return (r.breakWorked ? Number(r.break) || 0 : 0) + Math.max(0, Number(r.extraMinutes) || 0);
 }
 
-/** Gewerkte minuten van een rij, inclusief doorgewerkte pauze en extra minuten. */
+/** Minuten dat je vroeger stopte dan gepland (positief getal, 0 als niet). */
+function rowEarlyMinutes(r) {
+  return Math.max(0, -(Number(r?.extraMinutes) || 0));
+}
+
+/** Gewerkte minuten van een rij: doorgewerkte pauze en langer gebleven erbij, vroeger gestopt eraf. */
 function rowWorkedMinutes(r) {
-  return minutesBetween(r.start, r.end, r.breakWorked ? 0 : r.break) + Math.max(0, Number(r.extraMinutes) || 0);
+  return Math.max(0, minutesBetween(r.start, r.end, r.breakWorked ? 0 : r.break) + (Number(r.extraMinutes) || 0));
 }
 
 /** Werkelijk einduur (gepland einde + extra minuten), als HH:MM. */
 function rowActualEnd(r) {
-  const extra = Math.max(0, Number(r.extraMinutes) || 0);
+  const extra = Number(r.extraMinutes) || 0;
   if (!r.end || !extra) return r.end || '';
   const [h, m] = r.end.split(':').map(Number);
-  const t = (h * 60 + m + extra) % 1440;
+  const t = (((h * 60 + m + extra) % 1440) + 1440) % 1440;
   return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 }
 
@@ -1542,7 +1547,7 @@ function renderHomeWeek() {
         const extra = rowExtraMinutes(r);
         const title = `${name}${hasTime ? ` ${r.start}–${rowActualEnd(r)}` : ''} (${fmtShort(mins)})${extra ? ` · +${fmtExtra(extra)} extra` : ''}${r.status === 'pending' ? ' · voorlopig' : ''}${(r.omschrijving || '').trim() ? ` · 📝 ${r.omschrijving.trim()}` : ''}`;
         const note = (r.omschrijving || r.description || '').trim();
-        return `<span class="week-shift${extra ? ' has-extra' : ''}${r.status === 'pending' ? ' is-pending' : ''}${r.status === 'rejected' ? ' is-rejected' : ''}" style="--shift-color:${escapeHtml(sh.color || '#e9ecef')}" title="${escapeHtml(title)}">
+        return `<span class="week-shift${extra ? ' has-extra' : ''}${rowEarlyMinutes(r) ? ' has-early' : ''}${r.status === 'pending' ? ' is-pending' : ''}${r.status === 'rejected' ? ' is-rejected' : ''}" style="--shift-color:${escapeHtml(sh.color || '#e9ecef')}" title="${escapeHtml(title)}">
           <strong><span class="name-long">${escapeHtml(name)}</span><span class="name-short">${escapeHtml(short)}</span>${r.status === 'pending' ? ' ⏳' : ''}${note ? ' 📝' : ''}</strong>
           ${hasTime ? `<span class="t">${escapeHtml(r.start)}</span><span class="t">${escapeHtml(rowActualEnd(r))}</span>` : `<span class="t">${fmtShort(mins)}</span>`}
           ${extra ? `<span class="extra-badge">+${extra < 60 ? `${extra}m` : fmtExtra(extra)}</span>` : ''}
@@ -2936,10 +2941,20 @@ function exportMonthPdf() {
           hasTime ? `${r.start} – ${rowActualEnd(r)}` : '',
           r.break ? `${r.break}'${r.breakWorked ? ' gewerkt' : ''}` : '',
           (Number(r.minutes) ? fmtH(Number(r.minutes)) : '–') + (stage ? ' *' : ''),
-          extra ? `+${fmtH(extra)}` : '',
+          [extra ? `+${fmtH(extra)}` : '', rowEarlyMinutes(r) ? `-${fmtH(rowEarlyMinutes(r))}` : '']
+            .filter(Boolean)
+            .join(' '),
           r.omschrijving || r.description || ''
         ]);
-        meta.push({ shift: r.shift, band: di % 2, stage, pending: !!st, weekend: d.getDay() % 6 === 0, extra });
+        meta.push({
+          shift: r.shift,
+          band: di % 2,
+          stage,
+          pending: !!st,
+          weekend: d.getDay() % 6 === 0,
+          extra,
+          early: rowEarlyMinutes(r)
+        });
       });
   });
 
@@ -2975,6 +2990,7 @@ function exportMonthPdf() {
       data.cell.styles.fillColor = info.band ? [248, 250, 249] : [255, 255, 255];
       if (data.column.index === 1) data.cell.styles.cellPadding = { top: 1.8, bottom: 1.8, left: 6, right: 2 };
       if (info.stage && [1, 5].includes(data.column.index)) data.cell.styles.textColor = BLUE;
+      if (data.column.index === 6 && info.early && !info.extra) data.cell.styles.textColor = [91, 95, 199];
       if (info.pending) data.cell.styles.textColor = MUTED;
     },
     didDrawCell: data => {
@@ -3043,7 +3059,7 @@ function exportMonthPdf() {
   font('normal', 7, MUTED);
   pdf.text(
     pdf.splitTextToSize(
-      '* Stage-uren staan in het blauw en tellen niet mee in "gepland". Oranje = extra gewerkt (doorgewerkte pauze of langer gebleven). ' +
+      '* Stage-uren staan in het blauw en tellen niet mee in "gepland". Oranje = extra gewerkt (doorgewerkte pauze of langer gebleven), min = vroeger gestopt. ' +
         'Verlof in aanvraag of afgekeurd telt niet mee.',
       W - 2 * M
     ),
@@ -3433,7 +3449,8 @@ function renderCalendarGrid(year, month) {
         const extra = rowExtraMinutes(r);
         const extraText = [
           r.breakWorked ? 'pauze doorgewerkt' : '',
-          Number(r.extraMinutes) ? `${r.extraMinutes} min langer (tot ${rowActualEnd(r)})` : ''
+          Number(r.extraMinutes) > 0 ? `${r.extraMinutes} min langer (tot ${rowActualEnd(r)})` : '',
+          rowEarlyMinutes(r) ? `${rowEarlyMinutes(r)} min vroeger gestopt (om ${rowActualEnd(r)})` : ''
         ]
           .filter(Boolean)
           .join(', ');
@@ -3441,10 +3458,11 @@ function renderCalendarGrid(year, month) {
           r.status === 'pending' ? ' · voorlopig, wacht op goedkeuring' : r.status === 'rejected' ? ' · afgekeurd' : '';
         const hoverText = `${name}: ${r.start || '00:00'}–${r.end || '00:00'}, pauze ${r.break || 0} min${extraText ? ` · extra: ${extraText}` : ''}${statusText}${note ? `\n📝 ${note}` : ''}`;
         return `
-        <div class="cal-shift-item${extra ? ' has-extra' : ''}${r.status === 'pending' ? ' is-pending' : ''}${r.status === 'rejected' ? ' is-rejected' : ''}" title="${escapeHtml(hoverText)}" style="background:${escapeHtml(sh.color || '#e9ecef')}">
+        <div class="cal-shift-item${extra ? ' has-extra' : ''}${rowEarlyMinutes(r) ? ' has-early' : ''}${r.status === 'pending' ? ' is-pending' : ''}${r.status === 'rejected' ? ' is-rejected' : ''}" title="${escapeHtml(hoverText)}" style="background:${escapeHtml(sh.color || '#e9ecef')}">
           <span class="name-long">${escapeHtml(name)}${pending}</span><span class="name-short">${escapeHtml(short)}</span>
           ${showNote ? '<span class="note-badge" aria-label="Notitie">📝</span>' : ''}
           ${extra ? `<span class="extra-badge" aria-label="${fmtExtra(extra)} extra">+${extra < 60 ? `${extra}m` : fmtExtra(extra)}</span>` : ''}
+          ${rowEarlyMinutes(r) ? `<span class="early-badge" aria-label="${fmtExtra(rowEarlyMinutes(r))} vroeger gestopt">−${rowEarlyMinutes(r) < 60 ? `${rowEarlyMinutes(r)}m` : fmtExtra(rowEarlyMinutes(r))}</span>` : ''}
           <span class="dur">${durationText}</span>
         </div>`;
       })
@@ -3631,7 +3649,7 @@ function removeRowWithLinked(md, key, ud = getCurrentUserData()) {
   return names;
 }
 
-/** Minuten tussen gepland einde en werkelijk einde (0 als het werkelijke einde niet later is). */
+/** Minuten tussen gepland einde en werkelijk einde: positief = langer gebleven, negatief = vroeger gestopt. */
 function extraFromActualEnd(plannedEnd, actualEnd) {
   if (!plannedEnd || !actualEnd) return 0;
   const toMin = t => {
@@ -3639,8 +3657,9 @@ function extraFromActualEnd(plannedEnd, actualEnd) {
     return h * 60 + m;
   };
   let diff = toMin(actualEnd) - toMin(plannedEnd);
-  if (diff < 0 && diff > -12 * 60) return 0; // vroeger gestopt: geen extra
-  if (diff < 0) diff += 1440; // over middernacht
+  // Binnen 12 uur: vroeger gestopt (negatief) of langer gebleven; verder = over middernacht
+  if (diff < -12 * 60) diff += 1440;
+  if (diff > 12 * 60) diff -= 1440;
   return diff;
 }
 
@@ -4004,7 +4023,7 @@ function renderDayEditor() {
                   ? `<div class="leave-status approved"><span>✅ <strong>Goedgekeurd</strong></span>${isAdmin() ? approveBtns : ''}</div>`
                   : '';
           return `
-      <div class="day-item${extra ? ' has-extra' : ''}" data-key="${k}">
+      <div class="day-item${extra ? ' has-extra' : ''}${rowEarlyMinutes(r) ? ' has-early' : ''}" data-key="${k}">
         ${statusStrip}
         <div class="day-item-top">
           <span class="swatch" style="background:${escapeHtml(sh.color || '#e9ecef')}"></span>
@@ -4025,17 +4044,21 @@ function renderDayEditor() {
           </button>
           <label class="extra-min">
             <span class="material-icons-outlined" aria-hidden="true">more_time</span>Werkelijk einde
-            <input type="time" class="form-control js-day-extra" value="${Number(r.extraMinutes) ? escapeHtml(rowActualEnd(r)) : ''}" aria-label="Werkelijk einduur (als je langer bleef)" ${dis}>
-            ${Number(r.extraMinutes) ? `<button type="button" class="btn-icon js-extra-clear" title="Geen extra tijd" aria-label="Werkelijk einde wissen" ${dis}><span class="material-icons-outlined">close</span></button>` : ''}
+            <input type="time" class="form-control js-day-extra" value="${Number(r.extraMinutes) ? escapeHtml(rowActualEnd(r)) : ''}" aria-label="Werkelijk einduur (later of vroeger dan gepland)" ${dis}>
+            ${Number(r.extraMinutes) ? `<button type="button" class="btn-icon js-extra-clear" title="Gepland einde gebruiken" aria-label="Werkelijk einde wissen" ${dis}><span class="material-icons-outlined">close</span></button>` : ''}
           </label>
           ${
-            extra
-              ? `<span class="extra-summary">+${fmtExtra(extra)} extra${
-                  Number(r.extraMinutes)
-                    ? ` · gepland tot <small>${escapeHtml(r.end || '')}</small>, gebleven tot ${escapeHtml(rowActualEnd(r))}`
-                    : ''
+            rowEarlyMinutes(r)
+              ? `<span class="early-summary">−${fmtExtra(rowEarlyMinutes(r))} vroeger gestopt · gepland tot <small>${escapeHtml(r.end || '')}</small>, gestopt om ${escapeHtml(rowActualEnd(r))}${
+                  extra ? ` · pauze doorgewerkt +${fmtExtra(extra)}` : ''
                 }</span>`
-              : `<span class="extra-hint">Langer gebleven? Vul je echte einduur in (gepland tot ${escapeHtml(r.end || '—')}).</span>`
+              : extra
+                ? `<span class="extra-summary">+${fmtExtra(extra)} extra${
+                    Number(r.extraMinutes)
+                      ? ` · gepland tot <small>${escapeHtml(r.end || '')}</small>, gebleven tot ${escapeHtml(rowActualEnd(r))}`
+                      : ''
+                  }</span>`
+                : `<span class="extra-hint">Later of vroeger gestopt? Vul je echte einduur in (gepland tot ${escapeHtml(r.end || '—')}).</span>`
           }
         </div>
       </div>`;
@@ -4136,8 +4159,9 @@ function bindCalendar() {
       if (extra) r.extraMinutes = extra;
       else delete r.extraMinutes;
       recalcRowMinutes(r);
-      if (extra) toast(`Tot ${e.target.value} gebleven: +${fmtExtra(extra)} extra`, 'success');
-      else if (e.target.value) toast(`Niet later dan het geplande einde (${r.end}): geen extra tijd`, 'info');
+      if (extra > 0) toast(`Tot ${e.target.value} gebleven: +${fmtExtra(extra)} extra`, 'success');
+      else if (extra < 0) toast(`Om ${e.target.value} gestopt: ${fmtExtra(-extra)} minder`, 'success');
+      else if (e.target.value) toast(`Zelfde als het geplande einde (${r.end})`, 'info');
     } else {
       return;
     }
