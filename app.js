@@ -1567,7 +1567,7 @@ function renderHomeWeek() {
         const short = sh.shortName || name.slice(0, 2);
         const hasTime = r.start && r.end && !(r.start === '00:00' && r.end === '00:00');
         const extra = rowExtraMinutes(r);
-        const title = `${name}${hasTime ? ` ${r.start}–${rowActualEnd(r)}` : ''} (${fmtShort(mins)})${extra ? ` · +${fmtExtra(extra)} extra` : ''}${r.status === 'pending' ? ' · voorlopig' : ''}${r.originalShift ? ` · 🔁 ${shiftChangeText(r, ud)}` : ''}${(r.omschrijving || '').trim() ? ` · 📝 ${r.omschrijving.trim()}` : ''}`;
+        const title = `${name}${placeText(r, iso, ud) ? ` · ${placeText(r, iso, ud)}` : ''}${hasTime ? ` ${r.start}–${rowActualEnd(r)}` : ''} (${fmtShort(mins)})${extra ? ` · +${fmtExtra(extra)} extra` : ''}${r.status === 'pending' ? ' · voorlopig' : ''}${r.originalShift ? ` · 🔁 ${shiftChangeText(r, ud)}` : ''}${(r.omschrijving || '').trim() ? ` · 📝 ${r.omschrijving.trim()}` : ''}`;
         const note = (r.omschrijving || r.description || '').trim();
         return `<span class="week-shift${extra ? ' has-extra' : ''}${rowEarlyMinutes(r) ? ' has-early' : ''}${r.status === 'pending' ? ' is-pending' : ''}${r.status === 'rejected' ? ' is-rejected' : ''}" style="--shift-color:${escapeHtml(sh.color || '#e9ecef')}" title="${escapeHtml(title)}">
           <strong><span class="name-long">${escapeHtml(name)}</span><span class="name-short">${escapeHtml(short)}</span>${r.status === 'pending' ? ' ⏳' : ''}${r.originalShift ? ' ↺' : ''}${note ? ' 📝' : ''}</strong>
@@ -1822,6 +1822,38 @@ function renameProjectEverywhere(ud, oldName, newName) {
   );
 }
 
+// --- Locatie en afdelingen van een project ---
+
+const findProject = (name, ud = getCurrentUserData()) => (ud?.projects || []).find(p => p.name === name) || null;
+const newDeptId = () => `d${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+/**
+ * Afdeling van een ingevulde dag. Volgorde: de afdeling die bij de shift gekozen is,
+ * anders de enige afdeling van het project die op die datum loopt. Zo krijgen ook
+ * oudere dagen automatisch de juiste afdeling, zonder iets opnieuw in te vullen.
+ */
+function resolveDepartment(r, iso, ud = getCurrentUserData()) {
+  if (!r?.shift) return null;
+  const def = ud?.shifts?.[r.shift] || {};
+  const project = findProject(r.project || def.project, ud);
+  const depts = project?.departments || [];
+  if (!depts.length) return null;
+  if (def.department) {
+    const d = depts.find(x => x.id === def.department);
+    if (d) return d;
+  }
+  const active = depts.filter(d => isDateWithin(iso, d.start || null, d.end || null));
+  return active.length === 1 ? active[0] : null;
+}
+
+/** "Imelda ziekenhuis · MKA" (locatie en/of afdeling), of ''. */
+function placeText(r, iso, ud = getCurrentUserData()) {
+  const def = ud?.shifts?.[r?.shift] || {};
+  const project = findProject(r?.project || def.project, ud);
+  const dept = resolveDepartment(r, iso, ud);
+  return [project?.location, dept?.name].filter(Boolean).join(' · ');
+}
+
 function renderProjects() {
   const ud = getCurrentUserData();
   const projectTableBody = document.getElementById('projectTableBody');
@@ -1876,6 +1908,19 @@ function renderProjects() {
         <div class="d-flex align-items-center">
             <div>
                 <strong class="text-dark">${escapeHtml(p.name)}</strong>
+                ${p.location ? `<div class="project-location"><span class="material-icons-outlined" aria-hidden="true">place</span>${escapeHtml(p.location)}</div>` : ''}
+                ${
+                  (p.departments || []).length
+                    ? `<div class="dept-chips">${p.departments
+                        .slice()
+                        .sort((a, b) => (a.start || '').localeCompare(b.start || ''))
+                        .map(
+                          d =>
+                            `<span class="dept-chip${isDateWithin(todayISO(), d.start || null, d.end || null) ? ' now' : ''}">${escapeHtml(d.name)}<small>${d.start ? toDisplayDate(d.start) : '…'} – ${d.end ? toDisplayDate(d.end) : '…'}</small></span>`
+                        )
+                        .join('')}</div>`
+                    : ''
+                }
             </div>
         </div>
       </td>
@@ -1938,7 +1983,9 @@ function renderProjects() {
           document.getElementById('modalProjectName').value = p.name;
           document.getElementById('modalProjectStart').value = p.start || '';
           document.getElementById('modalProjectEnd').value = p.end || '';
-          document.querySelector('#projectModal .modal-title').textContent = 'Project Bewerken';
+          document.getElementById('modalProjectLocation').value = p.location || '';
+          renderDeptEditor(p.departments || []);
+          document.querySelector('#projectModal .modal-title').textContent = 'Project bewerken';
           new bootstrap.Modal(document.getElementById('projectModal')).show();
         } else if (action === 'extend') {
           const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', p.end ? toDisplayDate(p.end) : '');
@@ -1964,7 +2011,36 @@ function renderProjects() {
   }
 }
 
+const deptRowHtml = d => `<div class="dept-row" data-id="${escapeHtml(d.id || newDeptId())}">
+    <input type="text" class="form-control js-dept-name" placeholder="Naam afdeling (bv. MKA)" value="${escapeHtml(d.name || '')}" aria-label="Naam afdeling">
+    <input type="date" class="form-control js-dept-start" value="${escapeHtml(d.start || '')}" aria-label="Start afdeling">
+    <input type="date" class="form-control js-dept-end" value="${escapeHtml(d.end || '')}" aria-label="Einde afdeling">
+    <button type="button" class="btn-icon js-dept-del" aria-label="Afdeling verwijderen"><span class="material-icons-outlined">delete</span></button>
+  </div>`;
+
+/** Afdelingen in de projectpopup tonen. */
+function renderDeptEditor(depts) {
+  const box = document.getElementById('deptList');
+  if (!box) return;
+  box.innerHTML = depts.length
+    ? depts.map(deptRowHtml).join('')
+    : '<p class="dept-empty">Nog geen afdelingen. Voeg er een toe als je op deze locatie op verschillende afdelingen werkt.</p>';
+}
+
+/** Afdelingen uit de projectpopup lezen (lege namen worden overgeslagen). */
+function readDeptEditor() {
+  return [...document.querySelectorAll('#deptList .dept-row')]
+    .map(row => ({
+      id: row.dataset.id,
+      name: row.querySelector('.js-dept-name').value.trim(),
+      start: row.querySelector('.js-dept-start').value || null,
+      end: row.querySelector('.js-dept-end').value || null
+    }))
+    .filter(d => d.name);
+}
+
 function bindProjects() {
+  renderDeptEditor([]);
   // Project opslaan (nieuw of bewerkt)
   document.getElementById('saveProjectBtn')?.addEventListener('click', async () => {
     if (!isAdmin()) return toast('Alleen beheerders mogen projecten aanpassen.', 'danger');
@@ -1974,6 +2050,8 @@ function bindProjects() {
 
     const name = nameInput.value.trim();
     if (!name) return toast('Vul een projectnaam in', 'warning');
+    const badDept = readDeptEditor().find(d => d.start && d.end && d.end < d.start);
+    if (badDept) return toast(`Afdeling "${badDept.name}": einddatum ligt vóór de startdatum`, 'warning');
 
     const ud = getCurrentUserData();
     ud.projects = ud.projects || [];
@@ -1985,6 +2063,8 @@ function bindProjects() {
       existing.name = name;
       existing.start = startInput.value || null;
       existing.end = endInput.value || null;
+      existing.location = document.getElementById('modalProjectLocation').value.trim();
+      existing.departments = readDeptEditor();
       if (oldName !== name) renameProjectEverywhere(ud, oldName, name);
       toast('Project gewijzigd', 'success');
     } else {
@@ -1994,7 +2074,9 @@ function bindProjects() {
         name: name,
         start: startInput.value || null,
         end: endInput.value || null,
-        allowMulti: false
+        allowMulti: false,
+        location: document.getElementById('modalProjectLocation').value.trim(),
+        departments: readDeptEditor()
       });
       toast('Project toegevoegd', 'success');
 
@@ -2015,6 +2097,23 @@ function bindProjects() {
     renderProjects();
     renderProjectFilterForMonth();
     renderShifts();
+    renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value)); // locatie/afdeling in de kalender
+  });
+
+  // Afdelingen toevoegen / verwijderen in de projectpopup
+  document.getElementById('addDeptBtn')?.addEventListener('click', () => {
+    const box = document.getElementById('deptList');
+    box.querySelector('.dept-empty')?.remove();
+    const pStart = document.getElementById('modalProjectStart').value || '';
+    const pEnd = document.getElementById('modalProjectEnd').value || '';
+    box.insertAdjacentHTML('beforeend', deptRowHtml({ id: newDeptId(), name: '', start: pStart, end: pEnd }));
+    box.querySelector('.dept-row:last-child .js-dept-name')?.focus();
+  });
+  document.getElementById('deptList')?.addEventListener('click', e => {
+    const btn = e.target.closest('.js-dept-del');
+    if (!btn) return;
+    btn.closest('.dept-row').remove();
+    if (!document.querySelector('#deptList .dept-row')) renderDeptEditor([]);
   });
 
   // Popup leegmaken na sluiten, zodat "Nieuw project" weer leeg opent
@@ -2022,6 +2121,8 @@ function bindProjects() {
     document.getElementById('modalProjectName').value = '';
     document.getElementById('modalProjectStart').value = '';
     document.getElementById('modalProjectEnd').value = '';
+    document.getElementById('modalProjectLocation').value = '';
+    renderDeptEditor([]);
     editingProjectIndex = null;
     const title = document.querySelector('#projectModal .modal-title');
     if (title) title.textContent = 'Nieuw Project';
@@ -2111,8 +2212,11 @@ function renderShifts() {
     const tr = document.createElement('tr');
     tr.dataset.key = name; // Nodig voor het sorteren!
 
+    const shiftDept = sh.department
+      ? findProject(sh.project, ud)?.departments?.find(d => d.id === sh.department)
+      : null;
     const projectBadge = sh.project
-      ? `<span class="badge bg-light text-dark border">${escapeHtml(sh.project)}</span>`
+      ? `<span class="badge bg-light text-dark border">${escapeHtml(sh.project)}</span>${shiftDept ? `<div class="small text-muted mt-1">${escapeHtml(shiftDept.name)}</div>` : ''}`
       : '<span class="text-muted small">-</span>';
 
     const periodText =
@@ -2299,6 +2403,7 @@ function bindShifts() {
       const visibleName = newShiftName.value.trim();
       const projectVal = document.getElementById('newShiftProjectSelect').value || '';
       const linkVal = document.getElementById('newShiftLinked')?.value || '';
+      const deptVal = document.getElementById('newShiftDept')?.value || '';
 
       if (!visibleName) return toast('Naam verplicht', 'warning');
 
@@ -2340,7 +2445,8 @@ function bindShifts() {
         project: projectVal,
         startDate: document.getElementById('newShiftStartDate').value || null,
         endDate: document.getElementById('newShiftEndDate').value || null,
-        ...(linkVal && linkVal !== uniqueKey ? { linkedShift: linkVal } : {})
+        ...(linkVal && linkVal !== uniqueKey ? { linkedShift: linkVal } : {}),
+        ...(deptVal ? { department: deptVal } : {})
       };
 
       if (!ud.shiftOrder.includes(uniqueKey)) ud.shiftOrder.push(uniqueKey);
@@ -2362,6 +2468,30 @@ function bindShifts() {
       toast('Shift opgeslagen', 'success');
     });
   }
+
+  // Afdeling-keuze volgt het gekozen project
+  const fillShiftDept = selected => {
+    const sel = document.getElementById('newShiftDept');
+    const wrap = document.getElementById('shiftDeptWrap');
+    if (!sel) return;
+    const project = findProject(document.getElementById('newShiftProjectSelect')?.value || '');
+    const depts = project?.departments || [];
+    wrap?.classList.toggle('d-none', !depts.length);
+    sel.innerHTML =
+      '<option value="">Automatisch (volgens datum)</option>' +
+      depts
+        .map(
+          d =>
+            `<option value="${escapeHtml(d.id)}">${escapeHtml(d.name)} (${d.start ? toDisplayDate(d.start) : '…'} – ${d.end ? toDisplayDate(d.end) : '…'})</option>`
+        )
+        .join('');
+    sel.value = depts.some(d => d.id === selected) ? selected : '';
+  };
+  document.getElementById('newShiftProjectSelect')?.addEventListener('change', () => fillShiftDept(''));
+  document.getElementById('shiftModal')?.addEventListener('show.bs.modal', e => {
+    const editing = e.target.dataset.editingKey || '';
+    fillShiftDept(getCurrentUserData().shifts?.[editing]?.department || '');
+  });
 
   // Keuzelijst "Samen invullen met" vullen bij het openen
   document.getElementById('shiftModal')?.addEventListener('show.bs.modal', e => {
@@ -2962,7 +3092,7 @@ function exportMonthPdf() {
         body.push([
           idx === 0 ? `${daysFull[d.getDay()].slice(0, 2).toLowerCase()} ${String(d.getDate()).padStart(2, '0')}` : '',
           shiftRealName(r.shift, ud) + st + (r.originalShift ? ` (${shiftChangeText(r, ud)})` : ''),
-          r.project || '',
+          [r.project, resolveDepartment(r, iso, ud)?.name].filter(Boolean).join(' · '),
           hasTime ? `${r.start} – ${rowActualEnd(r)}` : '',
           r.break ? `${r.break}'${r.breakWorked ? ' gewerkt' : ''}` : '',
           (Number(r.minutes) ? fmtH(Number(r.minutes)) : '–') + (stage ? ' *' : ''),
@@ -3481,7 +3611,8 @@ function renderCalendarGrid(year, month) {
           .join(', ');
         const statusText =
           r.status === 'pending' ? ' · voorlopig, wacht op goedkeuring' : r.status === 'rejected' ? ' · afgekeurd' : '';
-        const hoverText = `${name}: ${r.start || '00:00'}–${r.end || '00:00'}, pauze ${r.break || 0} min${extraText ? ` · extra: ${extraText}` : ''}${statusText}${r.originalShift ? `\n🔁 Gewijzigd, ${shiftChangeText(r)}` : ''}${note ? `\n📝 ${note}` : ''}`;
+        const place = placeText(r, baseKey, ud);
+        const hoverText = `${name}${place ? ` · ${place}` : ''}: ${r.start || '00:00'}–${r.end || '00:00'}, pauze ${r.break || 0} min${extraText ? ` · extra: ${extraText}` : ''}${statusText}${r.originalShift ? `\n🔁 Gewijzigd, ${shiftChangeText(r)}` : ''}${note ? `\n📝 ${note}` : ''}`;
         return `
         <div class="cal-shift-item${extra ? ' has-extra' : ''}${rowEarlyMinutes(r) ? ' has-early' : ''}${r.originalShift ? ' is-changed' : ''}${r.status === 'pending' ? ' is-pending' : ''}${r.status === 'rejected' ? ' is-rejected' : ''}" title="${escapeHtml(hoverText)}" style="background:${escapeHtml(sh.color || '#e9ecef')}">
           <span class="name-long">${escapeHtml(name)}${pending}</span><span class="name-short">${escapeHtml(short)}</span>
@@ -4103,6 +4234,7 @@ function renderDayEditor() {
             <span class="material-icons-outlined">delete</span>
           </button>
         </div>
+        ${placeText(r, baseKey, ud) ? `<div class="day-place"><span class="material-icons-outlined" aria-hidden="true">place</span>${escapeHtml(placeText(r, baseKey, ud))}</div>` : ''}
         <div class="time-row">
           <label>Start<input type="time" class="form-control js-day-time" data-field="start" value="${escapeHtml(r.start || '')}" ${dis}></label>
           <label>Einde<input type="time" class="form-control js-day-time" data-field="end" value="${escapeHtml(r.end || '')}" ${dis}></label>
@@ -5517,6 +5649,8 @@ function collectShiftUsage(year, uidFilter, projectFilter) {
           r,
           name: def.realName || r.shift,
           project,
+          dept: resolveDepartment(r, key.slice(0, 10), u)?.name || '',
+          location: findProject(project, u)?.location || '',
           color: def.color || '#e9ecef',
           minutes: r.status === 'rejected' ? 0 : Number(r.minutes) || 0
         });
@@ -5596,9 +5730,19 @@ function renderShiftUsage() {
   items.forEach(i => {
     if (!byProject.has(i.project)) byProject.set(i.project, new Map());
     const shifts = byProject.get(i.project);
-    const id = `${i.project}¦${i.name}`;
+    const id = `${i.project}¦${i.dept}¦${i.name}`;
     if (!shifts.has(id))
-      shifts.set(id, { id, name: i.name, project: i.project, color: i.color, count: 0, minutes: 0, users: new Map() });
+      shifts.set(id, {
+        id,
+        name: i.name,
+        project: i.project,
+        dept: i.dept,
+        location: i.location,
+        color: i.color,
+        count: 0,
+        minutes: 0,
+        users: new Map()
+      });
     const s = shifts.get(id);
     s.count++;
     s.minutes += i.minutes;
@@ -5624,14 +5768,24 @@ function renderShiftUsage() {
   list.innerHTML = [...byProject.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([project, shifts]) => {
-      const arr = [...shifts.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+      const arr = [...shifts.values()].sort(
+        (a, b) => !a.dept - !b.dept || a.dept.localeCompare(b.dept) || b.count - a.count || a.name.localeCompare(b.name)
+      );
+      const location = arr.find(x => x.location)?.location || '';
+      const hasDepts = arr.some(x => x.dept);
+      let lastDept = null;
       const pMin = arr.reduce((s, x) => s + x.minutes, 0);
       const pCount = arr.reduce((s, x) => s + x.count, 0);
       return `<section class="usage-project panel">
-        <header><h3>${escapeHtml(project)}</h3><span>${arr.length} ${arr.length === 1 ? 'shift' : 'shiften'} · ${pCount}× · ${fmtShort(pMin)}</span></header>
+        <header><h3>${escapeHtml(project)}${location ? ` <small class="usage-location">📍 ${escapeHtml(location)}</small>` : ''}</h3><span>${arr.length} ${arr.length === 1 ? 'shift' : 'shiften'} · ${pCount}× · ${fmtShort(pMin)}</span></header>
         <ul>${arr
-          .map(
-            s => `<li><button type="button" class="usage-row${usageState.selected === s.id ? ' active' : ''}" data-id="${escapeHtml(s.id)}">
+          .map(s => {
+            const head =
+              hasDepts && s.dept !== lastDept
+                ? `<li class="usage-dept">${escapeHtml(s.dept || 'Andere / niet bepaald')}</li>`
+                : '';
+            lastDept = s.dept;
+            return `${head}<li><button type="button" class="usage-row${usageState.selected === s.id ? ' active' : ''}" data-id="${escapeHtml(s.id)}">
               <span class="usage-swatch" style="background:${escapeHtml(s.color)}"></span>
               <span class="usage-name">${escapeHtml(s.name)}</span>
               ${
@@ -5648,8 +5802,8 @@ function renderShiftUsage() {
               <span class="usage-count">${s.count}×</span>
               <span class="usage-hours">${fmtShort(s.minutes)}</span>
               <span class="material-icons-outlined usage-chev" aria-hidden="true">chevron_right</span>
-            </button></li>`
-          )
+            </button></li>`;
+          })
           .join('')}</ul>
       </section>`;
     })
@@ -5664,7 +5818,7 @@ function renderShiftUsageDetail() {
   const id = usageState.selected;
   const year = document.getElementById('usageYear').value;
   const uidFilter = document.getElementById('usageUser')?.value || '';
-  const items = id ? collectShiftUsage(year, uidFilter, '').filter(i => `${i.project}¦${i.name}` === id) : [];
+  const items = id ? collectShiftUsage(year, uidFilter, '').filter(i => `${i.project}¦${i.dept}¦${i.name}` === id) : [];
   document.querySelector('.usage-layout')?.classList.toggle('has-detail', !!items.length);
   if (!items.length) {
     box.innerHTML = `<div class="usage-empty"><span class="material-icons-outlined" aria-hidden="true">touch_app</span><p>Tik op een shift om te zien op welke dagen hij gebruikt is.</p></div>`;
@@ -5683,7 +5837,7 @@ function renderShiftUsageDetail() {
     <div class="usage-detail-head">
       <button type="button" class="btn-icon usage-back" aria-label="Terug naar de lijst"><span class="material-icons-outlined">arrow_back</span></button>
       <span class="usage-swatch big" style="background:${escapeHtml(first.color)}"></span>
-      <div><h3>${escapeHtml(first.name)}</h3><small>${escapeHtml(first.project)} · ${year} · ${items.length}× · ${fmtShort(total)}</small></div>
+      <div><h3>${escapeHtml(first.name)}</h3><small>${escapeHtml([first.project, first.location, first.dept].filter(Boolean).join(' · '))} · ${year} · ${items.length}× · ${fmtShort(total)}</small></div>
     </div>
     ${[...byUser.entries()]
       .map(([uid, rows]) => {

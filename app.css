@@ -737,6 +737,25 @@ td.actions-cell, #thActions { width: 1%; white-space: nowrap; }
 .orig-shift { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; text-decoration: line-through; text-decoration-color: var(--muted); }
 .orig-shift .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 
+/* Locatie en afdelingen */
+.project-location { display: flex; align-items: center; gap: 3px; color: var(--muted); font-size: 0.85rem; }
+.project-location .material-icons-outlined, .day-place .material-icons-outlined { font-size: 16px; }
+.dept-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.dept-chip { display: inline-flex; align-items: baseline; gap: 5px; font-size: 0.78rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink); white-space: nowrap; }
+.dept-chip small { font-weight: 500; color: var(--muted); }
+.dept-chip.now { background: var(--accent-soft); color: var(--accent-strong); }
+.dept-editor { border-top: 1px solid var(--line); padding-top: 12px; }
+.dept-editor-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.dept-editor-head .btn { display: inline-flex; align-items: center; gap: 2px; }
+.dept-editor-head .material-icons-outlined { font-size: 18px; }
+.dept-list { display: flex; flex-direction: column; gap: 6px; }
+.dept-row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.dept-empty { color: var(--muted); font-size: 0.85rem; margin: 0; }
+@media (max-width: 575.98px) { .dept-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; } .dept-row .js-dept-name { grid-column: 1 / -1; } }
+.day-place { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 0.82rem; margin: -4px 0 8px 22px; }
+.usage-location { font-family: var(--font-body); font-weight: 600; font-size: 0.8rem; color: var(--muted); }
+.usage-dept { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 8px 10px 2px; }
+
 /* Shiftgebruik */
 .usage-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px 14px; padding: 14px 16px; }
 .usage-filters label { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--muted); font-weight: 700; margin: 0; }
