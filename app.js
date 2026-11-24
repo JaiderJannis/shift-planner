@@ -2285,6 +2285,66 @@ function renameShiftKeyEverywhere(ud, oldKey, newKey) {
   });
 }
 
+// --- Ingevulde dagen laten volgen als het project van een shift wijzigt ---
+
+/** Het project dat een ingevulde dag hoort te hebben volgens zijn shift ('' = geen vaste waarde). */
+function expectedRowProject(r, ud) {
+  const def = ud.shifts?.[r?.shift];
+  if (!def) return null;
+  const realName = def.realName || r.shift;
+  if (realName === 'Bench') return null;
+  if (autoProjectForShift(realName)) return null; // vaste koppelingen (Verlof → …) niet aanraken
+  return def.project || null;
+}
+
+/** Alle ingevulde dagen waarvan het project niet meer klopt met hun shift. */
+function findProjectMismatches(ud, onlyShift = null) {
+  const out = [];
+  Object.entries(ud.monthData || {}).forEach(([y, months]) =>
+    Object.entries(months || {}).forEach(([m, md]) =>
+      Object.values(md?.rows || {}).forEach(r => {
+        if (!r?.shift || (onlyShift && r.shift !== onlyShift)) return;
+        const want = expectedRowProject(r, ud);
+        if (want && (r.project || '') !== want) out.push({ y, m, r, want });
+      })
+    )
+  );
+  return out;
+}
+
+/** Projecten van ingevulde dagen gelijkzetten met hun shift. Geeft het aantal aangepaste dagen. */
+function applyProjectFixes(list) {
+  list.forEach(({ r, want }) => (r.project = want));
+  return list.length;
+}
+
+/** Melding bovenaan Shiften als ingevulde dagen nog een oud project tonen. */
+function renderProjectFixBanner() {
+  const box = document.getElementById('shiftProjectFix');
+  if (!box) return;
+  const ud = getCurrentUserData();
+  const list = findProjectMismatches(ud);
+  if (!list.length) {
+    box.classList.add('d-none');
+    box.innerHTML = '';
+    return;
+  }
+  const shiftCount = new Set(list.map(x => x.r.shift)).size;
+  box.classList.remove('d-none');
+  box.innerHTML = `<span class="material-icons-outlined" aria-hidden="true">sync_problem</span>
+    <div><strong>${list.length} ingevulde ${list.length === 1 ? 'dag toont' : 'dagen tonen'} nog een oud project</strong>
+    <small>Bij ${shiftCount} ${shiftCount === 1 ? 'shift' : 'shiften'} is het project gewijzigd. Zet ze gelijk met het project van hun shift.</small></div>
+    <button type="button" class="btn btn-sm btn-primary" id="fixRowProjectsBtn">Bijwerken</button>`;
+  box.querySelector('#fixRowProjectsBtn').onclick = async e => {
+    e.target.disabled = true;
+    const n = applyProjectFixes(findProjectMismatches(getCurrentUserData()));
+    await saveUserData();
+    renderProjectFixBanner();
+    refreshCalendarIfVisible();
+    toast(`${n} ${n === 1 ? 'dag' : 'dagen'} bijgewerkt naar het juiste project.`, 'success');
+  };
+}
+
 async function saveShiftsToDb(ud) {
   const id = getActiveUserId();
   if (id) await trackSave(updateDoc(doc(db, 'users', id), { shifts: ud.shifts, shiftOrder: ud.shiftOrder }));
@@ -2495,6 +2555,7 @@ function renderShifts() {
   });
 
   initShiftSortable();
+  renderProjectFixBanner();
 }
 
 /** Volgorde aanpassen met slepen (via het ⋮⋮-handvat). */
@@ -2629,7 +2690,10 @@ function bindShifts() {
       if (!ud.shiftOrder.includes(uniqueKey)) ud.shiftOrder.push(uniqueKey);
 
       await saveShiftsToDb(ud);
-      if (oldKey && oldKey !== uniqueKey) await saveUserData(); // hernoemde dagen bewaren
+      // Project gewijzigd → ingevulde dagen van deze shift volgen mee
+      const moved = applyProjectFixes(findProjectMismatches(ud, uniqueKey));
+      if ((oldKey && oldKey !== uniqueKey) || moved) await saveUserData(); // hernoemde/bijgewerkte dagen bewaren
+      if (moved) toast(`${moved} ingevulde ${moved === 1 ? 'dag kreeg' : 'dagen kregen'} het nieuwe project.`, 'info');
 
       renderShifts();
       refreshCalendarIfVisible();

@@ -1114,3 +1114,13 @@ body.is-admin .chat-shell { grid-template-columns: 300px minmax(0, 1fr); }
 .btn-hidden-toggle .count { background: var(--surface-2); border-radius: 999px; padding: 0 7px; font-size: 0.78rem; color: var(--ink); }
 .btn-hidden-toggle.active { background: var(--accent-soft); color: var(--accent-strong); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 .btn-hidden-toggle.d-none { display: none !important; }
+
+/* Ingevulde dagen met oud project */
+.project-fix { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 12px; border-radius: 16px; background: color-mix(in srgb, var(--extra) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--extra) 35%, transparent); }
+.project-fix.d-none { display: none !important; }
+.project-fix > .material-icons-outlined { color: var(--extra); font-size: 26px; flex: none; }
+.project-fix div { flex: 1; min-width: 0; }
+.project-fix strong { display: block; font-size: 0.92rem; }
+.project-fix small { color: var(--muted); }
+.project-fix .btn { flex: none; }
+@media (max-width: 575.98px) { .project-fix { flex-wrap: wrap; } .project-fix .btn { width: 100%; } }
