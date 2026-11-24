@@ -20,6 +20,7 @@
  *   §16  INVOER — VERFMODUS & SCREENSHOT — Dagen "inkleuren" met favoriete shiften en de kalender als afbeelding bewaren.
  *   §17  BIJLAGEN — Bijlage per shift uploaden, downloaden en verwijderen.
  *   §18  HISTORIEK — Jaaroverzicht per maand.
+ *   §18b SHIFTGEBRUIK — Welke shiften gebruikt zijn per gebruiker, project en jaar.
  *   §19  CONVERTER — Uren/minuten ↔ decimale uren.
  *   §20  NON-BILLABLE — Niet-factureerbare uren per maand.
  *   §21  CHAT — Chat tussen gebruikers en admins.
@@ -5417,6 +5418,301 @@ function bindHistory() {
 }
 
 // ======================================================================
+// §18b SHIFTGEBRUIK
+// Welke shiften zijn gebruikt, per gebruiker, per project en per jaar; klik voor de dagen.
+// ======================================================================
+
+const usageState = { selected: null, fetchedAt: 0 };
+
+/** Alle shift-rijen van een jaar, als platte lijst. */
+function collectShiftUsage(year, uidFilter, projectFilter) {
+  const admin = isAdmin();
+  const uids = admin ? Object.keys(dataStore.users) : [currentUserId];
+  const out = [];
+  uids.forEach(uid => {
+    if (uidFilter && uid !== uidFilter) return;
+    const u = dataStore.users[uid];
+    Object.entries(u?.monthData?.[year] || {}).forEach(([m, md]) => {
+      Object.entries(md?.rows || {}).forEach(([key, r]) => {
+        if (!r?.shift) return;
+        const def = u.shifts?.[r.shift] || {};
+        const project = r.project || def.project || 'Zonder project';
+        if (projectFilter && project !== projectFilter) return;
+        out.push({
+          uid,
+          u,
+          y: Number(year),
+          m: Number(m),
+          key,
+          iso: key.slice(0, 10),
+          r,
+          name: def.realName || r.shift,
+          project,
+          color: def.color || '#e9ecef',
+          minutes: r.status === 'rejected' ? 0 : Number(r.minutes) || 0
+        });
+      });
+    });
+  });
+  return out;
+}
+
+const userLabel = u => u?.name || u?.email || 'Gebruiker';
+
+/** Keuzelijsten (jaar, gebruiker, project) vullen met wat er echt in de data staat. */
+function fillUsageFilters() {
+  const yearSel = document.getElementById('usageYear');
+  const userSel = document.getElementById('usageUser');
+  const projSel = document.getElementById('usageProject');
+  if (!yearSel) return;
+  const admin = isAdmin();
+  const uids = admin ? Object.keys(dataStore.users) : [currentUserId];
+  const years = new Set([String(new Date().getFullYear())]);
+  uids.forEach(uid => Object.keys(dataStore.users[uid]?.monthData || {}).forEach(y => years.add(String(y))));
+  const keep = (sel, html, fallback) => {
+    const v = sel.value;
+    sel.innerHTML = html;
+    sel.value = [...sel.options].some(o => o.value === v) ? v : fallback;
+  };
+  keep(
+    yearSel,
+    [...years]
+      .sort()
+      .reverse()
+      .map(y => `<option value="${y}">${y}</option>`)
+      .join(''),
+    yearSelectMain?.value && years.has(String(yearSelectMain.value))
+      ? String(yearSelectMain.value)
+      : String(new Date().getFullYear())
+  );
+  if (userSel) {
+    keep(
+      userSel,
+      '<option value="">Alle gebruikers</option>' +
+        uids
+          .map(uid => [uid, userLabel(dataStore.users[uid])])
+          .sort((a, b) => a[1].localeCompare(b[1]))
+          .map(([uid, n]) => `<option value="${escapeHtml(uid)}">${escapeHtml(n)}</option>`)
+          .join(''),
+      ''
+    );
+  }
+  const projects = new Set(collectShiftUsage(yearSel.value, userSel?.value || '', '').map(i => i.project));
+  keep(
+    projSel,
+    '<option value="">Alle projecten</option>' +
+      [...projects]
+        .sort((a, b) => a.localeCompare(b))
+        .map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`)
+        .join(''),
+    ''
+  );
+}
+
+/** Lijst van shiften, gegroepeerd per project, met aantal keer, uren en gebruikers. */
+function renderShiftUsage() {
+  const list = document.getElementById('usageList');
+  if (!list) return;
+  fillUsageFilters();
+  const year = document.getElementById('usageYear').value;
+  const uidFilter = document.getElementById('usageUser')?.value || '';
+  const projFilter = document.getElementById('usageProject').value;
+  const q = (document.getElementById('usageSearch').value || '').trim().toLowerCase();
+  const items = collectShiftUsage(year, uidFilter, projFilter).filter(i => !q || i.name.toLowerCase().includes(q));
+  const admin = isAdmin();
+  const showUsers = admin && !uidFilter;
+
+  // Groeperen: project → shift (op naam) → gebruikers
+  const byProject = new Map();
+  items.forEach(i => {
+    if (!byProject.has(i.project)) byProject.set(i.project, new Map());
+    const shifts = byProject.get(i.project);
+    const id = `${i.project}¦${i.name}`;
+    if (!shifts.has(id))
+      shifts.set(id, { id, name: i.name, project: i.project, color: i.color, count: 0, minutes: 0, users: new Map() });
+    const s = shifts.get(id);
+    s.count++;
+    s.minutes += i.minutes;
+    const uu = s.users.get(i.uid) || { u: i.u, count: 0 };
+    uu.count++;
+    s.users.set(i.uid, uu);
+  });
+
+  const totalMin = items.reduce((s, i) => s + i.minutes, 0);
+  const distinct = [...byProject.values()].reduce((s, m) => s + m.size, 0);
+  document.getElementById('usageSummary').innerHTML = items.length
+    ? `<strong>${distinct}</strong> verschillende shiften · <strong>${items.length}</strong> keer ingevuld · <strong>${fmtShort(totalMin)}</strong> in ${year}${
+        uidFilter ? ` · ${escapeHtml(userLabel(dataStore.users[uidFilter]))}` : showUsers ? ' · alle gebruikers' : ''
+      }`
+    : '';
+
+  if (!items.length) {
+    list.innerHTML = `<div class="panel usage-none">Geen shiften gevonden in ${escapeHtml(year)}${q ? ` voor "${escapeHtml(q)}"` : ''}.</div>`;
+    renderShiftUsageDetail();
+    return;
+  }
+
+  list.innerHTML = [...byProject.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([project, shifts]) => {
+      const arr = [...shifts.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+      const pMin = arr.reduce((s, x) => s + x.minutes, 0);
+      const pCount = arr.reduce((s, x) => s + x.count, 0);
+      return `<section class="usage-project panel">
+        <header><h3>${escapeHtml(project)}</h3><span>${arr.length} ${arr.length === 1 ? 'shift' : 'shiften'} · ${pCount}× · ${fmtShort(pMin)}</span></header>
+        <ul>${arr
+          .map(
+            s => `<li><button type="button" class="usage-row${usageState.selected === s.id ? ' active' : ''}" data-id="${escapeHtml(s.id)}">
+              <span class="usage-swatch" style="background:${escapeHtml(s.color)}"></span>
+              <span class="usage-name">${escapeHtml(s.name)}</span>
+              ${
+                showUsers
+                  ? `<span class="usage-users">${[...s.users.values()]
+                      .sort((a, b) => b.count - a.count)
+                      .map(
+                        x =>
+                          `<span class="usage-user" title="${escapeHtml(userLabel(x.u))}">${escapeHtml(userLabel(x.u).split(' ')[0])} ${x.count}×</span>`
+                      )
+                      .join('')}</span>`
+                  : ''
+              }
+              <span class="usage-count">${s.count}×</span>
+              <span class="usage-hours">${fmtShort(s.minutes)}</span>
+              <span class="material-icons-outlined usage-chev" aria-hidden="true">chevron_right</span>
+            </button></li>`
+          )
+          .join('')}</ul>
+      </section>`;
+    })
+    .join('');
+  renderShiftUsageDetail();
+}
+
+/** Rechterkant (of onderaan op iPhone): op welke dagen de gekozen shift gebruikt is. */
+function renderShiftUsageDetail() {
+  const box = document.getElementById('usageDetail');
+  if (!box) return;
+  const id = usageState.selected;
+  const year = document.getElementById('usageYear').value;
+  const uidFilter = document.getElementById('usageUser')?.value || '';
+  const items = id ? collectShiftUsage(year, uidFilter, '').filter(i => `${i.project}¦${i.name}` === id) : [];
+  document.querySelector('.usage-layout')?.classList.toggle('has-detail', !!items.length);
+  if (!items.length) {
+    box.innerHTML = `<div class="usage-empty"><span class="material-icons-outlined" aria-hidden="true">touch_app</span><p>Tik op een shift om te zien op welke dagen hij gebruikt is.</p></div>`;
+    return;
+  }
+  items.sort((a, b) => a.iso.localeCompare(b.iso));
+  const first = items[0];
+  const total = items.reduce((s, i) => s + i.minutes, 0);
+  const byUser = new Map();
+  items.forEach(i => {
+    if (!byUser.has(i.uid)) byUser.set(i.uid, []);
+    byUser.get(i.uid).push(i);
+  });
+  const multi = byUser.size > 1 || (isAdmin() && !uidFilter);
+  box.innerHTML = `
+    <div class="usage-detail-head">
+      <button type="button" class="btn-icon usage-back" aria-label="Terug naar de lijst"><span class="material-icons-outlined">arrow_back</span></button>
+      <span class="usage-swatch big" style="background:${escapeHtml(first.color)}"></span>
+      <div><h3>${escapeHtml(first.name)}</h3><small>${escapeHtml(first.project)} · ${year} · ${items.length}× · ${fmtShort(total)}</small></div>
+    </div>
+    ${[...byUser.entries()]
+      .map(([uid, rows]) => {
+        const months = new Map();
+        rows.forEach(i => {
+          if (!months.has(i.m)) months.set(i.m, []);
+          months.get(i.m).push(i);
+        });
+        return `<div class="usage-user-block">
+          ${multi ? `<h4>${escapeHtml(userLabel(rows[0].u))} <span>${rows.length}× · ${fmtShort(rows.reduce((s, i) => s + i.minutes, 0))}</span></h4>` : ''}
+          ${[...months.entries()]
+            .map(
+              ([m, list]) =>
+                `<div class="usage-month"><span class="usage-month-name">${monthsFull[m]}</span><span class="usage-days">${list
+                  .map(i => {
+                    const d = new Date(`${i.iso}T12:00:00`);
+                    const st = i.r.status === 'pending' ? ' pending' : i.r.status === 'rejected' ? ' rejected' : '';
+                    const note = (i.r.omschrijving || '').trim();
+                    return `<button type="button" class="usage-day${st}" data-uid="${escapeHtml(i.uid)}" data-iso="${i.iso}" title="${escapeHtml(
+                      `${daysFull[d.getDay()]} ${toDisplayDate(i.iso)} · ${i.r.start || ''}–${rowActualEnd(i.r)} · ${fmtShort(i.minutes)}${note ? ` · ${note}` : ''}`
+                    )}"><b>${daysFull[d.getDay()].slice(0, 2).toLowerCase()}</b> ${d.getDate()}${note ? ' 📝' : ''}</button>`;
+                  })
+                  .join('')}</span></div>`
+            )
+            .join('')}
+        </div>`;
+      })
+      .join('')}
+    <p class="usage-hint">Tik op een dag om hem te openen.</p>`;
+}
+
+/** Naar een dag springen (als admin eventueel eerst naar die gebruiker wisselen). */
+async function openUsageDay(uid, iso) {
+  if (isAdmin() && uid !== getActiveUserId()) {
+    const sel = document.getElementById('topbarUserSelect');
+    if (sel) {
+      sel.value = uid === currentUserId ? '' : uid;
+      await renderUserDataAsAdmin(uid === currentUserId ? null : uid);
+    }
+  }
+  const y = Number(iso.slice(0, 4));
+  const m = Number(iso.slice(5, 7)) - 1;
+  if (![...yearSelectMain.options].some(o => Number(o.value) === y)) yearSelectMain.append(new Option(y, y));
+  yearSelectMain.value = y;
+  monthSelectMain.value = m;
+  monthSelectMain.dispatchEvent(new Event('change'));
+  showTab('#tab-invoer');
+  setTimeout(() => openDayEditor(iso), 350);
+}
+
+function bindShiftUsage() {
+  const tab = document.querySelector('#navTabs a[href="#tab-shiftusage"]');
+  tab?.addEventListener('shown.bs.tab', () => {
+    renderShiftUsage();
+    // Admin: verse gegevens van alle gebruikers (max. één keer per halve minuut)
+    if (isAdmin() && Date.now() - usageState.fetchedAt > 30000) {
+      usageState.fetchedAt = Date.now();
+      getDocs(collection(db, 'users'))
+        .then(qs => {
+          qs.forEach(d => {
+            if (d.id !== getActiveUserId()) dataStore.users[d.id] = { ...dataStore.users[d.id], ...d.data() };
+          });
+          renderShiftUsage();
+        })
+        .catch(() => {});
+    }
+  });
+  ['usageYear', 'usageUser', 'usageProject'].forEach(id =>
+    document.getElementById(id)?.addEventListener('change', () => {
+      usageState.selected = null;
+      renderShiftUsage();
+    })
+  );
+  document.getElementById('usageSearch')?.addEventListener('input', () => renderShiftUsage());
+  document.getElementById('usageList')?.addEventListener('click', e => {
+    const row = e.target.closest('.usage-row');
+    if (!row) return;
+    usageState.selected = usageState.selected === row.dataset.id && window.innerWidth >= 992 ? null : row.dataset.id;
+    document
+      .querySelectorAll('.usage-row')
+      .forEach(b => b.classList.toggle('active', b.dataset.id === usageState.selected));
+    renderShiftUsageDetail();
+    if (window.innerWidth < 992)
+      document.getElementById('usageDetail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  document.getElementById('usageDetail')?.addEventListener('click', e => {
+    const day = e.target.closest('.usage-day');
+    if (day) return openUsageDay(day.dataset.uid, day.dataset.iso);
+    if (e.target.closest('.usage-back')) {
+      usageState.selected = null;
+      document.querySelectorAll('.usage-row').forEach(b => b.classList.remove('active'));
+      renderShiftUsageDetail();
+      document.getElementById('usageList')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+}
+
+// ======================================================================
 // §19  CONVERTER
 // Uren/minuten ↔ decimale uren.
 // ======================================================================
@@ -6905,6 +7201,7 @@ function initApp() {
   bindPaint();
   bindAttachments();
   bindHistory();
+  bindShiftUsage();
   bindConverter();
   bindNonBillable();
   bindMail();
