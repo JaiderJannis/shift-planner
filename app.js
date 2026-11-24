@@ -1855,6 +1855,24 @@ function placeText(r, iso, ud = getCurrentUserData()) {
   return [where, dept?.name].filter(Boolean).join(' · ');
 }
 
+// --- Afdelingskleuren ---
+const DEPT_COLORS = ['#0f7b6c', '#2f6fd6', '#c2410c', '#9333ea', '#d6336c', '#ca8a04', '#0891b2', '#4d7c0f'];
+
+/** Kleur van een afdeling: de gekozen kleur, of een vaste standaardkleur afgeleid van de id. */
+function deptColor(d) {
+  if (d?.color && /^#[0-9a-f]{6}$/i.test(d.color)) return d.color;
+  const key = String(d?.id || d?.name || '');
+  let h = 0;
+  for (const ch of key) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return DEPT_COLORS[h % DEPT_COLORS.length];
+}
+
+/** Gekleurd afdelingslabel (zelfde kleur overal in de app). */
+function deptTagHtml(d, extra = '') {
+  if (!d) return '';
+  return `<span class="dept-tag${extra ? ` ${extra}` : ''}" style="--dept:${deptColor(d)}">${escapeHtml(d.name)}</span>`;
+}
+
 // --- Periodes: project volgt de afdelingen, shiften volgen afdeling of project ---
 
 /** Periode van een project: met afdelingen = eerste start tot laatste einde, anders de eigen datums. */
@@ -1954,7 +1972,7 @@ function renderProjects() {
                         .sort((a, b) => (a.start || '').localeCompare(b.start || ''))
                         .map(
                           d =>
-                            `<span class="dept-chip${isDateWithin(todayISO(), d.start || null, d.end || null) ? ' now' : ''}">${escapeHtml(d.name)}<small>${d.start ? toDisplayDate(d.start) : '…'} – ${d.end ? toDisplayDate(d.end) : '…'}</small></span>`
+                            `<span class="dept-chip${isDateWithin(todayISO(), d.start || null, d.end || null) ? ' now' : ''}" style="--dept:${deptColor(d)}"><i class="dept-dot"></i>${escapeHtml(d.name)}<small>${d.start ? toDisplayDate(d.start) : '…'} – ${d.end ? toDisplayDate(d.end) : '…'}</small></span>`
                         )
                         .join('')}</div>`
                     : ''
@@ -2075,6 +2093,7 @@ function renderProjects() {
 }
 
 const deptRowHtml = d => `<div class="dept-row" data-id="${escapeHtml(d.id || newDeptId())}">
+    <input type="color" class="form-control form-control-color js-dept-color" value="${deptColor(d)}" title="Kleur van het afdelingslabel" aria-label="Kleur afdeling">
     <input type="text" class="form-control js-dept-name" placeholder="Naam afdeling (bv. MKA)" value="${escapeHtml(d.name || '')}" aria-label="Naam afdeling">
     <input type="date" class="form-control js-dept-start" value="${escapeHtml(d.start || '')}" aria-label="Start afdeling">
     <input type="date" class="form-control js-dept-end" value="${escapeHtml(d.end || '')}" aria-label="Einde afdeling">
@@ -2096,6 +2115,7 @@ function readDeptEditor() {
     .map(row => ({
       id: row.dataset.id,
       name: row.querySelector('.js-dept-name').value.trim(),
+      color: row.querySelector('.js-dept-color').value || null,
       start: row.querySelector('.js-dept-start').value || null,
       end: row.querySelector('.js-dept-end').value || null
     }))
@@ -2199,7 +2219,9 @@ function bindProjects() {
     box.querySelector('.dept-empty')?.remove();
     const pStart = document.getElementById('modalProjectStart').value || '';
     const pEnd = document.getElementById('modalProjectEnd').value || '';
-    box.insertAdjacentHTML('beforeend', deptRowHtml({ id: newDeptId(), name: '', start: pStart, end: pEnd }));
+    const used = [...box.querySelectorAll('.js-dept-color')].map(i => i.value.toLowerCase());
+    const color = DEPT_COLORS.find(c => !used.includes(c)) || DEPT_COLORS[used.length % DEPT_COLORS.length];
+    box.insertAdjacentHTML('beforeend', deptRowHtml({ id: newDeptId(), name: '', color, start: pStart, end: pEnd }));
     box.querySelector('.dept-row:last-child .js-dept-name')?.focus();
   });
   document.getElementById('deptList')?.addEventListener('click', e => {
@@ -2319,7 +2341,7 @@ function renderShifts() {
           <span class="place-name"><span class="material-icons-outlined" aria-hidden="true">place</span>${escapeHtml(sh.project)}</span>
           ${
             shiftDept
-              ? `<span class="dept-tag">${escapeHtml(shiftDept.name)}</span>`
+              ? deptTagHtml(shiftDept)
               : hasDepts
                 ? '<span class="dept-tag auto" title="De afdeling volgt de datum van de dienst">volgens datum</span>'
                 : ''
@@ -4428,7 +4450,14 @@ function renderDayEditor() {
             <span class="material-icons-outlined">delete</span>
           </button>
         </div>
-        ${placeText(r, baseKey, ud) ? `<div class="day-place"><span class="material-icons-outlined" aria-hidden="true">place</span>${escapeHtml(placeText(r, baseKey, ud))}</div>` : ''}
+        ${(() => {
+          const proj = findProject(r.project || sh.project, ud);
+          const where = proj?.name || r.project || sh.project || '';
+          const dept = resolveDepartment(r, baseKey, ud);
+          return where || dept
+            ? `<div class="day-place"><span class="material-icons-outlined" aria-hidden="true">place</span>${escapeHtml(where)}${deptTagHtml(dept, 'sm')}</div>`
+            : '';
+        })()}
         <div class="time-row">
           <label>Start<input type="time" class="form-control js-day-time" data-field="start" value="${escapeHtml(r.start || '')}" ${dis}></label>
           <label>Einde<input type="time" class="form-control js-day-time" data-field="end" value="${escapeHtml(r.end || '')}" ${dis}></label>
@@ -5844,6 +5873,7 @@ function collectShiftUsage(year, uidFilter, projectFilter) {
           name: def.realName || r.shift,
           project,
           dept: resolveDepartment(r, key.slice(0, 10), u)?.name || '',
+          deptColor: (d => (d ? deptColor(d) : ''))(resolveDepartment(r, key.slice(0, 10), u)),
           color: def.color || '#e9ecef',
           minutes: r.status === 'rejected' ? 0 : Number(r.minutes) || 0
         });
@@ -5930,6 +5960,7 @@ function renderShiftUsage() {
         name: i.name,
         project: i.project,
         dept: i.dept,
+        deptColor: i.deptColor,
         color: i.color,
         count: 0,
         minutes: 0,
@@ -5973,7 +6004,7 @@ function renderShiftUsage() {
           .map(s => {
             const head =
               hasDepts && s.dept !== lastDept
-                ? `<li class="usage-dept">${escapeHtml(s.dept || 'Andere / niet bepaald')}</li>`
+                ? `<li class="usage-dept">${s.dept ? `<span class="dept-tag" style="--dept:${s.deptColor}">${escapeHtml(s.dept)}</span>` : 'Andere / niet bepaald'}</li>`
                 : '';
             lastDept = s.dept;
             return `${head}<li><button type="button" class="usage-row${usageState.selected === s.id ? ' active' : ''}" data-id="${escapeHtml(s.id)}">
