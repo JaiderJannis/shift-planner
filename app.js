@@ -2201,12 +2201,16 @@ function bindProjects() {
     const has = depts.length > 0;
     const startEl = document.getElementById('modalProjectStart');
     const endEl = document.getElementById('modalProjectEnd');
-    startEl.disabled = endEl.disabled = has;
-    document.getElementById('projectPeriodNote')?.classList.toggle('d-none', !has);
+    // Met afdelingen volgt de projectperiode automatisch: dan de datumvelden verbergen
+    document.getElementById('projectPeriodRow')?.classList.toggle('d-none', has);
+    const note = document.getElementById('projectPeriodNote');
+    note?.classList.toggle('d-none', !has);
     if (has) {
       const span = projectSpan({ departments: depts });
       startEl.value = span.start || '';
       endEl.value = span.end || '';
+      if (note)
+        note.innerHTML = `<span class="material-icons-outlined" aria-hidden="true">date_range</span><span><strong>${span.start ? toDisplayDate(span.start) : '…'} – ${span.end ? toDisplayDate(span.end) : '…'}</strong><br>Volgt automatisch de afdelingen hieronder.</span>`;
     }
   };
   document.getElementById('deptList')?.addEventListener('input', syncProjectPeriodInputs);
@@ -2242,6 +2246,7 @@ function bindProjects() {
     document.getElementById('modalProjectStart').disabled = false;
     document.getElementById('modalProjectEnd').disabled = false;
     document.getElementById('projectPeriodNote')?.classList.add('d-none');
+    document.getElementById('projectPeriodRow')?.classList.remove('d-none');
     editingProjectIndex = null;
     const title = document.querySelector('#projectModal .modal-title');
     if (title) title.textContent = 'Nieuw Project';
