@@ -2259,6 +2259,7 @@ function bindProjects() {
 // ======================================================================
 
 const filterShiftYear = document.getElementById('filterShiftYear');
+let showHiddenShifts = false;
 
 /** Opties voor de icoon-keuze bij een shift. */
 function shiftIconOptions(selected, withLabels = false) {
@@ -2318,9 +2319,22 @@ function renderShifts() {
   if (!shiftTableBody) return;
   shiftTableBody.innerHTML = '';
 
+  // Verborgen shiften: standaard weg, met een knop om ze terug te tonen
+  const hiddenCount = order.filter(k => shifts[k]?.hidden).length;
+  if (!hiddenCount) showHiddenShifts = false;
+  const hiddenBtn = document.getElementById('toggleHiddenShifts');
+  if (hiddenBtn) {
+    hiddenBtn.classList.toggle('d-none', !hiddenCount);
+    hiddenBtn.classList.toggle('active', showHiddenShifts);
+    hiddenBtn.setAttribute('aria-pressed', String(showHiddenShifts));
+    hiddenBtn.innerHTML = `<span class="material-icons-outlined" aria-hidden="true">${showHiddenShifts ? 'visibility' : 'visibility_off'}</span>Verborgen <span class="count">${hiddenCount}</span>`;
+    hiddenBtn.title = showHiddenShifts ? 'Verborgen shiften weer wegdoen' : 'Verborgen shiften tonen';
+  }
+
   order.forEach(name => {
     const sh = shifts[name];
     if (!sh) return;
+    if (sh.hidden && !showHiddenShifts) return;
 
     if (selectedYear) {
       const startY = sh.startDate ? new Date(sh.startDate).getFullYear() : null;
@@ -2335,6 +2349,7 @@ function renderShifts() {
 
     const tr = document.createElement('tr');
     tr.dataset.key = name; // Nodig voor het sorteren!
+    if (sh.hidden) tr.classList.add('shift-hidden');
 
     const shiftDept = sh.department
       ? findProject(sh.project, ud)?.departments?.find(d => d.id === sh.department)
@@ -2368,7 +2383,7 @@ function renderShifts() {
             <span class="handle material-icons-outlined text-muted me-2" style="cursor: grab; font-size: 18px;">drag_indicator</span>
             <span class="dot" style="background:${sh.color || '#ccc'}; width:12px; height:12px; display:inline-block; border-radius:50%; margin-right:10px;"></span>
             <div>
-                <strong class="text-dark">${escapeHtml(sh.realName || name)}</strong>
+                <strong class="text-dark">${escapeHtml(sh.realName || name)}</strong>${sh.hidden ? '<span class="hidden-badge">verborgen</span>' : ''}
                 ${sh.shortName ? `<div class="small text-muted">${escapeHtml(sh.shortName)}</div>` : ''}
                 ${sh.linkedShift && ud.shifts?.[sh.linkedShift] ? `<div class="link-note"><span class="material-icons-outlined" aria-hidden="true">link</span>samen met ${escapeHtml(shiftRealName(sh.linkedShift, ud))}</div>` : ''}
             </div>
@@ -2396,12 +2411,29 @@ function renderShifts() {
 
       <td class="text-end">
         <div class="btn-group">
+          <button class="btn btn-sm btn-outline-secondary btn-hide" title="${sh.hidden ? 'Terug tonen' : 'Verbergen'}" aria-label="${sh.hidden ? 'Terug tonen' : 'Verbergen'}"><span class="material-icons-outlined" style="font-size:16px">${sh.hidden ? 'visibility' : 'visibility_off'}</span></button>
           <button class="btn btn-sm btn-outline-secondary btn-edit" title="Bewerken"><span class="material-icons-outlined" style="font-size:16px">edit</span></button>
           <button class="btn btn-sm btn-outline-danger btn-del" title="Verwijderen"><span class="material-icons-outlined" style="font-size:16px">delete</span></button>
           <button class="btn btn-sm btn-outline-primary btn-copy" title="Kopiëren"><span class="material-icons-outlined" style="font-size:16px">content_copy</span></button>
         </div>
       </td>
     `;
+
+    // Verbergen / terug tonen
+    tr.querySelector('.btn-hide').onclick = async () => {
+      const hide = !sh.hidden;
+      if (hide) ud.shifts[name].hidden = true;
+      else delete ud.shifts[name].hidden;
+      await saveShiftsToDb(ud);
+      renderShifts();
+      refreshCalendarIfVisible();
+      toast(
+        hide
+          ? `"${sh.realName || name}" verborgen. Ingevulde dagen blijven gewoon staan.`
+          : `"${sh.realName || name}" is terug zichtbaar.`,
+        'success'
+      );
+    };
 
     // Verwijderen / kopiëren / bewerken
     tr.querySelector('.btn-del').onclick = async () => {
@@ -2509,6 +2541,10 @@ function populateFilterShiftYears() {
   const sortedYears = [...years].sort((a, b) => a - b);
 
   // Vul de dropdown
+  document.getElementById('toggleHiddenShifts')?.addEventListener('click', () => {
+    showHiddenShifts = !showHiddenShifts;
+    renderShifts();
+  });
   const filterShiftYear = document.getElementById('filterShiftYear');
   if (filterShiftYear) {
     filterShiftYear.innerHTML = '<option value="">Alle jaren</option>';
@@ -2571,6 +2607,7 @@ function bindShifts() {
       ud.shifts[uniqueKey] = {
         ...(previous.icon ? { icon: previous.icon } : {}),
         ...(previous.isFavorite ? { isFavorite: true } : {}),
+        ...(previous.hidden ? { hidden: true } : {}),
         realName: visibleName,
         shortName: document.getElementById('newShiftShort')?.value.trim() || '',
         color: document.getElementById('newShiftColor')?.value || '#e9ecef',
@@ -2725,7 +2762,7 @@ function bindShifts() {
     sel.innerHTML =
       '<option value="">Niet gekoppeld</option>' +
       keys
-        .filter(k => k !== editing)
+        .filter(k => k !== editing && (!ud.shifts[k].hidden || k === ud.shifts[editing]?.linkedShift))
         .map(
           k =>
             `<option value="${escapeHtml(k)}">${escapeHtml(shiftRealName(k, ud))}${ud.shifts[k].project ? ` (${escapeHtml(ud.shifts[k].project)})` : ''}</option>`
@@ -3759,7 +3796,7 @@ function renderCalendarGrid(year, month) {
   const md = ud.monthData?.[year]?.[month] || { rows: {} };
   const allShifts = ud.shifts || {};
   const favorites = (ud.shiftOrder || Object.keys(allShifts))
-    .filter(key => allShifts[key]?.isFavorite)
+    .filter(key => allShifts[key]?.isFavorite && !allShifts[key]?.hidden)
     .map(key => ({ key, ...allShifts[key] }));
 
   ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'].forEach(d =>
@@ -5197,7 +5234,7 @@ async function populateShiftSelectForRow(tr, rowKey) {
 function shiftsValidOn(dates) {
   const ud = getCurrentUserData();
   const all = ud.shifts || {};
-  const entries = (ud.shiftOrder || Object.keys(all)).filter(k => all[k]).map(k => [k, all[k]]);
+  const entries = (ud.shiftOrder || Object.keys(all)).filter(k => all[k] && !all[k].hidden).map(k => [k, all[k]]);
   const hasPeriod = ([, sh]) => !!(sh.startDate || sh.endDate);
   return [...entries.filter(hasPeriod), ...entries.filter(e => !hasPeriod(e))].filter(
     ([, sh]) =>
@@ -5446,7 +5483,12 @@ function togglePaintMode() {
   const allShifts = ud.shifts || {};
   const favs = (ud.shiftOrder || Object.keys(allShifts)).filter(k => {
     const sh = allShifts[k];
-    return sh?.isFavorite && !(sh.startDate && sh.startDate > monthEnd) && !(sh.endDate && sh.endDate < monthStart);
+    return (
+      sh?.isFavorite &&
+      !sh.hidden &&
+      !(sh.startDate && sh.startDate > monthEnd) &&
+      !(sh.endDate && sh.endDate < monthStart)
+    );
   });
 
   palette.innerHTML = '';

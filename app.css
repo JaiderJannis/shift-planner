@@ -1104,3 +1104,13 @@ body.is-admin .chat-shell { grid-template-columns: 300px minmax(0, 1fr); }
 [data-bs-theme='dark'] .cal-shift-item { color: #15302d; }
 [data-bs-theme='dark'] .school-holiday-tag { color: #9cc8f0; }
 [data-bs-theme='dark'] .calendar-day.today .day-number { color: #fff; }
+
+/* Verborgen shiften */
+.shift-hidden td { opacity: 0.55; }
+.shift-hidden td:last-child { opacity: 1; }
+.hidden-badge { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 0.68rem; font-weight: 700; vertical-align: middle; }
+.btn-hidden-toggle { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-weight: 600; }
+.btn-hidden-toggle .material-icons-outlined { font-size: 18px; }
+.btn-hidden-toggle .count { background: var(--surface-2); border-radius: 999px; padding: 0 7px; font-size: 0.78rem; color: var(--ink); }
+.btn-hidden-toggle.active { background: var(--accent-soft); color: var(--accent-strong); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.btn-hidden-toggle.d-none { display: none !important; }
