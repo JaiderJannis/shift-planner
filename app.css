@@ -759,9 +759,14 @@ td.actions-cell, #thActions { width: 1%; white-space: nowrap; }
 .dept-editor-head .btn { display: inline-flex; align-items: center; gap: 2px; }
 .dept-editor-head .material-icons-outlined { font-size: 18px; }
 .dept-list { display: flex; flex-direction: column; gap: 6px; }
-.dept-row { display: grid; grid-template-columns: 40px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.dept-row {
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1.5fr) auto; gap: 6px; align-items: center;
+  padding: 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface);
+}
+.dept-row .js-dept-name { grid-column: 2 / -1; }
+.dept-row .js-dept-start { grid-column: 1 / 3; }
+.dept-row input[type='date'] { min-width: 0; font-variant-numeric: tabular-nums; padding-left: 10px; padding-right: 8px; }
 .dept-empty { color: var(--muted); font-size: 0.85rem; margin: 0; }
-@media (max-width: 575.98px) { .dept-row { grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr) auto; } .dept-row .js-dept-name { grid-column: 2 / -1; } .dept-row .js-dept-start { grid-column: 1 / 3; } }
 .dept-row .js-dept-color { width: 40px; height: 38px; padding: 4px; border-radius: 10px; }
 .day-place { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 0.82rem; margin: -4px 0 8px 22px; }
 .usage-location { font-family: var(--font-body); font-weight: 600; font-size: 0.8rem; color: var(--muted); }
