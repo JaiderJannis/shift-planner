@@ -2312,13 +2312,20 @@ function renderShifts() {
     const shiftDept = sh.department
       ? findProject(sh.project, ud)?.departments?.find(d => d.id === sh.department)
       : null;
+    // Project en afdeling samen in één nette "plaats"-kaart
+    const hasDepts = !!findProject(sh.project, ud)?.departments?.length;
     const projectBadge = sh.project
-      ? `<span class="badge bg-light text-dark border">${escapeHtml(sh.project)}</span>${
-          shiftDept || findProject(sh.project, ud)?.departments?.length
-            ? `<div class="small mt-1 ${shiftDept ? 'fw-bold' : 'text-muted'}">${escapeHtml(shiftDept ? shiftDept.name : 'afdeling volgens datum')}</div>`
-            : ''
-        }`
-      : '<span class="text-muted small">-</span>';
+      ? `<div class="place-cell">
+          <span class="place-name"><span class="material-icons-outlined" aria-hidden="true">place</span>${escapeHtml(sh.project)}</span>
+          ${
+            shiftDept
+              ? `<span class="dept-tag">${escapeHtml(shiftDept.name)}</span>`
+              : hasDepts
+                ? '<span class="dept-tag auto" title="De afdeling volgt de datum van de dienst">volgens datum</span>'
+                : ''
+          }
+        </div>`
+      : '<span class="text-muted small">—</span>';
 
     const periodText =
       sh.startDate || sh.endDate
