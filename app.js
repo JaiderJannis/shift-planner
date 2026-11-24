@@ -1855,6 +1855,44 @@ function placeText(r, iso, ud = getCurrentUserData()) {
   return [where, dept?.name].filter(Boolean).join(' · ');
 }
 
+// --- Periodes: project volgt de afdelingen, shiften volgen afdeling of project ---
+
+/** Periode van een project: met afdelingen = eerste start tot laatste einde, anders de eigen datums. */
+function projectSpan(p) {
+  const depts = p?.departments || [];
+  if (!depts.length) return { start: p?.start || null, end: p?.end || null };
+  const starts = depts.map(d => d.start || null);
+  const ends = depts.map(d => d.end || null);
+  return {
+    start: starts.includes(null) ? null : starts.sort()[0],
+    end: ends.includes(null) ? null : ends.sort().at(-1)
+  };
+}
+
+/** Periode die een shift automatisch krijgt: die van de vaste afdeling, anders die van het project. */
+function autoShiftPeriod(sh, ud = getCurrentUserData()) {
+  const project = findProject(sh?.project, ud);
+  if (!project) return null;
+  const dept = sh.department ? (project.departments || []).find(d => d.id === sh.department) : null;
+  return dept ? { start: dept.start || null, end: dept.end || null } : projectSpan(project);
+}
+
+/** Shiften met een automatische periode bijwerken (na het wijzigen van een project of afdeling). Geeft het aantal terug. */
+function syncShiftPeriods(ud = getCurrentUserData(), projectName = null) {
+  let n = 0;
+  Object.values(ud.shifts || {}).forEach(sh => {
+    if (!sh?.periodAuto || (projectName && sh.project !== projectName)) return;
+    const per = autoShiftPeriod(sh, ud);
+    if (!per) return;
+    if ((sh.startDate || null) !== per.start || (sh.endDate || null) !== per.end) {
+      sh.startDate = per.start;
+      sh.endDate = per.end;
+      n++;
+    }
+  });
+  return n;
+}
+
 function renderProjects() {
   const ud = getCurrentUserData();
   const projectTableBody = document.getElementById('projectTableBody');
@@ -1924,8 +1962,8 @@ function renderProjects() {
             </div>
         </div>
       </td>
-      <td><span class="badge bg-light text-dark border">${toDisplayDate(p.start)}</span></td>
-      <td><span class="badge bg-light text-dark border">${toDisplayDate(p.end)}</span></td>
+      <td><span class="badge bg-light text-dark border">${toDisplayDate(projectSpan(p).start) || '…'}</span></td>
+      <td><span class="badge bg-light text-dark border">${toDisplayDate(projectSpan(p).end) || '…'}</span></td>
       <td class="text-end">
         ${actionsHtml}
       </td>`;
@@ -2004,8 +2042,20 @@ function renderProjects() {
           const v = prompt('Nieuwe einddatum (DD-MM-YYYY):', p.end ? toDisplayDate(p.end) : '');
           if (!v) return;
           if (!/^\d{2}-\d{2}-\d{4}$/.test(v.trim())) return toast('Gebruik het formaat DD-MM-YYYY', 'warning');
-          p.end = fromDisplayDate(v.trim());
+          const newEnd = fromDisplayDate(v.trim());
+          if ((p.departments || []).length) {
+            // Met afdelingen: de afdeling die het laatst eindigt verlengen
+            const last = p.departments
+              .slice()
+              .sort((a, b) => (a.end || '9999').localeCompare(b.end || '9999'))
+              .at(-1);
+            last.end = newEnd;
+            Object.assign(p, projectSpan(p));
+          } else p.end = newEnd;
+          const synced = syncShiftPeriods(ud, p.name);
+          if (synced) await saveShiftsToDb(ud);
           await saveUserData();
+          renderShifts();
           renderProjects();
           renderProjectFilterForMonth();
           renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value));
@@ -2073,13 +2123,25 @@ function bindProjects() {
       // Bestaand project bijwerken
       const existing = ud.projects[editingProjectIndex];
       const oldName = existing.name;
+      // Shiften die tot nu toe gewoon de projectperiode (of geen periode) hadden, volgen voortaan automatisch mee
+      const oldSpan = projectSpan(existing);
+      Object.values(ud.shifts || {}).forEach(sh => {
+        if (sh?.project !== oldName || sh.periodAuto) return;
+        const same = (sh.startDate || null) === oldSpan.start && (sh.endDate || null) === oldSpan.end;
+        if (sh.department || same || (!sh.startDate && !sh.endDate)) sh.periodAuto = true;
+      });
       existing.name = name;
       existing.start = startInput.value || null;
       existing.end = endInput.value || null;
       delete existing.location; // project en locatie zijn nu hetzelfde
       existing.departments = readDeptEditor();
+      if (existing.departments.length) Object.assign(existing, projectSpan(existing));
       if (oldName !== name) renameProjectEverywhere(ud, oldName, name);
-      toast('Project gewijzigd', 'success');
+      const synced = syncShiftPeriods(ud, name);
+      toast(
+        `Project gewijzigd${synced ? ` · ${synced} ${synced === 1 ? 'shift kreeg' : 'shiften kregen'} de nieuwe periode` : ''}`,
+        'success'
+      );
     } else {
       if (ud.projects.some(p => p.name === name)) return toast('Er bestaat al een project met deze naam', 'warning');
       // Nieuw project
@@ -2090,6 +2152,7 @@ function bindProjects() {
         allowMulti: false,
         departments: readDeptEditor()
       });
+      if (ud.projects.at(-1).departments.length) Object.assign(ud.projects.at(-1), projectSpan(ud.projects.at(-1)));
       toast('Project toegevoegd', 'success');
 
       // Melding naar andere gebruikers
@@ -2112,6 +2175,24 @@ function bindProjects() {
     renderMonth(Number(yearSelectMain.value), Number(monthSelectMain.value)); // locatie/afdeling in de kalender
   });
 
+  // Projectperiode volgt de afdelingen zodra er afdelingen zijn
+  const syncProjectPeriodInputs = () => {
+    const depts = readDeptEditor();
+    const has = depts.length > 0;
+    const startEl = document.getElementById('modalProjectStart');
+    const endEl = document.getElementById('modalProjectEnd');
+    startEl.disabled = endEl.disabled = has;
+    document.getElementById('projectPeriodNote')?.classList.toggle('d-none', !has);
+    if (has) {
+      const span = projectSpan({ departments: depts });
+      startEl.value = span.start || '';
+      endEl.value = span.end || '';
+    }
+  };
+  document.getElementById('deptList')?.addEventListener('input', syncProjectPeriodInputs);
+  document.getElementById('deptList')?.addEventListener('change', syncProjectPeriodInputs);
+  document.getElementById('projectModal')?.addEventListener('shown.bs.modal', syncProjectPeriodInputs);
+
   // Afdelingen toevoegen / verwijderen in de projectpopup
   document.getElementById('addDeptBtn')?.addEventListener('click', () => {
     const box = document.getElementById('deptList');
@@ -2126,6 +2207,7 @@ function bindProjects() {
     if (!btn) return;
     btn.closest('.dept-row').remove();
     if (!document.querySelector('#deptList .dept-row')) renderDeptEditor([]);
+    syncProjectPeriodInputs();
   });
 
   // Popup leegmaken na sluiten, zodat "Nieuw project" weer leeg opent
@@ -2135,6 +2217,9 @@ function bindProjects() {
     document.getElementById('modalProjectEnd').value = '';
     document.getElementById('projectLocationHint')?.remove();
     renderDeptEditor([]);
+    document.getElementById('modalProjectStart').disabled = false;
+    document.getElementById('modalProjectEnd').disabled = false;
+    document.getElementById('projectPeriodNote')?.classList.add('d-none');
     editingProjectIndex = null;
     const title = document.querySelector('#projectModal .modal-title');
     if (title) title.textContent = 'Nieuw Project';
@@ -2461,10 +2546,15 @@ function bindShifts() {
         project: projectVal,
         startDate: document.getElementById('newShiftStartDate').value || null,
         endDate: document.getElementById('newShiftEndDate').value || null,
+        ...(document.getElementById('newShiftPeriodAuto')?.checked && projectVal ? { periodAuto: true } : {}),
         ...(linkVal && linkVal !== uniqueKey ? { linkedShift: linkVal } : {}),
         ...(deptVal ? { department: deptVal } : {})
       };
 
+      if (ud.shifts[uniqueKey].periodAuto) {
+        const per = autoShiftPeriod(ud.shifts[uniqueKey], ud);
+        if (per) Object.assign(ud.shifts[uniqueKey], { startDate: per.start, endDate: per.end });
+      }
       if (!ud.shiftOrder.includes(uniqueKey)) ud.shiftOrder.push(uniqueKey);
 
       await saveShiftsToDb(ud);
@@ -2526,21 +2616,68 @@ function bindShifts() {
       hint.innerHTML = parts.join(' · ');
     }
     sel.onchange = () => {
-      const d = depts.find(x => x.id === sel.value);
-      // Periode van de afdeling alleen voorstellen als de shift nog geen periode heeft
-      const startEl = document.getElementById('newShiftStartDate');
-      const endEl = document.getElementById('newShiftEndDate');
-      if (d && !startEl.value && !endEl.value) {
-        startEl.value = d.start || '';
-        endEl.value = d.end || '';
-      }
+      // Vaste afdeling gekozen: periode volgt die afdeling
+      const sw = document.getElementById('newShiftPeriodAuto');
+      if (sel.value && sw) sw.checked = true;
       updateShiftPlaceHint();
+      applyShiftPeriodAuto();
     };
   };
-  document.getElementById('newShiftProjectSelect')?.addEventListener('change', () => fillShiftDept(''));
+  // "Periode volgt automatisch": geldigheid = periode van de afdeling of het project
+  function applyShiftPeriodAuto() {
+    const sw = document.getElementById('newShiftPeriodAuto');
+    const label = document.getElementById('newShiftPeriodAutoLabel');
+    const startEl = document.getElementById('newShiftStartDate');
+    const endEl = document.getElementById('newShiftEndDate');
+    if (!sw) return;
+    const projName = document.getElementById('newShiftProjectSelect')?.value || '';
+    const deptId = document.getElementById('newShiftDept')?.value || '';
+    const project = findProject(projName);
+    const dept = deptId ? (project?.departments || []).find(d => d.id === deptId) : null;
+    sw.disabled = !project;
+    if (!project) sw.checked = false;
+    if (label) {
+      label.textContent = !project
+        ? 'Periode volgt automatisch het project (kies eerst een project)'
+        : dept
+          ? `Periode volgt automatisch afdeling ${dept.name}`
+          : `Periode volgt automatisch ${project.name}${(project.departments || []).length ? ' (alle afdelingen)' : ''}`;
+    }
+    startEl.disabled = endEl.disabled = sw.checked;
+    if (sw.checked) {
+      const per = dept ? { start: dept.start || null, end: dept.end || null } : projectSpan(project);
+      startEl.value = per.start || '';
+      endEl.value = per.end || '';
+    }
+  }
+  document.getElementById('newShiftPeriodAuto')?.addEventListener('change', applyShiftPeriodAuto);
+  document.getElementById('newShiftProjectSelect')?.addEventListener('change', () => {
+    fillShiftDept('');
+    setTimeout(applyShiftPeriodAuto); // na het invullen van de projectperiode
+  });
   document.getElementById('shiftModal')?.addEventListener('show.bs.modal', e => {
     const editing = e.target.dataset.editingKey || '';
-    fillShiftDept(getCurrentUserData().shifts?.[editing]?.department || '');
+    const sh = getCurrentUserData().shifts?.[editing];
+    const sw = document.getElementById('newShiftPeriodAuto');
+    // Bestaande shift: aan als hij al automatisch was, een vaste afdeling heeft, geen eigen periode heeft
+    // of precies de periode van zijn project heeft; nieuwe shift: standaard aan
+    if (sw) {
+      const span = sh?.project ? projectSpan(findProject(sh.project)) : null;
+      sw.checked = sh
+        ? !!(
+            sh.periodAuto ||
+            sh.department ||
+            (!sh.startDate && !sh.endDate) ||
+            (span && (sh.startDate || null) === span.start && (sh.endDate || null) === span.end)
+          )
+        : true;
+    }
+    fillShiftDept(sh?.department || '');
+    applyShiftPeriodAuto();
+  });
+  document.getElementById('shiftModal')?.addEventListener('hidden.bs.modal', () => {
+    document.getElementById('newShiftStartDate').disabled = false;
+    document.getElementById('newShiftEndDate').disabled = false;
   });
 
   // Keuzelijst "Samen invullen met" vullen bij het openen
