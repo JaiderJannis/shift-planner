@@ -1851,7 +1851,8 @@ function placeText(r, iso, ud = getCurrentUserData()) {
   const def = ud?.shifts?.[r?.shift] || {};
   const project = findProject(r?.project || def.project, ud);
   const dept = resolveDepartment(r, iso, ud);
-  return [project?.location, dept?.name].filter(Boolean).join(' · ');
+  const where = project?.name || r?.project || def.project || '';
+  return [where, dept?.name].filter(Boolean).join(' · ');
 }
 
 function renderProjects() {
@@ -1908,7 +1909,6 @@ function renderProjects() {
         <div class="d-flex align-items-center">
             <div>
                 <strong class="text-dark">${escapeHtml(p.name)}</strong>
-                ${p.location ? `<div class="project-location"><span class="material-icons-outlined" aria-hidden="true">place</span>${escapeHtml(p.location)}</div>` : ''}
                 ${
                   (p.departments || []).length
                     ? `<div class="dept-chips">${p.departments
@@ -1983,8 +1983,21 @@ function renderProjects() {
           document.getElementById('modalProjectName').value = p.name;
           document.getElementById('modalProjectStart').value = p.start || '';
           document.getElementById('modalProjectEnd').value = p.end || '';
-          document.getElementById('modalProjectLocation').value = p.location || '';
           renderDeptEditor(p.departments || []);
+          // Eerder apart ingevulde locatie: voorstellen als nieuwe naam
+          document.getElementById('projectLocationHint')?.remove();
+          if (p.location && p.location !== p.name) {
+            document
+              .getElementById('modalProjectName')
+              .insertAdjacentHTML(
+                'afterend',
+                `<div id="projectLocationHint" class="form-text">Eerder ingevulde locatie: <a href="#" class="js-use-location">${escapeHtml(p.location)}</a> (tik om als naam te gebruiken)</div>`
+              );
+            document.querySelector('#projectLocationHint .js-use-location').onclick = ev => {
+              ev.preventDefault();
+              document.getElementById('modalProjectName').value = p.location;
+            };
+          }
           document.querySelector('#projectModal .modal-title').textContent = 'Project bewerken';
           new bootstrap.Modal(document.getElementById('projectModal')).show();
         } else if (action === 'extend') {
@@ -2063,7 +2076,7 @@ function bindProjects() {
       existing.name = name;
       existing.start = startInput.value || null;
       existing.end = endInput.value || null;
-      existing.location = document.getElementById('modalProjectLocation').value.trim();
+      delete existing.location; // project en locatie zijn nu hetzelfde
       existing.departments = readDeptEditor();
       if (oldName !== name) renameProjectEverywhere(ud, oldName, name);
       toast('Project gewijzigd', 'success');
@@ -2075,7 +2088,6 @@ function bindProjects() {
         start: startInput.value || null,
         end: endInput.value || null,
         allowMulti: false,
-        location: document.getElementById('modalProjectLocation').value.trim(),
         departments: readDeptEditor()
       });
       toast('Project toegevoegd', 'success');
@@ -2121,7 +2133,7 @@ function bindProjects() {
     document.getElementById('modalProjectName').value = '';
     document.getElementById('modalProjectStart').value = '';
     document.getElementById('modalProjectEnd').value = '';
-    document.getElementById('modalProjectLocation').value = '';
+    document.getElementById('projectLocationHint')?.remove();
     renderDeptEditor([]);
     editingProjectIndex = null;
     const title = document.querySelector('#projectModal .modal-title');
@@ -2504,7 +2516,7 @@ function bindShifts() {
       if (!hint) return;
       const d = depts.find(x => x.id === sel.value);
       const parts = [];
-      if (project?.location) parts.push(`📍 <strong>${escapeHtml(project.location)}</strong>`);
+      if (projName) parts.push(`📍 <strong>${escapeHtml(projName)}</strong>`);
       if (d) parts.push(`altijd afdeling <strong>${escapeHtml(d.name)}</strong>`);
       else if (depts.length) parts.push(`afdeling volgens de datum (${depts.map(x => escapeHtml(x.name)).join(', ')})`);
       else if (projName)
@@ -5688,7 +5700,6 @@ function collectShiftUsage(year, uidFilter, projectFilter) {
           name: def.realName || r.shift,
           project,
           dept: resolveDepartment(r, key.slice(0, 10), u)?.name || '',
-          location: findProject(project, u)?.location || '',
           color: def.color || '#e9ecef',
           minutes: r.status === 'rejected' ? 0 : Number(r.minutes) || 0
         });
@@ -5775,7 +5786,6 @@ function renderShiftUsage() {
         name: i.name,
         project: i.project,
         dept: i.dept,
-        location: i.location,
         color: i.color,
         count: 0,
         minutes: 0,
@@ -5809,13 +5819,12 @@ function renderShiftUsage() {
       const arr = [...shifts.values()].sort(
         (a, b) => !a.dept - !b.dept || a.dept.localeCompare(b.dept) || b.count - a.count || a.name.localeCompare(b.name)
       );
-      const location = arr.find(x => x.location)?.location || '';
       const hasDepts = arr.some(x => x.dept);
       let lastDept = null;
       const pMin = arr.reduce((s, x) => s + x.minutes, 0);
       const pCount = arr.reduce((s, x) => s + x.count, 0);
       return `<section class="usage-project panel">
-        <header><h3>${escapeHtml(project)}${location ? ` <small class="usage-location">📍 ${escapeHtml(location)}</small>` : ''}</h3><span>${arr.length} ${arr.length === 1 ? 'shift' : 'shiften'} · ${pCount}× · ${fmtShort(pMin)}</span></header>
+        <header><h3>📍 ${escapeHtml(project)}</h3><span>${arr.length} ${arr.length === 1 ? 'shift' : 'shiften'} · ${pCount}× · ${fmtShort(pMin)}</span></header>
         <ul>${arr
           .map(s => {
             const head =
@@ -5875,7 +5884,7 @@ function renderShiftUsageDetail() {
     <div class="usage-detail-head">
       <button type="button" class="btn-icon usage-back" aria-label="Terug naar de lijst"><span class="material-icons-outlined">arrow_back</span></button>
       <span class="usage-swatch big" style="background:${escapeHtml(first.color)}"></span>
-      <div><h3>${escapeHtml(first.name)}</h3><small>${escapeHtml([first.project, first.location, first.dept].filter(Boolean).join(' · '))} · ${year} · ${items.length}× · ${fmtShort(total)}</small></div>
+      <div><h3>${escapeHtml(first.name)}</h3><small>${escapeHtml([first.project, first.dept].filter(Boolean).join(' · '))} · ${year} · ${items.length}× · ${fmtShort(total)}</small></div>
     </div>
     ${[...byUser.entries()]
       .map(([uid, rows]) => {
