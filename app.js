@@ -1567,10 +1567,10 @@ function renderHomeWeek() {
         const short = sh.shortName || name.slice(0, 2);
         const hasTime = r.start && r.end && !(r.start === '00:00' && r.end === '00:00');
         const extra = rowExtraMinutes(r);
-        const title = `${name}${hasTime ? ` ${r.start}–${rowActualEnd(r)}` : ''} (${fmtShort(mins)})${extra ? ` · +${fmtExtra(extra)} extra` : ''}${r.status === 'pending' ? ' · voorlopig' : ''}${(r.omschrijving || '').trim() ? ` · 📝 ${r.omschrijving.trim()}` : ''}`;
+        const title = `${name}${hasTime ? ` ${r.start}–${rowActualEnd(r)}` : ''} (${fmtShort(mins)})${extra ? ` · +${fmtExtra(extra)} extra` : ''}${r.status === 'pending' ? ' · voorlopig' : ''}${r.originalShift ? ` · 🔁 ${shiftChangeText(r, ud)}` : ''}${(r.omschrijving || '').trim() ? ` · 📝 ${r.omschrijving.trim()}` : ''}`;
         const note = (r.omschrijving || r.description || '').trim();
         return `<span class="week-shift${extra ? ' has-extra' : ''}${rowEarlyMinutes(r) ? ' has-early' : ''}${r.status === 'pending' ? ' is-pending' : ''}${r.status === 'rejected' ? ' is-rejected' : ''}" style="--shift-color:${escapeHtml(sh.color || '#e9ecef')}" title="${escapeHtml(title)}">
-          <strong><span class="name-long">${escapeHtml(name)}</span><span class="name-short">${escapeHtml(short)}</span>${r.status === 'pending' ? ' ⏳' : ''}${note ? ' 📝' : ''}</strong>
+          <strong><span class="name-long">${escapeHtml(name)}</span><span class="name-short">${escapeHtml(short)}</span>${r.status === 'pending' ? ' ⏳' : ''}${r.originalShift ? ' ↺' : ''}${note ? ' 📝' : ''}</strong>
           ${hasTime ? `<span class="t">${escapeHtml(r.start)}</span><span class="t">${escapeHtml(rowActualEnd(r))}</span>` : `<span class="t">${fmtShort(mins)}</span>`}
           ${extra ? `<span class="extra-badge">+${extra < 60 ? `${extra}m` : fmtExtra(extra)}</span>` : ''}
         </span>`;
@@ -2961,7 +2961,7 @@ function exportMonthPdf() {
         const extra = rowExtraMinutes(r);
         body.push([
           idx === 0 ? `${daysFull[d.getDay()].slice(0, 2).toLowerCase()} ${String(d.getDate()).padStart(2, '0')}` : '',
-          shiftRealName(r.shift, ud) + st,
+          shiftRealName(r.shift, ud) + st + (r.originalShift ? ` (${shiftChangeText(r, ud)})` : ''),
           r.project || '',
           hasTime ? `${r.start} – ${rowActualEnd(r)}` : '',
           r.break ? `${r.break}'${r.breakWorked ? ' gewerkt' : ''}` : '',
@@ -3481,10 +3481,11 @@ function renderCalendarGrid(year, month) {
           .join(', ');
         const statusText =
           r.status === 'pending' ? ' · voorlopig, wacht op goedkeuring' : r.status === 'rejected' ? ' · afgekeurd' : '';
-        const hoverText = `${name}: ${r.start || '00:00'}–${r.end || '00:00'}, pauze ${r.break || 0} min${extraText ? ` · extra: ${extraText}` : ''}${statusText}${note ? `\n📝 ${note}` : ''}`;
+        const hoverText = `${name}: ${r.start || '00:00'}–${r.end || '00:00'}, pauze ${r.break || 0} min${extraText ? ` · extra: ${extraText}` : ''}${statusText}${r.originalShift ? `\n🔁 Gewijzigd, ${shiftChangeText(r)}` : ''}${note ? `\n📝 ${note}` : ''}`;
         return `
-        <div class="cal-shift-item${extra ? ' has-extra' : ''}${rowEarlyMinutes(r) ? ' has-early' : ''}${r.status === 'pending' ? ' is-pending' : ''}${r.status === 'rejected' ? ' is-rejected' : ''}" title="${escapeHtml(hoverText)}" style="background:${escapeHtml(sh.color || '#e9ecef')}">
+        <div class="cal-shift-item${extra ? ' has-extra' : ''}${rowEarlyMinutes(r) ? ' has-early' : ''}${r.originalShift ? ' is-changed' : ''}${r.status === 'pending' ? ' is-pending' : ''}${r.status === 'rejected' ? ' is-rejected' : ''}" title="${escapeHtml(hoverText)}" style="background:${escapeHtml(sh.color || '#e9ecef')}">
           <span class="name-long">${escapeHtml(name)}${pending}</span><span class="name-short">${escapeHtml(short)}</span>
+          ${r.originalShift ? `<span class="changed-badge" aria-label="Gewijzigd, ${escapeHtml(shiftChangeText(r))}">↺</span>` : ''}
           ${showNote ? '<span class="note-badge" aria-label="Notitie">📝</span>' : ''}
           ${extra ? `<span class="extra-badge" aria-label="${fmtExtra(extra)} extra">+${extra < 60 ? `${extra}m` : fmtExtra(extra)}</span>` : ''}
           ${rowEarlyMinutes(r) ? `<span class="early-badge" aria-label="${fmtExtra(rowEarlyMinutes(r))} vroeger gestopt">−${rowEarlyMinutes(r) < 60 ? `${rowEarlyMinutes(r)}m` : fmtExtra(rowEarlyMinutes(r))}</span>` : ''}
@@ -3895,6 +3896,42 @@ function renderPendingLeave() {
       .join('')}`;
 }
 
+// --- Gewijzigde shiften: de oorspronkelijke shift onthouden ---
+
+/** Tijd als "08:00–16:30" (leeg als er geen uren zijn). */
+const rowTimeText = r =>
+  r?.start && r?.end && !(r.start === '00:00' && r.end === '00:00') ? `${r.start}–${r.end}` : '';
+
+/**
+ * Een shift wordt vervangen door een andere: de eerste (oorspronkelijke) shift blijft bewaard
+ * in originalShift/originalTime. Terug naar de oorspronkelijke shift = geen wijziging meer.
+ */
+function carryShiftChange(oldRow, newRow) {
+  if (!oldRow?.shift || !newRow?.shift || oldRow.shift === newRow.shift) {
+    ['originalShift', 'originalTime', 'changedAt'].forEach(k => {
+      if (oldRow?.[k] !== undefined && newRow && newRow.shift === oldRow.shift) newRow[k] = oldRow[k];
+    });
+    return newRow;
+  }
+  const orig = oldRow.originalShift || oldRow.shift;
+  if (newRow.shift === orig) {
+    delete newRow.originalShift;
+    delete newRow.originalTime;
+    delete newRow.changedAt;
+  } else {
+    newRow.originalShift = orig;
+    newRow.originalTime = oldRow.originalShift ? oldRow.originalTime || '' : rowTimeText(oldRow);
+    newRow.changedAt = todayISO();
+  }
+  return newRow;
+}
+
+/** "was MKA 392 (08:00–16:30)" voor een gewijzigde rij, anders ''. */
+function shiftChangeText(r, ud = getCurrentUserData()) {
+  if (!r?.originalShift) return '';
+  return `was ${shiftRealName(r.originalShift, ud)}${r.originalTime ? ` (${r.originalTime})` : ''}`;
+}
+
 /** Rij opbouwen vanuit een shift-definitie. */
 function rowFromShift(shiftKey, extra = {}) {
   const ud = getCurrentUserData();
@@ -4048,8 +4085,17 @@ function renderDayEditor() {
                   ? `<div class="leave-status approved"><span>✅ <strong>Goedgekeurd</strong></span>${isAdmin() ? approveBtns : ''}</div>`
                   : '';
           return `
-      <div class="day-item${extra ? ' has-extra' : ''}${rowEarlyMinutes(r) ? ' has-early' : ''}" data-key="${k}">
+      <div class="day-item${extra ? ' has-extra' : ''}${rowEarlyMinutes(r) ? ' has-early' : ''}${r.originalShift ? ' is-changed' : ''}" data-key="${k}">
         ${statusStrip}
+        ${
+          r.originalShift
+            ? `<div class="change-status"><span>🔁 <strong>Gewijzigd</strong> · oorspronkelijk <span class="orig-shift"><span class="swatch" style="background:${escapeHtml(ud.shifts?.[r.originalShift]?.color || '#e9ecef')}"></span>${escapeHtml(shiftRealName(r.originalShift, ud))}</span>${r.originalTime ? ` ${escapeHtml(r.originalTime)}` : ''}${r.changedAt ? ` <small>(aangepast ${escapeHtml(toDisplayDate(r.changedAt))})</small>` : ''}</span>${
+                ud.shifts?.[r.originalShift] && !locked
+                  ? '<button type="button" class="btn btn-sm btn-outline-secondary js-shift-restore">Terugzetten</button>'
+                  : ''
+              }</div>`
+            : ''
+        }
         <div class="day-item-top">
           <span class="swatch" style="background:${escapeHtml(sh.color || '#e9ecef')}"></span>
           <select class="form-select js-day-shift" aria-label="Shift" ${dis}>${shiftOptionsHtml(baseKey, r.shift)}</select>
@@ -4156,7 +4202,10 @@ function bindCalendar() {
     if (!r) return;
 
     if (e.target.classList.contains('js-day-shift')) {
-      md.rows[key] = rowFromShift(e.target.value, { omschrijving: r.omschrijving || r.description || '' });
+      md.rows[key] = carryShiftChange(
+        r,
+        rowFromShift(e.target.value, { omschrijving: r.omschrijving || r.description || '' })
+      );
       // Extra gewerkte tijd blijft behouden bij het wisselen van shift
       if (r.breakWorked) md.rows[key].breakWorked = true;
       if (Number(r.extraMinutes)) md.rows[key].extraMinutes = Number(r.extraMinutes);
@@ -4216,6 +4265,23 @@ function bindCalendar() {
     const out = item.querySelector('.duration');
     const mins = minutesBetween(val('start'), val('end'), worked ? 0 : val('break')) + extra;
     if (out) out.textContent = `= ${Math.floor(mins / 60)}u${String(mins % 60).padStart(2, '0')}`;
+  });
+
+  // Gewijzigde shift terugzetten naar de oorspronkelijke
+  list?.addEventListener('click', e => {
+    const btn = e.target.closest('.js-shift-restore');
+    if (!btn) return;
+    const key = btn.closest('.day-item').dataset.key;
+    const [y, m] = ymOf(key);
+    if (warnIfLocked(y, m)) return;
+    const md = getCurrentUserData().monthData?.[y]?.[m];
+    const r = md?.rows?.[key];
+    if (!r?.originalShift) return;
+    const name = shiftRealName(r.originalShift);
+    md.rows[key] = carryShiftChange(r, rowFromShift(r.originalShift, { omschrijving: r.omschrijving || '' }));
+    toast(`Teruggezet naar ${name}`, 'success');
+    renderDayEditor();
+    commitMonth(y, m);
   });
 
   // Verlof goed- of afkeuren (admin)
@@ -4663,6 +4729,7 @@ async function populateShiftSelectForRow(tr, rowKey) {
       return;
     }
 
+    if (r.shift && r.shift !== chosen) carryShiftChange({ ...r }, Object.assign(r, { shift: chosen }));
     r.shift = chosen;
     debouncedSave();
 
@@ -5081,12 +5148,14 @@ async function applyPaintShift(baseKey) {
     if (!ud.shifts?.[selectedPaintShiftKey]) return;
     const targetKey = keys[0] || baseKey;
     const note = md.rows[targetKey]?.omschrijving || md.rows[targetKey]?.description || '';
+    const before = md.rows[targetKey] ? { ...md.rows[targetKey] } : null;
     const link = ud.shifts[selectedPaintShiftKey].linkedShift;
     // Gekoppelde shift: de dag wordt precies "hoofdshift + gekoppelde shift"
     if (link && ud.shifts[link]) keys.forEach(k => delete md.rows[k]);
-    md.rows[link && ud.shifts[link] ? baseKey : targetKey] = rowFromShift(selectedPaintShiftKey, {
-      omschrijving: note
-    });
+    md.rows[link && ud.shifts[link] ? baseKey : targetKey] = carryShiftChange(
+      before,
+      rowFromShift(selectedPaintShiftKey, { omschrijving: note })
+    );
     addLinkedShift(md, baseKey, md.rows[link && ud.shifts[link] ? baseKey : targetKey], ud);
   }
 
@@ -5634,8 +5703,8 @@ function renderShiftUsageDetail() {
                     const st = i.r.status === 'pending' ? ' pending' : i.r.status === 'rejected' ? ' rejected' : '';
                     const note = (i.r.omschrijving || '').trim();
                     return `<button type="button" class="usage-day${st}" data-uid="${escapeHtml(i.uid)}" data-iso="${i.iso}" title="${escapeHtml(
-                      `${daysFull[d.getDay()]} ${toDisplayDate(i.iso)} · ${i.r.start || ''}–${rowActualEnd(i.r)} · ${fmtShort(i.minutes)}${note ? ` · ${note}` : ''}`
-                    )}"><b>${daysFull[d.getDay()].slice(0, 2).toLowerCase()}</b> ${d.getDate()}${note ? ' 📝' : ''}</button>`;
+                      `${daysFull[d.getDay()]} ${toDisplayDate(i.iso)} · ${i.r.start || ''}–${rowActualEnd(i.r)} · ${fmtShort(i.minutes)}${i.r.originalShift ? ` · gewijzigd, ${shiftChangeText(i.r, i.u)}` : ''}${note ? ` · ${note}` : ''}`
+                    )}"><b>${daysFull[d.getDay()].slice(0, 2).toLowerCase()}</b> ${d.getDate()}${i.r.originalShift ? ' ↺' : ''}${note ? ' 📝' : ''}</button>`;
                   })
                   .join('')}</span></div>`
             )
