@@ -2216,7 +2216,11 @@ function renderShifts() {
       ? findProject(sh.project, ud)?.departments?.find(d => d.id === sh.department)
       : null;
     const projectBadge = sh.project
-      ? `<span class="badge bg-light text-dark border">${escapeHtml(sh.project)}</span>${shiftDept ? `<div class="small text-muted mt-1">${escapeHtml(shiftDept.name)}</div>` : ''}`
+      ? `<span class="badge bg-light text-dark border">${escapeHtml(sh.project)}</span>${
+          shiftDept || findProject(sh.project, ud)?.departments?.length
+            ? `<div class="small mt-1 ${shiftDept ? 'fw-bold' : 'text-muted'}">${escapeHtml(shiftDept ? shiftDept.name : 'afdeling volgens datum')}</div>`
+            : ''
+        }`
       : '<span class="text-muted small">-</span>';
 
     const periodText =
@@ -2472,20 +2476,54 @@ function bindShifts() {
   // Afdeling-keuze volgt het gekozen project
   const fillShiftDept = selected => {
     const sel = document.getElementById('newShiftDept');
-    const wrap = document.getElementById('shiftDeptWrap');
+    const hint = document.getElementById('shiftPlaceHint');
     if (!sel) return;
-    const project = findProject(document.getElementById('newShiftProjectSelect')?.value || '');
-    const depts = project?.departments || [];
-    wrap?.classList.toggle('d-none', !depts.length);
-    sel.innerHTML =
-      '<option value="">Automatisch (volgens datum)</option>' +
-      depts
-        .map(
-          d =>
-            `<option value="${escapeHtml(d.id)}">${escapeHtml(d.name)} (${d.start ? toDisplayDate(d.start) : '…'} – ${d.end ? toDisplayDate(d.end) : '…'})</option>`
-        )
-        .join('');
+    const projName = document.getElementById('newShiftProjectSelect')?.value || '';
+    const project = findProject(projName);
+    const depts = (project?.departments || []).slice().sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+    if (!projName) {
+      sel.innerHTML = '<option value="">Kies eerst een project</option>';
+      sel.disabled = true;
+    } else if (!depts.length) {
+      sel.innerHTML = '<option value="">Geen afdelingen in dit project</option>';
+      sel.disabled = true;
+    } else {
+      sel.disabled = false;
+      sel.innerHTML =
+        '<option value="">Automatisch (volgens datum)</option>' +
+        depts
+          .map(
+            d =>
+              `<option value="${escapeHtml(d.id)}">${escapeHtml(d.name)} (${d.start ? toDisplayDate(d.start) : '…'} – ${d.end ? toDisplayDate(d.end) : '…'})</option>`
+          )
+          .join('');
+    }
     sel.value = depts.some(d => d.id === selected) ? selected : '';
+    updateShiftPlaceHint();
+    function updateShiftPlaceHint() {
+      if (!hint) return;
+      const d = depts.find(x => x.id === sel.value);
+      const parts = [];
+      if (project?.location) parts.push(`📍 <strong>${escapeHtml(project.location)}</strong>`);
+      if (d) parts.push(`altijd afdeling <strong>${escapeHtml(d.name)}</strong>`);
+      else if (depts.length) parts.push(`afdeling volgens de datum (${depts.map(x => escapeHtml(x.name)).join(', ')})`);
+      else if (projName)
+        parts.push(
+          `<span class="text-muted">Afdelingen voeg je toe bij <a href="#" data-tab="#tab-projects" data-bs-dismiss="modal">Projecten</a>.</span>`
+        );
+      hint.innerHTML = parts.join(' · ');
+    }
+    sel.onchange = () => {
+      const d = depts.find(x => x.id === sel.value);
+      // Periode van de afdeling alleen voorstellen als de shift nog geen periode heeft
+      const startEl = document.getElementById('newShiftStartDate');
+      const endEl = document.getElementById('newShiftEndDate');
+      if (d && !startEl.value && !endEl.value) {
+        startEl.value = d.start || '';
+        endEl.value = d.end || '';
+      }
+      updateShiftPlaceHint();
+    };
   };
   document.getElementById('newShiftProjectSelect')?.addEventListener('change', () => fillShiftDept(''));
   document.getElementById('shiftModal')?.addEventListener('show.bs.modal', e => {

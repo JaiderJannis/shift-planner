@@ -756,6 +756,9 @@ td.actions-cell, #thActions { width: 1%; white-space: nowrap; }
 .usage-location { font-family: var(--font-body); font-weight: 600; font-size: 0.8rem; color: var(--muted); }
 .usage-dept { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 8px 10px 2px; }
 
+.shift-form-title { font-family: var(--font-display); font-weight: 800; font-size: 0.95rem; margin: 10px 0 0; color: var(--accent-strong); }
+.shift-place-hint { font-size: 0.85rem; color: var(--ink); min-height: 1.2em; }
+
 /* Shiftgebruik */
 .usage-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px 14px; padding: 14px 16px; }
 .usage-filters label { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--muted); font-weight: 700; margin: 0; }
