@@ -746,7 +746,10 @@ td.actions-cell, #thActions { width: 1%; white-space: nowrap; }
 .dept-chip small { font-weight: 500; color: var(--muted); }
 .dept-chip { --dept: var(--accent); }
 .dept-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dept); align-self: center; flex: none; }
-.dept-chip.now { background: color-mix(in srgb, var(--dept) 15%, var(--surface)); color: color-mix(in srgb, var(--dept) 72%, #000); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dept) 35%, transparent); }
+.dept-chip { background: color-mix(in srgb, var(--dept) 14%, var(--surface)); color: color-mix(in srgb, var(--dept) 72%, #000); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dept) 28%, transparent); }
+.dept-chip small { color: color-mix(in srgb, var(--dept) 45%, var(--muted)); }
+.dept-chip.now { box-shadow: inset 0 0 0 2px var(--dept); }
+.dept-chip.now::after { content: 'nu'; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 0 6px; border-radius: 999px; background: var(--dept); color: #fff; align-self: center; }
 .project-period-note { display: flex; gap: 8px; align-items: flex-start; background: var(--surface-2); border-radius: 12px; padding: 10px 12px; font-size: 0.85rem; color: var(--muted); margin-bottom: 14px; }
 .project-period-note.d-none { display: none !important; }
 .project-period-note strong { color: var(--ink); }
