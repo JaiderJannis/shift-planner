@@ -1944,7 +1944,7 @@ function renderProjects() {
     let actionsHtml = '';
     if (iAmAdmin) {
       actionsHtml = `
-        <div class="btn-group">
+        <div class="btn-group proj-btns">
           <button class="btn btn-sm btn-outline-primary" data-idx="${idx}" data-act="edit" title="Bewerken">
             <span class="material-icons-outlined" style="font-size:16px">edit</span>
           </button>
@@ -1955,34 +1955,56 @@ function renderProjects() {
           <button class="btn btn-sm btn-outline-danger" data-idx="${idx}" data-act="delete" title="Verwijderen">
             <span class="material-icons-outlined" style="font-size:16px">delete</span>
           </button>
+        </div>
+        <div class="dropdown proj-more">
+          <button type="button" class="btn-icon" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="Acties voor ${escapeHtml(p.name)}">
+            <span class="material-icons-outlined">more_vert</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><button type="button" class="dropdown-item" data-idx="${idx}" data-act="edit"><span class="material-icons-outlined">edit</span>Bewerken</button></li>
+            <li><button type="button" class="dropdown-item" data-idx="${idx}" data-act="extend"><span class="material-icons-outlined">event_repeat</span>Snel verlengen</button></li>
+            <li><button type="button" class="dropdown-item text-danger" data-idx="${idx}" data-act="delete"><span class="material-icons-outlined">delete</span>Verwijderen</button></li>
+          </ul>
         </div>`;
     } else {
       actionsHtml = `<span class="text-muted small material-icons-outlined" style="font-size:16px; opacity:0.5;">lock</span>`;
     }
 
+    // Afdelingen als rustige lijst: lopende eerst in kleur, voorbije gedimd, zonder datums geen "… – …"
+    const today = todayISO();
+    const depts = (p.departments || []).slice().sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+    const datedDepts = depts.some(d => d.start || d.end);
+    const deptState = d =>
+      isDateWithin(today, d.start || null, d.end || null) ? 'now' : d.end && d.end < today ? 'past' : 'future';
+    const deptHtml = depts.length
+      ? datedDepts
+        ? `<ul class="dept-lines">${depts
+            .map(
+              d =>
+                `<li class="${deptState(d)}" style="--dept:${deptColor(d)}"><i class="dept-dot"></i><span class="dl-name">${escapeHtml(d.name)}</span><span class="dl-dates">${d.start ? toDisplayDate(d.start) : '…'} – ${d.end ? toDisplayDate(d.end) : '…'}</span>${deptState(d) === 'now' ? '<span class="dl-now">nu</span>' : ''}</li>`
+            )
+            .join('')}</ul>`
+        : `<div class="dept-inline">${depts
+            .map(d => `<span style="--dept:${deptColor(d)}"><i class="dept-dot"></i>${escapeHtml(d.name)}</span>`)
+            .join('')}</div>`
+      : '';
+    const span = projectSpan(p);
+    const periodLine =
+      span.start || span.end
+        ? `${toDisplayDate(span.start) || '…'} – ${toDisplayDate(span.end) || '…'}`
+        : 'Geen vaste periode';
+
     tr.innerHTML = `
-      <td>
-        <div class="d-flex align-items-center">
-            <div>
-                <strong class="text-dark">${escapeHtml(p.name)}</strong>
-                ${
-                  (p.departments || []).length
-                    ? `<div class="dept-chips">${p.departments
-                        .slice()
-                        .sort((a, b) => (a.start || '').localeCompare(b.start || ''))
-                        .map(
-                          d =>
-                            `<span class="dept-chip${isDateWithin(todayISO(), d.start || null, d.end || null) ? ' now' : ''}" style="--dept:${deptColor(d)}"><i class="dept-dot"></i>${escapeHtml(d.name)}<small>${d.start ? toDisplayDate(d.start) : '…'} – ${d.end ? toDisplayDate(d.end) : '…'}</small></span>`
-                        )
-                        .join('')}</div>`
-                    : ''
-                }
-            </div>
+      <td class="proj-main">
+        <div class="proj-head">
+          <strong class="proj-title">${escapeHtml(p.name)}</strong>
+          <span class="proj-period">${periodLine}</span>
         </div>
+        ${deptHtml}
       </td>
-      <td><span class="badge bg-light text-dark border">${toDisplayDate(projectSpan(p).start) || '…'}</span></td>
-      <td><span class="badge bg-light text-dark border">${toDisplayDate(projectSpan(p).end) || '…'}</span></td>
-      <td class="text-end">
+      <td class="proj-date"><span class="badge bg-light text-dark border">${toDisplayDate(span.start) || '…'}</span></td>
+      <td class="proj-date"><span class="badge bg-light text-dark border">${toDisplayDate(span.end) || '…'}</span></td>
+      <td class="text-end proj-actions">
         ${actionsHtml}
       </td>`;
 
@@ -2024,7 +2046,7 @@ function renderProjects() {
 
   // Knoppen (alleen aanwezig voor admins)
   if (iAmAdmin) {
-    projectTableBody.querySelectorAll('button').forEach(btn => {
+    projectTableBody.querySelectorAll('button[data-act]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const ud = getCurrentUserData();
         const clickedItem = list[Number(btn.dataset.idx)];
