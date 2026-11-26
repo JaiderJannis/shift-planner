@@ -1162,3 +1162,44 @@ body.is-admin .chat-shell { grid-template-columns: 300px minmax(0, 1fr); }
 .proj-more .dropdown-item { display: flex; align-items: center; gap: 8px; }
 .proj-more .dropdown-item .material-icons-outlined { font-size: 18px; }
 .dept-lines .dl-dates { white-space: nowrap; }
+
+/* Shiftenlijst: kaarten op smartphone */
+.sh-meta, .sh-fav-label, .sh-more { display: none; }
+.sh-more .dropdown-item { display: flex; align-items: center; gap: 8px; }
+.sh-more .dropdown-item .material-icons-outlined { font-size: 18px; }
+@media (max-width: 767.98px) {
+  .shifts-table thead { display: none; }
+  .shifts-table, .shifts-table tbody { display: block; }
+  .shifts-table tbody tr {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'name actions' 'place place' 'opts opts';
+    column-gap: 8px; row-gap: 10px; padding: 14px 14px 12px; border-bottom: 1px solid var(--line);
+  }
+  .shifts-table tbody tr:last-child { border-bottom: 0; }
+  .shifts-table tbody td { display: block; padding: 0; border: 0; background: transparent !important; box-shadow: none !important; white-space: normal; }
+  .shifts-table .sh-col { display: none; }
+  .shifts-table .sh-name { grid-area: name; min-width: 0; }
+  .shifts-table .sh-name > .d-flex { align-items: flex-start !important; }
+  .shifts-table .sh-name .handle, .shifts-table .sh-name .dot { margin-top: 4px; }
+  .shifts-table .sh-name .dot { margin-top: 7px; }
+  .shifts-table .sh-short { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); font-size: 0.72rem; font-weight: 700; vertical-align: 2px; }
+  .shifts-table .sh-name strong + .sh-short, .shifts-table .sh-name strong { display: inline; }
+  .shifts-table .sh-name strong { font-size: 1rem; }
+  .shifts-table .sh-meta { display: block; margin-top: 2px; font-size: 0.82rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .shifts-table .sh-meta-period { color: var(--muted); font-size: 0.76rem; }
+  .shifts-table .sh-actions { grid-area: actions; }
+  .shifts-table .sh-btns { display: none; }
+  .shifts-table .sh-more { display: block; margin: -6px -6px 0 0; }
+  .shifts-table .sh-place { grid-area: place; padding-left: 50px; }
+  .shifts-table .sh-place .place-cell { max-width: none; min-width: 0; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .shifts-table .sh-place .dept-tag { margin-left: 0; }
+  .shifts-table .sh-place:has(> .text-muted) { display: none; }
+  .shifts-table .sh-icon, .shifts-table .sh-fav { grid-row: 3; padding-left: 50px; }
+  .shifts-table .sh-icon { grid-column: 1; justify-self: start; }
+  .shifts-table .sh-icon select { margin: 0 !important; }
+  .shifts-table .sh-fav { grid-column: 1 / -1; justify-self: end; align-self: center; padding-left: 0; }
+  .shifts-table .sh-fav .form-check { padding-left: 0; }
+  .shifts-table .sh-fav .form-check-input { margin: 0; float: none; }
+  .shifts-table .sh-fav-label { display: inline; font-size: 0.82rem; color: var(--muted); font-weight: 600; }
+  .shifts-table tr.shift-hidden td { opacity: 0.55; }
+  .shifts-table tr.shift-hidden td.sh-actions { opacity: 1; }
+}

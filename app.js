@@ -2460,39 +2460,52 @@ function renderShifts() {
 
     // Tabelrij opbouwen
     tr.innerHTML = `
-      <td>
+      <td class="sh-name">
         <div class="d-flex align-items-center">
             <span class="handle material-icons-outlined text-muted me-2" style="cursor: grab; font-size: 18px;">drag_indicator</span>
             <span class="dot" style="background:${sh.color || '#ccc'}; width:12px; height:12px; display:inline-block; border-radius:50%; margin-right:10px;"></span>
             <div>
                 <strong class="text-dark">${escapeHtml(sh.realName || name)}</strong>${sh.hidden ? '<span class="hidden-badge">verborgen</span>' : ''}
-                ${sh.shortName ? `<div class="small text-muted">${escapeHtml(sh.shortName)}</div>` : ''}
+                ${sh.shortName ? `<div class="small text-muted sh-short">${escapeHtml(sh.shortName)}</div>` : ''}
+                <div class="sh-meta">${sh.start || '00:00'}–${sh.end || '00:00'}${Number(sh.break) ? ` · ${sh.break} min pauze` : ''}${sh.startDate || sh.endDate ? `<br><span class="sh-meta-period">${toDisplayDate(sh.startDate) || '…'} t/m ${toDisplayDate(sh.endDate) || '…'}</span>` : ''}</div>
                 ${sh.linkedShift && ud.shifts?.[sh.linkedShift] ? `<div class="link-note"><span class="material-icons-outlined" aria-hidden="true">link</span>samen met ${escapeHtml(shiftRealName(sh.linkedShift, ud))}</div>` : ''}
             </div>
         </div>
       </td>
 
-      <td>${sh.start || '00:00'}</td>
-      <td>${sh.end || '00:00'}</td>
-      <td>${sh.break || 0}</td>
-      <td>${projectBadge}</td>
+      <td class="sh-col">${sh.start || '00:00'}</td>
+      <td class="sh-col">${sh.end || '00:00'}</td>
+      <td class="sh-col">${sh.break || 0}</td>
+      <td class="sh-place">${projectBadge}</td>
 
-      <td class="text-center">
-        <select class="form-select form-select-sm shift-icon-select" style="width: 70px; margin: auto;">
+      <td class="text-center sh-icon">
+        <select class="form-select form-select-sm shift-icon-select" style="width: 70px; margin: auto;" aria-label="Icoon">
           ${iconOptions}
         </select>
       </td>
 
-      <td class="text-center">
-        <div class="form-check form-switch d-flex justify-content-center">
-          <input class="form-check-input shift-fav-toggle" type="checkbox" ${sh.isFavorite ? 'checked' : ''}>
-        </div>
+      <td class="text-center sh-fav">
+        <label class="form-check form-switch d-flex justify-content-center align-items-center gap-2 m-0">
+          <input class="form-check-input shift-fav-toggle" type="checkbox" ${sh.isFavorite ? 'checked' : ''} aria-label="Favoriet">
+          <span class="sh-fav-label">Favoriet</span>
+        </label>
       </td>
 
-      <td>${periodText}</td>
+      <td class="sh-col">${periodText}</td>
 
-      <td class="text-end">
-        <div class="btn-group">
+      <td class="text-end sh-actions">
+        <div class="dropdown sh-more">
+          <button type="button" class="btn-icon" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="Acties voor ${escapeHtml(sh.realName || name)}">
+            <span class="material-icons-outlined">more_vert</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><button type="button" class="dropdown-item" data-act="edit"><span class="material-icons-outlined">edit</span>Bewerken</button></li>
+            <li><button type="button" class="dropdown-item" data-act="copy"><span class="material-icons-outlined">content_copy</span>Kopiëren</button></li>
+            <li><button type="button" class="dropdown-item" data-act="hide"><span class="material-icons-outlined">${sh.hidden ? 'visibility' : 'visibility_off'}</span>${sh.hidden ? 'Terug tonen' : 'Verbergen'}</button></li>
+            <li><button type="button" class="dropdown-item text-danger" data-act="del"><span class="material-icons-outlined">delete</span>Verwijderen</button></li>
+          </ul>
+        </div>
+        <div class="btn-group sh-btns">
           <button class="btn btn-sm btn-outline-secondary btn-hide" title="${sh.hidden ? 'Terug tonen' : 'Verbergen'}" aria-label="${sh.hidden ? 'Terug tonen' : 'Verbergen'}"><span class="material-icons-outlined" style="font-size:16px">${sh.hidden ? 'visibility' : 'visibility_off'}</span></button>
           <button class="btn btn-sm btn-outline-secondary btn-edit" title="Bewerken"><span class="material-icons-outlined" style="font-size:16px">edit</span></button>
           <button class="btn btn-sm btn-outline-danger btn-del" title="Verwijderen"><span class="material-icons-outlined" style="font-size:16px">delete</span></button>
@@ -2500,6 +2513,11 @@ function renderShifts() {
         </div>
       </td>
     `;
+
+    // Menu (smartphone) gebruikt dezelfde acties als de knoppen
+    tr.querySelectorAll('.sh-more [data-act]').forEach(item =>
+      item.addEventListener('click', () => tr.querySelector(`.btn-${item.dataset.act}`)?.click())
+    );
 
     // Verbergen / terug tonen
     tr.querySelector('.btn-hide').onclick = async () => {
