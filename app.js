@@ -2635,7 +2635,13 @@ function renderShifts() {
           /* geen opslag: alleen voor deze sessie */
         }
         collapsedShiftGroupsMem = set;
-        renderShifts();
+        // Alleen deze groep open/dicht doen (geen volledige herteken, dus geen verspringen)
+        const closed = set.has(g);
+        head.classList.toggle('collapsed', closed);
+        head.querySelector('button').setAttribute('aria-expanded', String(!closed));
+        shiftTableBody
+          .querySelectorAll('tr[data-key]')
+          .forEach(row => row.dataset.group === g && row.classList.toggle('d-none', closed));
       };
       shiftTableBody.appendChild(head);
     }
@@ -2669,7 +2675,6 @@ function initShiftSortable() {
 
   Sortable.create(el, {
     handle: '.handle', // Alleen slepen via de puntjes
-    filter: '.sh-group',
     // Alleen binnen het eigen project slepen
     onMove: evt =>
       !evt.related.classList.contains('sh-group') && evt.related.dataset.group === evt.dragged.dataset.group,
