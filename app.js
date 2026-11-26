@@ -313,6 +313,11 @@ function fmtMins(mins) {
 }
 
 /** Verschil met teken: '+2u 0min', '-1u 30min' of '0u 0min'. */
+/** +1u15 / −0u20 (voor overuren). */
+function fmtSigned(mins) {
+  return `${mins > 0 ? '+' : mins < 0 ? '−' : ''}${fmtShort(Math.abs(mins))}`;
+}
+
 function fmtDiff(mins) {
   return `${mins > 0 ? '+' : mins < 0 ? '-' : ''}${fmtMins(mins)}`;
 }
@@ -1569,7 +1574,7 @@ function renderHomeWeek() {
         const extra = rowExtraMinutes(r);
         const title = `${name}${placeText(r, iso, ud) ? ` · ${placeText(r, iso, ud)}` : ''}${hasTime ? ` ${r.start}–${rowActualEnd(r)}` : ''} (${fmtShort(mins)})${extra ? ` · +${fmtExtra(extra)} extra` : ''}${r.status === 'pending' ? ' · voorlopig' : ''}${r.originalShift ? ` · 🔁 ${shiftChangeText(r, ud)}` : ''}${(r.omschrijving || '').trim() ? ` · 📝 ${r.omschrijving.trim()}` : ''}`;
         const note = (r.omschrijving || r.description || '').trim();
-        return `<span class="week-shift${extra ? ' has-extra' : ''}${rowEarlyMinutes(r) ? ' has-early' : ''}${r.status === 'pending' ? ' is-pending' : ''}${r.status === 'rejected' ? ' is-rejected' : ''}" style="--shift-color:${escapeHtml(sh.color || '#e9ecef')}" title="${escapeHtml(title)}">
+        return `<span class="week-shift${extra ? ' has-extra' : ''}${rowEarlyMinutes(r) ? ' has-early' : ''}${r.status === 'pending' ? ' is-pending' : ''}${r.status === 'rejected' ? ' is-rejected' : ''}${resolveDepartment(r, iso, ud) ? ' has-dept' : ''}" style="--shift-color:${escapeHtml(sh.color || '#e9ecef')}${resolveDepartment(r, iso, ud) ? `;--dept:${deptColor(resolveDepartment(r, iso, ud))}` : ''}" title="${escapeHtml(title)}">
           <strong><span class="name-long">${escapeHtml(name)}</span><span class="name-short">${escapeHtml(short)}</span>${r.status === 'pending' ? ' ⏳' : ''}${r.originalShift ? ' ↺' : ''}${note ? ' 📝' : ''}</strong>
           ${hasTime ? `<span class="t">${escapeHtml(r.start)}</span><span class="t">${escapeHtml(rowActualEnd(r))}</span>` : `<span class="t">${fmtShort(mins)}</span>`}
           ${extra ? `<span class="extra-badge">+${extra < 60 ? `${extra}m` : fmtExtra(extra)}</span>` : ''}
@@ -1599,7 +1604,8 @@ function renderHomeWeek() {
 
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
-  const range = `${monday.getDate()} ${monthsFull[monday.getMonth()].slice(0, 3).toLowerCase()} – ${sunday.getDate()} ${monthsFull[sunday.getMonth()].slice(0, 3).toLowerCase()}`;
+  const sameYear = monday.getFullYear() === sunday.getFullYear();
+  const range = `${monday.getDate()} ${monthsFull[monday.getMonth()].slice(0, 3).toLowerCase()}${sameYear ? '' : ` ${monday.getFullYear()}`} – ${sunday.getDate()} ${monthsFull[sunday.getMonth()].slice(0, 3).toLowerCase()} ${sunday.getFullYear()}`;
   const summary = document.getElementById('homeWeekSummary');
   if (summary) {
     summary.innerHTML = `${range} · <strong>${fmtShort(workMinutes)}</strong> gepland${
@@ -2282,6 +2288,7 @@ function bindProjects() {
 
 const filterShiftYear = document.getElementById('filterShiftYear');
 let showHiddenShifts = false;
+let collapsedShiftGroupsMem = null;
 
 /** Opties voor de icoon-keuze bij een shift. */
 function shiftIconOptions(selected, withLabels = false) {
@@ -2413,6 +2420,7 @@ function renderShifts() {
     hiddenBtn.title = showHiddenShifts ? 'Verborgen shiften weer wegdoen' : 'Verborgen shiften tonen';
   }
 
+  const built = [];
   order.forEach(name => {
     const sh = shifts[name];
     if (!sh) return;
@@ -2591,11 +2599,65 @@ function renderShifts() {
       refreshCalendarIfVisible();
     };
 
-    shiftTableBody.appendChild(tr);
+    const group = findProject(sh.project, ud)?.name || sh.project || '';
+    tr.dataset.group = group;
+    built.push({ tr, group });
+  });
+
+  // Groeperen per project: volgorde van de projectenlijst, "Zonder project" achteraan
+  const projOrder = (ud.projects || []).map(p => p.name);
+  const groupNames = [...new Set(built.map(b => b.group))].sort((a, b) => {
+    const ia = a ? projOrder.indexOf(a) : 9999;
+    const ib = b ? projOrder.indexOf(b) : 9999;
+    return (ia === -1 ? 9998 : ia) - (ib === -1 ? 9998 : ib) || a.localeCompare(b);
+  });
+  const collapsed = getCollapsedShiftGroups();
+  const single = groupNames.length < 2;
+  groupNames.forEach(g => {
+    const items = built.filter(b => b.group === g);
+    const isCollapsed = !single && collapsed.has(g);
+    if (!single) {
+      const head = document.createElement('tr');
+      head.className = `sh-group${isCollapsed ? ' collapsed' : ''}`;
+      head.dataset.group = g;
+      head.innerHTML = `<td colspan="9"><button type="button" class="sh-group-btn" aria-expanded="${!isCollapsed}">
+          <span class="material-icons-outlined chev" aria-hidden="true">expand_more</span>
+          <span class="material-icons-outlined pin" aria-hidden="true">${g ? 'place' : 'help_outline'}</span>
+          <span class="sh-group-name">${escapeHtml(g || 'Zonder project')}</span>
+          <span class="sh-group-count">${items.length}</span>
+        </button></td>`;
+      head.querySelector('button').onclick = () => {
+        const set = getCollapsedShiftGroups();
+        set.has(g) ? set.delete(g) : set.add(g);
+        try {
+          localStorage.setItem('shiftGroupsCollapsed', JSON.stringify([...set]));
+        } catch {
+          /* geen opslag: alleen voor deze sessie */
+        }
+        collapsedShiftGroupsMem = set;
+        renderShifts();
+      };
+      shiftTableBody.appendChild(head);
+    }
+    items.forEach(({ tr }) => {
+      if (isCollapsed) tr.classList.add('d-none');
+      shiftTableBody.appendChild(tr);
+    });
   });
 
   initShiftSortable();
   renderProjectFixBanner();
+}
+
+/** Dichtgeklapte projectgroepen in de shiftenlijst (onthouden op dit toestel). */
+function getCollapsedShiftGroups() {
+  if (collapsedShiftGroupsMem) return collapsedShiftGroupsMem;
+  try {
+    collapsedShiftGroupsMem = new Set(JSON.parse(localStorage.getItem('shiftGroupsCollapsed') || '[]'));
+  } catch {
+    collapsedShiftGroupsMem = new Set();
+  }
+  return collapsedShiftGroupsMem;
 }
 
 /** Volgorde aanpassen met slepen (via het ⋮⋮-handvat). */
@@ -2607,11 +2669,15 @@ function initShiftSortable() {
 
   Sortable.create(el, {
     handle: '.handle', // Alleen slepen via de puntjes
+    filter: '.sh-group',
+    // Alleen binnen het eigen project slepen
+    onMove: evt =>
+      !evt.related.classList.contains('sh-group') && evt.related.dataset.group === evt.dragged.dataset.group,
     animation: 150,
     ghostClass: 'bg-light',
     onEnd: async function () {
       const ud = getCurrentUserData();
-      const visible = [...el.querySelectorAll('tr')].map(row => row.dataset.key).filter(Boolean);
+      const visible = [...el.querySelectorAll('tr[data-key]')].map(row => row.dataset.key).filter(Boolean);
       // Shiften die door de jaarfilter verborgen zijn, behouden hun plaats achteraan
       const hidden = (ud.shiftOrder || []).filter(k => !visible.includes(k));
       const newOrder = [...visible, ...hidden];
@@ -3974,9 +4040,10 @@ function renderCalendarGrid(year, month) {
         const statusText =
           r.status === 'pending' ? ' · voorlopig, wacht op goedkeuring' : r.status === 'rejected' ? ' · afgekeurd' : '';
         const place = placeText(r, baseKey, ud);
+        const dept = resolveDepartment(r, baseKey, ud);
         const hoverText = `${name}${place ? ` · ${place}` : ''}: ${r.start || '00:00'}–${r.end || '00:00'}, pauze ${r.break || 0} min${extraText ? ` · extra: ${extraText}` : ''}${statusText}${r.originalShift ? `\n🔁 Gewijzigd, ${shiftChangeText(r)}` : ''}${note ? `\n📝 ${note}` : ''}`;
         return `
-        <div class="cal-shift-item${extra ? ' has-extra' : ''}${rowEarlyMinutes(r) ? ' has-early' : ''}${r.originalShift ? ' is-changed' : ''}${r.status === 'pending' ? ' is-pending' : ''}${r.status === 'rejected' ? ' is-rejected' : ''}" title="${escapeHtml(hoverText)}" style="background:${escapeHtml(sh.color || '#e9ecef')}">
+        <div class="cal-shift-item${extra ? ' has-extra' : ''}${rowEarlyMinutes(r) ? ' has-early' : ''}${r.originalShift ? ' is-changed' : ''}${r.status === 'pending' ? ' is-pending' : ''}${r.status === 'rejected' ? ' is-rejected' : ''}${dept ? ' has-dept' : ''}" title="${escapeHtml(hoverText)}" style="background:${escapeHtml(sh.color || '#e9ecef')}${dept ? `;--dept:${deptColor(dept)}` : ''}">
           <span class="name-long">${escapeHtml(name)}${pending}</span><span class="name-short">${escapeHtml(short)}</span>
           ${r.originalShift ? `<span class="changed-badge" aria-label="Gewijzigd, ${escapeHtml(shiftChangeText(r))}">↺</span>` : ''}
           ${showNote ? '<span class="note-badge" aria-label="Notitie">📝</span>' : ''}
@@ -4333,8 +4400,15 @@ function renderPendingLeave() {
 
   const shortDate = iso => {
     const d = new Date(`${iso}T12:00:00`);
-    return `${daysFull[d.getDay()].slice(0, 2).toLowerCase()} ${d.getDate()} ${monthsFull[d.getMonth()].slice(0, 3).toLowerCase()}`;
+    return `${daysFull[d.getDay()].slice(0, 2).toLowerCase()} ${d.getDate()} ${monthsFull[d.getMonth()].slice(0, 3).toLowerCase()} ${d.getFullYear()}`;
   };
+  // Bij een periode binnen hetzelfde jaar het jaar maar één keer (achteraan) tonen
+  const rangeText = (from, to) =>
+    from === to
+      ? shortDate(from)
+      : from.slice(0, 4) === to.slice(0, 4)
+        ? `${shortDate(from).replace(/ \d{4}$/, '')} – ${shortDate(to)}`
+        : `${shortDate(from)} – ${shortDate(to)}`;
   const ref = rows => escapeHtml(rows.map(i => `${i.y}|${i.m}|${i.key}`).join(';'));
   const actions = rows =>
     admin
@@ -4378,7 +4452,7 @@ function renderPendingLeave() {
             .map(p => {
               const mins = p.rows.reduce((s, i) => s + (Number(i.r.minutes) || 0), 0);
               return `<li>
-                <span class="pending-date"><strong>${p.from === p.to ? shortDate(p.from) : `${shortDate(p.from)} – ${shortDate(p.to)}`}</strong></span>
+                <span class="pending-date"><strong>${rangeText(p.from, p.to)}</strong></span>
                 <span class="pending-what"><span class="swatch" style="background:${escapeHtml(p.color || '#e9ecef')}"></span>${escapeHtml(p.name)} · ${p.days > 1 ? `${p.days} dagen · ` : ''}${fmtShort(mins)}</span>
                 ${actions(p.rows)}
               </li>`;
@@ -5930,9 +6004,12 @@ function renderHistory() {
     { key: 'bench', title: 'Bench' },
     { key: 'stage', title: 'Stage' },
     ...(schoolEnabled ? [{ key: 'school', title: 'Schoolverlof' }] : []),
-    { key: 'holiday', title: 'Feestdag' }
+    { key: 'holiday', title: 'Feestdag' },
+    { key: 'extra', title: 'Overuren' }
   ];
   const zero = () => Object.fromEntries(cols.map(c => [c.key, 0]));
+  const year0 = { extraPlus: 0, extraMinus: 0, extraDays: 0, earlyDays: 0 };
+  let cardsHtml = '';
   const totals = zero();
   const diffClass = v => (v > 0 ? 'text-success' : v < 0 ? 'text-danger' : '');
 
@@ -5957,6 +6034,19 @@ function renderHistory() {
       if (name === 'Bench') v.bench += mins;
       if (isStageRow(r, ud)) v.stage += mins;
     }
+    // Overuren: langer gebleven / pauze doorgewerkt min vroeger gestopt (zonder stage)
+    const plus = monthExtraMinutes(rows, ud);
+    const minus = monthEarlyMinutes(rows, ud);
+    v.extra = plus - minus;
+    if (!excluded) {
+      year0.extraPlus += plus;
+      year0.extraMinus += minus;
+      Object.values(rows).forEach(r => {
+        if (!r?.shift || r.status === 'rejected' || isStageRow(r, ud)) return;
+        if (rowExtraMinutes(r)) year0.extraDays++;
+        if (rowEarlyMinutes(r)) year0.earlyDays++;
+      });
+    }
 
     // Uitgesloten maanden tellen niet mee in het totaal
     if (!excluded) cols.forEach(c => (totals[c.key] += v[c.key]));
@@ -5968,17 +6058,45 @@ function renderHistory() {
       .map(c => {
         if (excluded) return '<td>-</td>';
         if (c.key === 'diff') return `<td class="fw-medium ${diffClass(v.diff)}">${fmtDiff(v.diff)}</td>`;
+        if (c.key === 'extra')
+          return `<td class="${v.extra > 0 ? 'hist-extra' : v.extra < 0 ? 'hist-early' : 'text-muted'}">${v.extra ? fmtSigned(v.extra) : '–'}</td>`;
         return `<td>${fmt(v[c.key])}</td>`;
       })
       .join('');
     bodyHtml += `<tr class="${excluded ? 'opacity-50' : ''}"><td>${label}</td>${cells}</tr>`;
+
+    // Kaartje voor smartphone
+    const hasData = Object.keys(rows).length > 0 || v.target > 0;
+    const chips = [
+      ['leave', 'Verlof'],
+      ['school', 'Schoolverlof'],
+      ['sick', 'Ziekte'],
+      ['holiday', 'Feestdag'],
+      ['bench', 'Bench'],
+      ['stage', 'Stage']
+    ]
+      .filter(([k]) => v[k])
+      .map(([k, t]) => `<span class="hc-chip">${t} <b>${fmtShort(v[k])}</b></span>`);
+    if (v.extra)
+      chips.push(
+        `<span class="hc-chip ${v.extra > 0 ? 'extra' : 'early'}">Overuren <b>${fmtSigned(v.extra)}</b></span>`
+      );
+    cardsHtml += hasData
+      ? `<article class="hist-card${excluded ? ' excluded' : ''}${m === new Date().getMonth() && year === new Date().getFullYear() ? ' current' : ''}">
+          <header><h3>${monthsFull[m]}</h3>${excluded ? '<span class="badge bg-secondary">Uitgesloten</span>' : `<span class="hc-diff ${diffClass(v.diff)}">${fmtDiff(v.diff)}</span>`}</header>
+          <div class="hc-main"><strong>${fmtShort(v.planned)}</strong> gepland <span>van ${fmtShort(v.target)} doel</span></div>
+          ${chips.length ? `<div class="hc-chips">${chips.join('')}</div>` : ''}
+        </article>`
+      : `<!--empty:${m}-->`;
   }
 
   const footCells = cols
     .map(c =>
       c.key === 'diff'
         ? `<th class="${diffClass(totals.diff)}">${fmtDiff(totals.diff)}</th>`
-        : `<th>${fmt(totals[c.key])}</th>`
+        : c.key === 'extra'
+          ? `<th class="${totals.extra > 0 ? 'hist-extra' : totals.extra < 0 ? 'hist-early' : ''}">${totals.extra ? fmtSigned(totals.extra) : '–'}</th>`
+          : `<th>${fmt(totals[c.key])}</th>`
     )
     .join('');
 
@@ -5986,10 +6104,365 @@ function renderHistory() {
     <thead class="table-light"><tr><th>Maand</th>${cols.map(c => `<th>${c.title}</th>`).join('')}</tr></thead>
     <tbody id="historyBody">${bodyHtml}</tbody>
     <tfoot class="table-light"><tr><th>Totaal</th>${footCells}</tr></tfoot>`;
+
+  // Jaaroverzicht + overuren
+  const summary = document.getElementById('historySummary');
+  if (summary) {
+    const net = year0.extraPlus - year0.extraMinus;
+    summary.innerHTML = `
+      <div class="hs-tile">
+        <span class="hs-label">Gepland in ${year}</span>
+        <strong class="hs-value">${fmtShort(totals.planned)}</strong>
+        <span class="hs-sub">van ${fmtShort(totals.target)} doel · <b class="${diffClass(totals.diff)}">${fmtDiff(totals.diff)}</b></span>
+      </div>
+      <div class="hs-tile hs-overtime">
+        <span class="hs-label">Overuren in ${year}</span>
+        <strong class="hs-value ${net > 0 ? 'hist-extra' : net < 0 ? 'hist-early' : ''}">${net ? fmtSigned(net) : '0u00'}</strong>
+        <span class="hs-sub"><span class="hist-extra">+${fmtShort(year0.extraPlus)}</span> langer gewerkt (${year0.extraDays} ${year0.extraDays === 1 ? 'dag' : 'dagen'}) · <span class="hist-early">−${fmtShort(year0.extraMinus)}</span> vroeger gestopt (${year0.earlyDays} ${year0.earlyDays === 1 ? 'dag' : 'dagen'})</span>
+      </div>`;
+  }
+  // Opeenvolgende lege maanden samen op één regel ("Januari – September")
+  const cards = document.getElementById('historyCards');
+  if (cards)
+    cards.innerHTML = cardsHtml.replace(/(?:<!--empty:\d+-->)+/g, run => {
+      const ms = [...run.matchAll(/empty:(\d+)/g)].map(x => Number(x[1]));
+      const label = ms.length === 1 ? monthsFull[ms[0]] : `${monthsFull[ms[0]]} – ${monthsFull[ms[ms.length - 1]]}`;
+      return `<div class="hist-card empty"><h3>${label}</h3><span>Nog niets ingevuld</span></div>`;
+    });
 }
 
 function bindHistory() {
   document.querySelector('#navTabs a[href="#tab-historiek"]')?.addEventListener('shown.bs.tab', renderHistory);
+}
+
+// ======================================================================
+// §18a EXCEL-EXPORT
+/* global TextEncoder */
+// Eigen, kleine .xlsx-schrijver (geen extra bibliotheek nodig).
+// ======================================================================
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+/** Zip zonder compressie (genoeg voor een xlsx). files: [{ name, data: string }] */
+function zipStore(files) {
+  const enc = new TextEncoder();
+  const parts = [];
+  const central = [];
+  let offset = 0;
+  files.forEach(f => {
+    const name = enc.encode(f.name);
+    const data = enc.encode(f.data);
+    const crc = crc32(data);
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true);
+    local.setUint16(4, 20, true);
+    local.setUint16(6, 0x0800, true); // UTF-8 namen
+    local.setUint32(14, crc, true);
+    local.setUint32(18, data.length, true);
+    local.setUint32(22, data.length, true);
+    local.setUint16(26, name.length, true);
+    parts.push(new Uint8Array(local.buffer), name, data);
+    const cen = new DataView(new ArrayBuffer(46));
+    cen.setUint32(0, 0x02014b50, true);
+    cen.setUint16(4, 20, true);
+    cen.setUint16(6, 20, true);
+    cen.setUint16(8, 0x0800, true);
+    cen.setUint32(16, crc, true);
+    cen.setUint32(20, data.length, true);
+    cen.setUint32(24, data.length, true);
+    cen.setUint16(28, name.length, true);
+    cen.setUint32(42, offset, true);
+    central.push(new Uint8Array(cen.buffer), name);
+    offset += 30 + name.length + data.length;
+  });
+  const cenSize = central.reduce((n, b) => n + b.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(8, files.length, true);
+  end.setUint16(10, files.length, true);
+  end.setUint32(12, cenSize, true);
+  end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  });
+}
+
+const xmlEsc = v =>
+  String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
+
+const xlsxCol = i => {
+  let s = '';
+  for (i++; i > 0; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + ((i - 1) % 26)) + s;
+  return s;
+};
+
+/**
+ * Werkblad-XML. rows: arrays met strings/getallen; cel { v, s } voor een stijl.
+ * Stijlen: 1 = vet (kop), 2 = getal 0.00, 3 = vet totaal, 4 = vet 0.00
+ */
+function xlsxSheet(rows, widths = []) {
+  const cell = (c, ci, ri) => {
+    const { v, s: st } = c && typeof c === 'object' ? c : { v: c };
+    if (v === '' || v === null || v === undefined) return st ? `<c r="${xlsxCol(ci)}${ri}" s="${st}"/>` : '';
+    const ref = `${xlsxCol(ci)}${ri}`;
+    const sAttr = st ? ` s="${st}"` : '';
+    return typeof v === 'number' && isFinite(v)
+      ? `<c r="${ref}"${sAttr}><v>${v}</v></c>`
+      : `<c r="${ref}"${sAttr} t="inlineStr"><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
+  };
+  const cols = widths.length
+    ? `<cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>`
+    : '';
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>${cols}<sheetData>${rows
+    .map((r, ri) => `<row r="${ri + 1}">${r.map((c, ci) => cell(c, ci, ri + 1)).join('')}</row>`)
+    .join('')}</sheetData></worksheet>`;
+}
+
+/** Werkmap maken en downloaden. sheets: [{ name, rows, widths }] */
+function downloadXlsx(filename, sheets) {
+  const ns = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+  const files = [
+    {
+      name: '[Content_Types].xml',
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets
+        .map(
+          (_, i) =>
+            `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
+        )
+        .join('')}</Types>`
+    },
+    {
+      name: '_rels/.rels',
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${ns}/officeDocument" Target="xl/workbook.xml"/></Relationships>`
+    },
+    {
+      name: 'xl/workbook.xml',
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="${ns}"><sheets>${sheets
+        .map((sh, i) => `<sheet name="${xmlEsc(sh.name.slice(0, 31))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`)
+        .join('')}</sheets></workbook>`
+    },
+    {
+      name: 'xl/_rels/workbook.xml.rels',
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets
+        .map((_, i) => `<Relationship Id="rId${i + 1}" Type="${ns}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`)
+        .join('')}<Relationship Id="rId${sheets.length + 1}" Type="${ns}/styles" Target="styles.xml"/></Relationships>`
+    },
+    {
+      name: 'xl/styles.xml',
+      data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE6F2EF"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="2" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="2" fontId="1" fillId="2" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`
+    },
+    ...sheets.map((sh, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: xlsxSheet(sh.rows, sh.widths) }))
+  ];
+  const blob = zipStore(files);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+const WEEKDAYS_NL = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'];
+const hoursDec = mins => Math.round((mins / 60) * 100) / 100;
+
+/** Alle diensten (gesorteerd) van een maand of heel het jaar (m = null). */
+function exportRowsFor(ud, y, m) {
+  const months = m === null ? [...Array(12).keys()] : [m];
+  const out = [];
+  months.forEach(mm => {
+    const rows = ud.monthData?.[y]?.[mm]?.rows || {};
+    Object.keys(rows)
+      .sort()
+      .forEach(key => {
+        const r = rows[key];
+        if (!r?.shift) return;
+        out.push({ key, iso: key.slice(0, 10), m: mm, r });
+      });
+  });
+  return out;
+}
+
+/** Excel-bestand maken voor de bekeken gebruiker: één maand (m) of heel het jaar (m = null). */
+function exportExcel(m) {
+  const uid = getActiveUserId();
+  const ud = dataStore.users[uid];
+  if (!ud) return;
+  const y = Number(yearSelectMain.value) || new Date().getFullYear();
+  const list = exportRowsFor(ud, y, m);
+  if (!list.length) {
+    toast(`Geen diensten in ${m === null ? y : `${monthsFull[m]} ${y}`} om te exporteren.`, 'warning');
+    return;
+  }
+  const H = t => ({ v: t, s: 1 });
+  const statusText = r =>
+    r.status === 'pending'
+      ? 'voorlopig'
+      : r.status === 'rejected'
+        ? 'afgekeurd'
+        : r.status === 'approved'
+          ? 'goedgekeurd'
+          : '';
+  const head = [
+    'Datum',
+    'Dag',
+    'Shift',
+    'Project / locatie',
+    'Afdeling',
+    'Start',
+    'Einde (gepland)',
+    'Werkelijk einde',
+    'Pauze (min)',
+    'Pauze doorgewerkt',
+    'Gepland (uren)',
+    'Gewerkt (uren)',
+    'Overuren (min)',
+    'Stage',
+    'Status',
+    'Gewijzigd van',
+    'Notitie'
+  ].map(H);
+  let sumPlanned = 0;
+  let sumWorked = 0;
+  let sumExtra = 0;
+  const body = list.map(({ iso, r }) => {
+    const def = ud.shifts?.[r.shift] || {};
+    const project = findProject(r.project || def.project, ud)?.name || r.project || def.project || '';
+    const dept = resolveDepartment(r, iso, ud)?.name || '';
+    const rejected = r.status === 'rejected';
+    const planned = rejected ? 0 : Number(r.minutes) || 0;
+    const worked = rejected ? 0 : rowWorkedMinutes(r);
+    const extra = rejected ? 0 : rowExtraMinutes(r) - rowEarlyMinutes(r);
+    sumPlanned += planned;
+    sumWorked += worked;
+    sumExtra += extra;
+    const [yy, mo, dd] = iso.split('-');
+    return [
+      `${dd}-${mo}-${yy}`,
+      WEEKDAYS_NL[new Date(`${iso}T12:00:00`).getDay()],
+      def.realName || r.shift,
+      project,
+      dept,
+      r.start || '',
+      r.end || '',
+      Number(r.extraMinutes) ? rowActualEnd(r) : '',
+      Number(r.break) || 0,
+      r.breakWorked ? 'ja' : '',
+      { v: hoursDec(planned), s: 2 },
+      { v: hoursDec(worked), s: 2 },
+      extra || '',
+      isStageRow(r, ud) ? 'ja' : '',
+      statusText(r),
+      r.originalShift ? shiftRealName(r.originalShift, ud) : '',
+      (r.omschrijving || '').trim()
+    ];
+  });
+  const totalRow = [
+    { v: 'Totaal', s: 3 },
+    ...Array(9).fill({ v: '', s: 3 }),
+    { v: hoursDec(sumPlanned), s: 4 },
+    { v: hoursDec(sumWorked), s: 4 },
+    { v: sumExtra || '', s: 3 },
+    ...Array(4).fill({ v: '', s: 3 })
+  ];
+  const sheets = [
+    {
+      name: 'Diensten',
+      rows: [head, ...body, [], totalRow],
+      widths: [12, 5, 22, 24, 16, 8, 10, 11, 9, 10, 11, 11, 10, 7, 12, 18, 36]
+    }
+  ];
+
+  // Per maand (alleen bij een jaarexport)
+  if (m === null) {
+    const mrows = [];
+    let tT = 0;
+    let tP = 0;
+    let tE = 0;
+    for (let mm = 0; mm < 12; mm++) {
+      const md = ud.monthData?.[y]?.[mm];
+      if (!md) continue;
+      const target = (Number(md.targetHours) || 0) * 60 + (Number(md.targetMinutes) || 0);
+      const planned = plannedMinutes(md.rows || {}, ud);
+      const extra = monthExtraMinutes(md.rows, ud) - monthEarlyMinutes(md.rows, ud);
+      if (!target && !planned && !extra) continue;
+      tT += target;
+      tP += planned;
+      tE += extra;
+      mrows.push([
+        monthsFull[mm],
+        { v: hoursDec(target), s: 2 },
+        { v: hoursDec(planned), s: 2 },
+        { v: hoursDec(planned - target), s: 2 },
+        extra || '',
+        md.excludeFromHistory ? 'uitgesloten' : ''
+      ]);
+    }
+    sheets.unshift({
+      name: 'Per maand',
+      rows: [
+        ['Maand', 'Doel (uren)', 'Gepland (uren)', 'Verschil (uren)', 'Overuren (min)', 'Opmerking'].map(H),
+        ...mrows,
+        [],
+        [
+          { v: 'Totaal', s: 3 },
+          { v: hoursDec(tT), s: 4 },
+          { v: hoursDec(tP), s: 4 },
+          { v: hoursDec(tP - tT), s: 4 },
+          { v: tE || '', s: 3 },
+          { v: '', s: 3 }
+        ]
+      ],
+      widths: [14, 12, 14, 15, 14, 14]
+    });
+  }
+
+  const who = (ud.name || ud.email || 'Gebruiker').replace(/[\\/:*?"<>|]+/g, '').trim();
+  const period = m === null ? `${y}` : `${monthsFull[m]}-${y}`;
+  downloadXlsx(`Shifts-${who.replace(/\s+/g, '-')}-${period}.xlsx`, sheets);
+  toast(`Excel klaar: ${list.length} ${list.length === 1 ? 'dienst' : 'diensten'}`, 'success');
+}
+
+function bindExcelExport() {
+  const menu = document.getElementById('excelMenu');
+  document.getElementById('excelBtn')?.addEventListener('show.bs.dropdown', () => {
+    const y = Number(yearSelectMain.value) || new Date().getFullYear();
+    const m = Number(monthSelectMain.value);
+    if (menu) {
+      menu.querySelector('[data-excel="month"] .lbl').textContent = `${monthsFull[m] || ''} ${y}`;
+      menu.querySelector('[data-excel="year"] .lbl').textContent = `Heel ${y}`;
+    }
+  });
+  menu?.addEventListener('click', e => {
+    const item = e.target.closest('[data-excel]');
+    if (!item) return;
+    exportExcel(item.dataset.excel === 'year' ? null : Number(monthSelectMain.value));
+  });
 }
 
 // ======================================================================
@@ -7797,6 +8270,7 @@ function initApp() {
   bindPaint();
   bindAttachments();
   bindHistory();
+  bindExcelExport();
   bindShiftUsage();
   bindConverter();
   bindNonBillable();
